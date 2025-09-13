@@ -32,6 +32,8 @@ from butler.CommandPanel import CommandPanel
 from plugin.PluginManager import PluginManager
 from . import algorithms
 from local_interpreter.interpreter import Interpreter
+from plugin.long_memory.deepseek_long_memory import DeepSeekLongMemory
+from plugin.long_memory.chroma_long_memory import SQLiteLongMemory
 
 class Jarvis:
     def __init__(self, root):
@@ -42,6 +44,7 @@ class Jarvis:
         self.engine = None # Will be initialized in speak()
         self.logging = LogManager.get_logger(__name__)
         self.plugin_manager = PluginManager("plugin")
+        self._initialize_long_memory()
 
         base_dir = os.path.dirname(__file__)
         self.JARVIS_AUDIO_FILE = os.path.join(base_dir, "resources", "jarvis.wav")
@@ -526,6 +529,22 @@ class Jarvis:
         
         # observer.stop()
         # observer.join()
+
+    def _initialize_long_memory(self):
+        """Initializes the long-term memory, with a fallback to local storage."""
+        try:
+            if self.deepseek_api_key:
+                self.logging.info("DeepSeek API key found. Initializing DeepSeekLongMemory.")
+                self.long_memory = DeepSeekLongMemory(api_key=self.deepseek_api_key)
+                self.long_memory.init(self.logging)
+                self.logging.info("DeepSeekLongMemory initialized successfully.")
+            else:
+                raise ValueError("DeepSeek API key not found.")
+        except (ValueError, ConnectionError) as e:
+            self.logging.warning(f"Failed to initialize DeepSeekLongMemory ({e}). Falling back to SQLiteLongMemory.")
+            self.long_memory = SQLiteLongMemory()
+            self.long_memory.init() # Pass logger if the interface is updated to accept it
+            self.logging.info("SQLiteLongMemory initialized as a fallback.")
 
     class ProgramHandler(FileSystemEventHandler):
         def __init__(self, program_folder, external_folders=None):

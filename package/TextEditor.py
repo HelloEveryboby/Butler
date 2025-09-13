@@ -5,55 +5,87 @@ import shutil
 from package.log_manager import LogManager
 from PIL import Image
 import zipfile
+import tarfile
 
 # 配置
 archive_file = "archive.json"
 file_path = "/data"  # 主文件路径
 temp_folder = "temp"  # 临时文件夹
-logger = Logging.get_logger(__name__)
+logger = LogManager.get_logger(__name__)
 
-class Zip:
-    # 创建压缩文件方法，可指定文件路径、压缩文件路径、密码
+class ArchiveManager:
     @staticmethod
-    def create_zip(file_path, zip_path, password=None):
-        zip_file = zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED)
-        if password:
-            zip_file.setpassword(password.encode())
-        for root, dirs, files in os.walk(file_path):
-            for file in files:
-                zip_file.write(os.path.join(root, file), 
-                               os.path.relpath(os.path.join(root, file), 
-                               os.path.join(file_path, '..')))
-        zip_file.close()
+    def compress(source_path, dest_archive, archive_format='zip', password=None):
+        """
+        Compresses a file or directory into an archive.
+        :param source_path: Path to the file or directory to compress.
+        :param dest_archive: Path to the destination archive file.
+        :param archive_format: The format of the archive ('zip', 'tar.gz', 'tar.bz2').
+        :param password: Password for zip encryption (optional).
+        """
+        try:
+            if archive_format == 'zip':
+                with zipfile.ZipFile(dest_archive, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    if password:
+                        zipf.setpassword(password.encode())
+                    if os.path.isdir(source_path):
+                        for root, dirs, files in os.walk(source_path):
+                            for file in files:
+                                file_path = os.path.join(root, file)
+                                arcname = os.path.relpath(file_path, source_path)
+                                zipf.write(file_path, arcname)
+                    else:
+                        zipf.write(source_path, os.path.basename(source_path))
+            elif archive_format in ['tar.gz', 'tar.bz2']:
+                mode = 'w:gz' if archive_format == 'tar.gz' else 'w:bz2'
+                with tarfile.open(dest_archive, mode) as tar:
+                    tar.add(source_path, arcname=os.path.basename(source_path))
+            else:
+                raise ValueError(f"Unsupported archive format: {archive_format}")
+            logger.info(f"Successfully created archive: {dest_archive}")
+            return True, f"Archive '{dest_archive}' created successfully."
+        except Exception as e:
+            logger.error(f"Error creating archive {dest_archive}: {e}")
+            return False, f"Error creating archive: {e}"
 
-    # 解压缩文件方法
     @staticmethod
-    def unzip(zip_path, file_path):
-        zip_file = zipfile.ZipFile(zip_path, 'r')
-        for file in zip_file.namelist():
-            zip_file.extract(file, file_path)
-        zip_file.close()
+    def decompress(archive_path, dest_dir):
+        """
+        Decompresses an archive file to a destination directory.
+        Automatically detects the archive format.
+        """
+        try:
+            if zipfile.is_zipfile(archive_path):
+                with zipfile.ZipFile(archive_path, 'r') as zipf:
+                    zipf.extractall(dest_dir)
+            elif tarfile.is_tarfile(archive_path):
+                with tarfile.open(archive_path, 'r:*') as tar:
+                    tar.extractall(path=dest_dir)
+            else:
+                raise ValueError(f"Unsupported or corrupted archive file: {archive_path}")
+            logger.info(f"Successfully decompressed archive: {archive_path}")
+            return True, f"Archive '{archive_path}' decompressed successfully."
+        except Exception as e:
+            logger.error(f"Error decompressing archive {archive_path}: {e}")
+            return False, f"Error decompressing archive: {e}"
 
-    # 解压压缩包中指定文件
     @staticmethod
-    def unzip_file(zip_path, file_name, file_path):
-        zip_file = zipfile.ZipFile(zip_path, 'r')
-        zip_file.extract(file_name, file_path)
-        zip_file.close()
-
-    # 解压缩文件夹方法
-    @staticmethod
-    def unzip_dir(zip_path, dir_path):
-        zip_file = zipfile.ZipFile(zip_path, 'r')
-        for file in zip_file.namelist():
-            zip_file.extract(file, dir_path)
-        zip_file.close()
-
-    # 查看压缩文件内容方法，返回压缩文件内容列表
-    @staticmethod
-    def zip_content(zip_path):
-        zip_file = zipfile.ZipFile(zip_path, 'r')
-        return zip_file.namelist()
+    def list_archive_contents(archive_path):
+        """
+        Lists the contents of an archive file.
+        """
+        try:
+            if zipfile.is_zipfile(archive_path):
+                with zipfile.ZipFile(archive_path, 'r') as zipf:
+                    return zipf.namelist()
+            elif tarfile.is_tarfile(archive_path):
+                with tarfile.open(archive_path, 'r:*') as tar:
+                    return tar.getnames()
+            else:
+                raise ValueError(f"Unsupported or corrupted archive file: {archive_path}")
+        except Exception as e:
+            logger.error(f"Error listing archive contents {archive_path}: {e}")
+            return []
 
 # 存档管理
 def create_archive(data):
