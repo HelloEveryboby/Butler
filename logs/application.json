@@ -159,3 +159,4 @@ MemoPlugin 初始化完成
 扫描模块: plugin.read_file
 扫描模块: plugin.write_file
 插件加载完成，共 1 个插件
+Failed to launch ArchiverApp: Too early to Archiver could not find a master window.: no default root window
