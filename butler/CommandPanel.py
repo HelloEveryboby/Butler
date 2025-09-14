@@ -37,6 +37,36 @@ class CommandPanel(tk.Frame):
         self.menu_bg_color = '#21252b'
         self.menu_fg_color = self.foreground_color
 
+        self.font_configs = {
+            "small": {
+                "menu_label": ("Arial", 10, "bold"),
+                "program_listbox": ("Arial", 8),
+                "output_text": ("Consolas", 9),
+                "input_entry": ("Consolas", 9),
+                "buttons": ("Arial", 7),
+                "user_prompt": ("Consolas", 9, "bold"),
+                "system_message": ("Consolas", 9, "italic"),
+            },
+            "medium": {
+                "menu_label": ("Arial", 12, "bold"),
+                "program_listbox": ("Arial", 10),
+                "output_text": ("Consolas", 11),
+                "input_entry": ("Consolas", 11),
+                "buttons": ("Arial", 9),
+                "user_prompt": ("Consolas", 11, "bold"),
+                "system_message": ("Consolas", 11, "italic"),
+            },
+            "large": {
+                "menu_label": ("Arial", 14, "bold"),
+                "program_listbox": ("Arial", 12),
+                "output_text": ("Consolas", 13),
+                "input_entry": ("Consolas", 13),
+                "buttons": ("Arial", 11),
+                "user_prompt": ("Consolas", 13, "bold"),
+                "system_message": ("Consolas", 13, "italic"),
+            }
+        }
+
         self.config(bg=self.background_color)
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
@@ -51,7 +81,8 @@ class CommandPanel(tk.Frame):
         self.menu_frame.grid_columnconfigure(0, weight=1)
         self.main_paned_window.add(self.menu_frame, stretch="never", minsize=200)
 
-        tk.Label(self.menu_frame, text="Programs", font=("Arial", 12, "bold"), bg=self.menu_bg_color, fg=self.menu_fg_color).grid(row=0, column=0, pady=5, padx=5, sticky="ew")
+        self.menu_label = tk.Label(self.menu_frame, text="Programs", font=("Arial", 12, "bold"), bg=self.menu_bg_color, fg=self.menu_fg_color)
+        self.menu_label.grid(row=0, column=0, pady=5, padx=5, sticky="ew")
 
         self.search_entry = tk.Entry(self.menu_frame, bg=self.input_bg_color, fg=self.foreground_color, insertbackground=self.foreground_color, borderwidth=0, highlightthickness=1)
         self.search_entry.grid(row=1, column=0, pady=(0, 5), padx=5, sticky="ew")
@@ -77,6 +108,25 @@ class CommandPanel(tk.Frame):
         for prog_name in self.all_program_names:
             self.program_listbox.insert(tk.END, prog_name)
 
+        # --- Settings Button ---
+        self.settings_icon = tk.PhotoImage(file="assets/settings_icon.png")
+        self.settings_button = tk.Button(
+            self.menu_frame,
+            text="Settings",
+            image=self.settings_icon,
+            compound=tk.LEFT,
+            command=self.open_settings_window,
+            bg=self.button_bg_color,
+            fg=self.button_fg_color,
+            activebackground="#4f5b70",
+            activeforeground=self.foreground_color,
+            borderwidth=0,
+            highlightthickness=0,
+            font=("Arial", 9)
+        )
+        self.settings_button.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+
+
         # --- Right Pane: Main Content ---
         self.main_content_frame = tk.Frame(self.main_paned_window, bg=self.background_color)
         self.main_content_frame.grid_rowconfigure(1, weight=1) # Adjust row for output_text
@@ -90,6 +140,7 @@ class CommandPanel(tk.Frame):
         tk.Label(self.display_mode_frame, text="Display Mode:", bg=self.background_color, fg=self.foreground_color).pack(side=tk.LEFT, padx=(0, 5))
 
         self.display_mode_var = tk.StringVar(value='host')
+        self.font_size_var = tk.StringVar(value='medium')
         radio_button_config = {
             "bg": self.background_color,
             "fg": self.foreground_color,
@@ -157,6 +208,7 @@ class CommandPanel(tk.Frame):
         self.restart_button.grid(row=0, column=4, padx=(5, 0))
 
         self._configure_styles_and_tags()
+        self.update_font_size('medium')
 
     def on_program_select(self, event=None):
         """Handle program selection from the listbox."""
@@ -296,6 +348,55 @@ class CommandPanel(tk.Frame):
         self.output_text.config(state='normal')
         self.output_text.delete(1.0, tk.END)
         self.output_text.config(state='disabled')
+
+    def open_settings_window(self):
+        settings_win = tk.Toplevel(self.master)
+        settings_win.title("Settings")
+        settings_win.config(bg=self.background_color)
+        settings_win.transient(self.master)
+        settings_win.grab_set()
+
+        font_size_frame = tk.Frame(settings_win, bg=self.background_color)
+        font_size_frame.pack(pady=10, padx=10)
+
+        tk.Label(font_size_frame, text="Font Size:", bg=self.background_color, fg=self.foreground_color).pack(side=tk.LEFT, padx=(0, 5))
+
+        font_radio_config = {
+            "bg": self.background_color,
+            "fg": self.foreground_color,
+            "selectcolor": self.input_bg_color,
+            "activebackground": self.background_color,
+            "activeforeground": self.foreground_color,
+            "highlightthickness": 0,
+            "variable": self.font_size_var,
+            "command": lambda: self.update_font_size(self.font_size_var.get())
+        }
+
+        tk.Radiobutton(font_size_frame, text="Small", value='small', **font_radio_config).pack(side=tk.LEFT)
+        tk.Radiobutton(font_size_frame, text="Medium", value='medium', **font_radio_config).pack(side=tk.LEFT)
+        tk.Radiobutton(font_size_frame, text="Large", value='large', **font_radio_config).pack(side=tk.LEFT)
+
+    def update_font_size(self, size_mode):
+        logger.info(f"Updating font size to {size_mode}")
+        fonts = self.font_configs[size_mode]
+
+        # Update widgets
+        self.menu_label.config(font=fonts["menu_label"])
+        self.program_listbox.config(font=fonts["program_listbox"])
+        self.output_text.config(font=fonts["output_text"])
+        self.input_entry.config(font=fonts["input_entry"])
+
+        # Update buttons
+        button_font = fonts["buttons"]
+        self.send_button.config(font=button_font)
+        self.listen_button.config(font=button_font)
+        self.clear_button.config(font=button_font)
+        self.restart_button.config(font=button_font)
+        self.settings_button.config(font=button_font)
+
+        # Update text tags
+        self.output_text.tag_config('user_prompt', font=fonts["user_prompt"])
+        self.output_text.tag_config('system_message', font=fonts["system_message"])
 
     def restart_application(self):
         logger.info("Restarting application")
