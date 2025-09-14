@@ -34,10 +34,13 @@ from . import algorithms
 from local_interpreter.interpreter import Interpreter
 from plugin.long_memory.deepseek_long_memory import DeepSeekLongMemory
 from plugin.long_memory.chroma_long_memory import SQLiteLongMemory
+from .usb_screen import USBScreen
 
 class Jarvis:
-    def __init__(self, root):
+    def __init__(self, root, usb_screen=None):
         self.root = root
+        self.usb_screen = usb_screen
+        self.display_mode = 'host'  # 'host', 'usb', or 'both'
         load_dotenv()
         # 替换为DeepSeek API密钥
         self.deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
@@ -82,9 +85,15 @@ class Jarvis:
         self.panel = panel
 
     def ui_print(self, message, tag='ai_response'):
-        print(message)
-        if self.panel:
-            self.panel.append_to_history(message, tag)
+        print(message)  # Keep console output for logging/debugging
+
+        if self.display_mode in ('host', 'both'):
+            if self.panel:
+                self.panel.append_to_history(message, tag)
+
+        if self.display_mode in ('usb', 'both'):
+            if self.usb_screen:
+                self.usb_screen.display(message)
 
     # 核心功能
     def preprocess(self, text):
@@ -238,6 +247,20 @@ class Jarvis:
 
         # The user command is already displayed on the panel by `send_text_command`
         # self.ui_print(f"User: {command}", tag='user_prompt')
+
+        # Handle display mode command
+        if command.strip().startswith("/display"):
+            parts = command.strip().split()
+            if len(parts) == 2:
+                mode = parts[1].lower()
+                if mode in ['host', 'usb', 'both']:
+                    self.display_mode = mode
+                    self.ui_print(f"Display mode set to: {self.display_mode}", tag='system_message')
+                else:
+                    self.ui_print(f"Invalid display mode: {mode}. Use 'host', 'usb', or 'both'.", tag='error')
+            else:
+                self.ui_print("Usage: /display [host|usb|both]", tag='error')
+            return
 
         # New hybrid handler logic: Interpreter is the default.
         if command.strip().startswith("/legacy "):
@@ -513,6 +536,13 @@ class Jarvis:
         elif command_type == "execute_program":
             # command_payload should be the name of the program to run
             self.execute_program(command_payload)
+        elif command_type == "display_mode_change":
+            mode = command_payload
+            if mode in ['host', 'usb', 'both']:
+                self.display_mode = mode
+                self.ui_print(f"Display mode set to: {self.display_mode}", tag='system_message')
+            else:
+                self.ui_print(f"Invalid display mode from UI: {mode}", tag='error')
 
     def main(self):
         # handler = self.ProgramHandler(self.program_folder)
@@ -574,9 +604,13 @@ def main():
     args = parser.parse_args()
 
     try:
+        # Instantiate the USB screen regardless of mode
+        usb_screen = USBScreen()
+
         if args.headless:
             print("Running in headless mode")
-            jarvis = Jarvis(None)
+            # Pass usb_screen even in headless mode
+            jarvis = Jarvis(None, usb_screen=usb_screen)
             jarvis.main()
             # Keep the application running for testing
             while True:
@@ -586,14 +620,19 @@ def main():
             root.title("Jarvis Assistant")
             root.geometry("800x600")
 
-            jarvis = Jarvis(root)
+            # Pass usb_screen to Jarvis
+            jarvis = Jarvis(root, usb_screen=usb_screen)
 
             # Load programs once and pass them to the panel
             programs = jarvis.open_programs("./package", external_folders=["."])
-            panel = CommandPanel(root, program_mapping=jarvis.program_mapping, programs=programs)
+            panel = CommandPanel(
+                root,
+                program_mapping=jarvis.program_mapping,
+                programs=programs,
+                command_callback=jarvis.panel_command_handler
+            )
             panel.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-            panel.set_command_callback(jarvis.panel_command_handler)
-            jarvis.set_panel(panel)
+            jarvis.set_panel(panel) # Link Jarvis to the panel
 
             jarvis.main()
 
