@@ -19,10 +19,10 @@ except ImportError:
 logger = LogManager.get_logger(__name__)
 
 class CommandPanel(tk.Frame):
-    def __init__(self, master, program_mapping=None, programs=None, **kwargs):
+    def __init__(self, master, program_mapping=None, programs=None, command_callback=None, **kwargs):
         super().__init__(master, **kwargs)
         self.master = master
-        self.command_callback = None
+        self.command_callback = command_callback
         self.program_mapping = program_mapping or {}
         self.programs = programs or {}
         self.all_program_names = sorted(list(self.programs.keys()))
@@ -79,9 +79,31 @@ class CommandPanel(tk.Frame):
 
         # --- Right Pane: Main Content ---
         self.main_content_frame = tk.Frame(self.main_paned_window, bg=self.background_color)
-        self.main_content_frame.grid_rowconfigure(0, weight=1)
+        self.main_content_frame.grid_rowconfigure(1, weight=1) # Adjust row for output_text
         self.main_content_frame.grid_columnconfigure(0, weight=1)
         self.main_paned_window.add(self.main_content_frame, stretch="always")
+
+        # --- Display Mode Frame ---
+        self.display_mode_frame = tk.Frame(self.main_content_frame, bg=self.background_color)
+        self.display_mode_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=(5,0))
+
+        tk.Label(self.display_mode_frame, text="Display Mode:", bg=self.background_color, fg=self.foreground_color).pack(side=tk.LEFT, padx=(0, 5))
+
+        self.display_mode_var = tk.StringVar(value='host')
+        radio_button_config = {
+            "bg": self.background_color,
+            "fg": self.foreground_color,
+            "selectcolor": self.input_bg_color,
+            "activebackground": self.background_color,
+            "activeforeground": self.foreground_color,
+            "highlightthickness": 0,
+            "variable": self.display_mode_var,
+            "command": self.on_display_mode_change
+        }
+
+        tk.Radiobutton(self.display_mode_frame, text="Host", value='host', **radio_button_config).pack(side=tk.LEFT)
+        tk.Radiobutton(self.display_mode_frame, text="USB", value='usb', **radio_button_config).pack(side=tk.LEFT)
+        tk.Radiobutton(self.display_mode_frame, text="Both", value='both', **radio_button_config).pack(side=tk.LEFT)
 
 
         # --- Main output text area ---
@@ -96,11 +118,11 @@ class CommandPanel(tk.Frame):
             highlightthickness=0,
             selectbackground="#4f5b70"
         )
-        self.output_text.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.output_text.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 
         # --- Input Frame (at the bottom) ---
         self.input_frame = tk.Frame(self.main_content_frame, bg=self.background_color) # Parent is now main_content_frame
-        self.input_frame.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+        self.input_frame.grid(row=2, column=0, sticky="ew", padx=5, pady=5)
         self.input_frame.grid_columnconfigure(0, weight=1)
 
         self.input_entry = tk.Entry(
@@ -241,6 +263,13 @@ class CommandPanel(tk.Frame):
         self.output_text.see(tk.END)
         self.output_text.config(state='disabled')
 
+
+    def on_display_mode_change(self):
+        mode = self.display_mode_var.get()
+        if self.command_callback:
+            logger.info(f"Display mode changed to: {mode}")
+            # We can reuse the command_callback with a special command_type
+            self.command_callback("display_mode_change", mode)
 
     def set_command_callback(self, callback):
         self.command_callback = callback
