@@ -18,18 +18,13 @@ echo "✅ pip3 found."
 echo "-----------------------------------------------------"
 
 # --- Install Python packages ---
-echo "Step 2: Installing Python dependencies from requirements.txt..."
+echo "Step 2: Installing Python dependencies from setup.py..."
 
-if [ -f "requirements.txt" ]; then
-    pip3 install -r requirements.txt
-    if [ $? -eq 0 ]; then
-        echo "✅ Python dependencies installed successfully."
-    else
-        echo >&2 "Error: Failed to install Python dependencies. Please check the output above for errors."
-        exit 1
-    fi
+pip3 install .
+if [ $? -eq 0 ]; then
+    echo "✅ Python dependencies installed successfully."
 else
-    echo >&2 "Error: requirements.txt not found. Please make sure you are in the project's root directory."
+    echo >&2 "Error: Failed to install Python dependencies. Please check the output above for errors."
     exit 1
 fi
 
