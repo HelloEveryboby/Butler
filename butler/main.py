@@ -27,6 +27,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from package.thread import process_tasks
 from .binary_extensions import binary_extensions
 from package.virtual_keyboard import VirtualKeyboard
+from package.markdown_converter import convert_to_markdown
 from package.log_manager import LogManager
 from butler.CommandPanel import CommandPanel
 from plugin.PluginManager import PluginManager
@@ -247,6 +248,16 @@ class Jarvis:
 
         # The user command is already displayed on the panel by `send_text_command`
         # self.ui_print(f"User: {command}", tag='user_prompt')
+
+        if command.strip().startswith("markdown "):
+            parts = command.strip().split()
+            if len(parts) > 1:
+                file_path = parts[1]
+                # The result is printed by the function itself
+                convert_to_markdown(file_path)
+            else:
+                self.ui_print("Usage: markdown <file_path>")
+            return
 
         # Handle display mode command
         if command.strip().startswith("/display"):
