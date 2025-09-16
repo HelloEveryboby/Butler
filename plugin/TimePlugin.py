@@ -1,51 +1,31 @@
-import os
-import time
-from package.log_manager import LogManager
-from plugin.plugin_interface import AbstractPlugin, PluginResult
-
-logging = LogManager.get_logger(__name__)
+import datetime
+import logging
+from .abstract_plugin import AbstractPlugin
 
 class TimePlugin(AbstractPlugin):
-    def __init__(self):
-        self.name = "TimePlugin"
-        self.chinese_name = "时间查询"
-        self.description = "查询当前时间"
-        self.parameters = {}
+    def get_name(self) -> str:
+        return "TimePlugin"
 
     def valid(self) -> bool:
         return True
 
-    def init(self, logging):
-        self.logger = LogManager.get_logger(self.name)
-        
-    def get_name(self):
-        return self.name
-
-    def get_chinese_name(self):
-        return self.chinese_name
-
-    def get_description(self):
-        return self.description
-
-    def get_parameters(self):
-        return self.parameters
-
-    def on_startup(self):
-        self.logger.info("TimePlugin started.")
-
-    def on_shutdown(self):
-        self.logger.info("TimePlugin shutdown.")
-
-    def on_pause(self):
-        self.logger.info("TimePlugin paused.")
-
-    def on_resume(self):
-        self.logger.info("TimePlugin resumed.")
+    def init(self, logger: logging.Logger):
+        self.logger = logger
+        self.logger.info("TimePlugin initialized.")
 
     def get_commands(self) -> list[str]:
-        return ["时间", "几点了"]
+        return ["time", "现在几点了", "时间"]
 
-    def run(self, takecommand: str, args: dict) -> PluginResult:
-        now = datetime.now()
+    def run(self, command: str, args: dict) -> str:
+        now = datetime.datetime.now()
         current_time = now.strftime("%H:%M:%S")
-        return PluginResult.new(f"现在是北京时间{current_time}", False)
+        return f"现在是北京时间 {current_time}"
+
+    def stop(self):
+        pass
+
+    def cleanup(self):
+        pass
+
+    def status(self) -> str:
+        return "active"

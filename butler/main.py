@@ -252,11 +252,11 @@ class Jarvis:
         if command.strip().startswith("markdown "):
             parts = command.strip().split()
             if len(parts) > 1:
-                file_path = parts[1]
-                # The result is printed by the function itself
-                convert_to_markdown(file_path)
+                file_path = " ".join(parts[1:]) # Handle file paths with spaces
+                result = convert_to_markdown(file_path)
+                self.ui_print(f"--- Markdown Conversion Result for {os.path.basename(file_path)} ---\n{result}", tag='system_message')
             else:
-                self.ui_print("Usage: markdown <file_path>")
+                self.ui_print("Usage: markdown <file_path>", tag='error')
             return
 
         # Handle display mode command

@@ -1,12 +1,12 @@
 import tkinter as tk
-from tkinter import scrolledtext
+from tkinter import scrolledtext, filedialog
 import sys
 import os
 import json
 import re
 from package.log_manager import LogManager
 
-# Pygments for syntax highlighting
+# Pygments 用于语法高亮
 try:
     from pygments import lex
     from pygments.lexers import get_lexer_by_name, guess_lexer
@@ -27,7 +27,7 @@ class CommandPanel(tk.Frame):
         self.programs = programs or {}
         self.all_program_names = sorted(list(self.programs.keys()))
 
-        # --- Theme and Styling ---
+        # --- 主题和样式 ---
         self.background_color = '#282c34'
         self.foreground_color = '#abb2bf'
         self.input_bg_color = '#21252b'
@@ -71,13 +71,13 @@ class CommandPanel(tk.Frame):
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-        # --- Main PanedWindow for collapsible menu ---
+        # --- 用于可折叠菜单的主 PanedWindow ---
         self.main_paned_window = tk.PanedWindow(self, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, bg=self.background_color, sashwidth=4)
         self.main_paned_window.grid(row=0, column=0, sticky="nsew")
 
-        # --- Left Pane: Menu ---
+        # --- 左侧窗格: 菜单 ---
         self.menu_frame = tk.Frame(self.main_paned_window, bg=self.menu_bg_color, width=200)
-        self.menu_frame.grid_rowconfigure(2, weight=1)  # Make listbox expandable
+        self.menu_frame.grid_rowconfigure(2, weight=1)  # 使列表框可扩展
         self.menu_frame.grid_columnconfigure(0, weight=1)
         self.main_paned_window.add(self.menu_frame, stretch="never", minsize=200)
 
@@ -108,7 +108,7 @@ class CommandPanel(tk.Frame):
         for prog_name in self.all_program_names:
             self.program_listbox.insert(tk.END, prog_name)
 
-        # --- Settings Button ---
+        # --- 设置按钮 ---
         self.settings_icon = tk.PhotoImage(file="assets/settings_icon.png")
         self.settings_button = tk.Button(
             self.menu_frame,
@@ -127,13 +127,13 @@ class CommandPanel(tk.Frame):
         self.settings_button.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
 
-        # --- Right Pane: Main Content ---
+        # --- 右侧窗格: 主内容 ---
         self.main_content_frame = tk.Frame(self.main_paned_window, bg=self.background_color)
-        self.main_content_frame.grid_rowconfigure(1, weight=1) # Adjust row for output_text
+        self.main_content_frame.grid_rowconfigure(1, weight=1) # 调整行以适应 output_text
         self.main_content_frame.grid_columnconfigure(0, weight=1)
         self.main_paned_window.add(self.main_content_frame, stretch="always")
 
-        # --- Display Mode Frame ---
+        # --- 显示模式框架 ---
         self.display_mode_frame = tk.Frame(self.main_content_frame, bg=self.background_color)
         self.display_mode_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=(5,0))
 
@@ -157,9 +157,9 @@ class CommandPanel(tk.Frame):
         tk.Radiobutton(self.display_mode_frame, text="Both", value='both', **radio_button_config).pack(side=tk.LEFT)
 
 
-        # --- Main output text area ---
+        # --- 主输出文本区域 ---
         self.output_text = scrolledtext.ScrolledText(
-            self.main_content_frame, # Parent is now main_content_frame
+            self.main_content_frame, # 父容器现在是 main_content_frame
             bg=self.background_color,
             fg=self.foreground_color,
             state='disabled',
@@ -171,8 +171,8 @@ class CommandPanel(tk.Frame):
         )
         self.output_text.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 
-        # --- Input Frame (at the bottom) ---
-        self.input_frame = tk.Frame(self.main_content_frame, bg=self.background_color) # Parent is now main_content_frame
+        # --- 输入框架 (底部) ---
+        self.input_frame = tk.Frame(self.main_content_frame, bg=self.background_color) # 父容器现在是 main_content_frame
         self.input_frame.grid(row=2, column=0, sticky="ew", padx=5, pady=5)
         self.input_frame.grid_columnconfigure(0, weight=1)
 
@@ -188,7 +188,7 @@ class CommandPanel(tk.Frame):
         self.input_entry.grid(row=0, column=0, sticky="ew", ipady=5)
         self.input_entry.bind("<Return>", self.send_text_command)
 
-        # --- Buttons ---
+        # --- 按钮 ---
         button_config = {
             "bg": self.button_bg_color,
             "fg": self.button_fg_color,
@@ -206,46 +206,48 @@ class CommandPanel(tk.Frame):
         self.clear_button.grid(row=0, column=3, padx=(5, 0))
         self.restart_button = tk.Button(self.input_frame, text="Restart", command=self.restart_application, **button_config)
         self.restart_button.grid(row=0, column=4, padx=(5, 0))
+        self.markdown_button = tk.Button(self.input_frame, text="Markdown", command=self.open_markdown_converter, **button_config)
+        self.markdown_button.grid(row=0, column=5, padx=(5, 0))
 
         self._configure_styles_and_tags()
         self.update_font_size('medium')
 
     def on_program_select(self, event=None):
-        """Handle program selection from the listbox."""
-        # Get selected indices
+        """处理列表框中的程序选择。"""
+        # 获取选中的索引
         selected_indices = self.program_listbox.curselection()
         if not selected_indices:
             return
 
-        # Get the program name from the index
+        # 从索引获取程序名称
         selected_index = selected_indices[0]
         program_name = self.program_listbox.get(selected_index)
 
         if program_name and self.command_callback:
-            logger.info(f"Executing program from menu: {program_name}")
-            self.append_to_history(f"Executing: {program_name}", "system_message")
+            logger.info(f"从菜单执行程序: {program_name}")
+            self.append_to_history(f"正在执行: {program_name}", "system_message")
             self.command_callback("execute_program", program_name)
 
     def filter_programs(self, event=None):
-        """Filter the program listbox based on the search entry."""
+        """根据搜索输入框过滤程序列表框。"""
         search_term = self.search_entry.get().lower()
 
-        # Clear the listbox
+        # 清空列表框
         self.program_listbox.delete(0, tk.END)
 
-        # Repopulate with matching items
+        # 重新填充匹配的项目
         for name in self.all_program_names:
             if search_term in name.lower():
                 self.program_listbox.insert(tk.END, name)
 
     def _configure_styles_and_tags(self):
-        """Configure text tags for styling the output."""
+        """配置用于样式化输出的文本标签。"""
         self.output_text.tag_config('user_prompt', foreground='#61afef', font=("Consolas", 11, "bold"))
         self.output_text.tag_config('ai_response', foreground=self.foreground_color)
         self.output_text.tag_config('system_message', foreground='#e5c07b', font=("Consolas", 11, "italic"))
         self.output_text.tag_config('error', foreground='#e06c75')
 
-        # Configure Pygments syntax highlighting tags
+        # 配置 Pygments 语法高亮标签
         if PYGMENTS_INSTALLED:
             style = get_style_by_name('monokai')
             for token, t_style in style:
@@ -255,7 +257,7 @@ class CommandPanel(tk.Frame):
                     self.output_text.tag_config(tag_name, foreground=f"#{foreground}")
 
     def _highlight_code(self, code, language=''):
-        """Apply syntax highlighting to a code block."""
+        """对代码块应用语法高亮。"""
         if not PYGMENTS_INSTALLED:
             self.output_text.insert(tk.END, code)
             return
@@ -268,23 +270,23 @@ class CommandPanel(tk.Frame):
         except Exception:
             lexer = get_lexer_by_name('text', stripall=True)
 
-        # Insert the code block with a background
+        # 带有背景插入代码块
         start_index = self.output_text.index(tk.END)
         self.output_text.insert(tk.END, code)
         end_index = self.output_text.index(tk.END)
         self.output_text.tag_add("code_block", start_index, end_index)
         self.output_text.tag_config("code_block", background=self.code_bg_color, borderwidth=1, relief=tk.SOLID, lmargin1=10, lmargin2=10, rmargin=10)
 
-        # Apply token-based highlighting
+        # 应用基于 token 的高亮
         for token, content in lex(code, lexer):
             tag_name = str(token)
-            # Find where the content starts relative to the beginning of the whole code block
-            # This is a bit tricky with the Text widget, so we search
+            # 查找内容相对于整个代码块开始的位置
+            # 这对于 Text 小部件来说有点棘手，所以我们进行搜索
             start = self.output_text.search(content, start_index, stopindex=end_index)
             if start:
                 end = f"{start}+{len(content)}c"
                 self.output_text.tag_add(tag_name, start, end)
-                start_index = end # Move search start to after the found token
+                start_index = end # 将搜索起点移动到找到的 token 之后
 
 
     def append_to_history(self, text, tag='ai_response'):
@@ -294,19 +296,19 @@ class CommandPanel(tk.Frame):
 
         last_end = 0
         for match in code_block_pattern.finditer(text):
-            # Insert text before the code block
+            # 在代码块之前插入文本
             pre_text = text[last_end:match.start()]
             if pre_text.strip():
                 self.output_text.insert(tk.END, pre_text, (tag,))
 
-            # Insert the highlighted code block
+            # 插入高亮的代码块
             language = match.group(1).lower()
             code = match.group(2)
             self._highlight_code(code, language)
 
             last_end = match.end()
 
-        # Insert any remaining text after the last code block
+        # 在最后一个代码块之后插入任何剩余的文本
         remaining_text = text[last_end:]
         if remaining_text.strip():
             self.output_text.insert(tk.END, remaining_text, (tag,))
@@ -319,8 +321,8 @@ class CommandPanel(tk.Frame):
     def on_display_mode_change(self):
         mode = self.display_mode_var.get()
         if self.command_callback:
-            logger.info(f"Display mode changed to: {mode}")
-            # We can reuse the command_callback with a special command_type
+            logger.info(f"显示模式已更改为: {mode}")
+            # 我们可以使用一个特殊的 command_type 重用 command_callback
             self.command_callback("display_mode_change", mode)
 
     def set_command_callback(self, callback):
@@ -330,13 +332,13 @@ class CommandPanel(tk.Frame):
         command = self.input_entry.get().strip()
         if command and self.command_callback:
             self.append_to_history(f"You: {command}", "user_prompt")
-            logger.info(f"Sending text command: {command}")
+            logger.info(f"发送文本命令: {command}")
             self.command_callback("text", command)
             self.input_entry.delete(0, tk.END)
 
     def send_listen_command(self):
         if self.command_callback:
-            logger.info("Initiating voice command")
+            logger.info("正在启动语音命令")
             self.command_callback("voice", None)
 
     def set_input_text(self, text):
@@ -344,7 +346,7 @@ class CommandPanel(tk.Frame):
         self.input_entry.insert(0, text)
 
     def clear_history(self):
-        logger.info("Clearing history")
+        logger.info("正在清除历史记录")
         self.output_text.config(state='normal')
         self.output_text.delete(1.0, tk.END)
         self.output_text.config(state='disabled')
@@ -377,28 +379,52 @@ class CommandPanel(tk.Frame):
         tk.Radiobutton(font_size_frame, text="Large", value='large', **font_radio_config).pack(side=tk.LEFT)
 
     def update_font_size(self, size_mode):
-        logger.info(f"Updating font size to {size_mode}")
+        logger.info(f"正在将字体大小更新为 {size_mode}")
         fonts = self.font_configs[size_mode]
 
-        # Update widgets
+        # 更新小部件
         self.menu_label.config(font=fonts["menu_label"])
         self.program_listbox.config(font=fonts["program_listbox"])
         self.output_text.config(font=fonts["output_text"])
         self.input_entry.config(font=fonts["input_entry"])
 
-        # Update buttons
+        # 更新按钮
         button_font = fonts["buttons"]
         self.send_button.config(font=button_font)
         self.listen_button.config(font=button_font)
         self.clear_button.config(font=button_font)
         self.restart_button.config(font=button_font)
+        self.markdown_button.config(font=button_font)
         self.settings_button.config(font=button_font)
 
-        # Update text tags
+        # 更新文本标签
         self.output_text.tag_config('user_prompt', font=fonts["user_prompt"])
         self.output_text.tag_config('system_message', font=fonts["system_message"])
 
+    def open_markdown_converter(self):
+        """打开文件对话框以选择要转换为 markdown 的文件。"""
+        filepath = filedialog.askopenfilename(
+            title="Select a file to convert to Markdown",
+            filetypes=(
+                ("All supported files", "*.txt *.csv *.html *.htm *.docx *.pptx *.pdf *.xlsx *.png *.jpg *.jpeg *.gif *.bmp *.zip *.epub"),
+                ("Text files", "*.txt"),
+                ("Documents", "*.docx *.pdf *.pptx *.epub"),
+                ("Web files", "*.html *.htm"),
+                ("Data files", "*.csv *.xlsx *.json"),
+                ("Images", "*.png *.jpg *.jpeg *.gif *.bmp"),
+                ("Archives", "*.zip"),
+                ("All files", "*.*")
+            )
+        )
+        if filepath:
+            # 构造命令并发送
+            command = f'markdown "{filepath}"'
+            self.append_to_history(f"You: {command}", "user_prompt")
+            logger.info(f"发送 markdown 转换命令: {filepath}")
+            if self.command_callback:
+                self.command_callback("text", command)
+
     def restart_application(self):
-        logger.info("Restarting application")
+        logger.info("正在重新启动应用程序")
         python = sys.executable
         os.execl(python, python, *sys.argv)

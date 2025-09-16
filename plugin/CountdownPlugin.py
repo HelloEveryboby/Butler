@@ -1,70 +1,48 @@
-from datetime import datetime, timedelta
-from package.log_manager import LogManager
-from abc import ABCMeta, abstractmethod
-from plugin.plugin_interface import AbstractPlugin, PluginResult
-
-logging = LogManager.get_logger(__name__)
+import time
+import logging
+from .abstract_plugin import AbstractPlugin
 
 class CountdownPlugin(AbstractPlugin):
-    def __init__(self):
-        self.name = "倒计时"
-        self.chinese_name = "倒计时插件程序"
-        self.description = "执行倒计时功能，支持秒级设置"
-        self._is_running = False # 添加运行状态标志
-        self.parameters = {}
+    def get_name(self) -> str:
+        return "CountdownPlugin"
 
     def valid(self) -> bool:
         return True
 
-    def init(self, logging):
-        self.logging = LogManager.get_logger(self.name)
-
-    def get_name(self):
-        return self.name
-
-    def get_chinese_name(self):
-        return self.chinese_name
-
-    def get_description(self):
-        return self.description
-
-    def get_parameters(self):
-        return self.parameters
-
-    def on_startup(self):
-        logging.info("倒计时插件开始")
-
-    def on_shutdown(self):
-        logging.info("倒计时插件停止")
-
-    def on_pause(self):
-        logging.info("倒计时插件停止")
-
-    def on_resume(self):
-        logging.info("倒计时插件恢复")
+    def init(self, logger: logging.Logger):
+        self.logger = logger
+        self.logger.info("CountdownPlugin initialized.")
 
     def get_commands(self) -> list[str]:
-        return ["倒计时"]
+        return ["countdown", "倒计时"]
 
-    def run(self, takecommand: str, args: dict) -> PluginResult:
-        import time
-        from butler.main import Jarvis
-
-        seconds = args.get("seconds")
-        if not seconds:
-            return PluginResult.new("无效的参数", False, error_message="Missing 'seconds' argument")
-
+    def run(self, command: str, args: dict) -> str:
+        """
+        Runs a countdown for a specified number of seconds.
+        NOTE: This is a blocking operation and will freeze the main thread.
+        A future improvement would be to run this in a background thread.
+        """
         try:
-            seconds = int(seconds)
-        except ValueError:
-            return PluginResult.new("无效的参数", False, error_message="Invalid 'seconds' argument")
+            seconds = int(args.get("seconds", 0))
+        except (ValueError, TypeError):
+            return "Error: Please provide a valid number of seconds."
 
-        end_time = datetime.now() + timedelta(seconds=seconds)
-        while datetime.now() < end_time:
-            if not self._is_running:
-                return PluginResult.new("倒计时已取消", False)
-            remaining_time = (end_time - datetime.now()).seconds
-            Jarvis(None).speak(f"剩余时间: {remaining_time} 秒")
-            time.sleep(1)
-        logging.info("倒计时结束")
-        return PluginResult.new("倒计时结束", False)
+        if seconds <= 0:
+            return "Error: Please provide a positive number of seconds for the countdown."
+
+        self.logger.info(f"Starting a blocking countdown for {seconds} seconds.")
+        time.sleep(seconds)
+        self.logger.info("Countdown finished.")
+
+        return f"Countdown of {seconds} seconds is complete."
+
+    def stop(self):
+        # In a non-blocking implementation, this would stop the countdown thread.
+        pass
+
+    def cleanup(self):
+        pass
+
+    def status(self) -> str:
+        # A non-blocking version could return the remaining time.
+        return "active"

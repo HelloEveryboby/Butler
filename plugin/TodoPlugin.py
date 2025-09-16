@@ -1,171 +1,126 @@
 import os
-import time
 import json
-import csv
+import logging
 from datetime import datetime
-from package.log_manager import LogManager
-from plugin.plugin_interface import AbstractPlugin, PluginResult
+from .abstract_plugin import AbstractPlugin
 
-logging = LogManager.get_logger(__name__)
-
-# 任务类
 class Task:
-    def __init__(self, description, due_date=None, tags=None, priority=1):
-        self.description = description  # 任务描述
-        self.due_date = due_date  # 截止日期
-        self.completed = False  # 完成状态
-        self.tags = tags if tags else []  # 标签
-        self.priority = priority  # 优先级
+    def __init__(self, description, due_date=None, tags=None, priority=1, completed=False):
+        self.description = description
+        self.due_date = due_date
+        self.tags = tags if tags else []
+        self.priority = priority
+        self.completed = completed
 
-    def mark_completed(self):
-        self.completed = True  # 标记为已完成
+    def to_dict(self):
+        return {
+            "description": self.description,
+            "due_date": self.due_date.isoformat() if self.due_date else None,
+            "tags": self.tags,
+            "priority": self.priority,
+            "completed": self.completed,
+        }
+
+    @staticmethod
+    def from_dict(data):
+        due_date_str = data.get("due_date")
+        due_date = datetime.fromisoformat(due_date_str) if due_date_str else None
+        return Task(
+            description=data.get("description", ""),
+            due_date=due_date,
+            tags=data.get("tags", []),
+            priority=data.get("priority", 1),
+            completed=data.get("completed", False)
+        )
 
     def __str__(self):
-        return f"{self.description} (Due: {self.due_date}, Completed: {self.completed}, Tags: {', '.join(self.tags)}, Priority: {self.priority})"
+        status = "✓" if self.completed else " "
+        due_str = self.due_date.strftime('%Y-%m-%d') if self.due_date else "No due date"
+        return f"[{status}] {self.description} (Priority: {self.priority}, Due: {due_str})"
 
-# 待办事项插件       
 class TodoPlugin(AbstractPlugin):
     def __init__(self):
-        self.name = "TodoPlugin"
-        self.chinese_name = "待办事项"
-        self.description = "管理简单的待办事项列表"
-        self.parameters = {"action": "str", "task": "str", "priority": "int"}
-        self.todo_list = []  # 待办事项列表
-        self.load_todo_list()  # 加载待办事项
+        self.todo_file = "todolist.json"
+        self.tasks = []
+
+    def get_name(self) -> str:
+        return "TodoPlugin"
 
     def valid(self) -> bool:
         return True
 
-    def init(self, logging):
-        self.logger = LogManager.get_logger(self.name)
-        
-    def get_name(self):
-        return self.name
+    def init(self, logger: logging.Logger):
+        self.logger = logger
+        self.load_tasks()
+        self.logger.info("TodoPlugin initialized.")
 
-    def get_chinese_name(self):
-        return self.chinese_name
+    def load_tasks(self):
+        if os.path.exists(self.todo_file):
+            try:
+                with open(self.todo_file, 'r', encoding='utf-8') as f:
+                    tasks_data = json.load(f)
+                    self.tasks = [Task.from_dict(data) for data in tasks_data]
+            except Exception as e:
+                self.logger.error(f"Failed to load todo list: {e}")
 
-    def get_description(self):
-        return self.description
-
-    def get_parameters(self):
-        return self.parameters
-
-    def on_startup(self):
-        self.logger.info("TodoPlugin 开始.")
-
-    def on_shutdown(self):
-        self.save_todo_list()  # 保存待办事项
-        self.logger.info("TodoPlugin 关闭.")
-
-    def on_pause(self):
-        self.logger.info("TodoPlugin 停顿了一下.")
-
-    def on_resume(self):
-        self.logger.info("TodoPlugin 恢复.")
-
-    def save_todo_list(self):
-        # 保存待办事项到 JSON 文件
-        with open('todo_list.json', 'w') as f:
-            json.dump([{"description": task.description, 
-                         "due_date": task.due_date.isoformat() if task.due_date else None, 
-                         "completed": task.completed, 
-                         "tags": task.tags,
-                         "priority": task.priority} for task in self.todo_list], f)
-
-    def load_todo_list(self):
-        # 从 JSON 文件加载待办事项
-        if os.path.exists('todo_list.json'):
-            with open('todo_list.json', 'r') as f:
-                tasks = json.load(f)
-                for task in tasks:
-                    due_date = datetime.fromisoformat(task["due_date"]) if task["due_date"] else None
-                    task_obj = Task(task["description"], due_date, task["tags"], task["priority"])
-                    task_obj.completed = task["completed"]
-                    self.todo_list.append(task_obj)
-
-    def export_to_csv(self):
-        # 导出待办事项到 CSV 文件
-        with open('todo_list.csv', 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['Description', 'Due Date', 'Completed', 'Tags', 'Priority'])
-            for task in self.todo_list:
-                writer.writerow([task.description, 
-                                 task.due_date.isoformat() if task.due_date else '', 
-                                 task.completed, 
-                                 ', '.join(task.tags),
-                                 task.priority])
-
-    def import_from_csv(self):
-        # 从 CSV 文件导入待办事项
-        with open('todo_list.csv', 'r') as f:
-            reader = csv.reader(f)
-            next(reader)  # 跳过表头
-            for row in reader:
-                task_obj = Task(row[0], datetime.fromisoformat(row[1]) if row[1] else None, row[3].split(', ') if row[3] else [], int(row[4]))
-                task_obj.completed = row[2] == 'True'
-                self.todo_list.append(task_obj)
+    def save_tasks(self):
+        try:
+            with open(self.todo_file, 'w', encoding='utf-8') as f:
+                json.dump([task.to_dict() for task in self.tasks], f, indent=2)
+        except Exception as e:
+            self.logger.error(f"Failed to save todo list: {e}")
 
     def get_commands(self) -> list[str]:
-        return ["添加待办事项", "列出待办事项", "删除待办事项", "完成待办事项", "搜索待办事项", "导出待办事项", "导入待办事项"]
+        return ["todo", "待办事项"]
 
-    def run(self, takecommand: str, args: dict) -> PluginResult:
-        task_description = args.get("task")
-        priority = args.get("priority", 1)
+    def run(self, command: str, args: dict) -> str:
+        action = args.get("action", "list")
+        description = args.get("description")
         
-        if "add" in takecommand or "添加" in takecommand:
-            # 添加任务
-            if not task_description:
-                return PluginResult.new(result=None, need_call_brain=False, success=False, error_message="Task parameter is missing")
-            new_task = Task(task_description, priority=priority)
-            self.todo_list.append(new_task)
-            result = f"任务 '{task_description}' 添加到待办事项列表"
+        if action == "add":
+            if not description:
+                return "Error: Please provide a description for the task."
+            self.tasks.append(Task(description, priority=args.get("priority", 1)))
+            self.save_tasks()
+            return f"Added task: '{description}'"
 
-        elif "list" in takecommand or "列出" in takecommand:
-            # 列出任务
-            result = "Todo list:\n" + "\n".join(str(task) for task in self.todo_list)
-        
-        elif "remove" in takecommand or "删除" in takecommand:
-            if not task_description:
-                return PluginResult.new(result=None, need_call_brain=False, success=False, error_message="Task parameter is missing")
-            for task in self.todo_list:
-                if task.description == task_description:
-                    self.todo_list.remove(task)
-                    result = f"任务 '{task_description}' 从待办事项列表中删除"
-                    break
-            else:
-                result = f"任务 '{task_description}' 未在待办事项列表中找到"
-        
-        elif "complete" in takecommand or "完成" in takecommand:
-            # 标记任务为已完成
-            if not task_description:
-                return PluginResult.new(result=None, need_call_brain=False, success=False, error_message="Task parameter is missing")
-            for task in self.todo_list:
-                if task.description == task_description:
-                    task.mark_completed()
-                    result = f"任务 '{task_description}' 标记为已完成"
-                    break
-            else:
-                result = f"任务 '{task_description}' 未在待办事项列表中找到"
+        elif action == "list":
+            if not self.tasks:
+                return "Your todo list is empty."
+            return "Your todo list:\n" + "\n".join(f"  {i}: {task}" for i, task in enumerate(self.tasks))
 
-        elif "search" in takecommand or "搜索" in takecommand:
-            # 搜索任务
-            if not task_description:
-                return PluginResult.new(result=None, need_call_brain=False, success=False, error_message="Task parameter is missing")
-            matching_tasks = [task.description for task in self.todo_list if task_description in task.description]
-            result = "匹配的任务:\n" + "\n".join(matching_tasks) if matching_tasks else "未找到匹配的任务"
+        elif action == "complete":
+            try:
+                index = int(args.get("index"))
+                if 0 <= index < len(self.tasks):
+                    self.tasks[index].completed = True
+                    self.save_tasks()
+                    return f"Completed task: '{self.tasks[index].description}'"
+                return f"Error: Invalid index {index}."
+            except (ValueError, TypeError, KeyError):
+                return "Error: Please provide a valid index to complete."
 
-        elif "export" in takecommand or "导出" in takecommand:
-            # 导出到 CSV 文件
-            self.export_to_csv()
-            result = "待办事项已导出到 todo_list.csv"
-
-        elif "import" in takecommand or "导入" in takecommand:
-            # 从 CSV 文件导入
-            self.import_from_csv()
-            result = "待办事项已从 todo_list.csv 导入"
+        elif action == "delete":
+            try:
+                index = int(args.get("index"))
+                if 0 <= index < len(self.tasks):
+                    deleted = self.tasks.pop(index)
+                    self.save_tasks()
+                    return f"Deleted task: '{deleted.description}'"
+                return f"Error: Invalid index {index}."
+            except (ValueError, TypeError, KeyError):
+                return "Error: Please provide a valid index to delete."
 
         else:
-            return PluginResult.new(result=None, need_call_brain=False, success=False, error_message="Invalid action")
+            return "Usage: todo --action [add|list|complete|delete] --description <text> --index <number>"
 
-        return PluginResult.new(result=result, need_call_brain=False, success=True)
+    def stop(self):
+        pass
+
+    def cleanup(self):
+        self.save_tasks()
+        self.logger.info("TodoPlugin cleaned up and tasks saved.")
+
+    def status(self) -> str:
+        pending_tasks = sum(1 for task in self.tasks if not task.completed)
+        return f"active - {pending_tasks} pending tasks out of {len(self.tasks)}"

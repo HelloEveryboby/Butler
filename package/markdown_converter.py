@@ -8,16 +8,16 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'm
 
 from markitdown.main import convert
 
-def convert_to_markdown(file_path: str):
+def convert_to_markdown(file_path: str) -> str:
     """
-    Converts a file to markdown and prints the content.
+    Converts a file to markdown and returns the content as a string.
+    If an error occurs, it returns an error message string.
     """
     if not os.path.exists(file_path):
-        print(f"Error: File not found at '{file_path}'")
-        return
+        return f"Error: File not found at '{file_path}'"
 
     try:
         markdown_content = convert(file_path)
-        print(markdown_content)
+        return markdown_content
     except Exception as e:
-        print(f"An error occurred during conversion: {e}")
+        return f"An error occurred during conversion: {e}"

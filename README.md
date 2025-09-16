@@ -101,9 +101,13 @@ The server will run on `http://localhost:5001`. You can then make requests to th
 
 ## Packages
 
-The `package/` directory contains a collection of tools and utilities that can be executed by the Butler assistant. Each module in this directory should have a `run()` function, which serves as the entry point for execution.
+The `package/` directory contains modules that provide various functionalities. These modules fall into two categories:
 
-To add a new package, simply create a new Python file in the `package/` directory and implement a `run()` function within it. Butler will automatically discover and be able to execute it.
+*   **Runnable Packages**: These are standalone tools designed to be executed directly by Butler. To be recognized as a runnable package, the Python file must contain a `run()` function, which serves as its entry point. You can map a user-friendly command to these packages in `butler/program_mapping.json`.
+
+*   **Utility Modules**: These are libraries of functions (e.g., `math.py`) intended to be imported and used by other parts of the application, such as plugins or other packages. They do not have a `run()` function and are not directly executable by the user through a command.
+
+To add a new runnable package, create a Python file in the `package/` directory, implement a `run()` function, and consider adding an entry for it in `butler/program_mapping.json`.
 
 ## Plugins
 

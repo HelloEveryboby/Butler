@@ -1,18 +1,18 @@
 {
     "邮箱": "e-mail.py",
     "播放音乐": "music.py",
-    "虚拟键盘": "virtual_keyboapy.py",
-    "组织文件": "Organizepy.py",
-    "爬虫": "crawlpy.py",
-    "终端": "terminpy.py",
+    "虚拟键盘": "virtual_keyboard.py",
+    "组织文件": "OrganizeIT.py",
+    "爬虫": "crawler.py",
+    "终端": "terminal.py",
     "加密": "encrypt.py",
     "物体识别": "PictureRecognition.py",
     "日程管理": "schedule_management.py",
-    "二维码识别": "QR-Code-Recognitipy.py",
-    "网络程序": "network_apy.py",
-    "天气预报": "weathpy.py",
+    "二维码识别": "QR-Code-Recognition.py",
+    "网络程序": "network_app.py",
+    "天气预报": "weather.py",
     "翻译": "translators.py",
     "文件转换器": "file_converter.py",
     "帐号登录": "AccountPassword.py",
-    "文件管理器": "package/file_manager.py"
+    "文件管理器": "file_manager.py"
 }

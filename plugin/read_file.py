@@ -1,83 +1,60 @@
-from package.log_manager import LogManager
-from abc import ABCMeta, abstractmethod
-from datetime import datetime
-from plugin.plugin_interface import AbstractPlugin, PluginResult
+import logging
 import chardet
-
-logging = LogManager.get_logger(__name__)
-
+from .abstract_plugin import AbstractPlugin
 
 class ReadFilePlugin(AbstractPlugin):
+    def get_name(self) -> str:
+        return "read_file"
 
     def valid(self) -> bool:
         return True
 
-    def init(self, logging=None):
-        self._logger = logging if logging else LogManager.get_logger(__name__)
+    def init(self, logger: logging.Logger):
+        self.logger = logger
+        self.logger.info("ReadFilePlugin initialized.")
 
-    def get_name(self):
-        return "read_file"
+    def get_commands(self) -> list[str]:
+        return ["read file", "读取文件"]
 
-    def get_chinese_name(self):
-        return "读取文件"
-
-    def get_description(self):
-        return "读取文件内容，并返回文件内容。 需要传入文件路径参数。"
-
-    def get_parameters(self):
-        return {
-            "type": "object",
-            "properties": {
-                "file_path": {
-                    "type": "string",
-                    "description": "要读取的文件的绝对路径",
-                }
-            },
-            "required": ["file_path"],
-        }
-
-    def on_startup(self):
-        self._logger.info("ReadFilePlugin 启动成功")
-    
-    def on_shutdown(self):
-        self._logger.info("ReadFilePlugin 已关闭")
-
-    def on_pause(self):
-        self._logger.info("ReadFilePlugin 已暂停")
-
-    def on_resume(self):
-        self._logger.info("ReadFilePlugin 已恢复")
-
-    def run(self, takecommand: str, args: dict) -> PluginResult:
+    def run(self, command: str, args: dict) -> str:
         file_path = args.get("file_path")
         if not isinstance(file_path, str) or not file_path.strip():
-            self._logger.warning("缺少文件路径参数")
-            return PluginResult.new(result=None, need_call_brain=False, success=False,
-                                   error_message="缺少文件路径参数")
+            return "Error: File path parameter is missing or invalid."
 
         try:
-            self._logger.info(f"尝试读取文件: {file_path}")
+            self.logger.info(f"Attempting to read file: {file_path}")
             with open(file_path, 'rb') as f:
-                content = f.read()
-                encoding = chardet.detect(content)['encoding']
-                content = content.decode(encoding)
-            self._logger.info(f"成功读取文件: {file_path}")
-            # 返回读取的文件内容
-            return PluginResult.new(result=content, need_call_brain=True, success=True,
-                                    metadata={'file_path': file_path})
+                raw_content = f.read()
+
+            # Detect encoding and decode
+            detected_encoding = chardet.detect(raw_content)['encoding']
+            if detected_encoding:
+                content = raw_content.decode(detected_encoding)
+            else:
+                # Fallback to utf-8 if detection fails
+                content = raw_content.decode('utf-8', errors='replace')
+
+            self.logger.info(f"Successfully read file: {file_path}")
+            return content
+
         except FileNotFoundError:
-            self._logger.error(f"文件不存在: {file_path}")
-            return PluginResult.new(result=None, need_call_brain=False, success=False,
-                                   error_message=f"文件不存在: {file_path}")
-        except UnicodeDecodeError:
-            self._logger.error(f"无法解码文件: {file_path}")
-            return PluginResult.new(result=None, need_call_brain=False, success=False,
-                                    error_message=f"无法解码文件: {file_path}")  
+            self.logger.error(f"File not found: {file_path}")
+            return f"Error: File not found at '{file_path}'."
+        except UnicodeDecodeError as e:
+            self.logger.error(f"Could not decode file {file_path}: {e}")
+            return f"Error: Could not decode file. It might be a binary file or have an unsupported encoding."
         except PermissionError:
-            self._logger.error(f"权限不足，无法读取文件: {file_path}")
-            return PluginResult.new(result=None, need_call_brain=False, success=False,
-                                    error_message=f"权限不足，无法读取文件: {file_path}")
+            self.logger.error(f"Permission denied to read file: {file_path}")
+            return f"Error: Permission denied to read the file at '{file_path}'."
         except Exception as e:
-            self._logger.error(f"读取文件时出错: {str(e)}")
-            return PluginResult.new(result=None, need_call_brain=False, success=False,
-                                    error_message=f"读取文件时出错: {str(e)}")
+            self.logger.error(f"An error occurred while reading file {file_path}: {e}")
+            return f"Error: An unexpected error occurred: {e}"
+
+    def stop(self):
+        pass
+
+    def cleanup(self):
+        pass
+
+    def status(self) -> str:
+        return "active"

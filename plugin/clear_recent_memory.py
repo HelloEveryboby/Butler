@@ -1,34 +1,31 @@
-from package.log_manager import LogManager
-
-from plugin.plugin_interface import AbstractPlugin, PluginResult
-
-logger = LogManager.get_logger(__name__)
+import logging
+from .abstract_plugin import AbstractPlugin
 
 class ClearRecentMemoryPlugin(AbstractPlugin):
+    def get_name(self) -> str:
+        return "clear_recent_memory"
+
     def valid(self) -> bool:
         return True
 
-    #  在 init 方法中初始化类内部的日志记录器
-    def init(self, logging):
-        self.logging = LogManager.get_logger(self.name)
+    def init(self, logger: logging.Logger):
+        self.logger = logger
+        self.logger.info("ClearRecentMemoryPlugin initialized.")
 
-    def get_name(self):
-        return "clear_recent_memory"
+    def get_commands(self) -> list[str]:
+        return ["clear memory", "清空记忆"]
 
-    def get_chinese_name(self):
-        return "清空记忆"
+    def run(self, command: str, args: dict) -> str:
+        self.logger.warning("Attempted to run ClearRecentMemoryPlugin, which is not fully implemented.")
+        # This plugin requires access to the main application's memory object,
+        # which is not provided through the current plugin interface.
+        return "Error: The clear memory feature is currently under development and not available."
 
-    def get_description(self):
-        return "清空记忆接口，当我要求你清空记忆时，你应该调用本接口。注意：本接口不接收任何参数，当你调用本接口时你不应该传递任何参数进来。"
+    def stop(self):
+        pass
 
-    def get_parameters(self):
-        return {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        }
+    def cleanup(self):
+        pass
 
-    def run(self, takecommand, args: dict) -> PluginResult:
-        jarvis.memory.clear_recent()
-        jarvis.mouth.speak("已清空最近的记忆。", lambda: {})
-        return PluginResult.new("", False)
+    def status(self) -> str:
+        return "active"
