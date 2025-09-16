@@ -1,0 +1,31 @@
+[project]
+name = "markitdown"
+version = "0.1.0"
+description = "A lightweight Python utility for converting various files to Markdown."
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "pandas",
+    "tabulate",
+    "markdownify",
+    "python-docx",
+    "python-pptx",
+    "pdfplumber",
+    "openpyxl",
+    "pytesseract",
+    "EbookLib",
+    "beautifulsoup4",
+    "requests",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/example/markitdown" # Replace with actual URL
+"Bug Tracker" = "https://github.com/example/markitdown/issues" # Replace with actual URL
+
+[tool.setuptools]
+package-dir = {"" = "src"}

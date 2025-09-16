@@ -27,6 +27,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from package.thread import process_tasks
 from .binary_extensions import binary_extensions
 from package.virtual_keyboard import VirtualKeyboard
+from package.markdown_converter import convert_to_markdown
+from markitdown.src.markitdown.smarter import smart_up_markdown
 from package.log_manager import LogManager
 from butler.CommandPanel import CommandPanel
 from plugin.PluginManager import PluginManager
@@ -247,6 +249,34 @@ class Jarvis:
 
         # The user command is already displayed on the panel by `send_text_command`
         # self.ui_print(f"User: {command}", tag='user_prompt')
+
+        if command.strip().startswith("markdown "):
+            parts = command.strip().split()
+            if len(parts) > 1:
+                file_path = parts[1]
+                result = convert_to_markdown(file_path)
+                self.ui_print(result)
+            else:
+                self.ui_print("Usage: markdown <file_path>")
+            return
+
+        if command.strip().startswith("markdown-smart "):
+            parts = command.strip().split()
+            if len(parts) > 1:
+                file_path = parts[1]
+                self.ui_print(f"Converting {file_path} to Markdown...")
+                markdown_content = convert_to_markdown(file_path)
+
+                if markdown_content.startswith("Error:"):
+                    self.ui_print(markdown_content)
+                    return
+
+                self.ui_print("Improving Markdown with DeepSeek AI... (this may take a moment)")
+                smart_content = smart_up_markdown(markdown_content)
+                self.ui_print(smart_content)
+            else:
+                self.ui_print("Usage: markdown-smart <file_path>")
+            return
 
         # Handle display mode command
         if command.strip().startswith("/display"):
