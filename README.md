@@ -15,15 +15,59 @@ This project also includes a comprehensive library of common algorithms and expo
 *   **Local Code Interpreter**: A secure, sandboxed environment for executing Python code generated from natural language commands.
 *   **Plugin System**: Easily extend Butler's functionality with custom plugins.
 
+## Architecture
+
+The Butler assistant is built on a modular and extensible architecture designed for flexibility and scalability. At its core is the `Jarvis` class, which acts as the central orchestrator, managing the flow of information and coordinating the various components of the system.
+
+The key architectural components include:
+
+*   **Command Handling**: User input is processed through a sophisticated command handling system that supports multiple execution paths. Simple commands can be handled directly by the `Jarvis` class, while more complex queries are routed to the appropriate subsystem. The system defaults to a powerful local code interpreter but provides a `/legacy` command to access an older, intent-based system.
+
+*   **Local Code Interpreter**: For advanced commands, Butler uses a sandboxed local interpreter that can execute Python code generated from natural language. This component is encapsulated within the `Interpreter` class, which leverages an `Orchestrator` to generate code and a `code_executor` to run it in a secure environment.
+
+*   **Plugin System**: Butler's functionality can be extended through a dynamic plugin system. The `PluginManager` is responsible for discovering, loading, and executing plugins from the `plugin/` directory. Each plugin is a self-contained module that can be designed to perform specific tasks, such as searching the web, managing a to-do list, or interacting with external APIs.
+
+*   **Package Management**: The `package/` directory contains a collection of standalone tools and utilities that can be invoked by the assistant. These packages are dynamically discovered and can be executed as independent programs, providing a simple way to add new capabilities to the system.
+
+*   **User Interface**: The primary user interface is a Tkinter-based GUI, managed by the `CommandPanel` class. This component provides a text-based interface for interacting with the assistant and can be extended to support other forms of interaction, such as voice commands.
+
+This modular design allows for independent development and testing of each component, making the system easy to maintain and expand.
+
+## Command Processing Workflow
+
+User commands are processed through a flexible and multi-layered workflow that ensures the appropriate component handles the request. The default processing path is the local code interpreter, but users can access the legacy intent-based system by prefixing their command with `/legacy`.
+
+The workflow is as follows:
+
+1.  **Input**: The user enters a command through the Tkinter GUI, voice input, or another interface.
+
+2.  **Routing**:
+    *   If the command starts with `/legacy`, it is routed to the legacy intent-based system. The system uses the DeepSeek API to perform Natural Language Understanding (NLU) and identify the user's intent and any associated entities. The command is then passed to the appropriate handler based on the identified intent.
+    *   Otherwise, the command is sent to the **Local Code Interpreter** by default.
+
+3.  **Execution**:
+    *   **Local Interpreter**: The `Interpreter` class sends the natural language command to the `Orchestrator`, which uses an LLM to generate Python code. This code is then executed in a secure, sandboxed environment by the `code_executor`.
+    *   **Legacy System**: If an intent is matched, the corresponding handler in the `Jarvis` class is invoked. This may involve calling a function from the `algorithms` library, interacting with a plugin, or executing a package.
+    *   **Plugin Execution**: If the command is intended for a plugin, the `PluginManager` will identify the correct plugin and execute its `run` method.
+    *   **Package Execution**: If the command corresponds to a package, the `Jarvis` class will execute the package's `run()` function.
+
+4.  **Output**: The result of the command execution is displayed to the user through the GUI and, if applicable, spoken back to the user using text-to-speech.
+
+This layered approach allows Butler to handle a wide range of commands, from simple, predefined actions to complex, dynamically generated code, while maintaining a clear and organized structure.
+
 ## Project Structure
 
-The project is organized into several key directories:
+The project is organized into several key directories, each with a specific role:
 
-*   `butler/`: The core of the Butler assistant, including the main application logic, GUI, and conversational AI integration.
-*   `local_interpreter/`: A standalone, sandboxed code interpreter for safely executing code generated from natural language.
-*   `package/`: A collection of standalone modules and tools that can be invoked by the Butler assistant.
-*   `plugin/`: A framework for creating and managing plugins to extend Butler's capabilities.
-*   `logs/`: Contains log files for the application.
+*   `butler/`: The core of the Butler assistant. This directory contains the main application logic, including the `Jarvis` class which orchestrates the entire system. It also houses the Tkinter-based GUI (`CommandPanel.py`), conversational AI integration, and the REST API for the algorithms library.
+
+*   `local_interpreter/`: A standalone, sandboxed code interpreter. This component is responsible for safely executing Python code generated from natural language commands. It features an `Orchestrator` that translates natural language to code and an `Executor` that runs the code in a secure environment, preventing it from affecting the host system.
+
+*   `package/`: A collection of standalone modules and tools that can be invoked by the Butler assistant. Each `.py` file in this directory is treated as a separate package and must contain a `run()` function to be executable. This allows for easy extension of Butler's capabilities with new, independent tools.
+
+*   `plugin/`: A framework for creating and managing plugins to extend Butler's core functionality. Plugins are more deeply integrated than packages and are managed by the `PluginManager`. They must inherit from `AbstractPlugin` and can be used to add complex features like web search, long-term memory, or interaction with external services.
+
+*   `logs/`: Contains log files for the application, which are useful for debugging and monitoring the system's behavior.
 
 ## Getting Started
 
