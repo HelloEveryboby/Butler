@@ -2,7 +2,7 @@ import sqlite3
 import os
 import threading
 from typing import List, Dict, Optional, Tuple
-from long_memory.long_memory_interface import AbstractLongMemory, LongMemoryItem
+from .long_memory_interface import AbstractLongMemory, LongMemoryItem
 from package.log_manager import LogManager
 
 # 系统数据路径
@@ -32,6 +32,8 @@ class SQLiteLongMemory(AbstractLongMemory):
         db_path = os.path.join(os.path.split(os.path.abspath(__file__))[0], "../../", SYSTEM_DATA_PATH, DATABASE_FILE_NAME)
 
         try:
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
             self._conn = sqlite3.connect(db_path)
             self._create_table()
             # 创建索引以优化查询性能
@@ -53,18 +55,20 @@ class SQLiteLongMemory(AbstractLongMemory):
             metadata TEXT
         );
         """
-        with self._conn:
-            self._conn.execute(create_table_sql)
+        if self._conn:
+            with self._conn:
+                self._conn.execute(create_table_sql)
 
     def _create_index(self):
         create_index_sql = f"""
         CREATE INDEX IF NOT EXISTS idx_content ON {self._collection_name} (content);
         """
-        with self._conn:
-            self._conn.execute(create_index_sql)
+        if self._conn:
+            with self._conn:
+                self._conn.execute(create_index_sql)
 
     def save(self, items: List[LongMemoryItem]):
-        if not items:
+        if not items or not self._conn:
             return
 
         with self._lock:
@@ -74,7 +78,8 @@ class SQLiteLongMemory(AbstractLongMemory):
                 old_memories = self.search(text=item.content, n_results=5)
                 to_delete_ids.extend([old_memory.id for old_memory in old_memories if old_memory.distance < 0.2])
 
-            self.delete(to_delete_ids)
+            if to_delete_ids:
+                self.delete(to_delete_ids)
             try:
                 with self._conn:
                     for item in items:
@@ -92,6 +97,9 @@ class SQLiteLongMemory(AbstractLongMemory):
             if cache_key in self._cache:
                 self._logger.info(f"缓存命中键: {cache_key}")
                 return self._cache[cache_key]
+
+        if not self._conn:
+            return []
 
         try:
             cursor = self._conn.cursor()
@@ -129,7 +137,7 @@ class SQLiteLongMemory(AbstractLongMemory):
             return []
 
     def delete(self, ids: List[str]):
-        if not ids:
+        if not ids or not self._conn:
             return
         try:
             with self._conn:
@@ -152,6 +160,7 @@ class SQLiteLongMemory(AbstractLongMemory):
         # 使缓存中的项失效
         keys_to_remove = [k for k, v in self._cache.items() if any(item.id in ids for item in v)]
         for key in keys_to_remove:
-            if any(item.id in ids for item in self._cache[key]):
+            if any(item.id in ids for item in self._cache.get(key, [])):
                 del self._cache[key]
-         self._logger.info(f"缓存中的项已失效: {keys_to_remove}")
+        if keys_to_remove:
+            self._logger.info(f"缓存中的项已失效: {keys_to_remove}")
