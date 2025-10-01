@@ -426,7 +426,6 @@ class Jarvis:
         self.running = False
         self.root.quit()
 
-    @lru_cache(maxsize=128)
     def open_programs(self, program_folder, external_folders=None):
         programs_cache = {}
         all_folders = [program_folder] + (external_folders or [])

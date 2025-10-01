@@ -1,5 +1,7 @@
+import io
+from contextlib import redirect_stdout
 from .coordinator.orchestrator import Orchestrator
-from .executor.code_executor import execute_python_code
+from .executor.code_executor import Sandbox, SandboxError
 
 class Interpreter:
     """
@@ -19,6 +21,23 @@ class Interpreter:
             print("Warning: Interpreter initialized without a valid API client.")
         else:
             self.is_ready = True
+        self.sandbox = Sandbox()
+
+    def _execute_code(self, code: str) -> (str, bool):
+        """Helper to run code in the sandbox and capture output."""
+        output_catcher = io.StringIO()
+        success = False
+        try:
+            with redirect_stdout(output_catcher):
+                self.sandbox.execute(code)
+            output = output_catcher.getvalue()
+            success = True
+        except SandboxError as e:
+            output = f"Sandbox Error: {e}"
+        except Exception as e:
+            output = f"An unexpected error occurred: {e}"
+
+        return output, success
 
     def run(self, user_input: str) -> str:
         """
@@ -42,7 +61,7 @@ class Interpreter:
         if "Error:" in generated_code:
             return generated_code
 
-        output, success = execute_python_code(generated_code)
+        output, success = self._execute_code(generated_code)
 
         # Append the assistant's response (the code and its output) to the history
         assistant_response = f"Executed Code:\n```python\n{generated_code}```\nOutput:\n```\n{output}```"
