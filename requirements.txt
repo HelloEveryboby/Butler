@@ -31,3 +31,5 @@ tqdm
 pandas
 Pygments
 pyttsx3
+pyautogui
+mss

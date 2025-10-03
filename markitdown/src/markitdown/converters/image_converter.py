@@ -1,3 +1,5 @@
+import base64
+import io
 from PIL import Image
 from PIL.ExifTags import TAGS
 import pytesseract
@@ -5,11 +7,23 @@ import pytesseract
 def convert_image(file_path: str) -> str:
     """
     Converts an image file to Markdown.
-    Extracts EXIF metadata and performs OCR.
+    Embeds the image and extracts EXIF metadata and OCR text.
     """
     try:
         img = Image.open(file_path)
         markdown_parts = []
+
+        # --- Embedded Image ---
+        markdown_parts.append("## Embedded Image\n")
+        # Create an in-memory buffer
+        buffered = io.BytesIO()
+        # Save image to buffer, preserving original format if possible
+        img_format = img.format or 'PNG'  # Default to PNG if format is not detected
+        img.save(buffered, format=img_format)
+        # Encode to base64
+        b64_string = base64.b64encode(buffered.getvalue()).decode()
+        # Create the data URI
+        markdown_parts.append(f"![Image](data:image/{img_format.lower()};base64,{b64_string})\n")
 
         # --- EXIF Metadata ---
         exif_data = img._getexif()

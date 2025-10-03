@@ -246,6 +246,49 @@ class Jarvis:
         if command is None:
             return
 
+        # Handle safety mode command
+        if command.strip().startswith("/safety"):
+            parts = command.strip().split()
+            if len(parts) == 2:
+                mode = parts[1].lower()
+                if mode == 'on':
+                    self.interpreter.safety_mode = True
+                    self.ui_print("Safety mode enabled.", tag='system_message')
+                elif mode == 'off':
+                    self.interpreter.safety_mode = False
+                    self.ui_print("Safety mode disabled.", tag='system_message')
+                else:
+                    self.ui_print(f"Invalid safety mode: {mode}. Use 'on' or 'off'.", tag='error')
+            else:
+                self.ui_print("Usage: /safety [on|off]", tag='error')
+            return
+
+        # Handle approve command
+        if command.strip() == "/approve":
+            if self.interpreter.last_code_for_approval:
+                result = self.interpreter.run_approved_code()
+                self.ui_print(f"Jarvis: {result}")
+            else:
+                self.ui_print("No code to approve.", tag='system_message')
+            return
+
+        # Handle OS mode command
+        if command.strip().startswith("/os-mode"):
+            parts = command.strip().split()
+            if len(parts) == 2:
+                mode = parts[1].lower()
+                if mode == 'on':
+                    self.interpreter.os_mode = True
+                    self.ui_print("Operating System Mode enabled. Interpreter will now control the GUI.", tag='system_message')
+                elif mode == 'off':
+                    self.interpreter.os_mode = False
+                    self.ui_print("Operating System Mode disabled.", tag='system_message')
+                else:
+                    self.ui_print(f"Invalid OS mode: {mode}. Use 'on' or 'off'.", tag='error')
+            else:
+                self.ui_print("Usage: /os-mode [on|off]", tag='error')
+            return
+
         # The user command is already displayed on the panel by `send_text_command`
         # self.ui_print(f"User: {command}", tag='user_prompt')
 
