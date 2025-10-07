@@ -17,6 +17,8 @@ class TestImport(unittest.TestCase):
             'watchdog.observers': MagicMock(),
             'watchdog.events': MagicMock(),
             'dotenv': MagicMock(),
+            'numpy': MagicMock(),
+            'numpy': MagicMock(),
         }
         with patch.dict(sys.modules, MOCK_MODULES):
             try:
