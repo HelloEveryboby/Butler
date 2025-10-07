@@ -94,7 +94,8 @@ class Jarvis:
 
         if self.display_mode in ('usb', 'both'):
             if self.usb_screen:
-                self.usb_screen.display(message)
+                # The new display method can clear the screen before printing
+                self.usb_screen.display(message, clear_screen=True)
 
     # 核心功能
     def preprocess(self, text):
@@ -658,7 +659,7 @@ def main():
 
     try:
         # Instantiate the USB screen regardless of mode
-        usb_screen = USBScreen()
+        usb_screen = USBScreen(width=40, height=8)
 
         if args.headless:
             print("Running in headless mode")
