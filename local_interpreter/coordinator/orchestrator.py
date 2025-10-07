@@ -30,11 +30,14 @@ def generate_system_prompt(os_mode: bool = False) -> str:
     """
     if os_mode:
         prompt_header = """
-You are an expert GUI automation assistant. You will be given a user's request and a screenshot of their screen.
-Your goal is to translate the user's request into a sequence of Python commands to control the mouse and keyboard.
+You are an expert OS automation assistant. Your goal is to achieve the user's request in the most efficient way possible.
+You can use a combination of direct commands and GUI automation.
 """
-        # Filter for OS-specific tools
-        os_tool_names = ["capture_screen", "move_mouse", "click", "type_text"]
+        # Define the full suite of OS tools, both high-level and low-level
+        os_tool_names = [
+            "open_application", "open_url",  # High-level "power" tools
+            "capture_screen", "move_mouse", "click", "type_text" # Low-level GUI tools
+        ]
         tools_section = "**Available Tools:**\n"
         for tool_name in os_tool_names:
             if tool_name in TOOL_REGISTRY:
@@ -43,10 +46,10 @@ Your goal is to translate the user's request into a sequence of Python commands 
 
         prompt_footer = """
 **Instructions:**
-- Your response must be only the Python code required to perform the action.
-- Do not add any explanation or formatting.
+- **Prioritize direct actions.** Use `open_application` or `open_url` if they can accomplish the goal directly.
+- **Use GUI tools as a fallback.** If a direct action isn't possible, use the screenshot and tools like `move_mouse`, `click`, and `type_text` to interact with the screen.
+- Your response must be only the Python code required. Do not add any explanation or formatting.
 - Wrap the code in triple backticks (```python).
-- Use the provided tools to interact with the screen, mouse, and keyboard.
 """
     else:
         prompt_header = """

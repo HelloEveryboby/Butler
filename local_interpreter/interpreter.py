@@ -2,7 +2,7 @@ import io
 from contextlib import redirect_stdout
 from .coordinator.orchestrator import Orchestrator
 from .executor.code_executor import Sandbox, SandboxError
-from .tools import os_tools
+from .tools import os_tools, power_tools
 
 class Interpreter:
     """
@@ -93,10 +93,14 @@ class Interpreter:
 
         # Prepare the execution environment for the OS tools
         execution_globals = {
+            # Low-level GUI tools
             "move_mouse": os_tools.move_mouse,
             "click": os_tools.click,
             "type_text": os_tools.type_text,
             "capture_screen": os_tools.capture_screen,
+            # High-level power tools
+            "open_application": power_tools.open_application,
+            "open_url": power_tools.open_url,
         }
 
         output, success = self._execute_code(generated_code, execution_globals=execution_globals)
