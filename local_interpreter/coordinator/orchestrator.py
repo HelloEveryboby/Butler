@@ -1,8 +1,10 @@
 import os
 import re
 import importlib
+import instructor
 from openai import OpenAI
 from ..tools.tool_decorator import TOOL_REGISTRY
+from ..tools.file_models import File, FileModification
 
 def load_all_tools():
     """
@@ -87,7 +89,12 @@ class Orchestrator:
             self.api_key = os.getenv("DEEPSEEK_API_KEY")
             if not self.api_key:
                 raise ValueError("DEEPSEEK_API_KEY not found in environment variables.")
-            self.client = OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com")
+
+            # Patch the OpenAI client with instructor
+            self.client = instructor.patch(
+                OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com"),
+                mode=instructor.Mode.JSON,
+            )
         except Exception as e:
             print(f"Error initializing Orchestrator: {e}")
             self.client = None
@@ -120,25 +127,33 @@ class Orchestrator:
 
         try:
             model = "deepseek-vision" if use_os_tools else "deepseek-coder"
+
+            # Check if the user's request involves file operations
+            if "file" in " ".join([m["content"] for m in history if isinstance(m["content"], str)]).lower():
+                response_model = FileModification
+            else:
+                response_model = File
+
             response = self.client.chat.completions.create(
                 model=model,
                 messages=messages,
+                response_model=response_model,
                 max_tokens=1024,
                 temperature=0,
             )
 
-            generated_text = response.choices[0].message.content
+            if isinstance(response, FileModification):
+                if response.action == "create":
+                    return f'write_file(r"{response.file_path}", """{response.description}""")'
+                elif response.action == "delete":
+                    return f'delete_file(r"{response.file_path}")'
+                elif response.action == "modify":
+                    return f'modify_file(r"{response.file_path}", """{response.description}""")'
+            elif isinstance(response, File):
+                return f'write_file(r"{response.file_path}", """{response.content}""")'
 
-            # Extract code from within the triple backticks
-            match = re.search(r"```(python\n)?(.*?)```", generated_text, re.DOTALL)
-            if match:
-                return match.group(2).strip()
-
-            # Fallback for models that might not use backticks as instructed
-            if any(tool in generated_text for tool in ["move_mouse", "click", "type_text"]):
-                 return generated_text.strip()
-
-            return 'print("Error: Could not generate valid code from the response.")'
+            # Fallback for unexpected response types
+            return 'print("Error: Could not generate a valid file operation from the response.")'
 
         except Exception as e:
             print(f"Error calling Deepseek API: {e}")

@@ -57,9 +57,14 @@ class TestJarvisProgramLoading(unittest.TestCase):
             'mss': MagicMock(),
             'pyttsx3': MagicMock(),
             'pygame': MagicMock(),
+            'azure': MagicMock(),
+            'azure.cognitiveservices': MagicMock(),
             'azure.cognitiveservices.speech': MagicMock(),
             'pydub': MagicMock(),
             'pydub.playback': MagicMock(),
+            'instructor': MagicMock(),
+            'tabulate': MagicMock(),
+            'openpyxl': MagicMock(),
         }
 
         # Use patch.dict to temporarily add the mocks to sys.modules
