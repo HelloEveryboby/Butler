@@ -26,6 +26,31 @@ def write_file(path: str, content: str) -> str:
         return f"Error writing to file '{path}': {e}"
 
 @tool
+def delete_file(path: str) -> str:
+    """Deletes a file at the specified path."""
+    try:
+        os.remove(path)
+        return f"Successfully deleted file at '{path}'."
+    except FileNotFoundError:
+        return f"Error: File not found at '{path}'."
+    except Exception as e:
+        return f"Error deleting file '{path}': {e}"
+
+@tool
+def modify_file(path: str, new_content: str) -> str:
+    """
+    Modifies an existing file by replacing its content with the provided new content.
+    """
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        return f"Successfully modified file at '{path}'."
+    except FileNotFoundError:
+        return f"Error: File not found at '{path}'."
+    except Exception as e:
+        return f"Error modifying file '{path}': {e}"
+
+@tool
 def list_directory(path: str) -> str:
     """Lists all files and subdirectories within a specified directory."""
     try:

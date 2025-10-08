@@ -24,6 +24,7 @@ chardet
 anthropic
 deepseek
 openai
+instructor
 Flask
 opencv-python
 scikit-learn
