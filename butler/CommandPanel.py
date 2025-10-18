@@ -352,8 +352,14 @@ class CommandPanel(tk.Frame):
 
     def send_listen_command(self):
         if self.command_callback:
-            logger.info("Initiating voice command")
+            logger.info("Toggling voice command")
             self.command_callback("voice", None)
+
+    def update_listen_button_state(self, is_listening):
+        if is_listening:
+            self.listen_button.config(text="Stop", relief=tk.SUNKEN, bg="#e06c75")
+        else:
+            self.listen_button.config(text="Listen", relief=tk.RAISED, bg=self.button_bg_color)
 
     def set_input_text(self, text):
         self.input_entry.delete(0, tk.END)

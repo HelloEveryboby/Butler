@@ -82,6 +82,8 @@ class Jarvis:
         self.MAX_HISTORY_MESSAGES = 10
         self.interpreter = Interpreter()
         self.program_folder = []
+        self.is_listening = False
+        self.speech_recognizer = None
         
     def set_panel(self, panel):
         self.panel = panel
@@ -197,57 +199,55 @@ class Jarvis:
 
         if not self.engine:
             self.engine = pyttsx3.init()
-
-        # 保存临时语音文件
-        self.engine.save_to_file(audio, self.OUTPUT_FILE)
-        self.engine.runAndWait()
         
         try:
-            from pydub import AudioSegment
-            from pydub.playback import play
-            # 直接播放合成语音
-            sound = AudioSegment.from_wav(self.OUTPUT_FILE)
-            play(sound)
+            self.engine.say(audio)
+            self.engine.runAndWait()
         except Exception as e:
             self.ui_print(f"音频处理出错: {e}")
-        finally:
-            # 清理临时文件
-            if os.path.exists(self.OUTPUT_FILE):
-                os.remove(self.OUTPUT_FILE)
 
     def takecommand(self):
+        if not self.is_listening:
+            self.start_listening()
+        else:
+            self.stop_listening()
+
+    def start_listening(self):
+        if self.is_listening:
+            return
+
         import azure.cognitiveservices.speech as speechsdk
         speech_key = os.getenv("AZURE_SPEECH_KEY")
         service_region = os.getenv("AZURE_SERVICE_REGION", "chinaeast2")
         speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
-        speech_config.speech_synthesis_language = "zh-CN"
-        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config)
+        speech_config.speech_recognition_language = "zh-CN"
 
-        self.ui_print("请说话...")
+        self.speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config)
+        self.speech_recognizer.recognized.connect(self.on_speech_recognized)
 
-        try:
-            result = recognizer.recognize_once()
-            if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-                query = result.text
-                if self.panel:
-                    self.panel.append_to_history(f"You: {query}", "user_prompt")
-                else:
-                    print('User: ' + query)
-                return query
-            elif result.reason == speechsdk.ResultReason.NoMatch:
-                self.ui_print("对不起，我没有听清楚，请再说一遍。")
-                return None
-            elif result.reason == speechsdk.ResultReason.Canceled:
-                cancellation_details = result.cancellation_details
-                self.ui_print(f"语音识别取消: {cancellation_details.reason}")
-                if cancellation_details.reason == speechsdk.CancellationReason.Error:
-                    self.ui_print(f"错误详情: {cancellation_details.error_details}")
-                return None
+        self.speech_recognizer.start_continuous_recognition()
+        self.is_listening = True
+        self.ui_print("正在聆听...", tag='system_message')
+        if self.panel:
+            self.panel.update_listen_button_state(self.is_listening)
 
-        except Exception as e:
-            self.ui_print(f"语音识别出错: {e}")
-            self.logging.error(f"语音识别出错: {e}")
-            return None
+    def stop_listening(self):
+        if not self.is_listening or not self.speech_recognizer:
+            return
+
+        self.speech_recognizer.stop_continuous_recognition()
+        self.is_listening = False
+        self.ui_print("停止聆听。", tag='system_message')
+        if self.panel:
+            self.panel.update_listen_button_state(self.is_listening)
+
+    def on_speech_recognized(self, event_args):
+        query = event_args.result.text
+        if query and self.panel:
+            # Safely update the GUI from the main thread
+            self.root.after(0, self.panel.set_input_text, query)
+            # Now handle the command itself
+            self.handle_user_command(query, self.panel.programs)
 
     def handle_user_command(self, command, programs):
         if command is None:
@@ -490,7 +490,10 @@ class Jarvis:
         self.logging.info("程序已退出")
         self.speak("再见")
         self.running = False
-        self.root.quit()
+        if self.is_listening:
+            self.stop_listening()
+        if self.root:
+            self.root.quit()
 
     def open_programs(self, program_folder, external_folders=None):
         programs_cache = {}
@@ -611,10 +614,7 @@ class Jarvis:
             thread.daemon = True
             thread.start()
         elif command_type == "voice":
-            # Voice command needs to run in a thread to not block UI while listening
-            thread = threading.Thread(target=self._handle_voice_command_thread)
-            thread.daemon = True
-            thread.start()
+            self.takecommand()
         elif command_type == "execute_program":
             self.execute_program(command_payload)
         elif command_type == "display_mode_change":
@@ -625,14 +625,6 @@ class Jarvis:
             else:
                 self.ui_print(f"Invalid display mode from UI: {mode}", tag='error')
 
-    def _handle_voice_command_thread(self):
-        """Helper to run voice recognition and subsequent command handling in a thread."""
-        command = self.takecommand()
-        if command and self.panel:
-            # Safely update the GUI from the main thread
-            self.root.after(0, self.panel.set_input_text, command)
-            # Now handle the command itself
-            self.handle_user_command(command, self.panel.programs)
 
     def main(self):
         # handler = self.ProgramHandler(self.program_folder)
@@ -702,8 +694,9 @@ def main():
             # Pass usb_screen even in headless mode
             jarvis = Jarvis(None, usb_screen=usb_screen)
             jarvis.main()
+            jarvis.start_listening()
             # Keep the application running for testing
-            while True:
+            while jarvis.running:
                 time.sleep(1)
         else:
             root = tk.Tk()
