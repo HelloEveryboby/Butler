@@ -54,87 +54,114 @@ class Interpreter:
         assistant_response = f"{response_type}:\n```python\n{code}```\nOutput:\n```\n{output}```"
         self.conversation_history.append({"role": "assistant", "content": assistant_response})
 
-    def run_approved_code(self) -> str:
-        """Executes the code that was last generated and awaiting approval."""
+    def run_approved_code(self):
+        """
+        Executes the code that was last generated and awaiting approval.
+        This is also a generator to be consistent with the `run` method.
+        """
         if not self.last_code_for_approval:
-            return "No code to approve."
+            yield "result", "No code to approve."
+            return
 
         code = self.last_code_for_approval
         self.last_code_for_approval = None
 
+        yield "status", "Executing approved code..."
         output, success = self._execute_code(code)
         self._add_assistant_response_to_history(code, output)
 
-        return output if success else f"An error occurred:\n{output}"
+        result_message = output if success else f"An error occurred:\n{output}"
+        yield "result", result_message
 
-    def _run_os_mode(self, user_input: str) -> str:
-        """Handles the workflow for Operating System Mode."""
-        print("--- OS MODE: Capturing screen... ---")
+    def _run_os_mode(self, user_input: str):
+        """Handles the workflow for Operating System Mode as a generator."""
+        yield "status", "Capturing screen for OS mode..."
         screenshot_b64 = os_tools.capture_screen()
 
-        # The user message for the orchestrator needs to include the image
         user_message_with_image = [
             {"type": "text", "text": user_input},
-            {
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"}
-            }
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"}}
         ]
-
-        # Add the multimodal message to history
         self.conversation_history.append({"role": "user", "content": user_message_with_image})
 
-        # Tell the orchestrator to use the OS toolset
-        generated_code = self.orchestrator.process_user_input(self.conversation_history, use_os_tools=True)
+        yield "status", "Generating OS commands..."
+        generated_code = ""
+        code_stream = self.orchestrator.stream_code_generation(self.conversation_history, use_os_tools=True)
+
+        for chunk in code_stream:
+            if 'print("Error' in chunk:
+                self.conversation_history.pop()
+                yield "result", chunk
+                return
+            generated_code += chunk
+            yield "code_chunk", chunk
+
+        yield "status", "\n"
 
         if "Error:" in generated_code:
-            self.conversation_history.pop() # Remove the user message that led to the error
-            return generated_code
+            self.conversation_history.pop()
+            yield "result", generated_code
+            return
 
-        # Prepare the execution environment for the OS tools
         execution_globals = {
-            # Low-level GUI tools
             "move_mouse": os_tools.move_mouse,
             "click": os_tools.click,
             "type_text": os_tools.type_text,
             "capture_screen": os_tools.capture_screen,
-            # High-level power tools
             "open_application": power_tools.open_application,
             "open_url": power_tools.open_url,
         }
 
+        yield "status", "Executing OS commands..."
         output, success = self._execute_code(generated_code, execution_globals=execution_globals)
         self._add_assistant_response_to_history(generated_code, output, os_command=True)
 
-        return output if success else f"An error occurred in OS Mode:\n{output}"
+        result_message = output if success else f"An error occurred in OS Mode:\n{output}"
+        yield "result", result_message
 
-    def run(self, user_input: str) -> str:
+    def run(self, user_input: str):
         """
-        Runs a single turn of the interpreter.
-        If in safety mode, it returns the code for approval. Otherwise, it executes directly.
+        Runs a single turn of the interpreter, yielding events as they happen.
+        Events can be status updates, code chunks, or final results.
         """
         if not self.is_ready:
-            return "Error: Interpreter is not ready. Please check API key and restart."
+            yield "result", "Error: Interpreter is not ready. Please check API key and restart."
+            return
 
-        # Branch to OS mode if enabled
         if self.os_mode:
-            return self._run_os_mode(user_input)
+            yield from self._run_os_mode(user_input)
+            return
 
-        # Add user input to history immediately for standard mode
         self.conversation_history.append({"role": "user", "content": user_input})
+        yield "status", "Generating code..."
 
-        # Generate code using the full history
-        generated_code = self.orchestrator.process_user_input(self.conversation_history)
+        stream = self.orchestrator.stream_code_generation(self.conversation_history)
+        last_code_yielded = ""
+        final_code = None
 
-        if "Error:" in generated_code:
-            # If code generation fails, remove the user message that led to it
+        for partial_response in stream:
+            # The content of the file is the code
+            if partial_response.content:
+                new_code = partial_response.content[len(last_code_yielded):]
+                if new_code:
+                    yield "code_chunk", new_code
+                    last_code_yielded = partial_response.content
+            final_code = partial_response.content
+
+        if "Error:" in final_code:
             self.conversation_history.pop()
-            return generated_code
+            yield "result", final_code
+            return
+
+        yield "status", "\n"
 
         if self.safety_mode:
-            self.last_code_for_approval = generated_code
-            return f"Generated Code (awaiting approval):\n```python\n{generated_code}```\n\nType `/approve` to execute."
+            self.last_code_for_approval = final_code
+            approval_message = f"Generated Code (awaiting approval):\n```python\n{final_code}```\n\nType `/approve` to execute."
+            yield "result", approval_message
         else:
-            output, success = self._execute_code(generated_code)
-            self._add_assistant_response_to_history(generated_code, output)
-            return output if success else f"An error occurred:\n{output}"
+            yield "status", "Executing code..."
+            output, success = self._execute_code(final_code)
+            self._add_assistant_response_to_history(final_code, output)
+            result_message = output if success else f"An error occurred:\n{output}"
+            yield "result", result_message

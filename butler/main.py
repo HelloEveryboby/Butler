@@ -11,6 +11,7 @@ from tkinter import messagebox
 import requests
 import shutil
 import tempfile
+import threading
 import concurrent.futures
 from functools import lru_cache
 from watchdog.observers import Observer
@@ -85,16 +86,21 @@ class Jarvis:
     def set_panel(self, panel):
         self.panel = panel
 
-    def ui_print(self, message, tag='ai_response'):
+    def ui_print(self, message, tag='ai_response', response_id=None):
+        """Prints a message to the UI and/or USB screen, with support for response IDs."""
         print(message)  # Keep console output for logging/debugging
 
         if self.display_mode in ('host', 'both'):
             if self.panel:
-                self.panel.append_to_history(message, tag)
+                # If it's the start of a new response, use a different method
+                if tag == 'ai_response_start':
+                    # This will create the initial text block
+                    self.panel.append_to_history(message, 'ai_response', response_id=response_id)
+                else:
+                    self.panel.append_to_history(message, tag) # Fallback for non-streaming messages
 
         if self.display_mode in ('usb', 'both'):
             if self.usb_screen:
-                # The new display method can clear the screen before printing
                 self.usb_screen.display(message, clear_screen=True)
 
     # 核心功能
@@ -267,8 +273,8 @@ class Jarvis:
         # Handle approve command
         if command.strip() == "/approve":
             if self.interpreter.last_code_for_approval:
-                result = self.interpreter.run_approved_code()
-                self.ui_print(f"Jarvis: {result}")
+                # The approval now also runs in a stream
+                self.stream_interpreter_response(command, approved=True)
             else:
                 self.ui_print("No code to approve.", tag='system_message')
             return
@@ -290,14 +296,10 @@ class Jarvis:
                 self.ui_print("Usage: /os-mode [on|off]", tag='error')
             return
 
-        # The user command is already displayed on the panel by `send_text_command`
-        # self.ui_print(f"User: {command}", tag='user_prompt')
-
         if command.strip().startswith("markdown "):
             parts = command.strip().split()
             if len(parts) > 1:
                 file_path = parts[1]
-                # The result is printed by the function itself
                 convert_to_markdown(file_path)
             else:
                 self.ui_print("Usage: markdown <file_path>")
@@ -319,54 +321,74 @@ class Jarvis:
 
         # New hybrid handler logic: Interpreter is the default.
         if command.strip().startswith("/legacy "):
-            # Route to the old intent-based system
-            legacy_command = command.strip()[8:] # Get the command without the prefix
+            legacy_command = command.strip()[8:]
             self.ui_print(f"Jarvis (Legacy Mode): Processing '{legacy_command}'")
-
-            # --- Start of original logic ---
             self.conversation_history.append({"role": "user", "content": legacy_command})
             nlu_result = self.preprocess(legacy_command)
             intent = nlu_result.get("intent", "unknown")
             entities = nlu_result.get("entities", {})
-
-            intent_handlers = {
-                "sort_numbers": self._handle_sort_numbers,
-                "find_number": self._handle_find_number,
-                "calculate_fibonacci": self._handle_calculate_fibonacci,
-                "edge_detect_image": self._handle_edge_detect_image,
-                "text_similarity": self._handle_text_similarity,
-                "open_program": self._handle_open_program,
-                "exit": self._handle_exit,
-            }
-
-            handler = intent_handlers.get(intent)
-
-            if handler:
-                handler(entities=entities, programs=programs)
-            else:
-                # Fallback to plugin or unknown command
-                plugin_found = False
-                for plugin in self.plugin_manager.get_all_plugins():
-                    if plugin.get_name().lower() in legacy_command.lower():
-                        plugin_result = self.plugin_manager.run_plugin(plugin.get_name(), legacy_command, entities)
-                        if plugin_result.success:
-                            self.speak(plugin_result.result)
-                            plugin_found = True
-                            break
-
-                if not plugin_found:
-                    self.ui_print(f"未知指令或意图: {legacy_command}")
-                    self.logging.warning(f"未知指令或意图: {intent}")
-                    self.speak("抱歉，我不太理解您的意思，请换一种方式表达。")
-            # --- End of original logic ---
-
+            self._execute_legacy_intent(intent, entities, programs, legacy_command)
         else:
-            # Default to the new interpreter
+            # Default to the new streaming interpreter
             if self.interpreter.is_ready:
-                result = self.interpreter.run(command)
-                self.ui_print(f"Jarvis: {result}")
+                self.stream_interpreter_response(command)
             else:
-                self.ui_print("Jarvis: Interpreter is not ready. Please check API key.")
+                # Use root.after to safely print from a non-main thread
+                self.root.after(0, self.ui_print, "Jarvis: Interpreter is not ready. Please check API key.")
+
+    def _execute_legacy_intent(self, intent, entities, programs, legacy_command):
+        """Helper to execute legacy intent-based commands."""
+        intent_handlers = {
+            "sort_numbers": self._handle_sort_numbers,
+            "find_number": self._handle_find_number,
+            "calculate_fibonacci": self._handle_calculate_fibonacci,
+            "edge_detect_image": self._handle_edge_detect_image,
+            "text_similarity": self._handle_text_similarity,
+            "open_program": self._handle_open_program,
+            "exit": self._handle_exit,
+        }
+        handler = intent_handlers.get(intent)
+        if handler:
+            handler(entities=entities, programs=programs)
+        else:
+            plugin_found = False
+            for plugin in self.plugin_manager.get_all_plugins():
+                if plugin.get_name().lower() in legacy_command.lower():
+                    plugin_result = self.plugin_manager.run_plugin(plugin.get_name(), legacy_command, entities)
+                    if plugin_result.success:
+                        self.speak(plugin_result.result)
+                        plugin_found = True
+                        break
+            if not plugin_found:
+                self.ui_print(f"未知指令或意图: {legacy_command}")
+                self.logging.warning(f"未知指令或意图: {intent}")
+                self.speak("抱歉，我不太理解您的意思，请换一种方式表达。")
+
+    def stream_interpreter_response(self, command, approved=False):
+        """
+        Handles the streaming response from the interpreter and updates the UI.
+        This method is run in a separate thread.
+        """
+        response_id = f"response_{time.time()}"
+
+        # Schedule the initial message on the main thread
+        self.root.after(0, self.ui_print, "Jarvis:", 'ai_response_start', response_id)
+
+        stream = self.interpreter.run_approved_code() if approved else self.interpreter.run(command)
+
+        for event_type, payload in stream:
+            if not self.root:
+                break # Stop if the window has been closed
+
+            if event_type == "status":
+                self.logging.info(f"Interpreter status: {payload}")
+            elif event_type == "code_chunk":
+                # Schedule the chunk to be appended on the main thread
+                self.root.after(0, self.panel.append_to_response, payload, response_id)
+            elif event_type == "result":
+                # Schedule the final result to be appended
+                final_text = f"\n\nOutput:\n{payload}\n\n"
+                self.root.after(0, self.panel.append_to_response, final_text, response_id)
 
     def _handle_sort_numbers(self, entities, **kwargs):
         try:
@@ -581,14 +603,19 @@ class Jarvis:
 
     def panel_command_handler(self, command_type, command_payload):
         if command_type == "text":
-            # Pass the programs stored in the panel
-            self.handle_user_command(command_payload, self.panel.programs)
+            # The /approve command is handled directly here to avoid ambiguity
+            if command_payload.strip() == "/approve":
+                thread = threading.Thread(target=self.handle_user_command, args=(command_payload, self.panel.programs))
+            else:
+                thread = threading.Thread(target=self.handle_user_command, args=(command_payload, self.panel.programs))
+            thread.daemon = True
+            thread.start()
         elif command_type == "voice":
-            command = self.takecommand()
-            if command and self.panel:
-                self.panel.set_input_text(command)
+            # Voice command needs to run in a thread to not block UI while listening
+            thread = threading.Thread(target=self._handle_voice_command_thread)
+            thread.daemon = True
+            thread.start()
         elif command_type == "execute_program":
-            # command_payload should be the name of the program to run
             self.execute_program(command_payload)
         elif command_type == "display_mode_change":
             mode = command_payload
@@ -597,6 +624,15 @@ class Jarvis:
                 self.ui_print(f"Display mode set to: {self.display_mode}", tag='system_message')
             else:
                 self.ui_print(f"Invalid display mode from UI: {mode}", tag='error')
+
+    def _handle_voice_command_thread(self):
+        """Helper to run voice recognition and subsequent command handling in a thread."""
+        command = self.takecommand()
+        if command and self.panel:
+            # Safely update the GUI from the main thread
+            self.root.after(0, self.panel.set_input_text, command)
+            # Now handle the command itself
+            self.handle_user_command(command, self.panel.programs)
 
     def main(self):
         # handler = self.ProgramHandler(self.program_folder)
