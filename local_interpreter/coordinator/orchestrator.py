@@ -158,3 +158,46 @@ class Orchestrator:
         except Exception as e:
             print(f"Error calling Deepseek API: {e}")
             return f'print("Error during code generation: {e}")'
+
+    def stream_code_generation(self, history: list, use_os_tools: bool = False):
+        """
+        Streams the code generation from the Deepseek LLM using instructor.
+        Yields partial code model updates as they are received.
+        """
+        if not self.client:
+            yield 'print("Orchestrator not initialized. Please check API key.")'
+            return
+
+        system_prompt = generate_system_prompt(os_mode=use_os_tools)
+        messages = [{"role": "system", "content": system_prompt}]
+
+        if use_os_tools:
+            last_user_message = history[-1]
+            other_messages = history[:-1]
+            messages.extend(other_messages)
+            messages.append(last_user_message)
+        else:
+            messages.extend(history)
+
+        try:
+            model = "deepseek-vision" if use_os_tools else "deepseek-coder"
+
+            # Use instructor's Partial mode for streaming
+            response_model = File
+
+            stream = self.client.chat.completions.create(
+                model=model,
+                messages=messages,
+                response_model=instructor.Partial[response_model],
+                max_tokens=1024,
+                temperature=0,
+                stream=True,
+            )
+
+            for partial_response in stream:
+                yield partial_response
+
+        except Exception as e:
+            print(f"Error during streaming from Deepseek API: {e}")
+            # Yield a final object that represents the error
+            yield File(file_path="error.py", content=f'print("Error: {e}")')

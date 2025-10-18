@@ -287,31 +287,47 @@ class CommandPanel(tk.Frame):
                 start_index = end # Move search start to after the found token
 
 
-    def append_to_history(self, text, tag='ai_response'):
+    def append_to_history(self, text, tag='ai_response', response_id=None):
         self.output_text.config(state='normal')
 
-        code_block_pattern = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
+        # If it's a streaming response, just insert the initial text.
+        if response_id:
+            block_tag = f"block_{response_id}"
+            self.output_text.insert(tk.END, text, (tag, block_tag))
+        else:
+            # For non-streaming messages, parse for code blocks as before.
+            code_block_pattern = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
+            last_end = 0
+            for match in code_block_pattern.finditer(text):
+                pre_text = text[last_end:match.start()]
+                if pre_text.strip():
+                    self.output_text.insert(tk.END, pre_text, (tag,))
 
-        last_end = 0
-        for match in code_block_pattern.finditer(text):
-            # Insert text before the code block
-            pre_text = text[last_end:match.start()]
-            if pre_text.strip():
-                self.output_text.insert(tk.END, pre_text, (tag,))
+                language = match.group(1).lower()
+                code = match.group(2)
+                self._highlight_code(code, language)
+                last_end = match.end()
 
-            # Insert the highlighted code block
-            language = match.group(1).lower()
-            code = match.group(2)
-            self._highlight_code(code, language)
+            remaining_text = text[last_end:]
+            if remaining_text.strip():
+                self.output_text.insert(tk.END, remaining_text, (tag,))
 
-            last_end = match.end()
+            # Add the final newlines for non-streaming messages
+            self.output_text.insert(tk.END, "\n\n")
 
-        # Insert any remaining text after the last code block
-        remaining_text = text[last_end:]
-        if remaining_text.strip():
-            self.output_text.insert(tk.END, remaining_text, (tag,))
+        self.output_text.see(tk.END)
+        self.output_text.config(state='disabled')
 
-        self.output_text.insert(tk.END, "\n\n")
+    def append_to_response(self, text_chunk, response_id):
+        """Appends a chunk of text to a response block identified by response_id."""
+        if not response_id:
+            return
+
+        self.output_text.config(state='normal')
+
+        # Insert the chunk at the end of the text widget.
+        self.output_text.insert(tk.END, text_chunk)
+
         self.output_text.see(tk.END)
         self.output_text.config(state='disabled')
 

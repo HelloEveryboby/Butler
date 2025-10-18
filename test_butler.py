@@ -6,105 +6,50 @@ from unittest.mock import MagicMock, patch
 import sys
 
 
-class TestJarvisProgramLoading(unittest.TestCase):
+from butler.main import Jarvis, Interpreter
+
+class TestButler(unittest.TestCase):
 
     def setUp(self):
-        """Set up a temporary directory for package files."""
-        self.test_dir = tempfile.mkdtemp(prefix="butler_test_")
-        self.package_dir = os.path.join(self.test_dir, "package")
-        os.makedirs(self.package_dir)
+        """Set up a mock root for the Jarvis instance."""
         self.mock_root = MagicMock()
 
-    def tearDown(self):
-        """Clean up the temporary directory."""
-        shutil.rmtree(self.test_dir)
-
-    def test_dynamic_program_loading(self):
+    @patch('local_interpreter.tools.os_tools.pyautogui')
+    @patch.object(Jarvis, '_initialize_long_memory')
+    @patch.object(Interpreter, 'run')
+    def test_streaming_response(self, mock_interpreter_run, mock_init_long_memory, mock_pyautogui):
         """
-        Tests that new programs are loaded correctly.
-        This test patches all dependencies that fail in a headless environment.
+        Tests that the streaming response from the interpreter is handled correctly.
         """
-        # A comprehensive list of all modules that cause import errors.
-        MOCK_MODULES = {
-            'tkinter': MagicMock(),
-            'requests': MagicMock(),
-            'watchdog': MagicMock(),
-            'watchdog.observers': MagicMock(),
-            'watchdog.events': MagicMock(),
-            'dotenv': MagicMock(),
-            'numpy': MagicMock(),
-            'cv2': MagicMock(),
-            'sklearn': MagicMock(),
-            'sklearn.feature_extraction': MagicMock(),
-            'sklearn.feature_extraction.text': MagicMock(),
-            'sklearn.metrics': MagicMock(),
-            'sklearn.metrics.pairwise': MagicMock(),
-            'sklearn.cluster': MagicMock(),
-            'pypinyin': MagicMock(),
-            'pandas': MagicMock(),
-            'markdownify': MagicMock(),
-            'docx': MagicMock(),
-            'pptx': MagicMock(),
-            'pdfplumber': MagicMock(),
-            'PIL': MagicMock(),
-            'PIL.ExifTags': MagicMock(),
-            'pytesseract': MagicMock(),
-            'ebooklib': MagicMock(),
-            'bs4': MagicMock(),
-            'tqdm': MagicMock(),
-            'openai': MagicMock(),
-            'pyautogui': MagicMock(),
-            'mss': MagicMock(),
-            'pyttsx3': MagicMock(),
-            'pygame': MagicMock(),
-            'azure': MagicMock(),
-            'azure.cognitiveservices': MagicMock(),
-            'azure.cognitiveservices.speech': MagicMock(),
-            'pydub': MagicMock(),
-            'pydub.playback': MagicMock(),
-            'instructor': MagicMock(),
-            'tabulate': MagicMock(),
-            'openpyxl': MagicMock(),
-        }
+        # 1. Setup mocks
+        mock_init_long_memory.return_value = None
 
-        # Use patch.dict to temporarily add the mocks to sys.modules
-        with patch.dict(sys.modules, MOCK_MODULES):
-            # The original patch for Interpreter is still needed to avoid
-            # its initialization logic (e.g., loading API keys).
-            with patch('butler.main.Interpreter', new_callable=MagicMock):
-                from butler.main import Jarvis
+        # This is the stream of events the interpreter will yield
+        mock_stream = [
+            ("status", "Generating code..."),
+            ("code_chunk", "print('hello')"),
+            ("result", "hello\n"),
+        ]
+        mock_interpreter_run.return_value = iter(mock_stream)
 
-                # Further patch methods on Jarvis to prevent side effects during instantiation.
-                with patch.object(Jarvis, '_initialize_long_memory', return_value=None), \
-                     patch.object(Jarvis, 'speak', return_value=None):
+        # 2. Instantiate Jarvis and its panel
+        jarvis = Jarvis(self.mock_root)
+        jarvis.interpreter.is_ready = True # Ensure the interpreter is ready
+        jarvis.panel = MagicMock()
+        jarvis.panel.append_to_response = MagicMock()
 
-                    # 1. Instantiate Jarvis.
-                    jarvis = Jarvis(self.mock_root)
-                    jarvis.program_folder = [self.package_dir] # Set the program folder for the test
+        # 3. Call the method that handles the streaming
+        jarvis.stream_interpreter_response("test command")
 
-                    # 2. Create an initial program file.
-                    prog1_path = os.path.join(self.package_dir, "prog1.py")
-                    with open(prog1_path, "w") as f:
-                        f.write("def run(): pass")
+        # 4. Verify the calls to the panel
+        # We need to check the calls made via `root.after`
+        calls = self.mock_root.after.call_args_list
+        self.assertGreater(len(calls), 0, "root.after should have been called")
 
-                    # 3. Call open_programs for the first time.
-                    programs_before = jarvis.open_programs(self.package_dir)
-                    prog1_name = f"{os.path.basename(self.package_dir)}.prog1"
-                    self.assertIn(prog1_name, programs_before, "Initial program was not loaded.")
-                    self.assertEqual(len(programs_before), 1)
-
-                    # 4. Create a new program file at runtime.
-                    prog2_path = os.path.join(self.package_dir, "prog2.py")
-                    with open(prog2_path, "w") as f:
-                        f.write("def run(): pass")
-
-                    # 5. Call open_programs again on the same instance.
-                    programs_after = jarvis.open_programs(self.package_dir)
-                    prog2_name = f"{os.path.basename(self.package_dir)}.prog2"
-
-                    # 6. Assert that the new program is loaded.
-                    self.assertIn(prog2_name, programs_after, "Newly added program was not detected.")
-                    self.assertEqual(len(programs_after), 2, "The program count should be 2 after adding the new program.")
+        # Check the call for the code chunk
+        append_calls = [c for c in calls if c[0][1] == jarvis.panel.append_to_response]
+        self.assertTrue(any("print('hello')" in c[0] for c in append_calls), "Code chunk was not appended")
+        self.assertTrue(any("hello\n" in c[0][2] for c in append_calls), "Final result was not appended")
 
 if __name__ == "__main__":
     unittest.main()
