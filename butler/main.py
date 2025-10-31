@@ -37,11 +37,13 @@ from local_interpreter.interpreter import Interpreter
 from plugin.long_memory.deepseek_long_memory import DeepSeekLongMemory
 from plugin.long_memory.chroma_long_memory import SQLiteLongMemory
 from .usb_screen import USBScreen
+from .resource_manager import ResourceManager, PerformanceMode
 
 class Jarvis:
     def __init__(self, root, usb_screen=None):
         self.root = root
         self.usb_screen = usb_screen
+        self.resource_manager = ResourceManager()
         self.display_mode = 'host'  # 'host', 'usb', or 'both'
         load_dotenv()
         # 替换为DeepSeek API密钥
@@ -317,6 +319,23 @@ class Jarvis:
                     self.ui_print(f"Invalid display mode: {mode}. Use 'host', 'usb', or 'both'.", tag='error')
             else:
                 self.ui_print("Usage: /display [host|usb|both]", tag='error')
+            return
+
+        # Handle performance mode command
+        if command.strip().startswith("/mode"):
+            parts = command.strip().split()
+            if len(parts) == 2:
+                mode_str = parts[1].lower()
+                if mode_str == 'eco':
+                    self.resource_manager.set_mode(PerformanceMode.ECO)
+                    self.ui_print("Performance mode set to ECO.", tag='system_message')
+                elif mode_str == 'normal':
+                    self.resource_manager.set_mode(PerformanceMode.NORMAL)
+                    self.ui_print("Performance mode set to NORMAL.", tag='system_message')
+                else:
+                    self.ui_print(f"Invalid mode: {mode_str}. Use 'eco' or 'normal'.", tag='error')
+            else:
+                self.ui_print("Usage: /mode [eco|normal]", tag='error')
             return
 
         # New hybrid handler logic: Interpreter is the default.
@@ -626,12 +645,29 @@ class Jarvis:
                 self.ui_print(f"Invalid display mode from UI: {mode}", tag='error')
 
 
+    def _background_monitor(self):
+        """A mock background task that adjusts its frequency based on the performance mode."""
+        while self.running:
+            if self.resource_manager.get_mode() == PerformanceMode.ECO:
+                # In ECO mode, the task runs less frequently.
+                time.sleep(10)
+                self.logging.info("Background monitor running in ECO mode (slow).")
+            else:
+                # In NORMAL mode, it runs more frequently.
+                time.sleep(2)
+                self.logging.info("Background monitor running in NORMAL mode (fast).")
+
     def main(self):
         # handler = self.ProgramHandler(self.program_folder)
         # observer = Observer()
         # for folder in self.program_folder:
         #     observer.schedule(handler, folder, recursive=True)
         # observer.start()
+
+        # Start the background monitor in a separate thread
+        monitor_thread = threading.Thread(target=self._background_monitor)
+        monitor_thread.daemon = True
+        monitor_thread.start()
 
         # process_tasks() # Temporarily disabled for UI testing
         # schedule_management() # This is a standalone command line tool, disabling for now
