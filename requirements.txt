@@ -34,3 +34,4 @@ Pygments
 pyttsx3
 pyautogui
 mss
+psutil
