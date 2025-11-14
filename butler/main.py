@@ -86,6 +86,7 @@ class Jarvis:
         self.program_folder = []
         self.is_listening = False
         self.speech_recognizer = None
+        self.voice_mode = 'offline'  # 'offline' or 'online'
         
     def set_panel(self, panel):
         self.panel = panel
@@ -190,7 +191,6 @@ class Jarvis:
             return "抱歉，我暂时无法回答这个问题。"  # 出错时返回默认响应
 
     def speak(self, audio):
-        import pyttsx3
         self.ui_print(audio, tag='ai_response')
 
         # 将助手的响应添加到历史记录
@@ -199,49 +199,193 @@ class Jarvis:
         if len(self.conversation_history) > self.MAX_HISTORY_MESSAGES:
             self.conversation_history = self.conversation_history[-self.MAX_HISTORY_MESSAGES:]
 
-        if not self.engine:
-            self.engine = pyttsx3.init()
-        
         try:
+            import pyttsx3
+            if not self.engine:
+                self.engine = pyttsx3.init()
+
             self.engine.say(audio)
             self.engine.runAndWait()
         except Exception as e:
-            self.ui_print(f"音频处理出错: {e}")
-
-    def takecommand(self):
-        if not self.is_listening:
-            self.start_listening()
-        else:
-            self.stop_listening()
+            self.ui_print(f"音频处理(TTS)出错: {e}", tag='error')
+            self.logging.warning(f"Could not initialize or use pyttsx3 for TTS: {e}")
 
     def start_listening(self):
+        """
+        Starts the offline voice recognition system.
+        This will run in a background thread.
+        """
         if self.is_listening:
             return
 
-        import azure.cognitiveservices.speech as speechsdk
+        self.is_listening = True
+
+        if self.voice_mode == 'offline':
+            self.ui_print("正在启动离线语音识别引擎...", tag='system_message')
+            target_loop = self._offline_listen_loop
+        else: # 'online'
+            self.ui_print("正在启动在线语音识别引擎...", tag='system_message')
+            target_loop = self._online_listen_loop
+
+        # Start the listening process in a separate thread
+        self.listen_thread = threading.Thread(target=target_loop)
+        self.listen_thread.daemon = True
+        self.listen_thread.start()
+
+    def stop_listening(self):
+        """
+        Stops the offline voice recognition system.
+        """
+        if not self.is_listening:
+            return
+
+        self.is_listening = False
+        # The thread will exit on its own when is_listening is False
+        self.ui_print("正在停止离线语音识别...", tag='system_message')
+
+    def _offline_listen_loop(self):
+        """
+        The main loop for offline wake word and command recognition.
+        """
+        porcupine_access_key = os.getenv("PICOVOICE_ACCESS_KEY")
+        if not porcupine_access_key:
+            self.ui_print("错误: 未设置PICOVOICE_ACCESS_KEY环境变量。", tag='error')
+            self.ui_print("请在 https://console.picovoice.ai/ 注册免费账户并获取您的密钥。", tag='error')
+            self.is_listening = False
+            return
+
+        vosk_model_path = "vosk-model-small-en-us-0.15"
+        if not os.path.exists(vosk_model_path):
+            self.ui_print(f"错误: Vosk模型未在 '{vosk_model_path}' 找到。", tag='error')
+            self.ui_print("请从 https://alphacephei.com/vosk/models 下载模型并解压到此处。", tag='error')
+            self.is_listening = False
+            return
+
+        try:
+            from pvrecorder import PvRecorder
+            import pvporcupine
+            from vosk import Model, KaldiRecognizer
+
+            keyword_paths = [pvporcupine.KEYWORD_PATHS["jarvis"]]
+            porcupine = pvporcupine.create(
+                access_key=porcupine_access_key,
+                keyword_paths=keyword_paths
+            )
+
+            vosk_model = Model(vosk_model_path)
+
+            self.ui_print("离线语音引擎已就绪，正在监听唤醒词 'Jarvis'...", tag='system_message')
+
+            while self.is_listening:
+                recorder = PvRecorder(device_index=-1, frame_length=porcupine.frame_length)
+                recorder.start()
+
+                # Wake word detection loop
+                while self.is_listening:
+                    pcm = recorder.read()
+                    result = porcupine.process(pcm)
+                    if result >= 0:
+                        self.ui_print("唤醒词 'Jarvis' 已检测!", tag='system_message')
+                        # Play a sound to indicate wake word detected
+                        # self.play_activation_sound() # You can implement this
+                        recorder.stop()
+                        break
+
+                if not self.is_listening:
+                    recorder.stop()
+                    break
+
+                # Command recognition
+                self.ui_print("正在聆听指令...", tag='system_message')
+                recognizer = KaldiRecognizer(vosk_model, 16000)
+
+                # Use a new recorder for command recognition
+                command_recorder = PvRecorder(device_index=-1, frame_length=512) # A more standard frame length
+                command_recorder.start()
+
+                # Simple silence detection logic
+                silence_frames = 0
+                max_silence_frames = 30 # about 3 seconds of silence
+
+                while self.is_listening:
+                    pcm_command = command_recorder.read()
+
+                    if recognizer.AcceptWaveform(bytes(pcm_command)):
+                        result_json = recognizer.Result()
+                        result_text = json.loads(result_json).get("text", "")
+                        if result_text:
+                            self.ui_print(f"识别到的指令: {result_text}", tag='user_input')
+                            # Safely update the GUI from the main thread
+                            if self.panel:
+                                self.root.after(0, self.panel.set_input_text, result_text)
+                            self.handle_user_command(result_text, self.panel.programs if self.panel else {})
+                        break # Go back to wake word listening
+                    else:
+                        partial_result = json.loads(recognizer.PartialResult())
+                        if not partial_result.get("partial", ""):
+                            silence_frames += 1
+                        else:
+                            silence_frames = 0
+
+                    if silence_frames > max_silence_frames:
+                        self.ui_print("未检测到指令 (超时)。", tag='system_message')
+                        break
+
+                command_recorder.stop()
+                self.ui_print("返回等待唤醒词...", tag='system_message')
+
+        except ImportError:
+            self.ui_print("错误: 请安装 'pvporcupine', 'pvrecorder', 和 'vosk' 库。", tag='error')
+        except Exception as e:
+            self.ui_print(f"语音识别时发生错误: {e}", tag='error')
+        finally:
+            if 'porcupine' in locals() and porcupine is not None:
+                porcupine.delete()
+            if 'recorder' in locals() and recorder.is_recording:
+                recorder.stop()
+            if 'command_recorder' in locals() and command_recorder.is_recording:
+                command_recorder.stop()
+            self.is_listening = False
+            self.ui_print("离线语音识别已停止。", tag='system_message')
+
+    def _online_listen_loop(self):
+        """
+        The main loop for online (Azure) command recognition.
+        """
+        try:
+            import azure.cognitiveservices.speech as speechsdk
+        except ImportError:
+            self.ui_print("错误: 请安装 'azure-cognitiveservices-speech' 库。", tag='error')
+            self.is_listening = False
+            return
+
         speech_key = os.getenv("AZURE_SPEECH_KEY")
         service_region = os.getenv("AZURE_SERVICE_REGION", "chinaeast2")
+
+        if not speech_key or not service_region:
+            self.ui_print("错误: 未设置AZURE_SPEECH_KEY或AZURE_SERVICE_REGION环境变量。", tag='error')
+            self.is_listening = False
+            return
+
         speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
         speech_config.speech_recognition_language = "zh-CN"
 
         self.speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config)
         self.speech_recognizer.recognized.connect(self.on_speech_recognized)
 
-        self.speech_recognizer.start_continuous_recognition()
-        self.is_listening = True
-        self.ui_print("正在聆听...", tag='system_message')
-        if self.panel:
-            self.panel.update_listen_button_state(self.is_listening)
+        # Connect session events to handle stopping
+        self.speech_recognizer.session_stopped.connect(lambda evt: self.stop_listening())
+        self.speech_recognizer.canceled.connect(lambda evt: self.stop_listening())
 
-    def stop_listening(self):
-        if not self.is_listening or not self.speech_recognizer:
-            return
+        self.speech_recognizer.start_continuous_recognition()
+        self.ui_print("在线语音引擎已就绪，正在聆听...", tag='system_message')
+
+        # Keep the thread alive while listening
+        while self.is_listening:
+            time.sleep(0.5)
 
         self.speech_recognizer.stop_continuous_recognition()
-        self.is_listening = False
-        self.ui_print("停止聆听。", tag='system_message')
-        if self.panel:
-            self.panel.update_listen_button_state(self.is_listening)
+        self.ui_print("在线语音识别已停止。", tag='system_message')
 
     def on_speech_recognized(self, event_args):
         query = event_args.result.text
@@ -253,6 +397,26 @@ class Jarvis:
 
     def handle_user_command(self, command, programs):
         if command is None:
+            return
+
+        # Handle voice mode command
+        if command.strip().startswith("/voice-mode"):
+            parts = command.strip().split()
+            if len(parts) == 2:
+                mode = parts[1].lower()
+                if mode in ['online', 'offline']:
+                    if self.voice_mode != mode:
+                        self.voice_mode = mode
+                        self.ui_print(f"语音模式已切换到: {self.voice_mode}", tag='system_message')
+                        # Restart listening to apply the new mode
+                        self.stop_listening()
+                        self.start_listening()
+                    else:
+                        self.ui_print(f"语音模式已经是: {self.voice_mode}", tag='system_message')
+                else:
+                    self.ui_print(f"无效的语音模式: {mode}。请使用 'online' 或 'offline'。", tag='error')
+            else:
+                self.ui_print("用法: /voice-mode [online|offline]", tag='error')
             return
 
         # Handle safety mode command
@@ -486,24 +650,24 @@ class Jarvis:
             self.speak("无法打开程序，未指定程序名称。")
             return
 
-        # 优先匹配程序映射表
-        if program_name in self.program_mapping:
-            self.execute_program(self.program_mapping[program_name])
-            return
+        all_program_names = list(self.program_mapping.keys()) + list(programs.keys())
+        best_match, min_distance = algorithms.find_best_match(program_name, all_program_names)
 
-        # 其次匹配动态加载的程序
-        if program_name in programs:
-            self.execute_program(programs[program_name])
-            return
+        # Set a threshold for matching. For example, if the distance is more than 1/3 of the query length,
+        # it's likely not a good match.
+        threshold = len(program_name) / 3
 
-        # 最后模糊匹配
-        for key in self.program_mapping:
-            if program_name in key:
-                self.execute_program(self.program_mapping[key])
-                return
+        if best_match and min_distance <= threshold:
+            self.ui_print(f"找到最接近的匹配: '{best_match}' (距离: {min_distance})")
 
-        self.ui_print(f"未找到程序 '{program_name}'")
-        self.speak(f"未找到程序 {program_name}")
+            # Now determine if the match is from the mapping or the dynamic programs
+            if best_match in self.program_mapping:
+                self.execute_program(self.program_mapping[best_match])
+            elif best_match in programs:
+                self.execute_program(programs[best_match])
+        else:
+            self.ui_print(f"未找到程序 '{program_name}'")
+            self.speak(f"未找到程序 {program_name}")
 
     def _handle_exit(self, **kwargs):
         self.logging.info("程序已退出")
@@ -632,8 +796,6 @@ class Jarvis:
                 thread = threading.Thread(target=self.handle_user_command, args=(command_payload, self.panel.programs))
             thread.daemon = True
             thread.start()
-        elif command_type == "voice":
-            self.takecommand()
         elif command_type == "execute_program":
             self.execute_program(command_payload)
         elif command_type == "display_mode_change":
@@ -730,8 +892,8 @@ def main():
             # Pass usb_screen even in headless mode
             jarvis = Jarvis(None, usb_screen=usb_screen)
             jarvis.main()
-            jarvis.start_listening()
-            # Keep the application running for testing
+            jarvis.start_listening() # Start listening automatically
+            # Keep the application running
             while jarvis.running:
                 time.sleep(1)
         else:
@@ -754,6 +916,7 @@ def main():
             jarvis.set_panel(panel) # Link Jarvis to the panel
 
             jarvis.main()
+            jarvis.start_listening() # Start listening automatically
 
             root.mainloop()
 

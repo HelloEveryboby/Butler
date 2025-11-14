@@ -51,5 +51,18 @@ class TestButler(unittest.TestCase):
         self.assertTrue(any("print('hello')" in c[0] for c in append_calls), "Code chunk was not appended")
         self.assertTrue(any("hello\n" in c[0][2] for c in append_calls), "Final result was not appended")
 
+    def test_fuzzy_find_best_match(self):
+        from butler import algorithms
+        candidates = ["open notepad", "run calculator", "start browser"]
+        query = "open notpad" # Typo in 'notepad'
+        best_match, distance = algorithms.find_best_match(query, candidates)
+        self.assertEqual(best_match, "open notepad")
+        self.assertEqual(distance, 1)
+
+        query = "run calculater" # Typo in 'calculator'
+        best_match, distance = algorithms.find_best_match(query, candidates)
+        self.assertEqual(best_match, "run calculator")
+        self.assertEqual(distance, 1)
+
 if __name__ == "__main__":
     unittest.main()
