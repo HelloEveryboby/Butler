@@ -38,6 +38,7 @@ from plugin.long_memory.deepseek_long_memory import DeepSeekLongMemory
 from plugin.long_memory.chroma_long_memory import SQLiteLongMemory
 from .usb_screen import USBScreen
 from .resource_manager import ResourceManager, PerformanceMode
+from package.algorithm import read_file_list, hybrid_sort_with_progress
 
 class Jarvis:
     def __init__(self, root, usb_screen=None):
@@ -679,48 +680,83 @@ class Jarvis:
             self.root.quit()
 
     def open_programs(self, program_folder, external_folders=None):
+        """
+        加载、排序和缓存所有可用的程序模块。
+
+        该函数首先尝试从 'file_list.txt' 加载模块列表和它们的优先级。
+        如果该文件不存在，它会自动扫描指定的程序文件夹，为所有找到的模块
+        生成一个默认的 'file_list.txt'，并赋予它们一个默认的优先级。
+
+        然后，它使用 `hybrid_sort_with_progress` 算法根据优先级对模块进行排序，
+        并按照排序后的顺序加载它们。
+
+        Args:
+            program_folder (str): 主程序包所在的文件夹 (例如, './package').
+            external_folders (list, optional): 其他包含模块的文件夹列表. Defaults to None.
+
+        Returns:
+            dict: 一个字典，其中键是模块名称，值是已加载的模块对象。
+        """
         programs_cache = {}
-        all_folders = [program_folder] + (external_folders or [])
-        programs = {}  # FIX: Initialize programs outside the loop
+        programs = {}
+        file_list_path = "file_list.txt"
 
-        for folder in all_folders:
-            if not os.path.exists(folder):
-                self.ui_print(f"文件夹 '{folder}' 未找到。")
-                self.logging.info(f"文件夹 '{folder}' 未找到。")
-                continue
+        try:
+            # 尝试读取现有的 file_list.txt
+            module_list_with_priority = read_file_list(file_list_path)
+            self.ui_print(f"成功从 {file_list_path} 加载模块列表。", tag='system_message')
+        except FileNotFoundError:
+            self.ui_print(f"未找到 {file_list_path}。正在扫描文件夹并生成默认列表...", tag='system_message')
 
-            for root, dirs, files in os.walk(folder):
-                if folder == "." and root != ".":  # Don't go into subdirs for root
-                    dirs.clear()
+            # 自动生成模块列表
+            all_folders = [program_folder] + (external_folders or [])
+            found_modules = []
+            default_priority = 10  # 为自动发现的模块设置默认优先级
 
-                for file in files:
-                    if file.endswith(('.py', 'invoke.py')) and file != '__init__.py':
-                        # Keep original naming scheme for compatibility
-                        program_name = os.path.basename(root) + '.' + file[:-3]
-                        program_path = os.path.join(root, file)
+            for folder in all_folders:
+                if not os.path.exists(folder):
+                    continue
+                for root, _, files in os.walk(folder):
+                    for file in files:
+                        # 排除 __init__.py 和 algorithm.py
+                        if file.endswith('.py') and file not in ['__init__.py', 'algorithm.py']:
+                            # 构建完整的模块路径，例如 'package.my_module'
+                            # 这假设 program_folder 是 'package'
+                            relative_path = os.path.relpath(os.path.join(root, file), start='.')
+                            module_name = relative_path.replace(os.sep, '.')[:-3]
+                            found_modules.append((module_name, default_priority, module_name.split('.')[-1]))
 
-                        if program_name in programs_cache:
-                            program_module = programs_cache[program_name]
-                        else:
-                            try:
-                                spec = importlib.util.spec_from_file_location(program_name, program_path)
-                                program_module = importlib.util.module_from_spec(spec)
-                                sys.modules[program_name] = program_module
-                                spec.loader.exec_module(program_module)
-                                programs_cache[program_name] = program_module
-                            except ImportError as e:
-                                self.ui_print(f"加载程序模块 '{program_name}' 时出错：{e}")
-                                self.logging.info(f"加载程序模块 '{program_name}' 时出错：{e}")
-                                continue
+            # 将找到的模块写入 file_list.txt
+            with open(file_list_path, 'w') as f:
+                for module_name, priority, identifier in found_modules:
+                    f.write(f"{module_name} {priority} {identifier}\n")
 
-                            if not hasattr(program_module, 'run'):
-                                # self.ui_print(f"程序模块 '{program_name}' 无效。")
-                                # self.logging.info(f"程序模块 '{program_name}' 无效。")
-                                continue
+            self.ui_print(f"已生成默认的 {file_list_path}，包含 {len(found_modules)} 个模块。", tag='system_message')
+            module_list_with_priority = found_modules
 
-                        programs[program_name] = program_module
+        # 根据优先级对模块列表进行排序
+        hybrid_sort_with_progress(module_list_with_priority)
 
-        programs = dict(sorted(programs.items()))
+        # 按照排序后的顺序加载模块
+        for module_name, _, _ in module_list_with_priority:
+            try:
+                # 假设模块路径是相对于当前工作目录的
+                # 例如, 'package.my_module' 可以被直接导入
+                program_module = importlib.import_module(module_name)
+
+                # 检查模块是否具有 'run' 函数
+                if hasattr(program_module, 'run'):
+                    programs[module_name] = program_module
+                else:
+                    self.logging.warning(f"程序模块 '{module_name}' 没有 'run' 方法，已跳过。")
+
+            except ImportError as e:
+                self.ui_print(f"加载程序模块 '{module_name}' 时出错: {e}", tag='error')
+                self.logging.error(f"加载程序模块 '{module_name}' 时出错: {e}")
+            except Exception as e:
+                self.ui_print(f"处理模块 '{module_name}' 时发生未知错误: {e}", tag='error')
+                self.logging.error(f"处理模块 '{module_name}' 时发生未知错误: {e}")
+
         return programs
     
     def execute_program(self, program_name):

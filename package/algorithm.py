@@ -129,73 +129,59 @@ def insertionSort(arr: List[Tuple[str, int, str]], left: int, right: int):
             j -= 1
         arr[j + 1] = key
         
-def execute_program(module_name: str, modules: List[Tuple[str, int, str]], position_mapping: dict, pbar=None):
-    """执行指定模块，并在适当位置插入和执行其他模块。"""
+def execute_program(module_name: str, pbar=None):
+    """
+    动态导入并执行指定模块的 run() 函数。
+
+    Args:
+        module_name (str): 要执行的模块的完整名称 (例如, 'package.my_module').
+        pbar (tqdm, optional): 用于更新进度的 tqdm 进度条实例. Defaults to None.
+    """
     print(f"--- 开始执行模块: {module_name} ---")
     try:
         module = importlib.import_module(module_name)
-        module.run()  # 假设模块中有一个名为 run 的函数
-        print(f"--- 模块 {module_name} 执行完毕 ---")
+        if hasattr(module, 'run'):
+            module.run()
+            print(f"--- 模块 {module_name} 执行完毕 ---")
+        else:
+            print(f"模块 {module_name} 中未找到可执行的 run 函数。")
     except ImportError as error:
         print(f"导入模块失败: {error}")
-    except AttributeError:
-        print(f"模块中未找到运行函数: {module_name}")
+    except Exception as e:
+        print(f"执行模块 {module_name} 时发生错误: {e}")
     if pbar:
         pbar.update(1)
 
-    # 执行后检查是否有其他模块插入到该模块后
-    for mod, _, position_key in modules:
-        if position_key == module_name:  # 如果模块的插入点是当前模块
-            target_file, placeholder = position_mapping.get(position_key, (None, None))
-            if target_file and placeholder:
-                insert_content = f"# 插入模块: {mod}\nimport {mod}\n"
-                insert_into_file(target_file, insert_content, placeholder)
-                execute_program(mod, modules, position_mapping)  # 递归执行插入的模块
-
-def insert_into_file(file_path: str, insert_content: str, after_marker: str):
-    """将内容插入到指定文件的指定标记之后。"""
-    with open(file_path, 'r') as file:
-        content = file.read()
-
-    insert_point = content.find(after_marker)
-    if insert_point == -1:
-        raise ValueError(f"未找到插入标记: {after_marker}")
-
-    insert_index = insert_point + len(after_marker)
-
-    new_content = content[:insert_index] + "\n" + insert_content + "\n" + content[insert_index:]
-
-    with open(file_path, 'w') as file:
-        file.write(new_content)
-
-if __name__ == "__main__":
-    # 读取模块优先级列表
+def main():
+    """
+    主函数，用于演示模块加载、排序和执行。
+    """
+    # 定义模块优先级列表文件的路径
     file_list_path = "file_list.txt"
     
-    # 读取文件列表（包括优先级）
+    # 尝试读取文件列表
     try:
         files_with_priority = read_file_list(file_list_path)
     except FileNotFoundError:
-        print(f"Error: {file_list_path} not found. Please create it.")
-        # 创建一个示例 file_list.txt
+        print(f"错误: 未找到 {file_list_path}。正在创建一个示例文件。")
+        # 如果文件不存在，创建一个示例文件
         with open(file_list_path, "w") as f:
-            f.write("package.module1 1 pos1\n")
-            f.write("package.module2 3 pos2\n")
-            f.write("package.module3 2 pos3\n")
+            f.write("package.module1 1 placeholder1\n")
+            f.write("package.module2 3 placeholder2\n")
+            f.write("package.module3 2 placeholder3\n")
         files_with_priority = read_file_list(file_list_path)
 
-
-    # 使用混合排序算法排序文件列表（按优先级排序）
+    # 根据优先级对模块列表进行排序
+    print("正在根据优先级对模块进行排序...")
     hybrid_sort_with_progress(files_with_priority)
+    print("模块排序完成。")
 
-    # 插入位置映射表：映射位置标识符到文件和占位符
-    position_mapping = {
-        "pos1": ("main.py", "#PLACEHOLDER_1"),
-        "pos2": ("utils.py", "#PLACEHOLDER_2"),
-        "pos3": ("config.py", "#PLACEHOLDER_3")
-    }
-    
-    # 执行排序后的程序文件
+    # 依次执行排序后的模块
+    print("开始执行已排序的模块...")
     with tqdm(total=len(files_with_priority), desc="Executing modules") as pbar:
         for module_name, _, _ in files_with_priority:
-            execute_program(module_name, files_with_priority, position_mapping, pbar)
+            execute_program(module_name, pbar)
+    print("所有模块执行完毕。")
+
+if __name__ == "__main__":
+    main()
