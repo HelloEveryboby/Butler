@@ -1,6 +1,7 @@
 from package.log_manager import LogManager
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
+from typing import Any, List, Dict
 
 logging = LogManager.get_logger(__name__)
 
@@ -58,43 +59,65 @@ class AbstractPlugin(metaclass=ABCMeta):
 
     @abstractmethod
     def valid(self) -> bool:
+        """Check if the plugin is valid to load."""
         pass
 
     @abstractmethod
     def init(self, logging):
+        """Initialize the plugin with a logger."""
         pass
 
     @abstractmethod
-    def get_name(self):
+    def get_name(self) -> str:
+        """Get the unique name of the plugin."""
         pass
 
     @abstractmethod
-    def get_chinese_name(self):
+    def get_chinese_name(self) -> str:
+        """Get the human-readable Chinese name."""
         pass
 
     @abstractmethod
-    def get_description(self):
+    def get_description(self) -> str:
+        """Get a description of what the plugin does."""
         pass
 
     @abstractmethod
-    def get_parameters(self):
+    def get_parameters(self) -> Dict[str, Any]:
+        """Get the parameters the plugin accepts."""
         pass
+
+    def get_commands(self) -> List[str]:
+        """Returns a list of commands that this plugin can handle."""
+        return []
+
+    @abstractmethod
+    def run(self, command: str, args: dict) -> PluginResult:
+        """Run the plugin's primary logic."""
+        pass
+
+    # --- Lifecycle Methods ---
     @abstractmethod
     def on_startup(self):
+        """Called when the plugin manager starts up."""
         pass
 
     @abstractmethod
     def on_shutdown(self):
+        """Called when the plugin manager shuts down."""
         pass
 
     @abstractmethod
     def on_pause(self):
+        """Called when the plugin is paused."""
         pass
 
     @abstractmethod
     def on_resume(self):
+        """Called when the plugin is resumed."""
         pass
         
-    @abstractmethod
-    def run(self, takecommand: str, args: dict) -> PluginResult:
-        pass
+    # --- Status Method ---
+    def status(self) -> str:
+        """Returns the current status of the plugin."""
+        return "ok"

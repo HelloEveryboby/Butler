@@ -524,7 +524,6 @@ class Jarvis:
         intent_handlers = {
             "sort_numbers": self._handle_sort_numbers,
             "find_number": self._handle_find_number,
-            "calculate_fibonacci": self._handle_calculate_fibonacci,
             "edge_detect_image": self._handle_edge_detect_image,
             "text_similarity": self._handle_text_similarity,
             "open_program": self._handle_open_program,
@@ -601,16 +600,6 @@ class Jarvis:
         except Exception as e:
             self.speak(f"查找时发生错误: {e}")
 
-    def _handle_calculate_fibonacci(self, entities, **kwargs):
-        try:
-            n = entities.get("number")
-            if n is None or not isinstance(n, int):
-                self.speak("计算失败，请输入一个有效的整数。")
-                return
-            fib = algorithms.fibonacci(n)
-            self.speak(f"斐波那契数列第{n}项是: {fib}")
-        except Exception as e:
-            self.speak(f"计算斐波那契数时出错: {e}")
 
     def _handle_edge_detect_image(self, entities, **kwargs):
         try:
