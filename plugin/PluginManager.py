@@ -15,7 +15,7 @@ class PluginManager:
         # 配置日志
         self.logger = logger
         
-        self.load_all_plugins()
+        # self.load_all_plugins()
         
     def load_all_plugins(self):
         """加载所有可用插件"""
@@ -98,6 +98,15 @@ class PluginManager:
 
     def get_plugin(self, name: str) -> Optional[AbstractPlugin]:
         """获取已加载的插件"""
+        if name not in self.plugins:
+            self.logger.info(f"Plugin '{name}' not found in cache. Attempting to load.")
+            # This is a simplified dynamic load. A real implementation would need
+            # to know the module and class name. We'll assume a convention for now.
+            # e.g., plugin name 'BingSearch' corresponds to 'BingSearchPlugin.py' and class 'BingSearchPlugin'
+            module_name = f"{self.plugin_package}.{name}Plugin"
+            class_name = f"{name}Plugin"
+            self.load_plugin(module_name, class_name)
+
         return self.plugins.get(name)
 
     def get_all_plugins(self) -> List[AbstractPlugin]:
@@ -116,7 +125,32 @@ class PluginManager:
         Returns:
             A PluginResult object with the result of the execution.
         """
-        plugin = self.get_plugin(name)
+        plugin = self.get_plugin(name) # Will attempt to lazy-load
+        if not plugin:
+             # If lazy load by convention failed, scan all modules to find the right plugin
+            self.logger.info(f"Scanning all modules to find a plugin matching '{name}'...")
+            for importer, module_name, ispkg in pkgutil.walk_packages([self.plugin_package]):
+                if not ispkg:
+                    full_module_name = f"{self.plugin_package}.{module_name}"
+                    try:
+                        module = importlib.import_module(full_module_name)
+                        for attribute_name in dir(module):
+                            attribute = getattr(module, attribute_name)
+                            if (inspect.isclass(attribute) and
+                                issubclass(attribute, AbstractPlugin) and
+                                not inspect.isabstract(attribute)):
+                                # Temporarily instantiate to check its name
+                                temp_instance = attribute()
+                                if temp_instance.get_name() == name:
+                                    self.logger.info(f"Found matching plugin for '{name}' in {full_module_name}. Loading.")
+                                    # Now properly load it, which will cache it
+                                    plugin = self.load_plugin(full_module_name, attribute.__name__)
+                                    break
+                    except Exception as e:
+                        self.logger.error(f"Error while scanning module {full_module_name}: {e}")
+                if plugin:
+                    break
+
         if plugin:
             self.logger.info(f"执行插件: {name}，命令: {command}")
             try:
