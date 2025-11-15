@@ -35,3 +35,4 @@ pyttsx3
 pyautogui
 mss
 psutil
+redisvl
