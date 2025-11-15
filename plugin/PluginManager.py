@@ -2,7 +2,7 @@ import importlib
 import pkgutil
 import inspect
 from typing import Type, Optional, List, Dict
-from .abstract_plugin import AbstractPlugin, PluginResult
+from .plugin_interface import AbstractPlugin, PluginResult
 from package.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
@@ -89,7 +89,7 @@ class PluginManager:
         if name in self.plugins:
             plugin = self.plugins.pop(name)
             try:
-                plugin.cleanup()
+                plugin.on_shutdown()
                 self.logger.info(f"已卸载插件: {name}")
                 return True
             except Exception as e:
@@ -121,14 +121,15 @@ class PluginManager:
             self.logger.info(f"执行插件: {name}，命令: {command}")
             try:
                 result = plugin.run(command, args)
-                return PluginResult(success=True, result=result)
+                return result
             except Exception as e:
                 error_msg = f"插件 {name} 执行出错: {str(e)}"
                 self.logger.error(error_msg)
-                return PluginResult(success=False, result=None, error_message=error_msg)
-        return PluginResult(
-            success=False, 
-            result=None, 
+                return PluginResult.new(result=None, need_call_brain=False, success=False, error_message=error_msg)
+        return PluginResult.new(
+            result=None,
+            need_call_brain=False,
+            success=False,
             error_message=f"插件 {name} 未找到或未加载"
         )
     
@@ -138,15 +139,16 @@ class PluginManager:
         if plugin:
             self.logger.info(f"停止插件: {name}")
             try:
-                result = plugin.stop()
-                return PluginResult(success=True, result=result)
+                plugin.on_pause()
+                return PluginResult.new(result="Plugin paused", need_call_brain=False, success=True)
             except Exception as e:
                 error_msg = f"停止插件 {name} 出错: {str(e)}"
                 self.logger.error(error_msg)
-                return PluginResult(success=False, result=None, error_message=error_msg)
-        return PluginResult(
+                return PluginResult.new(result=None, need_call_brain=False, success=False, error_message=error_msg)
+        return PluginResult.new(
+            result=None,
+            need_call_brain=False,
             success=False, 
-            result=None, 
             error_message=f"插件 {name} 未找到或未加载"
         )
     
@@ -157,13 +159,14 @@ class PluginManager:
             self.logger.info(f"查询插件状态: {name}")
             try:
                 status = plugin.status()
-                return PluginResult(success=True, result=status)
+                return PluginResult.new(result=status, need_call_brain=False, success=True)
             except Exception as e:
                 error_msg = f"获取插件 {name} 状态出错: {str(e)}"
                 self.logger.error(error_msg)
-                return PluginResult(success=False, result=None, error_message=error_msg)
-        return PluginResult(
-            success=False, 
-            result=None, 
+                return PluginResult.new(result=None, need_call_brain=False, success=False, error_message=error_msg)
+        return PluginResult.new(
+            result=None,
+            need_call_brain=False,
+            success=False,
             error_message=f"插件 {name} 未找到或未加载"
         )
