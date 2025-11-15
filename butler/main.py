@@ -34,10 +34,12 @@ from butler.CommandPanel import CommandPanel
 from plugin.PluginManager import PluginManager
 from . import algorithms
 from local_interpreter.interpreter import Interpreter
-from plugin.long_memory.deepseek_long_memory import DeepSeekLongMemory
+from plugin.long_memory.redis_long_memory import RedisLongMemory
 from plugin.long_memory.chroma_long_memory import SQLiteLongMemory
 from .usb_screen import USBScreen
 from .resource_manager import ResourceManager, PerformanceMode
+from plugin.long_memory.long_memory_interface import LongMemoryItem
+from .redis_client import redis_client
 
 class Jarvis:
     def __init__(self, root, usb_screen=None):
@@ -77,11 +79,9 @@ class Jarvis:
             self.logging.error(f"Failed to load program mapping: {e}")
             self.program_mapping = {}
 
-        self.conversation_history = []
         self.running = True
         self.matched_program = None
         self.panel = None
-        self.MAX_HISTORY_MESSAGES = 10
         self.interpreter = Interpreter()
         self.program_folder = []
         self.is_listening = False
@@ -127,7 +127,9 @@ class Jarvis:
         }
         # 构造发送给API的消息列表
         messages = [{"role": "system", "content": system_prompt}]
-        messages.extend(self.conversation_history)
+        history_items = self.long_memory.get_recent_history(n_results=10)
+        for item in sorted(history_items, key=lambda x: x.metadata.get('timestamp', 0)):
+            messages.append({"role": item.metadata.get('role', 'user'), "content": item.content})
 
         payload = {
             "model": "deepseek-chat",
@@ -194,10 +196,12 @@ class Jarvis:
         self.ui_print(audio, tag='ai_response')
 
         # 将助手的响应添加到历史记录
-        self.conversation_history.append({"role": "assistant", "content": audio})
-        # 裁剪历史记录，防止其无限增长
-        if len(self.conversation_history) > self.MAX_HISTORY_MESSAGES:
-            self.conversation_history = self.conversation_history[-self.MAX_HISTORY_MESSAGES:]
+        memory_item = LongMemoryItem.new(
+            content=audio,
+            id=f"assistant_{time.time()}",
+            metadata={"role": "assistant", "timestamp": time.time()}
+        )
+        self.long_memory.save([memory_item])
 
         try:
             import pyttsx3
@@ -506,7 +510,12 @@ class Jarvis:
         if command.strip().startswith("/legacy "):
             legacy_command = command.strip()[8:]
             self.ui_print(f"Jarvis (Legacy Mode): Processing '{legacy_command}'")
-            self.conversation_history.append({"role": "user", "content": legacy_command})
+            memory_item = LongMemoryItem.new(
+                content=legacy_command,
+                id=f"user_{time.time()}",
+                metadata={"role": "user", "timestamp": time.time()}
+            )
+            self.long_memory.save([memory_item])
             nlu_result = self.preprocess(legacy_command)
             intent = nlu_result.get("intent", "unknown")
             entities = nlu_result.get("entities", {})
@@ -650,20 +659,32 @@ class Jarvis:
             self.speak("无法打开程序，未指定程序名称。")
             return
 
+        # Check Redis cache first
+        cached_path = redis_client.get(f"program_path:{program_name}")
+        if cached_path:
+            self.execute_program(cached_path)
+            return
+
         # 优先匹配程序映射表
         if program_name in self.program_mapping:
-            self.execute_program(self.program_mapping[program_name])
+            program_path = self.program_mapping[program_name]
+            redis_client.set(f"program_path:{program_name}", program_path)
+            self.execute_program(program_path)
             return
 
         # 其次匹配动态加载的程序
         if program_name in programs:
-            self.execute_program(programs[program_name])
+            program_path = programs[program_name]
+            redis_client.set(f"program_path:{program_name}", program_path)
+            self.execute_program(program_path)
             return
 
         # 最后模糊匹配
         for key in self.program_mapping:
             if program_name in key:
-                self.execute_program(self.program_mapping[key])
+                program_path = self.program_mapping[key]
+                redis_client.set(f"program_path:{program_name}", program_path)
+                self.execute_program(program_path)
                 return
 
         self.ui_print(f"未找到程序 '{program_name}'")
@@ -844,14 +865,14 @@ class Jarvis:
         """Initializes the long-term memory, with a fallback to local storage."""
         try:
             if self.deepseek_api_key:
-                self.logging.info("DeepSeek API key found. Initializing DeepSeekLongMemory.")
-                self.long_memory = DeepSeekLongMemory(api_key=self.deepseek_api_key)
+                self.logging.info("DeepSeek API key found. Initializing RedisLongMemory.")
+                self.long_memory = RedisLongMemory(api_key=self.deepseek_api_key)
                 self.long_memory.init(self.logging)
-                self.logging.info("DeepSeekLongMemory initialized successfully.")
+                self.logging.info("RedisLongMemory initialized successfully.")
             else:
                 raise ValueError("DeepSeek API key not found.")
         except (ValueError, ConnectionError) as e:
-            self.logging.warning(f"Failed to initialize DeepSeekLongMemory ({e}). Falling back to SQLiteLongMemory.")
+            self.logging.warning(f"Failed to initialize RedisLongMemory ({e}). Falling back to SQLiteLongMemory.")
             self.long_memory = SQLiteLongMemory()
             self.long_memory.init() # Pass logger if the interface is updated to accept it
             self.logging.info("SQLiteLongMemory initialized as a fallback.")
