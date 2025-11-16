@@ -1,5 +1,6 @@
 import base64
 import io
+import shutil
 from PIL import Image
 from PIL.ExifTags import TAGS
 import pytesseract
@@ -9,6 +10,12 @@ def convert_image(file_path: str) -> str:
     Converts an image file to Markdown.
     Embeds the image and extracts EXIF metadata and OCR text.
     """
+    if not shutil.which("tesseract"):
+        raise FileNotFoundError(
+            "Tesseract OCR is not installed or not in your PATH. "
+            "Please install it from https://github.com/tesseract-ocr/tesseract "
+            "and ensure it's accessible from your command line."
+        )
     try:
         img = Image.open(file_path)
         markdown_parts = []

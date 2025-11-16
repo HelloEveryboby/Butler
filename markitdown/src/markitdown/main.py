@@ -3,8 +3,10 @@ import zipfile
 import tempfile
 import shutil
 from .converters.text import convert_text
+from .converters.txt_converter import convert_txt
 from .converters.csv_converter import convert_csv
 from .converters.html_converter import convert_html
+from .converters.rtf_converter import convert_rtf
 from .converters.docx_converter import convert_docx
 from .converters.pptx_converter import convert_pptx
 from .converters.pdf_converter import convert_pdf
@@ -19,12 +21,16 @@ def convert(file_path: str) -> str:
     _, extension = os.path.splitext(file_path)
     ext = extension.lower()
 
-    if ext in ['.txt', '.json', '.xml']:
+    if ext == '.txt':
+        return convert_txt(file_path)
+    elif ext in ['.json', '.xml']:
         return convert_text(file_path)
     elif ext == '.csv':
         return convert_csv(file_path)
     elif ext in ['.html', '.htm']:
         return convert_html(file_path)
+    elif ext == '.rtf':
+        return convert_rtf(file_path)
     elif ext == '.docx':
         return convert_docx(file_path)
     elif ext == '.pptx':
