@@ -1,0 +1,26 @@
+# ---------------------------------------------------------------------------
+# Main Workflow Configuration
+# ---------------------------------------------------------------------------
+# This file defines the modules, costs, and dependencies for the main
+# data processing and reporting workflow.
+#
+# Format: module_name cost position_key [dependency1,dependency2,...]
+#
+# - module_name: The full package path to the module (e.g., package.log_manager).
+# - cost: A numerical value representing the "cost" of running this module.
+#         The system will find the path with the lowest total cost.
+# - position_key: A unique identifier for this module's position (for potential future use).
+# - dependencies: A comma-separated list of modules that must run *before* this one.
+# ---------------------------------------------------------------------------
+
+# 1. Start: The entry point of the workflow. Has no dependencies.
+package.log_manager 10 start_logging
+
+# 2. File Operations: Depends on the logging system being active.
+package.file_manager 20 manage_files package.log_manager
+
+# 3. Data Analysis: Depends on the files being managed and ready.
+package.data_analyzer 30 analyze_data package.file_manager
+
+# 4. Reporting: Depends on the data analysis being complete.
+package.e-mail 15 send_report package.data_analyzer
