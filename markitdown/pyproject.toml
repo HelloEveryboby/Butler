@@ -15,6 +15,7 @@ dependencies = [
     "pytesseract",
     "EbookLib",
     "beautifulsoup4",
+    "rtf-converter",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
