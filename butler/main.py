@@ -40,6 +40,8 @@ from .usb_screen import USBScreen
 from .resource_manager import ResourceManager, PerformanceMode
 from plugin.long_memory.long_memory_interface import LongMemoryItem
 from .redis_client import redis_client
+from .intent_dispatcher import intent_registry
+from . import legacy_commands
 
 class Jarvis:
     def __init__(self, root, usb_screen=None):
@@ -510,16 +512,26 @@ class Jarvis:
         if command.strip().startswith("/legacy "):
             legacy_command = command.strip()[8:]
             self.ui_print(f"Jarvis (Legacy Mode): Processing '{legacy_command}'")
-            memory_item = LongMemoryItem.new(
-                content=legacy_command,
-                id=f"user_{time.time()}",
-                metadata={"role": "user", "timestamp": time.time()}
-            )
-            self.long_memory.save([memory_item])
-            nlu_result = self.preprocess(legacy_command)
-            intent = nlu_result.get("intent", "unknown")
-            entities = nlu_result.get("entities", {})
-            self._execute_legacy_intent(intent, entities, programs, legacy_command)
+
+            # First, try to match the intent locally
+            matched_intent = intent_registry.match_intent_locally(legacy_command)
+
+            # Check if the matched intent requires entities
+            if matched_intent and not intent_registry.intent_requires_entities(matched_intent):
+                # If matched locally and no entities are required, execute directly
+                self._execute_legacy_intent(matched_intent, {}, programs, legacy_command)
+            else:
+                # If no local match or if entities are required, fall back to the NLU API
+                memory_item = LongMemoryItem.new(
+                    content=legacy_command,
+                    id=f"user_{time.time()}",
+                    metadata={"role": "user", "timestamp": time.time()}
+                )
+                self.long_memory.save([memory_item])
+                nlu_result = self.preprocess(legacy_command)
+                intent = nlu_result.get("intent", "unknown")
+                entities = nlu_result.get("entities", {})
+                self._execute_legacy_intent(intent, entities, programs, legacy_command)
         else:
             # Default to the new streaming interpreter
             if self.interpreter.is_ready:
@@ -529,20 +541,19 @@ class Jarvis:
                 self.root.after(0, self.ui_print, "Jarvis: Interpreter is not ready. Please check API key.")
 
     def _execute_legacy_intent(self, intent, entities, programs, legacy_command):
-        """Helper to execute legacy intent-based commands."""
-        intent_handlers = {
-            "sort_numbers": self._handle_sort_numbers,
-            "find_number": self._handle_find_number,
-            "calculate_fibonacci": self._handle_calculate_fibonacci,
-            "edge_detect_image": self._handle_edge_detect_image,
-            "text_similarity": self._handle_text_similarity,
-            "open_program": self._handle_open_program,
-            "exit": self._handle_exit,
+        """Executes a legacy intent using the dynamic intent dispatcher."""
+        # Prepare arguments for the handler
+        handler_args = {
+            "jarvis_app": self,
+            "entities": entities,
+            "programs": programs
         }
-        handler = intent_handlers.get(intent)
-        if handler:
-            handler(entities=entities, programs=programs)
-        else:
+
+        # Dispatch the intent
+        result = intent_registry.dispatch(intent, **handler_args)
+
+        if result is None:
+            # Fallback to plugin check if intent is not in the registry
             plugin_found = False
             for plugin in self.plugin_manager.get_all_plugins():
                 if plugin.get_name().lower() in legacy_command.lower():
@@ -581,77 +592,6 @@ class Jarvis:
                 # Schedule the final result to be appended
                 final_text = f"\n\nOutput:\n{payload}\n\n"
                 self.root.after(0, self.panel.append_to_response, final_text, response_id)
-
-    def _handle_sort_numbers(self, entities, **kwargs):
-        try:
-            numbers = entities.get("numbers", [])
-            if not numbers or not all(isinstance(n, (int, float)) for n in numbers):
-                 self.speak("排序失败，请提供有效的数字列表。")
-                 return
-            sorted_nums = algorithms.quick_sort(numbers)
-            self.speak(f"排序结果: {sorted_nums}")
-        except Exception as e:
-            self.speak(f"排序时发生错误: {e}")
-
-    def _handle_find_number(self, entities, **kwargs):
-        try:
-            numbers = entities.get("numbers", [])
-            target = entities.get("target")
-            if not numbers or target is None:
-                self.speak("查找失败，请提供数字列表和目标数字。")
-                return
-
-            numbers.sort()
-            index = algorithms.binary_search(numbers, target)
-            if index != -1:
-                self.speak(f"数字 {target} 在排序后的位置是: {index}")
-            else:
-                self.speak(f"数字 {target} 不在数组中")
-        except Exception as e:
-            self.speak(f"查找时发生错误: {e}")
-
-    def _handle_calculate_fibonacci(self, entities, **kwargs):
-        try:
-            n = entities.get("number")
-            if n is None or not isinstance(n, int):
-                self.speak("计算失败，请输入一个有效的整数。")
-                return
-            fib = algorithms.fibonacci(n)
-            self.speak(f"斐波那契数列第{n}项是: {fib}")
-        except Exception as e:
-            self.speak(f"计算斐波那契数时出错: {e}")
-
-    def _handle_edge_detect_image(self, entities, **kwargs):
-        try:
-            image_path = entities.get("path")
-            if not image_path or not isinstance(image_path, str):
-                self.speak("图像处理失败，请提供有效的路径。")
-                return
-
-            if os.path.exists(image_path):
-                edges = algorithms.edge_detection(image_path)
-                if edges is not None:
-                    output_path = os.path.splitext(image_path)[0] + '_edges.jpg'
-                    cv2.imwrite(output_path, edges)
-                    self.speak(f"边缘检测完成，结果已保存到: {output_path}")
-                else:
-                    self.speak("图像处理失败，无法读取图片。")
-            else:
-                self.speak("找不到指定的图像文件。")
-        except Exception as e:
-            self.speak(f"图像处理时出错: {e}")
-
-    def _handle_text_similarity(self, entities, **kwargs):
-        try:
-            text1 = entities.get("text1")
-            text2 = entities.get("text2")
-            if not text1 or not text2:
-                self.speak("相似度计算失败，请提供两段文本。")
-                return
-            similarity = algorithms.text_cosine_similarity(text1, text2)
-            self.speak(f"文本相似度是: {similarity:.2f}")
-        except Exception as e:
-            self.speak(f"计算相似度时出错: {e}")
 
     def _handle_open_program(self, entities, programs, **kwargs):
         program_name = entities.get("program_name")
