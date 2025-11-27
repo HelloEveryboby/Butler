@@ -150,154 +150,69 @@ class SimpleFileEncryptor:
             print(f"解密文件时出错: {str(e)}")
             return None
 
-def clear_screen():
-    """清空控制台屏幕"""
-    os.system('cls' if os.name == 'nt' else 'clear')
+def run(file_path):
+    """
+    Main function to encrypt or decrypt a file based on its extension.
+    """
+    if not os.path.isfile(file_path):
+        print(f"Error: File not found at '{file_path}'")
+        return
 
-def show_menu():
-    """显示主菜单"""
-    clear_screen()
-    print("=" * 50)
-    print("简单文件加密工具")
-    print("=" * 50)
-    print("1. 加密文件")
-    print("2. 解密文件")
-    print("3. 退出")
-    print("=" * 50)
-    choice = input("请选择操作 (1-3): ")
-    return choice
-
-def select_file():
-    """选择文件"""
-    while True:
-        file_path = input("请输入文件路径: ").strip()
-        if os.path.isfile(file_path):
-            return file_path
-        else:
-            print("文件不存在，请重新输入")
-
-def get_password(action):
-    """获取密码"""
-    while True:
-        password = input(f"请输入用于{action}的密码: ").strip()
-        if password:
-            confirm = input("请再次输入密码确认: ").strip()
-            if password == confirm:
-                return password
-            else:
-                print("两次输入的密码不一致，请重试")
-        else:
-            print("密码不能为空")
-
-def encrypt():
     encryptor = SimpleFileEncryptor()
+    key = None
     
-    while True:
-        choice = show_menu()
-        
-        if choice == '1':  # 加密文件
-            clear_screen()
-            print("=" * 50)
-            print("文件加密")
-            print("=" * 50)
-            
-            # 选择文件
-            file_path = select_file()
-            
-            # 密钥选项
-            print("\n[密钥选项]")
-            print("1. 创建新密钥")
-            print("2. 使用已有密钥")
-            key_choice = input("请选择 (1-2): ")
-            
-            key = None
-            password = None
-            
-            if key_choice == '1':
-                # 创建新密钥
-                print("\n[创建新密钥]")
-                print("1. 使用密码保护")
-                print("2. 生成随机密钥")
-                key_type = input("请选择 (1-2): ")
-                
-                if key_type == '1':
-                    password = get_password("加密")
+    # Check if the key file exists
+    if not os.path.exists(encryptor.key_file):
+        print("No encryption key found. Let's create one.")
+        while True:
+            password = input("Enter a strong password to protect your key: ").strip()
+            if password:
+                confirm_password = input("Confirm your password: ").strip()
+                if password == confirm_password:
                     key = encryptor.generate_key(password)
-                    print("\n已创建受密码保护的密钥")
-                else:
-                    key = encryptor.generate_key()
-                    print("\n已生成随机密钥")
-            elif key_choice == '2':
-                # 使用已有密钥
-                print("\n[使用已有密钥]")
-                if os.path.exists(encryptor.key_file):
-                    print("检测到密钥文件")
-                    key_option = input("密钥是否受密码保护? (y/n): ").lower()
-                    
-                    if key_option == 'y':
-                        password = input("请输入密码: ").strip()
-                        key = encryptor.load_key(password)
-                    else:
-                        key = encryptor.load_key()
-                    
                     if key:
-                        print("密钥加载成功")
+                        print("Encryption key created and saved successfully.")
+                        break
                     else:
-                        print("无法加载密钥，请重试")
-                        continue
+                        print("Failed to generate the key. Please try again.")
+                        return
                 else:
-                    print("找不到密钥文件")
-                    continue
-            
-            if key:
-                # 执行加密
-                encryptor.encrypt_file(file_path, key)
+                    print("Passwords do not match. Please try again.")
             else:
-                print("无法获取有效密钥")
-            
-            input("\n按Enter键返回主菜单...")
-        
-        elif choice == '2':  # 解密文件
-            clear_screen()
-            print("=" * 50)
-            print("文件解密")
-            print("=" * 50)
-            
-            # 选择文件
-            file_path = select_file()
-            
-            # 加载密钥
-            key = None
-            if os.path.exists(encryptor.key_file):
-                print("\n检测到密钥文件")
-                key_option = input("密钥是否受密码保护? (y/n): ").lower()
-                
-                if key_option == 'y':
-                    password = input("请输入密码: ").strip()
-                    key = encryptor.load_key(password)
-                else:
-                    key = encryptor.load_key()
-            else:
-                print("\n找不到密钥文件")
-                print("请将密钥文件放在同一目录下")
-                input("\n按Enter键返回主菜单...")
+                print("Password cannot be empty.")
+    else:
+        # Load existing key
+        while True:
+            password = input("Enter your password to unlock the key: ").strip()
+            if not password:
+                print("Password cannot be empty.")
                 continue
-            
+            key = encryptor.load_key(password)
             if key:
-                # 执行解密
-                encryptor.decrypt_file(file_path, key)
+                print("Key loaded successfully.")
+                break
             else:
-                print("无法加载密钥")
-            
-            input("\n按Enter键返回主菜单...")
-        
-        elif choice == '3':  # 退出
-            print("感谢使用，再见！")
-            break
-        
-        else:
-            print("无效选择，请重新输入")
-            time.sleep(1)
+                # The load_key method already prints an error, but we can add a retry mechanism
+                retry = input("Would you like to try again? (y/n): ").lower()
+                if retry != 'y':
+                    return
+
+    if not key:
+        print("Could not obtain a valid key. Aborting operation.")
+        return
+
+    # Determine action based on file extension
+    if file_path.endswith('.enc'):
+        print(f"Decrypting '{file_path}'...")
+        encryptor.decrypt_file(file_path, key)
+    else:
+        print(f"Encrypting '{file_path}'...")
+        encryptor.encrypt_file(file_path, key)
 
 if __name__ == "__main__":
-    encrypt()
+    import sys
+    if len(sys.argv) != 2:
+        print("Usage: python encrypt.py <file_path>")
+    else:
+        file_path = sys.argv[1]
+        run(file_path)
