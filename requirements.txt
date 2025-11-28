@@ -40,3 +40,5 @@ pvporcupine
 pvrecorder
 vosk
 pygame
+Flask
+Flask-SocketIO
