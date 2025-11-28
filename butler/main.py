@@ -876,13 +876,21 @@ def main():
     import traceback
     parser = argparse.ArgumentParser()
     parser.add_argument("--headless", action="store_true", help="Run in headless mode without GUI")
+    parser.add_argument("--web", action="store_true", help="Run in web server mode")
     args = parser.parse_args()
 
     try:
         # Instantiate the USB screen regardless of mode
         usb_screen = USBScreen(width=40, height=8)
 
-        if args.headless:
+        if args.web:
+            from butler.web.main import run_web_server, set_jarvis_instance
+            print("Running in web server mode")
+            jarvis = Jarvis(None, usb_screen=usb_screen)
+            set_jarvis_instance(jarvis)
+            jarvis.main()
+            run_web_server()
+        elif args.headless:
             print("Running in headless mode")
             # Pass usb_screen even in headless mode
             jarvis = Jarvis(None, usb_screen=usb_screen)

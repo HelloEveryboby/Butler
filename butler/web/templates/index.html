@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Butler</title>
+    <style>
+        body { font-family: sans-serif; }
+        #messages { list-style-type: none; margin: 0; padding: 0; }
+        #messages li { padding: 8px 12px; }
+        #messages li:nth-child(odd) { background: #eee; }
+    </style>
+</head>
+<body>
+    <ul id="messages"></ul>
+    <form action="" onsubmit="sendMessage(event)">
+        <input id="messageText" autocomplete="off"/><button>Send</button>
+    </form>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        var socket = io();
+        socket.on('connect', function() {
+            console.log('Websocket connected!');
+        });
+        socket.on('response', function(msg) {
+            var item = document.createElement('li');
+            item.textContent = msg.data;
+            document.getElementById('messages').appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+        });
+        function sendMessage(event) {
+            var input = document.getElementById('messageText');
+            socket.emit('message', {data: input.value});
+            input.value = '';
+            event.preventDefault();
+        }
+    </script>
+</body>
+</html>
