@@ -36,3 +36,7 @@ pyautogui
 mss
 psutil
 redisvl
+pvporcupine
+pvrecorder
+vosk
+pygame
