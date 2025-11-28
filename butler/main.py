@@ -85,7 +85,7 @@ class Jarvis:
         self.running = True
         self.matched_program = None
         self.panel = None
-        self.interpreter = Interpreter()
+        self.interpreter_instance = None
         self.program_folder = []
         self.is_listening = False
         self.speech_recognizer = None
@@ -93,6 +93,14 @@ class Jarvis:
         
     def set_panel(self, panel):
         self.panel = panel
+
+    def get_interpreter(self):
+        """Dynamically loads and returns the interpreter instance."""
+        if self.interpreter_instance is None:
+            self.ui_print("Initializing interpreter for the first time...", tag='system_message')
+            from local_interpreter.interpreter import Interpreter
+            self.interpreter_instance = Interpreter()
+        return self.interpreter_instance
 
     def ui_print(self, message, tag='ai_response', response_id=None):
         """Prints a message to the UI and/or USB screen, with support for response IDs."""
@@ -464,11 +472,12 @@ class Jarvis:
             parts = command.strip().split()
             if len(parts) == 2:
                 mode = parts[1].lower()
+                interpreter = self.get_interpreter()
                 if mode == 'on':
-                    self.interpreter.safety_mode = True
+                    interpreter.safety_mode = True
                     self.ui_print("Safety mode enabled.", tag='system_message')
                 elif mode == 'off':
-                    self.interpreter.safety_mode = False
+                    interpreter.safety_mode = False
                     self.ui_print("Safety mode disabled.", tag='system_message')
                 else:
                     self.ui_print(f"Invalid safety mode: {mode}. Use 'on' or 'off'.", tag='error')
@@ -478,7 +487,8 @@ class Jarvis:
 
         # Handle approve command
         if command.strip() == "/approve":
-            if self.interpreter.last_code_for_approval:
+            interpreter = self.get_interpreter()
+            if interpreter.last_code_for_approval:
                 # The approval now also runs in a stream
                 self.stream_interpreter_response(command, approved=True)
             else:
@@ -490,11 +500,12 @@ class Jarvis:
             parts = command.strip().split()
             if len(parts) == 2:
                 mode = parts[1].lower()
+                interpreter = self.get_interpreter()
                 if mode == 'on':
-                    self.interpreter.os_mode = True
+                    interpreter.os_mode = True
                     self.ui_print("Operating System Mode enabled. Interpreter will now control the GUI.", tag='system_message')
                 elif mode == 'off':
-                    self.interpreter.os_mode = False
+                    interpreter.os_mode = False
                     self.ui_print("Operating System Mode disabled.", tag='system_message')
                 else:
                     self.ui_print(f"Invalid OS mode: {mode}. Use 'on' or 'off'.", tag='error')
@@ -568,7 +579,8 @@ class Jarvis:
                 self._execute_legacy_intent(intent, entities, programs, legacy_command)
         else:
             # Default to the new streaming interpreter
-            if self.interpreter.is_ready:
+            interpreter = self.get_interpreter()
+            if interpreter.is_ready:
                 self.stream_interpreter_response(command)
             else:
                 # Use root.after to safely print from a non-main thread
@@ -611,7 +623,8 @@ class Jarvis:
         # Schedule the initial message on the main thread
         self.root.after(0, self.ui_print, "Jarvis:", 'ai_response_start', response_id)
 
-        stream = self.interpreter.run_approved_code() if approved else self.interpreter.run(command)
+        interpreter = self.get_interpreter()
+        stream = interpreter.run_approved_code() if approved else interpreter.run(command)
 
         for event_type, payload in stream:
             if not self.root:

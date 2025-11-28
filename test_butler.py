@@ -34,7 +34,13 @@ class TestButler(unittest.TestCase):
 
         # 2. Instantiate Jarvis and its panel
         jarvis = Jarvis(self.mock_root)
-        jarvis.interpreter.is_ready = True # Ensure the interpreter is ready
+
+        # Mock the get_interpreter method to return a mock with is_ready=True
+        mock_interpreter = MagicMock()
+        mock_interpreter.is_ready = True
+        mock_interpreter.run.return_value = iter(mock_stream)
+        jarvis.get_interpreter = MagicMock(return_value=mock_interpreter)
+
         jarvis.panel = MagicMock()
         jarvis.panel.append_to_response = MagicMock()
 
