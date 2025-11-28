@@ -59,6 +59,7 @@ class Jarvis:
 
         base_dir = os.path.dirname(__file__)
         self.JARVIS_AUDIO_FILE = os.path.join(base_dir, "resources", "jarvis.wav")
+        self.ACTIVATION_SOUND_FILE = os.path.join(base_dir, "resources", "activate.wav")
 
         # Load prompts from the JSON file
         try:
@@ -216,6 +217,20 @@ class Jarvis:
             self.ui_print(f"音频处理(TTS)出错: {e}", tag='error')
             self.logging.warning(f"Could not initialize or use pyttsx3 for TTS: {e}")
 
+    def play_activation_sound(self):
+        """Plays a sound to indicate that the wake word has been detected."""
+        try:
+            import pygame
+            pygame.mixer.init()
+            pygame.mixer.music.load(self.ACTIVATION_SOUND_FILE)
+            pygame.mixer.music.play()
+            while pygame.mixer.music.get_busy():
+                time.sleep(0.1)
+            pygame.mixer.quit()
+        except Exception as e:
+            self.ui_print(f"播放提示音失败: {e}", tag='error')
+            self.logging.warning(f"Could not play activation sound: {e}")
+
     def start_listening(self):
         """
         Starts the offline voice recognition system.
@@ -272,7 +287,25 @@ class Jarvis:
             import pvporcupine
             from vosk import Model, KaldiRecognizer
 
+            # Define wake words and their corresponding model file paths
+            keyword_names = ["jarvis"]
             keyword_paths = [pvporcupine.KEYWORD_PATHS["jarvis"]]
+
+            custom_keywords = {
+                "贾维斯": "jarvis_custom.ppn",
+                "hello everybody": "hello_everybody_custom.ppn"
+            }
+
+            for name, filename in custom_keywords.items():
+                model_path = os.path.join(os.path.dirname(__file__), "resources", filename)
+                if os.path.exists(model_path):
+                    keyword_names.append(name)
+                    keyword_paths.append(model_path)
+                    self.ui_print(f"已加载自定义唤醒词 '{name}'。", tag='system_message')
+                else:
+                    self.ui_print(f"警告: 未找到自定义唤醒词模型 '{filename}'。", tag='warning')
+                    self.ui_print(f"请从Picovoice Console创建并下载 '{name}' 的模型，并将其放置在 'butler/resources' 目录下。", tag='warning')
+
             porcupine = pvporcupine.create(
                 access_key=porcupine_access_key,
                 keyword_paths=keyword_paths
@@ -289,11 +322,12 @@ class Jarvis:
                 # Wake word detection loop
                 while self.is_listening:
                     pcm = recorder.read()
-                    result = porcupine.process(pcm)
-                    if result >= 0:
-                        self.ui_print("唤醒词 'Jarvis' 已检测!", tag='system_message')
+                    keyword_index = porcupine.process(pcm)
+                    if keyword_index >= 0:
+                        wake_word = keyword_names[keyword_index]
+                        self.ui_print(f"唤醒词 '{wake_word}' 已检测!", tag='system_message')
                         # Play a sound to indicate wake word detected
-                        # self.play_activation_sound() # You can implement this
+                        self.play_activation_sound()
                         recorder.stop()
                         break
 
