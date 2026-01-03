@@ -7,6 +7,7 @@ import sys
 
 
 from butler.main import Jarvis, Interpreter
+from local_interpreter.coordinator.orchestrator import ExternalToolCall
 
 class TestButler(unittest.TestCase):
 
@@ -50,6 +51,53 @@ class TestButler(unittest.TestCase):
         append_calls = [c for c in calls if c[0][1] == jarvis.panel.append_to_response]
         self.assertTrue(any("print('hello')" in c[0] for c in append_calls), "Code chunk was not appended")
         self.assertTrue(any("hello\n" in c[0][2] for c in append_calls), "Final result was not appended")
+
+    @patch('local_interpreter.interpreter.ExternalProgramManager')
+    @patch('local_interpreter.interpreter.Orchestrator')
+    def test_external_cpp_program_execution(self, MockOrchestrator, MockProgramManager):
+        """
+        Tests the end-to-end flow of executing a registered C++ program.
+        """
+        # 1. Setup Mocks
+        # Mock the Orchestrator to return a real ExternalToolCall instance
+        mock_orchestrator_instance = MockOrchestrator.return_value
+        mock_tool_call_instance = ExternalToolCall(
+            tool_name="hello_program",
+            args=["arg1", "arg2"]
+        )
+        mock_orchestrator_instance.stream_code_generation.return_value = iter([mock_tool_call_instance])
+
+        # Mock the ProgramManager to verify it gets called correctly
+        mock_program_manager_instance = MockProgramManager.return_value
+        mock_program_manager_instance.execute_program.return_value = (True, "Success from C++")
+        mock_program_manager_instance.get_program_descriptions.return_value = ["- Tool Name: `hello_program`..."]
+
+        # 2. Instantiate Interpreter
+        # We test the interpreter directly as it contains the core logic
+        interpreter = Interpreter(safety_mode=False) # Safety mode off for direct execution
+        interpreter.orchestrator = mock_orchestrator_instance
+        interpreter.program_manager = mock_program_manager_instance
+
+        # 3. Run the interpreter with a command
+        command = "run the hello program with arg1 and arg2"
+        # Collect the yielded events into a list to inspect them
+        events = list(interpreter.run(command))
+
+        # 4. Assertions
+        # Verify that the orchestrator was called with the tool descriptions
+        mock_orchestrator_instance.stream_code_generation.assert_called_once()
+        call_args, call_kwargs = mock_orchestrator_instance.stream_code_generation.call_args
+        self.assertIn('external_tools', call_kwargs)
+        self.assertEqual(call_kwargs['external_tools'], ["- Tool Name: `hello_program`..."])
+
+        # Verify that the program manager's execute method was called correctly
+        mock_program_manager_instance.execute_program.assert_called_once_with("hello_program", ["arg1", "arg2"])
+
+        # Verify that the final result from the C++ program is yielded
+        final_result = next((item[1] for item in events if item[0] == 'result'), None)
+        self.assertIsNotNone(final_result)
+        self.assertEqual(final_result, "Success from C++")
+
 
 if __name__ == "__main__":
     unittest.main()

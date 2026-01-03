@@ -1,0 +1,8 @@
+[
+  {
+    "name": "hello_program",
+    "path": "/app/cpp_programs/hello_executable",
+    "description": "A simple test program that prints a greeting and echoes back any arguments it receives. Useful for testing the external program execution functionality.",
+    "args_prompt": "This program accepts any number of string arguments. Provide the arguments you want to echo back."
+  }
+]
