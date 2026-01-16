@@ -32,6 +32,7 @@ from package.markdown_converter import convert_to_markdown
 from package.log_manager import LogManager
 from butler.CommandPanel import CommandPanel
 from plugin.PluginManager import PluginManager
+from butler.data_storage import data_storage_manager
 from . import algorithms
 from local_interpreter.interpreter import Interpreter
 from plugin.long_memory.redis_long_memory import RedisLongMemory
@@ -54,7 +55,7 @@ class Jarvis:
         self.deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
         self.engine = None # Will be initialized in speak()
         self.logging = LogManager.get_logger(__name__)
-        self.plugin_manager = PluginManager("plugin")
+        self.plugin_manager = PluginManager("plugin", data_storage_manager)
         self._initialize_long_memory()
 
         base_dir = os.path.dirname(__file__)

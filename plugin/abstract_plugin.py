@@ -7,7 +7,16 @@ class PluginResult(NamedTuple):
     result: Any
     error_message: str = ""
 
+from butler.data_storage import DataStorageManager
+
 class AbstractPlugin(abc.ABC):
+    def __init__(self):
+        self.data_storage: DataStorageManager | None = None
+
+    def set_data_storage(self, data_storage_manager: DataStorageManager):
+        """Sets the data storage manager for the plugin."""
+        self.data_storage = data_storage_manager
+
     @abc.abstractmethod
     def get_name(self) -> str:
         raise NotImplementedError

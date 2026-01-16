@@ -7,10 +7,13 @@ from package.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
 
+from butler.data_storage import DataStorageManager
+
 class PluginManager:
-    def __init__(self, plugin_package: str):
+    def __init__(self, plugin_package: str, data_storage_manager: DataStorageManager):
         self.plugin_package = plugin_package
         self.plugins: Dict[str, AbstractPlugin] = {}
+        self.data_storage_manager = data_storage_manager
         
         # 配置日志
         self.logger = logger
@@ -59,6 +62,7 @@ class PluginManager:
             
             if plugin_instance.valid():
                 plugin_instance.init(self.logger)
+                plugin_instance.set_data_storage(self.data_storage_manager)
                 plugin_name = plugin_instance.get_name()
                 
                 # 处理重复加载

@@ -98,6 +98,40 @@ class TestButler(unittest.TestCase):
         self.assertIsNotNone(final_result)
         self.assertEqual(final_result, "Success from C++")
 
+    @patch.object(Jarvis, '_initialize_long_memory')
+    def test_data_storage_persistence(self, mock_init_long_memory):
+        """
+        Tests that data saved using the DataStorageManager persists across different Jarvis instances.
+        """
+        # 1. Setup mock and first Jarvis instance
+        mock_init_long_memory.return_value = None
+        jarvis1 = Jarvis(self.mock_root)
+        user_profile_plugin1 = jarvis1.plugin_manager.get_plugin("UserProfilePlugin")
+        self.assertIsNotNone(user_profile_plugin1, "UserProfilePlugin should be loaded")
+
+        # 2. Save data using the first instance
+        user_name = "test_user"
+        save_command = f"remember my name is {user_name}"
+        save_args = {"name": user_name}
+        save_result = user_profile_plugin1.run(save_command, save_args)
+        self.assertTrue(save_result.success)
+        self.assertIn(f"Okay, I've remembered your name is {user_name}", save_result.result)
+
+        # 3. Create a new Jarvis instance to simulate a restart
+        jarvis2 = Jarvis(self.mock_root)
+        user_profile_plugin2 = jarvis2.plugin_manager.get_plugin("UserProfilePlugin")
+        self.assertIsNotNone(user_profile_plugin2, "UserProfilePlugin should be loaded in the new instance")
+
+        # 4. Retrieve the data using the second instance
+        load_command = "what is my name"
+        load_args = {}
+        load_result = user_profile_plugin2.run(load_command, load_args)
+        self.assertTrue(load_result.success)
+        self.assertIn(f"Your name is {user_name}", load_result.result)
+
+        # 5. Clean up the stored data
+        user_profile_plugin2.data_storage.delete(user_profile_plugin2.get_name(), "user_name")
+
 
 if __name__ == "__main__":
     unittest.main()
