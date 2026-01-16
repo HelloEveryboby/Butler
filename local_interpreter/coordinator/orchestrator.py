@@ -3,8 +3,25 @@ import re
 import importlib
 import instructor
 from openai import OpenAI
+from pydantic import BaseModel, Field
+from typing import List, Union
 from ..tools.tool_decorator import TOOL_REGISTRY
 from ..tools.file_models import File, FileModification
+
+# Pydantic models for structured AI responses
+class PythonCode(BaseModel):
+    """Represents a block of Python code to be executed."""
+    tool_type: str = "python"
+    code: str = Field(..., description="The Python code to execute.")
+
+class ExternalToolCall(BaseModel):
+    """Represents a call to a registered external program."""
+    tool_type: str = "external"
+    tool_name: str = Field(..., description="The unique name of the external tool to be called.")
+    args: List[str] = Field(default_factory=list, description="A list of arguments to pass to the tool.")
+
+# The AI can choose to respond with either of these structures
+AIResponse = Union[PythonCode, ExternalToolCall]
 
 def load_all_tools():
     """
@@ -22,23 +39,21 @@ def load_all_tools():
             except Exception as e:
                 print(f"Error loading tool module {module_name}: {e}")
 
-def generate_system_prompt(os_mode: bool = False) -> str:
+def generate_system_prompt(os_mode: bool = False, external_tools: List[str] = None) -> str:
     """
-    Generates a system prompt tailored to the execution mode (standard or OS).
+    Generates a system prompt tailored to the execution mode and available tools.
 
     Args:
         os_mode: If True, generates a prompt for GUI automation.
-                 Otherwise, generates the standard code generation prompt.
+        external_tools: A list of formatted strings describing available external tools.
     """
     if os_mode:
         prompt_header = """
 You are an expert OS automation assistant. Your goal is to achieve the user's request in the most efficient way possible.
 You can use a combination of direct commands and GUI automation.
 """
-        # Define the full suite of OS tools, both high-level and low-level
         os_tool_names = [
-            "open_application", "open_url",  # High-level "power" tools
-            "capture_screen", "move_mouse", "click", "type_text" # Low-level GUI tools
+            "open_application", "open_url", "capture_screen", "move_mouse", "click", "type_text"
         ]
         tools_section = "**Available Tools:**\n"
         for tool_name in os_tool_names:
@@ -49,30 +64,35 @@ You can use a combination of direct commands and GUI automation.
         prompt_footer = """
 **Instructions:**
 - **Prioritize direct actions.** Use `open_application` or `open_url` if they can accomplish the goal directly.
-- **Use GUI tools as a fallback.** If a direct action isn't possible, use the screenshot and tools like `move_mouse`, `click`, and `type_text` to interact with the screen.
-- Your response must be only the Python code required. Do not add any explanation or formatting.
-- Wrap the code in triple backticks (```python).
+- **Use GUI tools as a fallback.** If a direct action isn't possible, use the screenshot and tools to interact with the screen.
+- Your response must be only the Python code required, wrapped in triple backticks (```python).
 """
+        return f"{prompt_header}\n{tools_section}\n{prompt_footer}"
     else:
         prompt_header = """
-You are a helpful assistant that translates natural language commands into executable Python code.
-You have access to a set of safe tools to interact with the system.
+You are a helpful assistant that translates natural language commands into executable actions.
+You have access to two types of tools: safe Python tools and registered external programs.
 """
-        # Filter out OS-specific tools for the standard prompt
         os_tool_names = ["capture_screen", "move_mouse", "click", "type_text"]
-        tools_section = "**Available Tools:**\n"
+        tools_section = "**Available Python Tools:**\n"
         for tool_name, tool_data in TOOL_REGISTRY.items():
             if tool_name not in os_tool_names:
                 tools_section += f"- `{tool_name}{tool_data['signature']}`: {tool_data['docstring']}\n"
 
+        external_tools_section = ""
+        if external_tools:
+            external_tools_section = "\n**Available External Programs (High-Performance):**\n"
+            external_tools_section += "\n".join(external_tools)
+            external_tools_section += "\n"
+
         prompt_footer = """
 **Instructions:**
-- Choose the best tool for the job.
-- Only output the raw Python code to be executed. Do not add any explanation or formatting.
-- Wrap the code in triple backticks (```python).
-- If you cannot generate code for a command, output the word "Error" inside backticks.
+1.  **Analyze the request:** Decide if it's better handled by a Python script or an external program.
+2.  **To execute Python code:** Respond with a JSON object matching the `PythonCode` schema.
+3.  **To execute an external program:** Respond with a JSON object matching the `ExternalToolCall` schema. Use the exact `tool_name` from the list above.
+4.  **Respond ONLY with the single, valid JSON object.** Do not add any other text, comments, or formatting.
 """
-    return f"{prompt_header}\n{tools_section}\n{prompt_footer}"
+        return f"{prompt_header}\n{tools_section}{external_tools_section}\n{prompt_footer}"
 
 
 class Orchestrator:
@@ -159,16 +179,16 @@ class Orchestrator:
             print(f"Error calling Deepseek API: {e}")
             return f'print("Error during code generation: {e}")'
 
-    def stream_code_generation(self, history: list, use_os_tools: bool = False):
+    def stream_code_generation(self, history: list, use_os_tools: bool = False, external_tools: List[str] = None):
         """
-        Streams the code generation from the Deepseek LLM using instructor.
-        Yields partial code model updates as they are received.
+        Streams the code generation from the Deepseek LLM.
+        Yields partial AIResponse model updates as they are received.
         """
         if not self.client:
-            yield 'print("Orchestrator not initialized. Please check API key.")'
+            yield PythonCode(code='print("Orchestrator not initialized. Please check API key.")')
             return
 
-        system_prompt = generate_system_prompt(os_mode=use_os_tools)
+        system_prompt = generate_system_prompt(os_mode=use_os_tools, external_tools=external_tools)
         messages = [{"role": "system", "content": system_prompt}]
 
         if use_os_tools:
@@ -182,13 +202,11 @@ class Orchestrator:
         try:
             model = "deepseek-vision" if use_os_tools else "deepseek-coder"
 
-            # Use instructor's Partial mode for streaming
-            response_model = File
-
+            # Use instructor's Partial mode for streaming the structured response
             stream = self.client.chat.completions.create(
                 model=model,
                 messages=messages,
-                response_model=instructor.Partial[response_model],
+                response_model=instructor.Partial[AIResponse],
                 max_tokens=1024,
                 temperature=0,
                 stream=True,
@@ -199,5 +217,4 @@ class Orchestrator:
 
         except Exception as e:
             print(f"Error during streaming from Deepseek API: {e}")
-            # Yield a final object that represents the error
-            yield File(file_path="error.py", content=f'print("Error: {e}")')
+            yield PythonCode(code=f'print("Error: {e}")')
