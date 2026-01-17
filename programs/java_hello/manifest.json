@@ -1,0 +1,10 @@
+{
+  "name": "hello_world_java",
+  "language": "java",
+  "version": "1.0",
+  "description": "A simple Java program that prints a greeting.",
+  "build": "javac {source}",
+  "source": ["Main.java"],
+  "executable": "Main.class",
+  "run": "java Main {args}"
+}

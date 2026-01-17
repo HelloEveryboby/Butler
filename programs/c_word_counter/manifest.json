@@ -1,0 +1,9 @@
+{
+  "name": "word_counter",
+  "language": "c",
+  "version": "1.0",
+  "description": "A C program that counts lines, words, and bytes in a file. Usage: word_counter <file_path>",
+  "build": "make",
+  "source": ["main.c", "counter.c", "counter.h", "Makefile"],
+  "executable": "word_counter_exec"
+}

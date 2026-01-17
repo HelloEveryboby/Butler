@@ -144,3 +144,7 @@ lerna-debug.log*
 .notes.json
 notes.json
 memos.json
+
+# Butler build artifacts
+programs/*/hello_*
+programs/**/*.class
