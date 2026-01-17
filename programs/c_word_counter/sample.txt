@@ -1,0 +1,5 @@
+Hello world, this is a test file.
+This file has multiple lines,
+words, and bytes.
+
+Let's see if the count is correct.
