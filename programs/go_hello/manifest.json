@@ -1,0 +1,9 @@
+{
+  "name": "hello_world_go",
+  "language": "go",
+  "version": "1.0",
+  "description": "A simple Go program that prints a greeting.",
+  "build": "go build -o {output} {source}",
+  "source": ["main.go"],
+  "executable": "hello_go_exec"
+}

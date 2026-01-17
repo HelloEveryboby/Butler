@@ -1,0 +1,9 @@
+{
+  "name": "hello_world_c",
+  "language": "c",
+  "version": "1.0",
+  "description": "A simple C program that prints a greeting.",
+  "build": "gcc {source} -o {output}",
+  "source": ["main.c"],
+  "executable": "hello_c_exec"
+}

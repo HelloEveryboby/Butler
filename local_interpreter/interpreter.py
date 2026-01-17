@@ -3,7 +3,7 @@ from contextlib import redirect_stdout
 from .coordinator.orchestrator import Orchestrator, PythonCode, ExternalToolCall
 from .executor.code_executor import Sandbox, SandboxError
 from .tools import os_tools, power_tools
-from butler.external_program_manager import ExternalProgramManager
+from butler.code_execution_manager import CodeExecutionManager
 
 class Interpreter:
     """
@@ -16,7 +16,8 @@ class Interpreter:
         and setting up a conversation history.
         """
         self.orchestrator = Orchestrator()
-        self.program_manager = ExternalProgramManager()
+        self.program_manager = CodeExecutionManager()
+        self.program_manager.scan_and_register()
         self.conversation_history = []
         self.safety_mode = safety_mode
         self.os_mode = os_mode
