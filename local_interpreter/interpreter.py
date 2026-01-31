@@ -116,6 +116,7 @@ class Interpreter:
             if self.os_mode:
                  # In OS mode, capture screen at each step
                  screenshot_b64 = os_tools.capture_screen()
+                 yield "screenshot", screenshot_b64
 
                  # To prevent context window overflow, we replace older screenshots in history
                  for msg in self.conversation_history:

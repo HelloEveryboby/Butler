@@ -150,6 +150,26 @@ class TestButler(unittest.TestCase):
         # 5. Clean up the stored data
         user_profile_plugin2.data_storage.delete(user_profile_plugin2.get_name(), "user_name")
 
+    @patch.object(Jarvis, '_initialize_long_memory')
+    def test_approve_edited_code(self, mock_init_long_memory):
+        """Tests that /approve command extracts edited code from the UI."""
+        mock_init_long_memory.return_value = None
+        jarvis = Jarvis(self.mock_root)
+        jarvis.interpreter.last_code_for_approval = "original_code()"
+        jarvis.interpreter.is_ready = True
+
+        # Mock the panel and its text widget
+        jarvis.panel = MagicMock()
+        jarvis.panel.output_text.get.return_value = "Some text before\n```python\nedited_code()\n```\nSome text after"
+
+        # Mock stream_interpreter_response to check if it gets the edited code
+        with patch.object(jarvis, 'stream_interpreter_response') as mock_stream:
+            jarvis.handle_user_command("/approve", {})
+
+            # Check if last_code_for_approval was updated
+            self.assertEqual(jarvis.interpreter.last_code_for_approval, "edited_code()")
+            mock_stream.assert_called_once_with("/approve", approved=True)
+
 
 if __name__ == "__main__":
     unittest.main()

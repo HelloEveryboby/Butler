@@ -108,6 +108,28 @@ class CommandPanel(tk.Frame):
         for prog_name in self.all_program_names:
             self.program_listbox.insert(tk.END, prog_name)
 
+        # --- Manual Control Toolbar ---
+        self.manual_toolbar = tk.Frame(self.menu_frame, bg=self.menu_bg_color)
+        self.manual_toolbar.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        self.manual_toolbar.grid_columnconfigure((0, 1, 2), weight=1)
+
+        btn_style = {
+            "bg": self.button_bg_color,
+            "fg": self.button_fg_color,
+            "font": ("Arial", 8),
+            "borderwidth": 0,
+            "highlightthickness": 0
+        }
+
+        self.btn_screenshot = tk.Button(self.manual_toolbar, text="📸", command=lambda: self.manual_action("screenshot"), **btn_style)
+        self.btn_screenshot.grid(row=0, column=0, padx=1, sticky="ew")
+
+        self.btn_click = tk.Button(self.manual_toolbar, text="🖱️", command=lambda: self.manual_action("left_click"), **btn_style)
+        self.btn_click.grid(row=0, column=1, padx=1, sticky="ew")
+
+        self.btn_type = tk.Button(self.manual_toolbar, text="⌨️", command=lambda: self.manual_action("type"), **btn_style)
+        self.btn_type.grid(row=0, column=2, padx=1, sticky="ew")
+
         # --- Settings Button ---
         self.settings_icon = tk.PhotoImage(file="assets/settings_icon.png")
         self.settings_button = tk.Button(
@@ -124,14 +146,18 @@ class CommandPanel(tk.Frame):
             highlightthickness=0,
             font=("Arial", 9)
         )
-        self.settings_button.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        self.settings_button.grid(row=4, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
 
-        # --- Right Pane: Main Content ---
-        self.main_content_frame = tk.Frame(self.main_paned_window, bg=self.background_color)
-        self.main_content_frame.grid_rowconfigure(1, weight=1) # Adjust row for output_text
+        # --- Right Pane: Content & Remote View ---
+        self.content_paned_window = tk.PanedWindow(self.main_paned_window, orient=tk.VERTICAL, sashrelief=tk.RAISED, bg=self.background_color, sashwidth=4)
+        self.main_paned_window.add(self.content_paned_window, stretch="always")
+
+        # --- Upper Content: Output & Input ---
+        self.main_content_frame = tk.Frame(self.content_paned_window, bg=self.background_color)
+        self.main_content_frame.grid_rowconfigure(1, weight=1)
         self.main_content_frame.grid_columnconfigure(0, weight=1)
-        self.main_paned_window.add(self.main_content_frame, stretch="always")
+        self.content_paned_window.add(self.main_content_frame, stretch="always")
 
         # --- Display Mode Frame ---
         self.display_mode_frame = tk.Frame(self.main_content_frame, bg=self.background_color)
@@ -162,7 +188,7 @@ class CommandPanel(tk.Frame):
             self.main_content_frame, # Parent is now main_content_frame
             bg=self.background_color,
             fg=self.foreground_color,
-            state='disabled',
+            state='normal',
             wrap=tk.WORD,
             font=("Consolas", 11),
             borderwidth=0,
@@ -206,6 +232,19 @@ class CommandPanel(tk.Frame):
         self.clear_button.grid(row=0, column=3, padx=(5, 0))
         self.restart_button = tk.Button(self.input_frame, text="Restart", command=self.restart_application, **button_config)
         self.restart_button.grid(row=0, column=4, padx=(5, 0))
+
+        # --- Lower Content: Remote View (Collapsible) ---
+        self.remote_view_frame = tk.Frame(self.content_paned_window, bg=self.input_bg_color)
+        self.remote_view_frame.grid_rowconfigure(0, weight=1)
+        self.remote_view_frame.grid_columnconfigure(0, weight=1)
+        self.content_paned_window.add(self.remote_view_frame, stretch="never", minsize=0)
+
+        self.screenshot_canvas = tk.Canvas(self.remote_view_frame, bg="black", highlightthickness=0)
+        self.screenshot_canvas.grid(row=0, column=0, sticky="nsew")
+        self.screenshot_canvas.bind("<Button-1>", self.on_canvas_click)
+
+        self.last_screenshot_image = None
+        self.canvas_image_id = None
 
         self._configure_styles_and_tags()
         self.update_font_size('medium')
@@ -290,6 +329,9 @@ class CommandPanel(tk.Frame):
     def append_to_history(self, text, tag='ai_response', response_id=None):
         self.output_text.config(state='normal')
 
+        # In this enhanced version, we'll try to keep the text widget editable
+        # so the user can modify code blocks.
+
         # If it's a streaming response, just insert the initial text.
         if response_id:
             block_tag = f"block_{response_id}"
@@ -316,7 +358,7 @@ class CommandPanel(tk.Frame):
             self.output_text.insert(tk.END, "\n\n")
 
         self.output_text.see(tk.END)
-        self.output_text.config(state='disabled')
+        # self.output_text.config(state='disabled') # Keep it enabled for manual editing
 
     def append_to_response(self, text_chunk, response_id):
         """Appends a chunk of text to a response block identified by response_id."""
@@ -328,8 +370,86 @@ class CommandPanel(tk.Frame):
         # Insert the chunk at the end of the text widget.
         self.output_text.insert(tk.END, text_chunk)
 
+        # If we just inserted code block or wait for approval, keep it editable
+        if "/approve" in text_chunk or "```python" in self.output_text.get("1.0", tk.END):
+            # We want to allow editing the code block.
+            # For simplicity, let's keep it 'normal' if it looks like we are in approval mode.
+            pass
+        else:
+            # self.output_text.config(state='disabled')
+            pass
+
         self.output_text.see(tk.END)
-        self.output_text.config(state='disabled')
+        # Note: We are keeping state 'normal' more often now to allow "C. Manual Editing"
+        # but we should be careful.
+
+    def update_screenshot(self, b64_data):
+        """Updates the remote view with a new screenshot."""
+        import base64
+        from io import BytesIO
+        from PIL import Image, ImageTk
+
+        try:
+            img_data = base64.b64decode(b64_data)
+            img = Image.open(BytesIO(img_data))
+
+            # Resize to fit canvas while maintaining aspect ratio
+            canvas_width = self.screenshot_canvas.winfo_width()
+            canvas_height = self.screenshot_canvas.winfo_height()
+
+            if canvas_width < 10: canvas_width = 400
+            if canvas_height < 10: canvas_height = 300
+
+            img.thumbnail((canvas_width, canvas_height), Image.Resampling.LANCZOS)
+            self.last_screenshot_tk = ImageTk.PhotoImage(img)
+            self.last_raw_img_size = Image.open(BytesIO(img_data)).size # Keep track of original size
+
+            if self.canvas_image_id:
+                self.screenshot_canvas.delete(self.canvas_image_id)
+
+            self.canvas_image_id = self.screenshot_canvas.create_image(
+                canvas_width//2, canvas_height//2,
+                anchor=tk.CENTER, image=self.last_screenshot_tk
+            )
+            # Store scale factors for coordinate mapping
+            self.img_scale_x = self.last_raw_img_size[0] / img.size[0]
+            self.img_scale_y = self.last_raw_img_size[1] / img.size[1]
+            self.img_offset_x = (canvas_width - img.size[0]) / 2
+            self.img_offset_y = (canvas_height - img.size[1]) / 2
+
+        except Exception as e:
+            logger.error(f"Failed to update screenshot in UI: {e}")
+
+    def on_canvas_click(self, event):
+        """Maps canvas click to screen coordinates and sends command."""
+        if not hasattr(self, 'img_scale_x'): return
+
+        # Calculate coordinates relative to the image
+        rel_x = event.x - self.img_offset_x
+        rel_y = event.y - self.img_offset_y
+
+        if 0 <= rel_x <= (self.last_raw_img_size[0] / self.img_scale_x) and \
+           0 <= rel_y <= (self.last_raw_img_size[1] / self.img_scale_y):
+
+            real_x = int(rel_x * self.img_scale_x)
+            real_y = int(rel_y * self.img_scale_y)
+
+            if self.command_callback:
+                self.command_callback("manual_action", {"action": "left_click", "coordinate": (real_x, real_y)})
+
+    def manual_action(self, action_type):
+        """Sends a manual action command to Jarvis."""
+        if self.command_callback:
+            if action_type == "type":
+                # Prompt for text in a simple dialog or just use input entry?
+                # Let's use whatever is in the input entry
+                text = self.input_entry.get()
+                if text:
+                    self.command_callback("manual_action", {"action": "type", "text": text})
+                else:
+                    self.append_to_history("Please enter text in the input box first.", "system_message")
+            else:
+                self.command_callback("manual_action", {"action": action_type})
 
 
     def on_display_mode_change(self):
