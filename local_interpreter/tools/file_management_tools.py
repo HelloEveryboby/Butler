@@ -3,7 +3,10 @@ from .tool_decorator import tool
 
 @tool
 def read_file(path: str) -> str:
-    """Reads the content of a file at the specified path."""
+    """
+    Reads the full content of a text file.
+    Avoid reading very large files (binary or >1MB) directly; use shell tools to inspect them instead.
+    """
     try:
         with open(path, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -15,7 +18,10 @@ def read_file(path: str) -> str:
 
 @tool
 def write_file(path: str, content: str) -> str:
-    """Writes the given content to a file at the specified path, overwriting it if it exists."""
+    """
+    Writes content to a file. It will create parent directories if they don't exist.
+    Overwrites the file if it already exists.
+    """
     try:
         # Create directories if they don't exist
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -52,7 +58,10 @@ def modify_file(path: str, new_content: str) -> str:
 
 @tool
 def list_directory(path: str) -> str:
-    """Lists all files and subdirectories within a specified directory."""
+    """
+    Lists the contents of a directory.
+    Use this to explore the file system and find relevant files.
+    """
     try:
         if not os.path.isdir(path):
             return f"Error: '{path}' is not a valid directory."

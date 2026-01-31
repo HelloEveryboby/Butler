@@ -11,17 +11,25 @@ from ..tools.file_models import File, FileModification
 # Pydantic models for structured AI responses
 class PythonCode(BaseModel):
     """Represents a block of Python code to be executed."""
+    thought: str = Field(..., description="Your reasoning for why you are running this code.")
     tool_type: str = "python"
     code: str = Field(..., description="The Python code to execute.")
 
 class ExternalToolCall(BaseModel):
     """Represents a call to a registered external program."""
+    thought: str = Field(..., description="Your reasoning for why you are calling this tool.")
     tool_type: str = "external"
     tool_name: str = Field(..., description="The unique name of the external tool to be called.")
     args: List[str] = Field(default_factory=list, description="A list of arguments to pass to the tool.")
 
+class FinalResponse(BaseModel):
+    """Represents the final response to the user when the task is complete."""
+    thought: str = Field(..., description="A brief summary of what you have accomplished.")
+    tool_type: str = "final"
+    message: str = Field(..., description="The final message to send to the user.")
+
 # The AI can choose to respond with either of these structures
-AIResponse = Union[PythonCode, ExternalToolCall]
+AIResponse = Union[PythonCode, ExternalToolCall, FinalResponse]
 
 def load_all_tools():
     """
@@ -42,57 +50,60 @@ def load_all_tools():
 def generate_system_prompt(os_mode: bool = False, external_tools: List[str] = None) -> str:
     """
     Generates a system prompt tailored to the execution mode and available tools.
-
-    Args:
-        os_mode: If True, generates a prompt for GUI automation.
-        external_tools: A list of formatted strings describing available external tools.
     """
-    if os_mode:
-        prompt_header = """
-You are an expert OS automation assistant. Your goal is to achieve the user's request in the most efficient way possible.
-You can use a combination of direct commands and GUI automation.
+    prompt_header = """
+You are an autonomous AI agent capable of controlling a computer to achieve user goals.
+You operate in an iterative loop:
+1. **Analyze** the user request and current state (including previous outputs or screenshots).
+2. **Think** about the next best step.
+3. **Act** by generating a tool call (Python code or external tool).
+4. **Observe** the results of your action.
+5. **Repeat** until the task is complete, then provide a `FinalResponse`.
 """
-        os_tool_names = [
-            "open_application", "open_url", "capture_screen", "move_mouse", "click", "type_text"
-        ]
+
+    if os_mode:
         tools_section = "**Available Tools:**\n"
-        for tool_name in os_tool_names:
-            if tool_name in TOOL_REGISTRY:
-                tool_data = TOOL_REGISTRY[tool_name]
-                tools_section += f"- `{tool_name}{tool_data['signature']}`: {tool_data['docstring']}\n"
+        # In OS mode, we give access to EVERYTHING including shell and files
+        for tool_name, tool_data in TOOL_REGISTRY.items():
+            tools_section += f"- `{tool_name}{tool_data['signature']}`: {tool_data['docstring']}\n"
 
         prompt_footer = """
-**Instructions:**
-- **Prioritize direct actions.** Use `open_application` or `open_url` if they can accomplish the goal directly.
-- **Use GUI tools as a fallback.** If a direct action isn't possible, use the screenshot and tools to interact with the screen.
-- Your response must be only the Python code required, wrapped in triple backticks (```python).
+**Operating System Mode Instructions:**
+- You are provided with a screenshot of the user's screen.
+- Use GUI tools (`move_mouse`, `click`, `type_text`) to interact with visual elements.
+- Use `run_shell` to execute terminal commands or `write_file`/`read_file` for file operations when more efficient.
+- **Always explain your thought process in the `thought` field.**
+- If you are stuck, describe why in a `FinalResponse`.
 """
-        return f"{prompt_header}\n{tools_section}\n{prompt_footer}"
     else:
-        prompt_header = """
-You are a helpful assistant that translates natural language commands into executable actions.
-You have access to two types of tools: safe Python tools and registered external programs.
-"""
-        os_tool_names = ["capture_screen", "move_mouse", "click", "type_text"]
         tools_section = "**Available Python Tools:**\n"
+        # Filter out low-level mouse/keyboard tools if not in OS mode to keep it "safe" unless requested
+        os_tool_names = ["move_mouse", "click", "type_text"]
         for tool_name, tool_data in TOOL_REGISTRY.items():
             if tool_name not in os_tool_names:
                 tools_section += f"- `{tool_name}{tool_data['signature']}`: {tool_data['docstring']}\n"
 
-        external_tools_section = ""
-        if external_tools:
-            external_tools_section = "\n**Available External Programs (High-Performance):**\n"
-            external_tools_section += "\n".join(external_tools)
-            external_tools_section += "\n"
-
         prompt_footer = """
-**Instructions:**
-1.  **Analyze the request:** Decide if it's better handled by a Python script or an external program.
-2.  **To execute Python code:** Respond with a JSON object matching the `PythonCode` schema.
-3.  **To execute an external program:** Respond with a JSON object matching the `ExternalToolCall` schema. Use the exact `tool_name` from the list above.
-4.  **Respond ONLY with the single, valid JSON object.** Do not add any other text, comments, or formatting.
+**General Mode Instructions:**
+- You have access to safe Python tools and high-performance external programs.
+- **Always explain your thought process in the `thought` field.**
+- After running code, you will receive the output. Use it to decide if you need more steps.
+- When finished, use `FinalResponse` to summarize.
 """
-        return f"{prompt_header}\n{tools_section}{external_tools_section}\n{prompt_footer}"
+
+    external_tools_section = ""
+    if external_tools:
+        external_tools_section = "\n**Available External Programs:**\n"
+        external_tools_section += "\n".join(external_tools)
+        external_tools_section += "\n"
+
+    final_instructions = """
+**Response Format:**
+- You MUST respond with a single JSON object matching one of the schemas: `PythonCode`, `ExternalToolCall`, or `FinalResponse`.
+- Do not add any text outside the JSON.
+"""
+
+    return f"{prompt_header}\n{tools_section}{external_tools_section}\n{prompt_footer}\n{final_instructions}"
 
 
 class Orchestrator:

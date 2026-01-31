@@ -6,6 +6,7 @@ import importlib.util
 import datetime
 import subprocess
 import json
+import re
 import tkinter as tk
 from tkinter import messagebox
 import requests
@@ -479,11 +480,23 @@ class Jarvis:
 
         # Handle approve command
         if command.strip() == "/approve":
-            if self.interpreter.last_code_for_approval:
+            if self.interpreter.last_code_for_approval or self.interpreter.last_tool_for_approval:
+                # Check if the user edited the code in the UI
+                # We look for the last code block in the panel's output_text
+                if self.panel and self.interpreter.last_code_for_approval:
+                    text = self.panel.output_text.get("1.0", tk.END)
+                    # Simple heuristic: find the last ```python ... ``` block
+                    code_blocks = re.findall(r"```python\n(.*?)\n```", text, re.DOTALL)
+                    if code_blocks:
+                        edited_code = code_blocks[-1].strip()
+                        if edited_code != self.interpreter.last_code_for_approval.strip():
+                            self.logging.info("Detected edited code in UI. Using edited version.")
+                            self.interpreter.last_code_for_approval = edited_code
+
                 # The approval now also runs in a stream
                 self.stream_interpreter_response(command, approved=True)
             else:
-                self.ui_print("No code to approve.", tag='system_message')
+                self.ui_print("No action to approve.", tag='system_message')
             return
 
         # Handle OS mode command
@@ -614,6 +627,8 @@ class Jarvis:
 
         stream = self.interpreter.run_approved_code() if approved else self.interpreter.run(command)
 
+        final_result_to_speak = ""
+
         for event_type, payload in stream:
             if not self.root:
                 break # Stop if the window has been closed
@@ -623,10 +638,17 @@ class Jarvis:
             elif event_type == "code_chunk":
                 # Schedule the chunk to be appended on the main thread
                 self.root.after(0, self.panel.append_to_response, payload, response_id)
+            elif event_type == "screenshot":
+                self.root.after(0, self.panel.update_screenshot, payload)
             elif event_type == "result":
                 # Schedule the final result to be appended
-                final_text = f"\n\nOutput:\n{payload}\n\n"
+                final_text = f"\n\n{payload}\n\n"
                 self.root.after(0, self.panel.append_to_response, final_text, response_id)
+                if "**Final Answer:**" in payload:
+                    final_result_to_speak = payload.split("**Final Answer:**")[-1].strip()
+
+        if final_result_to_speak:
+             self.root.after(0, self.speak, final_result_to_speak)
 
     def _handle_open_program(self, entities, programs, **kwargs):
         program_name = entities.get("program_name")
@@ -664,6 +686,49 @@ class Jarvis:
 
         self.ui_print(f"未找到程序 '{program_name}'")
         self.speak(f"未找到程序 {program_name}")
+
+    def _handle_manual_action(self, payload):
+        """Handles manual actions from the UI."""
+        action = payload.get("action")
+        self.logging.info(f"Manual action received: {action}")
+
+        try:
+            import pyautogui
+            if action == "screenshot":
+                from local_interpreter.tools import os_tools
+                screenshot_b64 = os_tools.capture_screen()
+                self.panel.update_screenshot(screenshot_b64)
+                self.ui_print("Manual screenshot captured.", tag='system_message')
+
+            elif action == "left_click":
+                coord = payload.get("coordinate")
+                if coord:
+                    pyautogui.click(coord[0], coord[1])
+                    self.ui_print(f"Manual click at {coord}.", tag='system_message')
+                else:
+                    # Click at current position
+                    pyautogui.click()
+                    self.ui_print("Manual click at current position.", tag='system_message')
+
+            elif action == "type":
+                text = payload.get("text")
+                if text:
+                    pyautogui.write(text)
+                    self.ui_print(f"Manual type: {text}", tag='system_message')
+
+            # Log to interpreter history so it stays in context
+            self.interpreter.conversation_history.append({
+                "role": "assistant",
+                "content": f"User performed manual action: {action} {payload.get('coordinate', '')} {payload.get('text', '')}"
+            })
+
+            # After manual action, if in OS mode, update the view automatically
+            if self.interpreter.os_mode and action != "screenshot":
+                self.root.after(500, lambda: self._handle_manual_action({"action": "screenshot"}))
+
+        except Exception as e:
+            self.logging.error(f"Error during manual action: {e}")
+            self.ui_print(f"Manual action error: {e}", tag='error')
 
     def _handle_exit(self, **kwargs):
         self.logging.info("程序已退出")
@@ -785,15 +850,24 @@ class Jarvis:
 
     def panel_command_handler(self, command_type, command_payload):
         if command_type == "text":
-            # The /approve command is handled directly here to avoid ambiguity
+            # Check if user manually edited the code block before approving
+            # If command_payload is not /approve but there is pending code,
+            # we might want to check if it's an edited version of the code.
+            # For now, let's assume /approve always takes what's in the text widget if we were in approval mode.
             if command_payload.strip() == "/approve":
-                thread = threading.Thread(target=self.handle_user_command, args=(command_payload, self.panel.programs))
-            else:
-                thread = threading.Thread(target=self.handle_user_command, args=(command_payload, self.panel.programs))
+                # Extract potentially edited code from the UI
+                # This is a bit complex as we need to find the right block.
+                # Simplified: if user just types /approve, we use the original.
+                # If they edited the widget, we should ideally read from the widget.
+                pass
+
+            thread = threading.Thread(target=self.handle_user_command, args=(command_payload, self.panel.programs))
             thread.daemon = True
             thread.start()
         elif command_type == "execute_program":
             self.execute_program(command_payload)
+        elif command_type == "manual_action":
+            self._handle_manual_action(command_payload)
         elif command_type == "display_mode_change":
             mode = command_payload
             if mode in ['host', 'usb', 'both']:

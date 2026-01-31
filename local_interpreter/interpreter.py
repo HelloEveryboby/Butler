@@ -1,6 +1,6 @@
 import io
 from contextlib import redirect_stdout
-from .coordinator.orchestrator import Orchestrator, PythonCode, ExternalToolCall
+from .coordinator.orchestrator import Orchestrator, PythonCode, ExternalToolCall, FinalResponse
 from .executor.code_executor import Sandbox, SandboxError
 from .tools import os_tools, power_tools
 from butler.code_execution_manager import CodeExecutionManager
@@ -10,7 +10,7 @@ class Interpreter:
     A class that encapsulates the local interpreter's functionality,
     providing a clean interface for other parts of the application.
     """
-    def __init__(self, safety_mode: bool = True, os_mode: bool = False):
+    def __init__(self, safety_mode: bool = True, os_mode: bool = False, max_iterations: int = 10):
         """
         Initializes the Interpreter, which includes creating an Orchestrator
         and setting up a conversation history.
@@ -21,7 +21,9 @@ class Interpreter:
         self.conversation_history = []
         self.safety_mode = safety_mode
         self.os_mode = os_mode
+        self.max_iterations = max_iterations
         self.last_code_for_approval = None
+        self.last_tool_for_approval = None
 
         # A simple check to see if the orchestrator failed to init (e.g. no API key)
         if not self.orchestrator.client:
@@ -31,18 +33,36 @@ class Interpreter:
             self.is_ready = True
         self.sandbox = Sandbox()
 
+    def _get_execution_globals(self) -> dict:
+        """Populates the globals for code execution with available tools."""
+        from .tools.tool_decorator import TOOL_REGISTRY
+        execution_globals = {}
+        for t_name, t_data in TOOL_REGISTRY.items():
+            execution_globals[t_name] = t_data["function"]
+
+        # Add additional power tools if needed
+        execution_globals["open_application"] = power_tools.open_application
+        execution_globals["open_url"] = power_tools.open_url
+
+        return execution_globals
+
     def _execute_code(self, code: str, execution_globals: dict = None) -> (str, bool):
         """Helper to run code and capture output."""
         output_catcher = io.StringIO()
         success = False
+
+        if execution_globals is None:
+            execution_globals = self._get_execution_globals()
+
         try:
             with redirect_stdout(output_catcher):
                 if self.os_mode:
                     # In OS mode, we bypass the sandbox and use exec directly
-                    # with the provided globals (which include os_tools).
                     exec(code, execution_globals)
                 else:
-                    self.sandbox.execute(code)
+                    # In standard mode, we use the sandbox but still provide safe tools
+                    # Note: sandbox has its own restricted builtins and importer
+                    self.sandbox.execute(code, globals_dict=execution_globals)
             output = output_catcher.getvalue()
             success = True
         except SandboxError as e:
@@ -59,140 +79,131 @@ class Interpreter:
 
     def run_approved_code(self):
         """
-        Executes the code that was last generated and awaiting approval.
-        This is also a generator to be consistent with the `run` method.
+        Executes the code or tool that was last generated and awaiting approval.
+        Then continues the loop.
         """
-        if not self.last_code_for_approval:
-            yield "result", "No code to approve."
+        if self.last_code_for_approval:
+            code = self.last_code_for_approval
+            self.last_code_for_approval = None
+            yield "status", "Executing approved code..."
+
+            output, success = self._execute_code(code)
+            self._add_assistant_response_to_history(code, output, os_command=self.os_mode)
+            yield "result", f"Output:\n{output}"
+
+        elif self.last_tool_for_approval:
+            tool_name, args = self.last_tool_for_approval
+            self.last_tool_for_approval = None
+            yield "status", f"Executing approved tool: {tool_name}..."
+            success, output = self.program_manager.execute_program(tool_name, args)
+            assistant_response = f"Executed External Tool:\n`{tool_name} {' '.join(args)}`\nOutput:\n```\n{output}```"
+            self.conversation_history.append({"role": "assistant", "content": assistant_response})
+            yield "result", f"Output:\n{output}"
+        else:
+            yield "result", "No action to approve."
             return
 
-        code = self.last_code_for_approval
-        self.last_code_for_approval = None
+        # Continue the loop automatically
+        yield from self._run_loop()
 
-        yield "status", "Executing approved code..."
-        output, success = self._execute_code(code)
-        self._add_assistant_response_to_history(code, output)
+    def _run_loop(self):
+        """
+        The core iterative loop for the interpreter.
+        """
+        for i in range(len(self.conversation_history), len(self.conversation_history) + self.max_iterations):
+            yield "status", f"Thinking (Step {i})..."
 
-        result_message = output if success else f"An error occurred:\n{output}"
-        yield "result", result_message
+            if self.os_mode:
+                 # In OS mode, capture screen at each step
+                 screenshot_b64 = os_tools.capture_screen()
+                 yield "screenshot", screenshot_b64
 
-    def _run_os_mode(self, user_input: str):
-        """Handles the workflow for Operating System Mode as a generator."""
-        yield "status", "Capturing screen for OS mode..."
-        screenshot_b64 = os_tools.capture_screen()
+                 # To prevent context window overflow, we replace older screenshots in history
+                 for msg in self.conversation_history:
+                     if isinstance(msg.get("content"), list):
+                         for part in msg["content"]:
+                             if part.get("type") == "image_url":
+                                 # Replace image with a placeholder
+                                 part["type"] = "text"
+                                 part["text"] = "[Previous Screenshot Omitted to save space]"
+                                 del part["image_url"]
 
-        user_message_with_image = [
-            {"type": "text", "text": user_input},
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"}}
-        ]
-        self.conversation_history.append({"role": "user", "content": user_message_with_image})
+                 self.conversation_history.append({
+                     "role": "user",
+                     "content": [
+                         {"type": "text", "text": "Current Screen Observation:"},
+                         {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"}}
+                     ]
+                 })
 
-        yield "status", "Generating OS commands..."
-        generated_code = ""
-        code_stream = self.orchestrator.stream_code_generation(self.conversation_history, use_os_tools=True)
+            tool_descriptions = self.program_manager.get_program_descriptions()
+            stream = self.orchestrator.stream_code_generation(
+                self.conversation_history,
+                use_os_tools=self.os_mode,
+                external_tools=tool_descriptions
+            )
 
-        for chunk in code_stream:
-            if 'print("Error' in chunk:
-                self.conversation_history.pop()
-                yield "result", chunk
-                return
-            generated_code += chunk
-            yield "code_chunk", chunk
+            final_response = None
+            last_yielded_thought = ""
+            for partial_response in stream:
+                final_response = partial_response
+                if final_response.thought and final_response.thought != last_yielded_thought:
+                    new_chunk = final_response.thought[len(last_yielded_thought):]
+                    yield "code_chunk", new_chunk
+                    last_yielded_thought = final_response.thought
 
-        yield "status", "\n"
+                if isinstance(final_response, PythonCode) and final_response.code:
+                    # Maybe yield code separately?
+                    pass
+                elif isinstance(final_response, ExternalToolCall) and final_response.tool_name:
+                    pass
 
-        if "Error:" in generated_code:
-            self.conversation_history.pop()
-            yield "result", generated_code
-            return
+            if not final_response:
+                yield "result", "Error: Failed to get a response from the AI."
+                break
 
-        execution_globals = {
-            "move_mouse": os_tools.move_mouse,
-            "click": os_tools.click,
-            "type_text": os_tools.type_text,
-            "capture_screen": os_tools.capture_screen,
-            "open_application": power_tools.open_application,
-            "open_url": power_tools.open_url,
-        }
+            if isinstance(final_response, FinalResponse):
+                yield "result", f"\n**Final Answer:** {final_response.message}"
+                break
 
-        yield "status", "Executing OS commands..."
-        output, success = self._execute_code(generated_code, execution_globals=execution_globals)
-        self._add_assistant_response_to_history(generated_code, output, os_command=True)
+            # Handle Actions
+            if isinstance(final_response, PythonCode):
+                final_code = final_response.code
+                yield "code_chunk", f"\n```python\n{final_code}\n```\n"
 
-        result_message = output if success else f"An error occurred in OS Mode:\n{output}"
-        yield "result", result_message
+                if self.safety_mode:
+                    self.last_code_for_approval = final_code
+                    yield "result", "\nAction requires approval. Type `/approve` to continue."
+                    break
+                else:
+                    yield "status", "Executing..."
+                    output, success = self._execute_code(final_code)
+                    self._add_assistant_response_to_history(final_code, output, os_command=self.os_mode)
+                    yield "result", f"Output:\n{output}"
+
+            elif isinstance(final_response, ExternalToolCall):
+                tool_name = final_response.tool_name
+                args = final_response.args
+                yield "code_chunk", f"\nTool Call: `{tool_name}({', '.join(args)})`\n"
+
+                if self.safety_mode:
+                    self.last_tool_for_approval = (tool_name, args)
+                    yield "result", "\nAction requires approval. Type `/approve` to continue."
+                    break
+                else:
+                    yield "status", f"Executing tool {tool_name}..."
+                    success, output = self.program_manager.execute_program(tool_name, args)
+                    assistant_response = f"Executed External Tool:\n`{tool_name} {' '.join(args)}`\nOutput:\n```\n{output}```"
+                    self.conversation_history.append({"role": "assistant", "content": assistant_response})
+                    yield "result", f"Output:\n{output}"
 
     def run(self, user_input: str):
         """
-        Runs a single turn of the interpreter, yielding events as they happen.
-        Events can be status updates, code chunks, or final results.
+        Starts a new task and enters the iterative loop.
         """
         if not self.is_ready:
-            yield "result", "Error: Interpreter is not ready. Please check API key and restart."
-            return
-
-        if self.os_mode:
-            yield from self._run_os_mode(user_input)
+            yield "result", "Error: Interpreter is not ready. Please check API key."
             return
 
         self.conversation_history.append({"role": "user", "content": user_input})
-        yield "status", "Generating action..."
-
-        # Get available external tools to pass to the orchestrator
-        tool_descriptions = self.program_manager.get_program_descriptions()
-        stream = self.orchestrator.stream_code_generation(
-            self.conversation_history,
-            external_tools=tool_descriptions
-        )
-
-        final_response = None
-        for partial_response in stream:
-            final_response = partial_response
-            if isinstance(final_response, PythonCode) and final_response.code:
-                 yield "code_chunk", final_response.code
-            elif isinstance(final_response, ExternalToolCall) and final_response.tool_name:
-                 yield "code_chunk", f"Tool Call: {final_response.tool_name}({', '.join(final_response.args)})"
-
-
-        if not final_response:
-            yield "result", "Error: Failed to get a response from the AI."
-            return
-
-        yield "status", "\n"
-
-        # --- Handle Python Code Execution ---
-        if isinstance(final_response, PythonCode):
-            final_code = final_response.code
-            if "Error:" in final_code:
-                self.conversation_history.pop()
-                yield "result", final_code
-                return
-
-            if self.safety_mode:
-                self.last_code_for_approval = final_code
-                approval_message = f"Generated Code (awaiting approval):\n```python\n{final_code}```\n\nType `/approve` to execute."
-                yield "result", approval_message
-            else:
-                yield "status", "Executing code..."
-                output, success = self._execute_code(final_code)
-                self._add_assistant_response_to_history(final_code, output)
-                result_message = output if success else f"An error occurred:\n{output}"
-                yield "result", result_message
-
-        # --- Handle External Tool Execution ---
-        elif isinstance(final_response, ExternalToolCall):
-            tool_name = final_response.tool_name
-            args = final_response.args
-            yield "status", f"Executing external tool: {tool_name}..."
-
-            success, output = self.program_manager.execute_program(tool_name, args)
-
-            # Add a simplified representation to conversation history
-            assistant_response = f"Executed External Tool:\n`{tool_name} {' '.join(args)}`\nOutput:\n```\n{output}```"
-            self.conversation_history.append({"role": "assistant", "content": assistant_response})
-
-            result_message = output if success else f"An error occurred while running the tool:\n{output}"
-            yield "result", result_message
-
-        else:
-            yield "result", f"Error: Received an unexpected response type from the AI: {type(final_response).__name__}"
+        yield from self._run_loop()
