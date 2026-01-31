@@ -7,7 +7,7 @@ import sys
 
 
 from butler.main import Jarvis, Interpreter
-from local_interpreter.coordinator.orchestrator import ExternalToolCall
+from local_interpreter.coordinator.orchestrator import ExternalToolCall, FinalResponse
 
 class TestButler(unittest.TestCase):
 
@@ -62,10 +62,15 @@ class TestButler(unittest.TestCase):
         # Mock the Orchestrator to return a real ExternalToolCall instance
         mock_orchestrator_instance = MockOrchestrator.return_value
         mock_tool_call_instance = ExternalToolCall(
+            thought="Testing external program",
             tool_name="hello_program",
             args=["arg1", "arg2"]
         )
-        mock_orchestrator_instance.stream_code_generation.return_value = iter([mock_tool_call_instance])
+        # Mocking the iterative loop: first a tool call, then finished
+        mock_orchestrator_instance.stream_code_generation.side_effect = [
+            iter([mock_tool_call_instance]),
+            iter([FinalResponse(thought="Finished", message="Task complete")])
+        ]
 
         # 2. Instantiate Interpreter
         interpreter = Interpreter(safety_mode=False)
@@ -84,7 +89,7 @@ class TestButler(unittest.TestCase):
 
         # 5. Assertions
         # Verify the orchestrator was called with the tool descriptions
-        mock_orchestrator_instance.stream_code_generation.assert_called_once()
+        self.assertGreaterEqual(mock_orchestrator_instance.stream_code_generation.call_count, 1)
         call_args, call_kwargs = mock_orchestrator_instance.stream_code_generation.call_args
         self.assertIn('external_tools', call_kwargs)
         self.assertEqual(call_kwargs['external_tools'], mock_descriptions)
@@ -92,18 +97,32 @@ class TestButler(unittest.TestCase):
         # Verify the program manager's execute method was called correctly
         interpreter.program_manager.execute_program.assert_called_once_with("hello_program", ["arg1", "arg2"])
 
-        # Verify the final result is yielded
-        final_result = next((item[1] for item in events if item[0] == 'result'), None)
-        self.assertIsNotNone(final_result)
-        self.assertEqual(final_result, "Success from External Program")
+        # Verify the tool output result is yielded
+        tool_output = next((item[1] for item in events if item[0] == 'result' and "Success from External Program" in item[1]), None)
+        self.assertIsNotNone(tool_output)
+        self.assertIn("Success from External Program", tool_output)
 
+        # Verify the final completion message is yielded
+        final_msg = next((item[1] for item in events if item[0] == 'result' and "**Final Answer:**" in item[1]), None)
+        self.assertIsNotNone(final_msg)
+        self.assertIn("Task complete", final_msg)
+
+    @patch('butler.main.data_storage_manager')
     @patch.object(Jarvis, '_initialize_long_memory')
-    def test_data_storage_persistence(self, mock_init_long_memory):
+    def test_data_storage_persistence(self, mock_init_long_memory, mock_storage_manager):
         """
         Tests that data saved using the DataStorageManager persists across different Jarvis instances.
         """
         # 1. Setup mock and first Jarvis instance
         mock_init_long_memory.return_value = None
+
+        # Setup mock storage
+        storage = {}
+        def mock_save(plugin, key, val): storage[f"{plugin}:{key}"] = val
+        def mock_load(plugin, key): return storage.get(f"{plugin}:{key}")
+        mock_storage_manager.save.side_effect = mock_save
+        mock_storage_manager.load.side_effect = mock_load
+
         jarvis1 = Jarvis(self.mock_root)
         user_profile_plugin1 = jarvis1.plugin_manager.get_plugin("UserProfilePlugin")
         self.assertIsNotNone(user_profile_plugin1, "UserProfilePlugin should be loaded")

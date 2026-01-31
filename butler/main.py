@@ -614,6 +614,8 @@ class Jarvis:
 
         stream = self.interpreter.run_approved_code() if approved else self.interpreter.run(command)
 
+        final_result_to_speak = ""
+
         for event_type, payload in stream:
             if not self.root:
                 break # Stop if the window has been closed
@@ -625,8 +627,13 @@ class Jarvis:
                 self.root.after(0, self.panel.append_to_response, payload, response_id)
             elif event_type == "result":
                 # Schedule the final result to be appended
-                final_text = f"\n\nOutput:\n{payload}\n\n"
+                final_text = f"\n\n{payload}\n\n"
                 self.root.after(0, self.panel.append_to_response, final_text, response_id)
+                if "**Final Answer:**" in payload:
+                    final_result_to_speak = payload.split("**Final Answer:**")[-1].strip()
+
+        if final_result_to_speak:
+             self.root.after(0, self.speak, final_result_to_speak)
 
     def _handle_open_program(self, entities, programs, **kwargs):
         program_name = entities.get("program_name")

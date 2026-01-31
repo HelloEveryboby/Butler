@@ -5,8 +5,12 @@ from .tool_decorator import tool
 @tool
 def run_shell(command: str) -> str:
     """
-    Executes a shell command and returns its output.
-    Useful for general-purpose commands when a specific tool is not available.
+    Executes a shell command in the system terminal and returns its STDOUT and STDERR.
+    Use this for:
+    - Installing packages via pip (e.g., 'pip install requests').
+    - Running system commands (e.g., 'ls -la', 'ps aux', 'df -h').
+    - Executing compiled programs.
+    Always use absolute paths if you are unsure of the current working directory.
     """
     try:
         # For cross-platform compatibility, split the command into a list.

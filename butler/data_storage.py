@@ -11,10 +11,11 @@ class DataStorageManager:
     """
     def __init__(self):
         self._logger = LogManager.get_logger(__name__)
-        if not redis_client:
-            raise ConnectionError("Failed to connect to Redis.")
         self.redis_client = redis_client
-        self._logger.info("DataStorageManager initialized.")
+        if not self.redis_client:
+            self._logger.warning("DataStorageManager initialized without a Redis connection. Data will not be persisted.")
+        else:
+            self._logger.info("DataStorageManager initialized.")
 
     def _get_plugin_key(self, plugin_name: str, key: str) -> str:
         """
@@ -27,6 +28,10 @@ class DataStorageManager:
         """
         Saves a value for a specific plugin. The value will be serialized to JSON.
         """
+        if not self.redis_client:
+            self._logger.error(f"Cannot save data: No Redis connection.")
+            return
+
         try:
             redis_key = self._get_plugin_key(plugin_name, key)
             serialized_value = json.dumps(value)
@@ -39,6 +44,10 @@ class DataStorageManager:
         """
         Loads a value for a specific plugin. The value will be deserialized from JSON.
         """
+        if not self.redis_client:
+            self._logger.error(f"Cannot load data: No Redis connection.")
+            return None
+
         try:
             redis_key = self._get_plugin_key(plugin_name, key)
             serialized_value = self.redis_client.get(redis_key)
@@ -54,6 +63,10 @@ class DataStorageManager:
         """
         Deletes a value for a specific plugin.
         """
+        if not self.redis_client:
+            self._logger.error(f"Cannot delete data: No Redis connection.")
+            return
+
         try:
             redis_key = self._get_plugin_key(plugin_name, key)
             self.redis_client.delete(redis_key)
