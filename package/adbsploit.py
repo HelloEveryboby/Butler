@@ -12,10 +12,11 @@ try:
     from pyfiglet import Figlet
     from rich.console import Console
     from rich.table import Table
-except:
+except ImportError:
     print('\x1b[0;31mSome deependencies not installed.')
     print('RUN: "pip install colorama rich adbutils pyfiglet" to install missing items.')
-    sys.exit(1)
+    if __name__ == '__main__':
+        sys.exit(1)
     
 # ***********************************************************************
 # Variables and main

@@ -3,7 +3,7 @@ from contextlib import redirect_stdout
 from .coordinator.orchestrator import Orchestrator, PythonCode, ExternalToolCall, FinalResponse
 from .executor.code_executor import Sandbox, SandboxError
 from .tools import os_tools, power_tools
-from butler.code_execution_manager import CodeExecutionManager
+from butler.core.extension_manager import extension_manager
 
 class Interpreter:
     """
@@ -16,8 +16,7 @@ class Interpreter:
         and setting up a conversation history.
         """
         self.orchestrator = Orchestrator()
-        self.program_manager = CodeExecutionManager()
-        self.program_manager.scan_and_register()
+        self.extension_manager = extension_manager
         self.conversation_history = []
         self.safety_mode = safety_mode
         self.os_mode = os_mode
@@ -43,6 +42,15 @@ class Interpreter:
         # Add additional power tools if needed
         execution_globals["open_application"] = power_tools.open_application
         execution_globals["open_url"] = power_tools.open_url
+
+        # Add extensions as tools
+        for tool in self.extension_manager.get_all_tools():
+            tool_name = tool['name']
+            if tool['type'] == 'package' and hasattr(tool['module'], 'run'):
+                execution_globals[tool_name] = tool['module'].run
+            elif tool['type'] == 'plugin':
+                execution_globals[tool_name] = tool['instance'].run
+            # External programs are handled via ExternalToolCall in _run_loop
 
         return execution_globals
 
@@ -95,7 +103,7 @@ class Interpreter:
             tool_name, args = self.last_tool_for_approval
             self.last_tool_for_approval = None
             yield "status", f"Executing approved tool: {tool_name}..."
-            success, output = self.program_manager.execute_program(tool_name, args)
+            output = self.extension_manager.execute(tool_name, *args)
             assistant_response = f"Executed External Tool:\n`{tool_name} {' '.join(args)}`\nOutput:\n```\n{output}```"
             self.conversation_history.append({"role": "assistant", "content": assistant_response})
             yield "result", f"Output:\n{output}"
@@ -136,7 +144,11 @@ class Interpreter:
                      ]
                  })
 
-            tool_descriptions = self.program_manager.get_program_descriptions()
+            # Collect descriptions from all extensions
+            tool_descriptions = []
+            for tool in self.extension_manager.get_all_tools():
+                tool_descriptions.append(f"- `{tool['name']}`: {tool['description']}")
+
             stream = self.orchestrator.stream_code_generation(
                 self.conversation_history,
                 use_os_tools=self.os_mode,
@@ -192,7 +204,7 @@ class Interpreter:
                     break
                 else:
                     yield "status", f"Executing tool {tool_name}..."
-                    success, output = self.program_manager.execute_program(tool_name, args)
+                    output = self.extension_manager.execute(tool_name, *args)
                     assistant_response = f"Executed External Tool:\n`{tool_name} {' '.join(args)}`\nOutput:\n```\n{output}```"
                     self.conversation_history.append({"role": "assistant", "content": assistant_response})
                     yield "result", f"Output:\n{output}"
