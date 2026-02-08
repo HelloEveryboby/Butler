@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 import sys
 
 
-from butler.main import Jarvis, Interpreter
+from butler.main import Jarvis
+from local_interpreter.interpreter import Interpreter
 from local_interpreter.coordinator.orchestrator import ExternalToolCall, FinalResponse
 
 class TestButler(unittest.TestCase):
@@ -50,11 +51,13 @@ class TestButler(unittest.TestCase):
         # Check the call for the code chunk
         append_calls = [c for c in calls if c[0][1] == jarvis.panel.append_to_response]
         self.assertTrue(any("print('hello')" in c[0] for c in append_calls), "Code chunk was not appended")
-        self.assertTrue(any("hello\n" in c[0][2] for c in append_calls), "Final result was not appended")
+        # Check result
+        result_calls = [c for c in calls if c[0][1] == jarvis.panel.append_to_response and "\n\nhello\n\n" in c[0][2]]
+        self.assertGreater(len(result_calls), 0, "Final result was not appended")
 
-    @patch('butler.code_execution_manager.CodeExecutionManager.scan_and_register')
+    @patch('butler.core.extension_manager.ExtensionManager.scan_all')
     @patch('local_interpreter.interpreter.Orchestrator')
-    def test_external_program_execution(self, MockOrchestrator, mock_scan_and_register):
+    def test_external_program_execution(self, MockOrchestrator, mock_scan_all):
         """
         Tests the end-to-end flow of executing a registered external program.
         """
@@ -75,11 +78,11 @@ class TestButler(unittest.TestCase):
         # 2. Instantiate Interpreter
         interpreter = Interpreter(safety_mode=False)
 
-        # 3. Manually mock the program_manager's methods after instantiation
-        interpreter.program_manager = MagicMock()
-        interpreter.program_manager.execute_program.return_value = (True, "Success from External Program")
-        mock_descriptions = [{"tool_name": "hello_program", "description": "A test program.", "args": ["..."]}]
-        interpreter.program_manager.get_program_descriptions.return_value = mock_descriptions
+        # 3. Manually mock the extension_manager's methods after instantiation
+        interpreter.extension_manager = MagicMock()
+        interpreter.extension_manager.execute.return_value = "Success from External Program"
+        mock_tools = [{"name": "hello_program", "description": "A test program.", "type": "program"}]
+        interpreter.extension_manager.get_all_tools.return_value = mock_tools
 
         interpreter.orchestrator = mock_orchestrator_instance
 
@@ -92,10 +95,11 @@ class TestButler(unittest.TestCase):
         self.assertGreaterEqual(mock_orchestrator_instance.stream_code_generation.call_count, 1)
         call_args, call_kwargs = mock_orchestrator_instance.stream_code_generation.call_args
         self.assertIn('external_tools', call_kwargs)
-        self.assertEqual(call_kwargs['external_tools'], mock_descriptions)
+        # The formatting of descriptions in interpreter.py changed slightly
+        self.assertEqual(call_kwargs['external_tools'], ["- `hello_program`: A test program."])
 
-        # Verify the program manager's execute method was called correctly
-        interpreter.program_manager.execute_program.assert_called_once_with("hello_program", ["arg1", "arg2"])
+        # Verify the extension manager's execute method was called correctly
+        interpreter.extension_manager.execute.assert_called_once_with("hello_program", "arg1", "arg2")
 
         # Verify the tool output result is yielded
         tool_output = next((item[1] for item in events if item[0] == 'result' and "Success from External Program" in item[1]), None)
@@ -107,12 +111,13 @@ class TestButler(unittest.TestCase):
         self.assertIsNotNone(final_msg)
         self.assertIn("Task complete", final_msg)
 
-    @patch('butler.main.data_storage_manager')
     @patch.object(Jarvis, '_initialize_long_memory')
-    def test_data_storage_persistence(self, mock_init_long_memory, mock_storage_manager):
+    def test_data_storage_persistence(self, mock_init_long_memory):
         """
         Tests that data saved using the DataStorageManager persists across different Jarvis instances.
         """
+        from butler.data_storage import data_storage_manager
+        from butler.core.extension_manager import extension_manager
         # 1. Setup mock and first Jarvis instance
         mock_init_long_memory.return_value = None
 
@@ -120,35 +125,33 @@ class TestButler(unittest.TestCase):
         storage = {}
         def mock_save(plugin, key, val): storage[f"{plugin}:{key}"] = val
         def mock_load(plugin, key): return storage.get(f"{plugin}:{key}")
-        mock_storage_manager.save.side_effect = mock_save
-        mock_storage_manager.load.side_effect = mock_load
 
-        jarvis1 = Jarvis(self.mock_root)
-        user_profile_plugin1 = jarvis1.plugin_manager.get_plugin("UserProfilePlugin")
-        self.assertIsNotNone(user_profile_plugin1, "UserProfilePlugin should be loaded")
+        with patch.object(data_storage_manager, 'save', side_effect=mock_save), \
+             patch.object(data_storage_manager, 'load', side_effect=mock_load):
 
-        # 2. Save data using the first instance
-        user_name = "test_user"
-        save_command = f"remember my name is {user_name}"
-        save_args = {"name": user_name}
-        save_result = user_profile_plugin1.run(save_command, save_args)
-        self.assertTrue(save_result.success)
-        self.assertIn(f"Okay, I've remembered your name is {user_name}", save_result.result)
+            jarvis1 = Jarvis(self.mock_root)
+            user_profile_plugin1 = extension_manager.plugin_manager.get_plugin("UserProfilePlugin")
+            self.assertIsNotNone(user_profile_plugin1, "UserProfilePlugin should be loaded")
 
-        # 3. Create a new Jarvis instance to simulate a restart
-        jarvis2 = Jarvis(self.mock_root)
-        user_profile_plugin2 = jarvis2.plugin_manager.get_plugin("UserProfilePlugin")
-        self.assertIsNotNone(user_profile_plugin2, "UserProfilePlugin should be loaded in the new instance")
+            # 2. Save data using the first instance
+            user_name = "test_user"
+            save_command = f"remember my name is {user_name}"
+            save_args = {"name": user_name}
+            save_result = user_profile_plugin1.run(save_command, save_args)
+            self.assertTrue(save_result.success)
+            self.assertIn(f"Okay, I've remembered your name is {user_name}", save_result.result)
 
-        # 4. Retrieve the data using the second instance
-        load_command = "what is my name"
-        load_args = {}
-        load_result = user_profile_plugin2.run(load_command, load_args)
-        self.assertTrue(load_result.success)
-        self.assertIn(f"Your name is {user_name}", load_result.result)
+            # 3. Create a new Jarvis instance to simulate a restart
+            jarvis2 = Jarvis(self.mock_root)
+            user_profile_plugin2 = extension_manager.plugin_manager.get_plugin("UserProfilePlugin")
+            self.assertIsNotNone(user_profile_plugin2, "UserProfilePlugin should be loaded in the new instance")
 
-        # 5. Clean up the stored data
-        user_profile_plugin2.data_storage.delete(user_profile_plugin2.get_name(), "user_name")
+            # 4. Retrieve the data using the second instance
+            load_command = "what is my name"
+            load_args = {}
+            load_result = user_profile_plugin2.run(load_command, load_args)
+            self.assertTrue(load_result.success)
+            self.assertIn(f"Your name is {user_name}", load_result.result)
 
     @patch.object(Jarvis, '_initialize_long_memory')
     def test_approve_edited_code(self, mock_init_long_memory):
