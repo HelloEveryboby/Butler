@@ -1,21 +1,45 @@
 import base64
 import io
 import shutil
+import logging
 from PIL import Image
 from PIL.ExifTags import TAGS
 import pytesseract
+try:
+    import easyocr
+    import numpy as np
+    HAS_EASYOCR = True
+except ImportError:
+    HAS_EASYOCR = False
 
-def convert_image(file_path: str) -> str:
+logger = logging.getLogger(__name__)
+
+def convert_image(file_path: str, engine: str = "auto", model_path: str = None) -> str:
     """
     Converts an image file to Markdown.
     Embeds the image and extracts EXIF metadata and OCR text.
+
+    Args:
+        file_path: Path to the image file.
+        engine: OCR engine to use ('tesseract', 'easyocr', or 'auto').
+        model_path: Path to the directory containing OCR models (for offline use).
     """
-    if not shutil.which("tesseract"):
+    # Fallback logic for 'auto'
+    if engine == "auto":
+        if HAS_EASYOCR:
+            engine = "easyocr"
+        elif shutil.which("tesseract"):
+            engine = "tesseract"
+        else:
+            raise RuntimeError(
+                "No OCR engine found. Please install Tesseract or EasyOCR."
+            )
+
+    if engine == "tesseract" and not shutil.which("tesseract"):
         raise FileNotFoundError(
-            "Tesseract OCR is not installed or not in your PATH. "
-            "Please install it from https://github.com/tesseract-ocr/tesseract "
-            "and ensure it's accessible from your command line."
+            "Tesseract OCR is not installed or not in your PATH."
         )
+
     try:
         img = Image.open(file_path)
         markdown_parts = []
@@ -48,7 +72,21 @@ def convert_image(file_path: str) -> str:
 
         # --- OCR Text ---
         markdown_parts.append("## OCR Text\n")
-        ocr_text = pytesseract.image_to_string(img)
+
+        if engine == "easyocr":
+            # EasyOCR expects a path, a numpy array, or bytes
+            # If model_path is provided, use it for offline model loading
+            reader = easyocr.Reader(
+                ['ch_sim', 'en'],
+                model_storage_directory=model_path,
+                download_enabled=True if not model_path else False
+            ) # Supports Simplified Chinese and English
+            # Use numpy array for PIL image
+            ocr_results = reader.readtext(np.array(img))
+            ocr_text = "\n".join([result[1] for result in ocr_results])
+        else:
+            ocr_text = pytesseract.image_to_string(img)
+
         markdown_parts.append("```text")
         markdown_parts.append(ocr_text)
         markdown_parts.append("```")

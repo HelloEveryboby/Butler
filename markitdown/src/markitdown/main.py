@@ -1,7 +1,19 @@
 import os
+import sys
 import zipfile
 import tempfile
 import shutil
+# Import algorithm from package directory
+try:
+    # Adjust path to reach package directory from markitdown/src/markitdown/
+    package_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'package'))
+    if package_path not in sys.path:
+        sys.path.append(package_path)
+    from algorithm import hybridSort
+    HAS_ALGORITHM = True
+except ImportError:
+    HAS_ALGORITHM = False
+
 from .converters.text import convert_text
 from .converters.txt_converter import convert_txt
 from .converters.csv_converter import convert_csv
@@ -14,7 +26,7 @@ from .converters.excel_converter import convert_excel
 from .converters.image_converter import convert_image
 from .converters.epub_converter import convert_epub
 
-def convert(file_path: str) -> str:
+def convert(file_path: str, **kwargs) -> str:
     """
     Converts a file to Markdown.
     """
@@ -40,7 +52,7 @@ def convert(file_path: str) -> str:
     elif ext == '.xlsx':
         return convert_excel(file_path)
     elif ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']:
-        return convert_image(file_path)
+        return convert_image(file_path, **kwargs)
     elif ext == '.zip':
         temp_dir = tempfile.mkdtemp()
         try:
@@ -48,12 +60,26 @@ def convert(file_path: str) -> str:
                 zip_ref.extractall(temp_dir)
 
             markdown_parts = []
+            all_files = []
             for root, _, files in os.walk(temp_dir):
                 for name in files:
-                    extracted_file_path = os.path.join(root, name)
-                    markdown_parts.append(f"--- START OF {name} ---\n")
-                    markdown_parts.append(convert(extracted_file_path))
-                    markdown_parts.append(f"\n--- END OF {name} ---\n")
+                    all_files.append((os.path.join(root, name), name))
+
+            # Sort files using hybridSort if available
+            if HAS_ALGORITHM:
+                # Prepare data for hybridSort: (path, priority, original_name)
+                # Use length of name as a dummy priority for demonstration of "algorithm library" usage
+                sort_data = [(path, len(name), name) for path, name in all_files]
+                hybridSort(sort_data)
+                sorted_files = [item[0] for item in sort_data]
+            else:
+                sorted_files = sorted([f[0] for f in all_files])
+
+            for extracted_file_path in sorted_files:
+                name = os.path.basename(extracted_file_path)
+                markdown_parts.append(f"--- START OF {name} ---\n")
+                markdown_parts.append(convert(extracted_file_path, **kwargs))
+                markdown_parts.append(f"\n--- END OF {name} ---\n")
 
             return '\n'.join(markdown_parts)
         finally:

@@ -16,6 +16,8 @@ dependencies = [
     "EbookLib",
     "beautifulsoup4",
     "rtf-converter",
+    "easyocr",
+    "scikit-learn",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
