@@ -148,3 +148,5 @@ memos.json
 # Butler build artifacts
 programs/*/hello_*
 programs/**/*.class
+programs/ble_framework/ble_framework_exec
+programs/ble_framework/libble.so

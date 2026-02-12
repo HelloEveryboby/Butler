@@ -104,7 +104,7 @@ class CodeExecutionManager:
         # Register the program
         if os.path.exists(executable_path):
             self.registered_programs[name] = {
-                'path': executable_path,
+                'path': os.path.abspath(executable_path),
                 'description': description,
                 'language': language,
                 'run_command': manifest.get('run') # Store the run command if it exists
@@ -148,10 +148,10 @@ class CodeExecutionManager:
 
         if run_command_template:
             # Join args into a single string to be safe
-            args_str = " ".join(args)
+            args_str = " ".join(map(str, args))
             command = run_command_template.format(args=args_str)
         else:
-            command = [program_info['path']] + args
+            command = [program_info['path']] + list(args)
 
         logging.info(f"Executing external program with command: {command}")
 

@@ -1,0 +1,9 @@
+{
+  "name": "ble_framework",
+  "language": "cpp",
+  "version": "1.1",
+  "description": "High-performance BLE framework with connection and fast-write queues. Can be used as a CLI or a stateful shared library.",
+  "build": "g++ -fPIC -shared BLEFramework.cpp -lbluetooth -o libble.so -pthread && g++ main.cpp BLEFramework.cpp -lbluetooth -o {output} -pthread",
+  "source": ["main.cpp", "BLEFramework.cpp", "BLEFramework.h"],
+  "executable": "ble_framework_exec"
+}
