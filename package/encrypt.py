@@ -1,218 +1,173 @@
+"""
+对称加密工具，支持 AES 和 DES 算法。
+支持文件加密/解密以及字符串加密/解密。
+"""
 import os
 import time
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad, unpad
-from Crypto.Random import get_random_bytes
-from Crypto.Protocol.KDF import PBKDF2
+import sys
+import base64
+import getpass
 import hashlib
+from package.crypto_core import SymmetricCrypto
+from Crypto.Random import get_random_bytes
 
-class SimpleFileEncryptor:
+class EnhancedEncryptor:
     def __init__(self):
-        self.key_file = "encryption_key.bin"
+        self.key_file_aes = "encryption_key_aes.bin"
+        self.key_file_des = "encryption_key_des.bin"
         self.audit_log = "encryption_log.txt"
     
-    def log_operation(self, operation, file_path, status):
+    def log_operation(self, operation, target, status):
         """记录操作日志"""
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        log_entry = f"[{timestamp}] {operation}: {file_path} -> {status}\n"
-        
+        log_entry = f"[{timestamp}] {operation}: {target} -> {status}\n"
         try:
-            with open(self.audit_log, "a") as f:
+            with open(self.audit_log, "a", encoding='utf-8') as f:
                 f.write(log_entry)
-            return True
         except Exception:
-            return False
-    
-    def generate_key(self, password=None):
-        """生成或派生加密密钥"""
-        try:
-            if password:
-                # 使用密码派生密钥
-                salt = get_random_bytes(16)
-                key = PBKDF2(password, salt, dkLen=16, count=100000)
-                
-                # 保存salt和密钥
-                with open(self.key_file, 'wb') as f:
-                    f.write(salt + key)
-                return key
-            else:
-                # 生成随机密钥
-                key = get_random_bytes(16)
-                with open(self.key_file, 'wb') as f:
-                    f.write(key)
-                return key
-        except Exception as e:
-            print(f"生成密钥时出错: {str(e)}")
-            return None
-    
-    def load_key(self, password=None):
-        """从文件加载密钥"""
-        try:
-            with open(self.key_file, 'rb') as f:
-                key_data = f.read()
-                
-            if password:
-                # 从文件读取salt和密钥
-                salt = key_data[:16]
-                stored_key = key_data[16:]
-                # 重新派生密钥
-                derived_key = PBKDF2(password, salt, dkLen=16, count=100000)
-                
-                # 验证派生密钥是否匹配
-                if derived_key == stored_key:
-                    return derived_key
-                else:
-                    print("密码错误，请重试")
-                    return None
-            else:
-                # 直接返回随机密钥
-                return key_data
-        except FileNotFoundError:
-            print("找不到密钥文件")
-            return None
-        except Exception as e:
-            print(f"加载密钥失败: {str(e)}")
-            return None
-    
-    def encrypt_file(self, file_path, key):
-        """加密文件"""
-        try:
-            # 创建加密器
-            cipher = AES.new(key, AES.MODE_CBC)
-            iv = cipher.iv
-            
-            # 读取文件内容
-            with open(file_path, 'rb') as f:
-                data = f.read()
-            
-            # 加密数据
-            ciphertext = cipher.encrypt(pad(data, AES.block_size))
-            
-            # 写入加密文件
-            encrypted_file = file_path + '.enc'
-            with open(encrypted_file, 'wb') as f:
-                f.write(iv)
-                f.write(ciphertext)
-            
-            # 记录日志
-            self.log_operation("加密", file_path, "成功")
-            
-            print(f"文件加密成功: {encrypted_file}")
-            return encrypted_file
-        except Exception as e:
-            self.log_operation("加密", file_path, f"失败: {str(e)}")
-            print(f"加密文件时出错: {str(e)}")
-            return None
-    
-    def decrypt_file(self, file_path, key):
-        """解密文件"""
-        try:
-            # 检查文件扩展名
-            if not file_path.endswith('.enc'):
-                print("注意: 文件扩展名不是.enc，可能不是加密文件")
-            
-            # 读取加密文件
-            with open(file_path, 'rb') as f:
-                iv = f.read(16)  # AES块大小是16字节
-                ciphertext = f.read()
-            
-            # 创建解密器
-            cipher = AES.new(key, AES.MODE_CBC, iv)
-            
-            # 解密数据
-            plaintext = unpad(cipher.decrypt(ciphertext), AES.block_size)
-            
-            # 生成解密文件名
-            if file_path.endswith('.enc'):
-                decrypted_file = file_path[:-4]
-            else:
-                decrypted_file = file_path + '.dec'
-            
-            # 避免覆盖已有文件
-            if os.path.exists(decrypted_file):
-                base, ext = os.path.splitext(decrypted_file)
-                counter = 1
-                while os.path.exists(f"{base}_{counter}{ext}"):
-                    counter += 1
-                decrypted_file = f"{base}_{counter}{ext}"
-            
-            # 写入解密文件
-            with open(decrypted_file, 'wb') as f:
-                f.write(plaintext)
-            
-            # 记录日志
-            self.log_operation("解密", file_path, "成功")
-            
-            print(f"文件解密成功: {decrypted_file}")
-            return decrypted_file
-        except Exception as e:
-            self.log_operation("解密", file_path, f"失败: {str(e)}")
-            print(f"解密文件时出错: {str(e)}")
-            return None
+            pass
 
-def run(file_path):
-    """
-    Main function to encrypt or decrypt a file based on its extension.
-    """
-    if not os.path.isfile(file_path):
-        print(f"Error: File not found at '{file_path}'")
-        return
-
-    encryptor = SimpleFileEncryptor()
-    key = None
-    
-    # Check if the key file exists
-    if not os.path.exists(encryptor.key_file):
-        print("No encryption key found. Let's create one.")
-        while True:
-            password = input("Enter a strong password to protect your key: ").strip()
-            if password:
-                confirm_password = input("Confirm your password: ").strip()
-                if password == confirm_password:
-                    key = encryptor.generate_key(password)
-                    if key:
-                        print("Encryption key created and saved successfully.")
-                        break
-                    else:
-                        print("Failed to generate the key. Please try again.")
-                        return
-                else:
-                    print("Passwords do not match. Please try again.")
-            else:
-                print("Password cannot be empty.")
-    else:
-        # Load existing key
-        while True:
-            password = input("Enter your password to unlock the key: ").strip()
+    def get_key(self, algorithm='AES'):
+        algorithm = algorithm.upper()
+        key_file = self.key_file_aes if algorithm == 'AES' else self.key_file_des
+        if not os.path.exists(key_file):
+            print(f"未找到 {algorithm} 密钥配置。正在创建...")
+            password = getpass.getpass(f"输入用于派生 {algorithm} 密钥的密码: ").strip()
             if not password:
-                print("Password cannot be empty.")
-                continue
-            key = encryptor.load_key(password)
-            if key:
-                print("Key loaded successfully.")
-                break
-            else:
-                # The load_key method already prints an error, but we can add a retry mechanism
-                retry = input("Would you like to try again? (y/n): ").lower()
-                if retry != 'y':
-                    return
+                print("密码不能为空。")
+                return None
+            salt = get_random_bytes(16)
+            key = SymmetricCrypto.derive_key(password, salt, algorithm)
 
-    if not key:
-        print("Could not obtain a valid key. Aborting operation.")
+            # 安全改进：不直接存储密钥，仅存储盐和密钥哈希作为验证器
+            verifier = hashlib.sha256(key).digest()
+            with open(key_file, 'wb') as f:
+                f.write(salt + verifier)
+            print(f"{algorithm} 密钥配置已创建。")
+            return key
+        else:
+            password = getpass.getpass(f"输入密码以解锁 {algorithm} 密钥: ").strip()
+            if not password:
+                return None
+            try:
+                with open(key_file, 'rb') as f:
+                    data = f.read()
+                    salt = data[:16]
+                    stored_verifier = data[16:]
+                    key = SymmetricCrypto.derive_key(password, salt, algorithm)
+                    # 验证派生密钥是否正确
+                    if hashlib.sha256(key).digest() == stored_verifier:
+                        return key
+                    else:
+                        print("密码错误。")
+                        return None
+            except Exception as e:
+                print(f"加载密钥失败: {e}")
+                return None
+
+    def handle_file(self, file_path, algorithm='AES', mode='encrypt'):
+        key = self.get_key(algorithm)
+        if not key: return
+
+        try:
+            if mode == 'encrypt':
+                output_file = file_path + ".enc"
+                SymmetricCrypto.encrypt_file(file_path, output_file, key, algorithm)
+                print(f"文件已加密: {output_file}")
+                self.log_operation(f"{algorithm}加密文件", file_path, "成功")
+            else:
+                if file_path.endswith('.enc'):
+                    output_file = file_path[:-4]
+                else:
+                    output_file = file_path + ".dec"
+                
+                # Avoid overwriting
+                if os.path.exists(output_file):
+                    base, ext = os.path.splitext(output_file)
+                    output_file = f"{base}_{int(time.time())}{ext}"
+                
+                SymmetricCrypto.decrypt_file(file_path, output_file, key, algorithm)
+                print(f"文件已解密: {output_file}")
+                self.log_operation(f"{algorithm}解密文件", file_path, "成功")
+        except Exception as e:
+            print(f"操作失败: {e}")
+            self.log_operation(f"{algorithm}{mode}文件", file_path, f"失败: {e}")
+
+    def handle_string(self, algorithm='AES', mode='encrypt'):
+        key = self.get_key(algorithm)
+        if not key: return
+
+        if mode == 'encrypt':
+            data = input("请输入要加密的字符串: ")
+            iv, ct = SymmetricCrypto.encrypt_data(data, key, algorithm)
+            print(f"IV (Base64): {iv}")
+            print(f"密文 (Base64): {ct}")
+            print(f"组合结果: {iv}:{ct}")
+            self.log_operation(f"{algorithm}加密字符串", "文本数据", "成功")
+        else:
+            combined = input("请输入组合结果 (IV:密文): ")
+            try:
+                iv, ct = combined.split(':')
+                pt = SymmetricCrypto.decrypt_data(iv, ct, key, algorithm)
+                print(f"解密结果: {pt}")
+                self.log_operation(f"{algorithm}解密字符串", "文本数据", "成功")
+            except Exception as e:
+                print(f"解密失败: {e}")
+                self.log_operation(f"{algorithm}解密字符串", "文本数据", f"失败: {e}")
+
+def run(file_path=None):
+    encryptor = EnhancedEncryptor()
+    if file_path and os.path.isfile(file_path):
+        print(f"检测到文件: {file_path}")
+        print("1. AES 加密")
+        print("2. AES 解密")
+        print("3. DES 加密")
+        print("4. DES 解密")
+        choice = input("请选择操作 (1-4): ")
+        if choice == '1': encryptor.handle_file(file_path, 'AES', 'encrypt')
+        elif choice == '2': encryptor.handle_file(file_path, 'AES', 'decrypt')
+        elif choice == '3': encryptor.handle_file(file_path, 'DES', 'encrypt')
+        elif choice == '4': encryptor.handle_file(file_path, 'DES', 'decrypt')
         return
 
-    # Determine action based on file extension
-    if file_path.endswith('.enc'):
-        print(f"Decrypting '{file_path}'...")
-        encryptor.decrypt_file(file_path, key)
-    else:
-        print(f"Encrypting '{file_path}'...")
-        encryptor.encrypt_file(file_path, key)
+    while True:
+        print("\n=== 对称加密工具 (AES/DES) ===")
+        print("1. AES 加密文件")
+        print("2. AES 解密文件")
+        print("3. DES 加密文件")
+        print("4. DES 解密文件")
+        print("5. AES 加密字符串")
+        print("6. AES 解密字符串")
+        print("7. DES 加密字符串")
+        print("8. DES 解密字符串")
+        print("0. 返回/退出")
+
+        choice = input("请选择操作: ")
+        if choice == '0': break
+        elif choice == '1':
+            path = input("输入文件路径: ")
+            if os.path.isfile(path): encryptor.handle_file(path, 'AES', 'encrypt')
+            else: print("文件不存在。")
+        elif choice == '2':
+            path = input("输入文件路径: ")
+            if os.path.isfile(path): encryptor.handle_file(path, 'AES', 'decrypt')
+            else: print("文件不存在。")
+        elif choice == '3':
+            path = input("输入文件路径: ")
+            if os.path.isfile(path): encryptor.handle_file(path, 'DES', 'encrypt')
+            else: print("文件不存在。")
+        elif choice == '4':
+            path = input("输入文件路径: ")
+            if os.path.isfile(path): encryptor.handle_file(path, 'DES', 'decrypt')
+            else: print("文件不存在。")
+        elif choice == '5': encryptor.handle_string('AES', 'encrypt')
+        elif choice == '6': encryptor.handle_string('AES', 'decrypt')
+        elif choice == '7': encryptor.handle_string('DES', 'encrypt')
+        elif choice == '8': encryptor.handle_string('DES', 'decrypt')
+        else: print("无效选择。")
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) != 2:
-        print("Usage: python encrypt.py <file_path>")
+    if len(sys.argv) > 1:
+        run(sys.argv[1])
     else:
-        file_path = sys.argv[1]
-        run(file_path)
+        run()

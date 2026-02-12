@@ -6,6 +6,8 @@
     "爬虫": "crawlpy.py",
     "终端": "terminpy.py",
     "加密": "encrypt.py",
+    "对称加密": "encrypt.py",
+    "非对称加密": "asymmetric_tool.py",
     "物体识别": "PictureRecognition.py",
     "日程管理": "schedule_management.py",
     "二维码识别": "QR-Code-Recognitipy.py",
