@@ -91,6 +91,22 @@ def handle_text_similarity(jarvis_app, entities, **kwargs):
     except Exception as e:
         jarvis_app.speak(f"计算相似度时出错: {e}")
 
+@register_intent("edit_file")
+def handle_edit_file(jarvis_app, entities, **kwargs):
+    """使用极简代码编辑器打开指定文件。"""
+    try:
+        file_path = entities.get("file_path")
+        if not file_path:
+            jarvis_app.speak("请指定要编辑的文件路径。")
+            return
+
+        from butler.core.extension_manager import extension_manager
+        # 使用注册的程序名称打开
+        extension_manager.execute("极简代码编辑器", file_path)
+        jarvis_app.speak(f"已为您打开编辑器并加载文件: {os.path.basename(file_path)}")
+    except Exception as e:
+        jarvis_app.speak(f"打开编辑器时出错: {e}")
+
 @register_intent("open_program")
 def handle_open_program(jarvis_app, entities, programs, **kwargs):
     """打开按名称指定的程序或应用程序。"""
