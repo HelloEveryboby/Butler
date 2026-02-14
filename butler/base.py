@@ -3,16 +3,16 @@ from dataclasses import dataclass, fields, replace
 from typing import Any
 
 class BaseTool(metaclass=ABCMeta):
-    """A base class for tools."""
+    """工具的基类。"""
 
     @abstractmethod
     def __call__(self, **kwargs) -> Any:
-        """Executes the tool with the given parameters."""
+        """使用给定参数执行工具。"""
         ...
 
 @dataclass(kw_only=True, frozen=True)
 class ToolResult:
-    """Represents the result of a tool execution."""
+    """表示工具执行的结果。"""
 
     output: str | None = None
     error: str | None = None
@@ -40,20 +40,20 @@ class ToolResult:
         )
 
     def replace(self, **kwargs):
-        """Returns a new ToolResult with the given fields replaced."""
+        """返回一个新的 ToolResult，其中给定的字段已被替换。"""
         return replace(self, **kwargs)
 
 
 class CLIResult(ToolResult):
-    """A ToolResult that can be rendered as CLI output."""
+    """可以渲染为 CLI 输出的 ToolResult。"""
 
 
 class ToolFailure(ToolResult):
-    """A ToolResult that represents a failure."""
+    """表示失败的 ToolResult。"""
 
 
 class ToolError(Exception):
-    """Raised when a tool encounters an error."""
+    """当工具遇到错误时抛出。"""
 
     def __init__(self, message):
         self.message = message

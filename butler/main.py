@@ -80,6 +80,7 @@ class Jarvis:
             self.usb_screen.display(message, clear_screen=True)
 
     def speak(self, text):
+        """朗读给定的文本并在 UI 中打印。"""
         self.ui_print(text, tag='ai_response')
         memory_item = LongMemoryItem.new(content=text, id=f"assistant_{time.time()}",
                                         metadata={"role": "assistant", "timestamp": time.time()})
@@ -107,7 +108,7 @@ class Jarvis:
                 if code_blocks:
                     edited_code = code_blocks[-1].strip()
                     if edited_code != self.interpreter.last_code_for_approval.strip():
-                        self.logger.info("Detected edited code in UI. Using edited version.")
+                        self.logger.info("在 UI 中检测到编辑的代码。使用编辑后的版本。")
                         self.interpreter.last_code_for_approval = edited_code
             self.stream_interpreter_response(cmd, approved=True)
         elif cmd.startswith("/os-mode "):
@@ -130,6 +131,7 @@ class Jarvis:
                 self.ui_print("解释器未就绪，请检查 API Key", tag='error')
 
     def _handle_legacy_command(self, legacy_command):
+        """以旧版模式处理命令。"""
         self.ui_print(f"正在以旧版模式处理: {legacy_command}")
         matched_intent = intent_registry.match_intent_locally(legacy_command)
 
@@ -140,12 +142,12 @@ class Jarvis:
             matched_intent = nlu_result.get("intent", "unknown")
             entities = nlu_result.get("entities", {})
 
-        # Execution via dispatcher or extension_manager
+        # 通过调度程序或扩展管理器执行
         handler_args = {"jarvis_app": self, "entities": entities, "programs": extension_manager.packages}
         result = intent_registry.dispatch(matched_intent, **handler_args)
 
         if result is None:
-            # Try extensions
+            # 尝试扩展
             try:
                 ext_result = extension_manager.execute(matched_intent, command=legacy_command, args=entities)
                 if ext_result: self.speak(str(ext_result))
@@ -183,7 +185,7 @@ class Jarvis:
             self._handle_manual_action(payload)
 
     def _handle_manual_action(self, payload):
-        """Handles manual actions from the UI."""
+        """处理来自 UI 的手动操作。"""
         action = payload.get("action")
         try:
             import pyautogui
@@ -199,10 +201,10 @@ class Jarvis:
                 text = payload.get("text")
                 if text: pyautogui.write(text)
 
-            # Log to interpreter history
+            # 记录到解释器历史记录
             self.interpreter.conversation_history.append({
                 "role": "assistant",
-                "content": f"User performed manual action: {action} {payload.get('coordinate', '')} {payload.get('text', '')}"
+                "content": f"用户执行了手动操作: {action} {payload.get('coordinate', '')} {payload.get('text', '')}"
             })
         except Exception as e:
             self.logger.error(f"Manual action error: {e}")
@@ -249,7 +251,7 @@ class Jarvis:
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--headless", action="store_true", help="以无头模式运行")
     args = parser.parse_args()
 
     usb_screen = USBScreen(40, 8)
@@ -259,7 +261,7 @@ def main():
         while jarvis.running: time.sleep(1)
     else:
         root = tk.Tk()
-        root.title("Jarvis Assistant")
+        root.title("Jarvis 助手")
         jarvis = Jarvis(root, usb_screen)
 
         # Get tools for panel

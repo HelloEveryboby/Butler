@@ -46,14 +46,14 @@ class PluginManager:
 
     def load_plugin(self, module_name: str, class_name: str) -> Optional[AbstractPlugin]:
         """
-        Loads a single plugin from a given module and class name.
+        从给定的模块和类名加载单个插件。
 
-        Args:
-            module_name: The name of the module where the plugin is located.
-            class_name: The name of the plugin class.
+        参数：
+            module_name: 插件所在模块的名称。
+            class_name: 插件类的名称。
 
-        Returns:
-            An instance of the plugin if it was loaded successfully, otherwise None.
+        返回：
+            如果加载成功，则返回插件实例，否则返回 None。
         """
         try:
             module = importlib.import_module(module_name)
@@ -82,13 +82,13 @@ class PluginManager:
 
     def unload_plugin(self, name: str) -> bool:
         """
-        Unloads a plugin and releases its resources.
+        卸载插件并释放其资源。
 
-        Args:
-            name: The name of the plugin to unload.
+        参数：
+            name: 要卸载的插件名称。
 
-        Returns:
-            True if the plugin was unloaded successfully, otherwise False.
+        返回：
+            如果插件成功卸载，则返回 True，否则返回 False。
         """
         if name in self.plugins:
             plugin = self.plugins.pop(name)
@@ -110,15 +110,15 @@ class PluginManager:
 
     def run_plugin(self, name: str, command: str, args: dict) -> PluginResult:
         """
-        Runs a plugin with the given command and arguments.
+        使用给定的命令和参数运行插件。
 
-        Args:
-            name: The name of the plugin to run.
-            command: The command to execute.
-            args: The arguments for the command.
+        参数：
+            name: 要运行的插件名称。
+            command: 要执行的命令。
+            args: 命令的参数。
 
-        Returns:
-            A PluginResult object with the result of the execution.
+        返回：
+            包含执行结果的 PluginResult 对象。
         """
         plugin = self.get_plugin(name)
         if plugin:

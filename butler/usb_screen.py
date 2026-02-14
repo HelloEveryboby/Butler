@@ -3,9 +3,8 @@ import textwrap
 
 class USBScreen:
     """
-    A mock class to simulate the display on a USB drive.
-    In a real-world scenario, this class would interface with the hardware
-    of the screen on the USB drive.
+    一个模拟 USB 驱动器上显示的模拟类。
+    在实际场景中，此类将与 USB 驱动器上屏幕的硬件进行接口。
     """
     def __init__(self, width=40, height=8):
         self.width = width
@@ -14,8 +13,8 @@ class USBScreen:
 
     def display(self, message: str, clear_screen: bool = False):
         """
-        Displays a formatted message on the USB screen.
-        For this mock version, it just prints to the console.
+        在 USB 屏幕上显示格式化的消息。
+        对于这个模拟版本，它只是打印到控制台。
         """
         if clear_screen:
             self.clear()
@@ -35,8 +34,8 @@ class USBScreen:
 
     def clear(self):
         """
-        Clears the USB screen.
-        In this mock, it just prints a clear screen representation.
+        清除 USB 屏幕。
+        在这个模拟中，它只是打印清除屏幕的表示。
         """
         # In a real terminal, we could use os.system('cls' or 'clear')
         # For this simulation, we'll just print a "cleared" state.
@@ -45,4 +44,4 @@ class USBScreen:
         for _ in range(self.height):
             print(f"| {' ':<{self.width - 4}} |")
         print("+" + "-" * (self.width - 2) + "+")
-        print("[USB SCREEN CLEARED]")
+        print("[USB 屏幕已清除]")
