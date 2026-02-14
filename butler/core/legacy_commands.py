@@ -6,14 +6,13 @@ import datetime
 from .intent_dispatcher import register_intent
 from . import algorithms
 
-# Note: These functions are designed to be called with keyword arguments
-# that are dynamically passed from the intent dispatcher. The `jarvis_app`
-# argument is a special case, injected by the dispatcher to provide
-# access to the main application instance (for methods like `speak` and `ui_print`).
+# 注意：这些函数旨在通过意图分发器动态传递的关键字参数调用。
+# `jarvis_app` 参数是一个特殊情况，由分发器注入，以提供
+# 对主应用程序实例的访问（用于 `speak` 和 `ui_print` 等方法）。
 
 @register_intent("sort_numbers")
 def handle_sort_numbers(jarvis_app, entities, **kwargs):
-    """Sorts a list of numbers provided in the 'numbers' entity."""
+    """对 'numbers' 实体中提供的数字列表进行排序。"""
     try:
         numbers = entities.get("numbers", [])
         if not numbers or not all(isinstance(n, (int, float)) for n in numbers):
@@ -26,7 +25,7 @@ def handle_sort_numbers(jarvis_app, entities, **kwargs):
 
 @register_intent("find_number")
 def handle_find_number(jarvis_app, entities, **kwargs):
-    """Finds the index of a target number in a sorted list of numbers."""
+    """在已排序的数字列表中查找目标数字的索引。"""
     try:
         numbers = entities.get("numbers", [])
         target = entities.get("target")
@@ -45,7 +44,7 @@ def handle_find_number(jarvis_app, entities, **kwargs):
 
 @register_intent("calculate_fibonacci")
 def handle_calculate_fibonacci(jarvis_app, entities, **kwargs):
-    """Calculates the Nth number in the Fibonacci sequence."""
+    """计算斐波那契数列中的第 N 个数字。"""
     try:
         n = entities.get("number")
         if n is None or not isinstance(n, int):
@@ -58,7 +57,7 @@ def handle_calculate_fibonacci(jarvis_app, entities, **kwargs):
 
 @register_intent("edge_detect_image")
 def handle_edge_detect_image(jarvis_app, entities, **kwargs):
-    """Detects edges in an image from a given file path and saves the result."""
+    """检测给定文件路径图像中的边缘并保存结果。"""
     try:
         image_path = entities.get("path")
         if not image_path or not isinstance(image_path, str):
@@ -80,7 +79,7 @@ def handle_edge_detect_image(jarvis_app, entities, **kwargs):
 
 @register_intent("text_similarity")
 def handle_text_similarity(jarvis_app, entities, **kwargs):
-    """Calculates the cosine similarity score between two pieces of text."""
+    """计算两段文本之间的余弦相似度分数。"""
     try:
         text1 = entities.get("text1")
         text2 = entities.get("text2")
@@ -94,7 +93,7 @@ def handle_text_similarity(jarvis_app, entities, **kwargs):
 
 @register_intent("open_program")
 def handle_open_program(jarvis_app, entities, programs, **kwargs):
-    """Opens a program or application specified by name."""
+    """打开按名称指定的程序或应用程序。"""
     program_name = entities.get("program_name")
     if not program_name:
         jarvis_app.speak("无法打开程序，未指定程序名称。")
@@ -106,18 +105,18 @@ def handle_open_program(jarvis_app, entities, programs, **kwargs):
 
 @register_intent("exit", requires_entities=False)
 def handle_exit(jarvis_app, **kwargs):
-    """Exits the Jarvis assistant application."""
+    """退出 Jarvis 助手应用程序。"""
     jarvis_app._handle_exit()
 
 @register_intent("get_current_time", requires_entities=False)
 def handle_get_current_time(jarvis_app, **kwargs):
-    """Gets the current time and speaks it."""
+    """获取当前时间并播报。"""
     current_time = datetime.datetime.now().strftime("%H:%M")
     jarvis_app.speak(f"现在时间是 {current_time}")
 
 @register_intent("cleanup", requires_entities=False)
 def handle_cleanup(jarvis_app, **kwargs):
-    """Executes the data recycling/cleanup system to remove temporary files."""
+    """执行数据回收/清理系统以删除临时文件。"""
     jarvis_app.ui_print("正在执行系统数据回收...")
     try:
         from package import data_recycler

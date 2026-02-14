@@ -24,10 +24,10 @@ class Interpreter:
         self.last_code_for_approval = None
         self.last_tool_for_approval = None
 
-        # A simple check to see if the orchestrator failed to init (e.g. no API key)
+        # 简单检查编排器是否初始化失败（例如没有 API 密钥）
         if not self.orchestrator.client:
             self.is_ready = False
-            print("Warning: Interpreter initialized without a valid API client.")
+            print("警告：解释器初始化时没有有效的 API 客户端。")
         else:
             self.is_ready = True
         self.sandbox = Sandbox()
@@ -65,50 +65,50 @@ class Interpreter:
         try:
             with redirect_stdout(output_catcher):
                 if self.os_mode:
-                    # In OS mode, we bypass the sandbox and use exec directly
+                    # 在 OS 模式下，我们绕过沙箱并直接使用 exec
                     exec(code, execution_globals)
                 else:
-                    # In standard mode, we use the sandbox but still provide safe tools
-                    # Note: sandbox has its own restricted builtins and importer
+                    # 在标准模式下，我们使用沙箱但仍提供安全工具
+                    # 注意：沙箱有其自己的受限内置函数和导入器
                     self.sandbox.execute(code, globals_dict=execution_globals)
             output = output_catcher.getvalue()
             success = True
         except SandboxError as e:
-            output = f"Sandbox Error: {e}"
+            output = f"沙箱错误: {e}"
         except Exception as e:
-            output = f"An unexpected error occurred during execution: {e}"
+            output = f"执行过程中发生意外错误: {e}"
         return output, success
 
     def _add_assistant_response_to_history(self, code: str, output: str, os_command: bool = False):
-        """Helper to format and add the assistant's response to history."""
-        response_type = "Executed OS Commands" if os_command else "Executed Code"
-        assistant_response = f"{response_type}:\n```python\n{code}```\nOutput:\n```\n{output}```"
+        """格式化并将助手的响应添加到历史记录的辅助函数。"""
+        response_type = "已执行 OS 命令" if os_command else "已执行代码"
+        assistant_response = f"{response_type}:\n```python\n{code}```\n输出:\n```\n{output}```"
         self.conversation_history.append({"role": "assistant", "content": assistant_response})
 
     def run_approved_code(self):
         """
-        Executes the code or tool that was last generated and awaiting approval.
-        Then continues the loop.
+        执行最后生成并等待批准的代码或工具。
+        然后继续循环。
         """
         if self.last_code_for_approval:
             code = self.last_code_for_approval
             self.last_code_for_approval = None
-            yield "status", "Executing approved code..."
+            yield "status", "正在执行批准的代码..."
 
             output, success = self._execute_code(code)
             self._add_assistant_response_to_history(code, output, os_command=self.os_mode)
-            yield "result", f"Output:\n{output}"
+            yield "result", f"输出:\n{output}"
 
         elif self.last_tool_for_approval:
             tool_name, args = self.last_tool_for_approval
             self.last_tool_for_approval = None
-            yield "status", f"Executing approved tool: {tool_name}..."
+            yield "status", f"正在执行批准的工具: {tool_name}..."
             output = self.extension_manager.execute(tool_name, *args)
-            assistant_response = f"Executed External Tool:\n`{tool_name} {' '.join(args)}`\nOutput:\n```\n{output}```"
+            assistant_response = f"已执行外部工具:\n`{tool_name} {' '.join(args)}`\n输出:\n```\n{output}```"
             self.conversation_history.append({"role": "assistant", "content": assistant_response})
-            yield "result", f"Output:\n{output}"
+            yield "result", f"输出:\n{output}"
         else:
-            yield "result", "No action to approve."
+            yield "result", "没有待批准的操作。"
             return
 
         # Continue the loop automatically
@@ -116,30 +116,30 @@ class Interpreter:
 
     def _run_loop(self):
         """
-        The core iterative loop for the interpreter.
+        解释器的核心迭代循环。
         """
         for i in range(len(self.conversation_history), len(self.conversation_history) + self.max_iterations):
-            yield "status", f"Thinking (Step {i})..."
+            yield "status", f"正在思考 (步骤 {i})..."
 
             if self.os_mode:
-                 # In OS mode, capture screen at each step
+                 # 在 OS 模式下，每步捕获屏幕
                  screenshot_b64 = os_tools.capture_screen()
                  yield "screenshot", screenshot_b64
 
-                 # To prevent context window overflow, we replace older screenshots in history
+                 # 为防止上下文窗口溢出，我们替换历史记录中较旧的截图
                  for msg in self.conversation_history:
                      if isinstance(msg.get("content"), list):
                          for part in msg["content"]:
                              if part.get("type") == "image_url":
-                                 # Replace image with a placeholder
+                                 # 用占位符替换图像
                                  part["type"] = "text"
-                                 part["text"] = "[Previous Screenshot Omitted to save space]"
+                                 part["text"] = "[为节省空间，已省略之前的截图]"
                                  del part["image_url"]
 
                  self.conversation_history.append({
                      "role": "user",
                      "content": [
-                         {"type": "text", "text": "Current Screen Observation:"},
+                         {"type": "text", "text": "当前屏幕观察："},
                          {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"}}
                      ]
                  })
@@ -171,50 +171,50 @@ class Interpreter:
                     pass
 
             if not final_response:
-                yield "result", "Error: Failed to get a response from the AI."
+                yield "result", "错误：未能从 AI 获取响应。"
                 break
 
             if isinstance(final_response, FinalResponse):
-                yield "result", f"\n**Final Answer:** {final_response.message}"
+                yield "result", f"\n**最终回答：** {final_response.message}"
                 break
 
-            # Handle Actions
+            # 处理操作
             if isinstance(final_response, PythonCode):
                 final_code = final_response.code
                 yield "code_chunk", f"\n```python\n{final_code}\n```\n"
 
                 if self.safety_mode:
                     self.last_code_for_approval = final_code
-                    yield "result", "\nAction requires approval. Type `/approve` to continue."
+                    yield "result", "\n操作需要批准。输入 `/approve` 继续。"
                     break
                 else:
-                    yield "status", "Executing..."
+                    yield "status", "正在执行..."
                     output, success = self._execute_code(final_code)
                     self._add_assistant_response_to_history(final_code, output, os_command=self.os_mode)
-                    yield "result", f"Output:\n{output}"
+                    yield "result", f"输出:\n{output}"
 
             elif isinstance(final_response, ExternalToolCall):
                 tool_name = final_response.tool_name
                 args = final_response.args
-                yield "code_chunk", f"\nTool Call: `{tool_name}({', '.join(args)})`\n"
+                yield "code_chunk", f"\n工具调用: `{tool_name}({', '.join(args)})`\n"
 
                 if self.safety_mode:
                     self.last_tool_for_approval = (tool_name, args)
-                    yield "result", "\nAction requires approval. Type `/approve` to continue."
+                    yield "result", "\n操作需要批准。输入 `/approve` 继续。"
                     break
                 else:
-                    yield "status", f"Executing tool {tool_name}..."
+                    yield "status", f"正在执行工具 {tool_name}..."
                     output = self.extension_manager.execute(tool_name, *args)
-                    assistant_response = f"Executed External Tool:\n`{tool_name} {' '.join(args)}`\nOutput:\n```\n{output}```"
+                    assistant_response = f"已执行外部工具:\n`{tool_name} {' '.join(args)}`\n输出:\n```\n{output}```"
                     self.conversation_history.append({"role": "assistant", "content": assistant_response})
-                    yield "result", f"Output:\n{output}"
+                    yield "result", f"输出:\n{output}"
 
     def run(self, user_input: str):
         """
-        Starts a new task and enters the iterative loop.
+        开始新任务并进入迭代循环。
         """
         if not self.is_ready:
-            yield "result", "Error: Interpreter is not ready. Please check API key."
+            yield "result", "错误：解释器未就绪。请检查 API 密钥。"
             return
 
         self.conversation_history.append({"role": "user", "content": user_input})

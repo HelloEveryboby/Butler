@@ -14,7 +14,7 @@ class NLUService:
         self.url = "https://api.deepseek.com/v1/chat/completions"
 
     def extract_intent(self, text: str, history: List[Any] = None) -> Dict[str, Any]:
-        """Extracts intent and entities from user text using DeepSeek API."""
+        """使用 DeepSeek API 从用户文本中提取意图和实体。"""
         system_prompt = self.prompts.get("nlu_intent_extraction", {}).get("prompt", "Extract intent and entities as JSON.")
 
         messages = [{"role": "system", "content": system_prompt}]
@@ -48,7 +48,7 @@ class NLUService:
             return {"intent": "unknown", "entities": {"error": str(e)}}
 
     def generate_general_response(self, text: str) -> str:
-        """Generates a simple chat response."""
+        """生成简单的聊天响应。"""
         system_prompt = self.prompts.get("general_response", {}).get("prompt", "You are a helpful assistant.")
         payload = {
             "model": "deepseek-chat",

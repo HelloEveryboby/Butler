@@ -6,7 +6,7 @@ import json
 import re
 from package.log_manager import LogManager
 
-# Pygments for syntax highlighting
+# 用于语法高亮显示的 Pygments
 try:
     from pygments import lex
     from pygments.lexers import get_lexer_by_name, guess_lexer
@@ -27,7 +27,7 @@ class CommandPanel(tk.Frame):
         self.programs = programs or {}
         self.all_program_names = sorted(list(self.programs.keys()))
 
-        # --- Theme and Styling ---
+        # --- 主题和样式 ---
         self.background_color = '#282c34'
         self.foreground_color = '#abb2bf'
         self.input_bg_color = '#21252b'
@@ -71,17 +71,17 @@ class CommandPanel(tk.Frame):
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-        # --- Main PanedWindow for collapsible menu ---
+        # --- 用于可折叠菜单的主分窗格 ---
         self.main_paned_window = tk.PanedWindow(self, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, bg=self.background_color, sashwidth=4)
         self.main_paned_window.grid(row=0, column=0, sticky="nsew")
 
-        # --- Left Pane: Menu ---
+        # --- 左侧面板：菜单 ---
         self.menu_frame = tk.Frame(self.main_paned_window, bg=self.menu_bg_color, width=200)
-        self.menu_frame.grid_rowconfigure(2, weight=1)  # Make listbox expandable
+        self.menu_frame.grid_rowconfigure(2, weight=1)  # 使列表框可扩展
         self.menu_frame.grid_columnconfigure(0, weight=1)
         self.main_paned_window.add(self.menu_frame, stretch="never", minsize=200)
 
-        self.menu_label = tk.Label(self.menu_frame, text="Programs", font=("Arial", 12, "bold"), bg=self.menu_bg_color, fg=self.menu_fg_color)
+        self.menu_label = tk.Label(self.menu_frame, text="程序列表", font=("Arial", 12, "bold"), bg=self.menu_bg_color, fg=self.menu_fg_color)
         self.menu_label.grid(row=0, column=0, pady=5, padx=5, sticky="ew")
 
         self.search_entry = tk.Entry(self.menu_frame, bg=self.input_bg_color, fg=self.foreground_color, insertbackground=self.foreground_color, borderwidth=0, highlightthickness=1)
@@ -108,7 +108,7 @@ class CommandPanel(tk.Frame):
         for prog_name in self.all_program_names:
             self.program_listbox.insert(tk.END, prog_name)
 
-        # --- Manual Control Toolbar ---
+        # --- 手动控制工具栏 ---
         self.manual_toolbar = tk.Frame(self.menu_frame, bg=self.menu_bg_color)
         self.manual_toolbar.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
         self.manual_toolbar.grid_columnconfigure((0, 1, 2), weight=1)
@@ -130,11 +130,11 @@ class CommandPanel(tk.Frame):
         self.btn_type = tk.Button(self.manual_toolbar, text="⌨️", command=lambda: self.manual_action("type"), **btn_style)
         self.btn_type.grid(row=0, column=2, padx=1, sticky="ew")
 
-        # --- Settings Button ---
+        # --- 设置按钮 ---
         self.settings_icon = tk.PhotoImage(file="assets/settings_icon.png")
         self.settings_button = tk.Button(
             self.menu_frame,
-            text="Settings",
+            text="设置",
             image=self.settings_icon,
             compound=tk.LEFT,
             command=self.open_settings_window,
@@ -149,21 +149,21 @@ class CommandPanel(tk.Frame):
         self.settings_button.grid(row=4, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
 
-        # --- Right Pane: Content & Remote View ---
+        # --- 右侧面板：内容与远程视图 ---
         self.content_paned_window = tk.PanedWindow(self.main_paned_window, orient=tk.VERTICAL, sashrelief=tk.RAISED, bg=self.background_color, sashwidth=4)
         self.main_paned_window.add(self.content_paned_window, stretch="always")
 
-        # --- Upper Content: Output & Input ---
+        # --- 上部内容：输出与输入 ---
         self.main_content_frame = tk.Frame(self.content_paned_window, bg=self.background_color)
         self.main_content_frame.grid_rowconfigure(1, weight=1)
         self.main_content_frame.grid_columnconfigure(0, weight=1)
         self.content_paned_window.add(self.main_content_frame, stretch="always")
 
-        # --- Display Mode Frame ---
+        # --- 显示模式框架 ---
         self.display_mode_frame = tk.Frame(self.main_content_frame, bg=self.background_color)
         self.display_mode_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=(5,0))
 
-        tk.Label(self.display_mode_frame, text="Display Mode:", bg=self.background_color, fg=self.foreground_color).pack(side=tk.LEFT, padx=(0, 5))
+        tk.Label(self.display_mode_frame, text="显示模式:", bg=self.background_color, fg=self.foreground_color).pack(side=tk.LEFT, padx=(0, 5))
 
         self.display_mode_var = tk.StringVar(value='host')
         self.font_size_var = tk.StringVar(value='medium')
@@ -178,14 +178,14 @@ class CommandPanel(tk.Frame):
             "command": self.on_display_mode_change
         }
 
-        tk.Radiobutton(self.display_mode_frame, text="Host", value='host', **radio_button_config).pack(side=tk.LEFT)
+        tk.Radiobutton(self.display_mode_frame, text="主机", value='host', **radio_button_config).pack(side=tk.LEFT)
         tk.Radiobutton(self.display_mode_frame, text="USB", value='usb', **radio_button_config).pack(side=tk.LEFT)
-        tk.Radiobutton(self.display_mode_frame, text="Both", value='both', **radio_button_config).pack(side=tk.LEFT)
+        tk.Radiobutton(self.display_mode_frame, text="双显", value='both', **radio_button_config).pack(side=tk.LEFT)
 
 
-        # --- Main output text area ---
+        # --- 主输出文本区域 ---
         self.output_text = scrolledtext.ScrolledText(
-            self.main_content_frame, # Parent is now main_content_frame
+            self.main_content_frame, # 父级现在是 main_content_frame
             bg=self.background_color,
             fg=self.foreground_color,
             state='normal',
@@ -197,8 +197,8 @@ class CommandPanel(tk.Frame):
         )
         self.output_text.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 
-        # --- Input Frame (at the bottom) ---
-        self.input_frame = tk.Frame(self.main_content_frame, bg=self.background_color) # Parent is now main_content_frame
+        # --- 输入框架（底部） ---
+        self.input_frame = tk.Frame(self.main_content_frame, bg=self.background_color) # 父级现在是 main_content_frame
         self.input_frame.grid(row=2, column=0, sticky="ew", padx=5, pady=5)
         self.input_frame.grid_columnconfigure(0, weight=1)
 
@@ -224,16 +224,16 @@ class CommandPanel(tk.Frame):
             "highlightthickness": 0,
             "font": ("Arial", 9)
         }
-        self.send_button = tk.Button(self.input_frame, text="Send", command=self.send_text_command, **button_config)
+        self.send_button = tk.Button(self.input_frame, text="发送", command=self.send_text_command, **button_config)
         self.send_button.grid(row=0, column=1, padx=(5, 0))
-        self.listen_button = tk.Button(self.input_frame, text="Listen", command=self.send_listen_command, **button_config)
+        self.listen_button = tk.Button(self.input_frame, text="聆听", command=self.send_listen_command, **button_config)
         self.listen_button.grid(row=0, column=2, padx=(5, 0))
-        self.clear_button = tk.Button(self.input_frame, text="Clear", command=self.clear_history, **button_config)
+        self.clear_button = tk.Button(self.input_frame, text="清空", command=self.clear_history, **button_config)
         self.clear_button.grid(row=0, column=3, padx=(5, 0))
-        self.restart_button = tk.Button(self.input_frame, text="Restart", command=self.restart_application, **button_config)
+        self.restart_button = tk.Button(self.input_frame, text="重启", command=self.restart_application, **button_config)
         self.restart_button.grid(row=0, column=4, padx=(5, 0))
 
-        # --- Lower Content: Remote View (Collapsible) ---
+        # --- 下部内容：远程视图（可折叠） ---
         self.remote_view_frame = tk.Frame(self.content_paned_window, bg=self.input_bg_color)
         self.remote_view_frame.grid_rowconfigure(0, weight=1)
         self.remote_view_frame.grid_columnconfigure(0, weight=1)
@@ -250,35 +250,35 @@ class CommandPanel(tk.Frame):
         self.update_font_size('medium')
 
     def on_program_select(self, event=None):
-        """Handle program selection from the listbox."""
-        # Get selected indices
+        """处理列表框中的程序选择。"""
+        # 获取选中的索引
         selected_indices = self.program_listbox.curselection()
         if not selected_indices:
             return
 
-        # Get the program name from the index
+        # 从索引中获取程序名称
         selected_index = selected_indices[0]
         program_name = self.program_listbox.get(selected_index)
 
         if program_name and self.command_callback:
             logger.info(f"Executing program from menu: {program_name}")
-            self.append_to_history(f"Executing: {program_name}", "system_message")
+            self.append_to_history(f"正在执行: {program_name}", "system_message")
             self.command_callback("execute_program", program_name)
 
     def filter_programs(self, event=None):
-        """Filter the program listbox based on the search entry."""
+        """基于搜索输入过滤程序列表框。"""
         search_term = self.search_entry.get().lower()
 
-        # Clear the listbox
+        # 清空列表框
         self.program_listbox.delete(0, tk.END)
 
-        # Repopulate with matching items
+        # 重新填充匹配的项目
         for name in self.all_program_names:
             if search_term in name.lower():
                 self.program_listbox.insert(tk.END, name)
 
     def _configure_styles_and_tags(self):
-        """Configure text tags for styling the output."""
+        """配置用于设置输出样式的文本标签。"""
         self.output_text.tag_config('user_prompt', foreground='#61afef', font=("Consolas", 11, "bold"))
         self.output_text.tag_config('ai_response', foreground=self.foreground_color)
         self.output_text.tag_config('system_message', foreground='#e5c07b', font=("Consolas", 11, "italic"))
@@ -294,7 +294,7 @@ class CommandPanel(tk.Frame):
                     self.output_text.tag_config(tag_name, foreground=f"#{foreground}")
 
     def _highlight_code(self, code, language=''):
-        """Apply syntax highlighting to a code block."""
+        """为代码块应用语法高亮。"""
         if not PYGMENTS_INSTALLED:
             self.output_text.insert(tk.END, code)
             return
@@ -384,7 +384,7 @@ class CommandPanel(tk.Frame):
         # but we should be careful.
 
     def update_screenshot(self, b64_data):
-        """Updates the remote view with a new screenshot."""
+        """使用新的截图更新远程视图。"""
         import base64
         from io import BytesIO
         from PIL import Image, ImageTk
@@ -421,7 +421,7 @@ class CommandPanel(tk.Frame):
             logger.error(f"Failed to update screenshot in UI: {e}")
 
     def on_canvas_click(self, event):
-        """Maps canvas click to screen coordinates and sends command."""
+        """将画布点击映射到屏幕坐标并发送命令。"""
         if not hasattr(self, 'img_scale_x'): return
 
         # Calculate coordinates relative to the image
@@ -438,7 +438,7 @@ class CommandPanel(tk.Frame):
                 self.command_callback("manual_action", {"action": "left_click", "coordinate": (real_x, real_y)})
 
     def manual_action(self, action_type):
-        """Sends a manual action command to Jarvis."""
+        """向 Jarvis 发送手动操作命令。"""
         if self.command_callback:
             if action_type == "type":
                 # Prompt for text in a simple dialog or just use input entry?
@@ -447,7 +447,7 @@ class CommandPanel(tk.Frame):
                 if text:
                     self.command_callback("manual_action", {"action": "type", "text": text})
                 else:
-                    self.append_to_history("Please enter text in the input box first.", "system_message")
+                    self.append_to_history("请先在输入框中输入文字。", "system_message")
             else:
                 self.command_callback("manual_action", {"action": action_type})
 
@@ -465,7 +465,7 @@ class CommandPanel(tk.Frame):
     def send_text_command(self, event=None):
         command = self.input_entry.get().strip()
         if command and self.command_callback:
-            self.append_to_history(f"You: {command}", "user_prompt")
+            self.append_to_history(f"你: {command}", "user_prompt")
             logger.info(f"Sending text command: {command}")
             self.command_callback("text", command)
             self.input_entry.delete(0, tk.END)
@@ -477,9 +477,9 @@ class CommandPanel(tk.Frame):
 
     def update_listen_button_state(self, is_listening):
         if is_listening:
-            self.listen_button.config(text="Stop", relief=tk.SUNKEN, bg="#e06c75")
+            self.listen_button.config(text="停止", relief=tk.SUNKEN, bg="#e06c75")
         else:
-            self.listen_button.config(text="Listen", relief=tk.RAISED, bg=self.button_bg_color)
+            self.listen_button.config(text="聆听", relief=tk.RAISED, bg=self.button_bg_color)
 
     def set_input_text(self, text):
         self.input_entry.delete(0, tk.END)
@@ -493,7 +493,7 @@ class CommandPanel(tk.Frame):
 
     def open_settings_window(self):
         settings_win = tk.Toplevel(self.master)
-        settings_win.title("Settings")
+        settings_win.title("设置")
         settings_win.config(bg=self.background_color)
         settings_win.transient(self.master)
         settings_win.grab_set()
@@ -501,7 +501,7 @@ class CommandPanel(tk.Frame):
         font_size_frame = tk.Frame(settings_win, bg=self.background_color)
         font_size_frame.pack(pady=10, padx=10)
 
-        tk.Label(font_size_frame, text="Font Size:", bg=self.background_color, fg=self.foreground_color).pack(side=tk.LEFT, padx=(0, 5))
+        tk.Label(font_size_frame, text="字体大小:", bg=self.background_color, fg=self.foreground_color).pack(side=tk.LEFT, padx=(0, 5))
 
         font_radio_config = {
             "bg": self.background_color,
@@ -514,15 +514,15 @@ class CommandPanel(tk.Frame):
             "command": lambda: self.update_font_size(self.font_size_var.get())
         }
 
-        tk.Radiobutton(font_size_frame, text="Small", value='small', **font_radio_config).pack(side=tk.LEFT)
-        tk.Radiobutton(font_size_frame, text="Medium", value='medium', **font_radio_config).pack(side=tk.LEFT)
-        tk.Radiobutton(font_size_frame, text="Large", value='large', **font_radio_config).pack(side=tk.LEFT)
+        tk.Radiobutton(font_size_frame, text="小", value='small', **font_radio_config).pack(side=tk.LEFT)
+        tk.Radiobutton(font_size_frame, text="中", value='medium', **font_radio_config).pack(side=tk.LEFT)
+        tk.Radiobutton(font_size_frame, text="大", value='large', **font_radio_config).pack(side=tk.LEFT)
 
     def update_font_size(self, size_mode):
-        logger.info(f"Updating font size to {size_mode}")
+        logger.info(f"正在将字体大小更新为 {size_mode}")
         fonts = self.font_configs[size_mode]
 
-        # Update widgets
+        # 更新控件
         self.menu_label.config(font=fonts["menu_label"])
         self.program_listbox.config(font=fonts["program_listbox"])
         self.output_text.config(font=fonts["output_text"])

@@ -7,12 +7,12 @@ from . import algorithms
 logger = logging.getLogger(__name__)
 
 class IntentRegistry:
-    """A registry for dynamically discovering and dispatching intent handlers."""
+    """用于动态发现和调度意图处理程序的注册表。"""
     def __init__(self):
         self._intents = {}
 
     def register(self, intent_name, requires_entities=True):
-        """A decorator to register a function as an intent handler."""
+        """用于将函数注册为意图处理程序的装饰器。"""
         def decorator(func):
             logger.info(f"Registering intent '{intent_name}' to function {func.__name__}")
             self._intents[intent_name] = {
@@ -28,14 +28,14 @@ class IntentRegistry:
 
     def dispatch(self, intent_name, **kwargs):
         """
-        Dispatches a command to the appropriate registered handler.
+        将命令分发到适当的已注册处理程序。
 
-        Args:
-            intent_name (str): The name of the intent to execute.
-            **kwargs: A dictionary of arguments to pass to the handler.
+        参数:
+            intent_name (str): 要执行的意图名称。
+            **kwargs: 传递给处理程序的参数字典。
 
-        Returns:
-            The result of the handler function, or None if the intent is not found.
+        返回:
+            处理程序函数的结果，如果未找到意图，则返回 None。
         """
         intent = self._intents.get(intent_name)
         if not intent:
@@ -50,23 +50,23 @@ class IntentRegistry:
             return None
 
     def get_all_intents(self):
-        """Returns a dictionary of all registered intents and their docstrings."""
+        """返回所有已注册意图及其文档字符串的字典。"""
         return {name: data["docstring"] for name, data in self._intents.items()}
 
     def intent_requires_entities(self, intent_name):
-        """Checks if a given intent requires entities."""
+        """检查给定意图是否需要实体。"""
         return self._intents.get(intent_name, {}).get("requires_entities", True)
 
     def match_intent_locally(self, command, threshold=0.7):
         """
-        Finds the best matching intent locally using cosine similarity.
+        使用余弦相似度在本地查找最佳匹配意图。
 
-        Args:
-            command (str): The user's command.
-            threshold (float): The minimum similarity score to consider a match.
+        参数:
+            command (str): 用户的命令。
+            threshold (float): 视为匹配的最小相似度分数。
 
-        Returns:
-            str: The name of the best matching intent, or None if no match is found.
+        返回:
+            str: 最佳匹配意图的名称，如果未找到匹配，则返回 None。
         """
         intents = self.get_all_intents()
         if not intents:

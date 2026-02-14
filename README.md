@@ -1,164 +1,164 @@
-# Butler - An Intelligent Assistant System
+# Butler - 智能助手系统
 
-Butler is a feature-rich, intelligent assistant system developed in Python. It integrates natural language processing, a powerful algorithms library, dynamic program management, a sandboxed code interpreter, and an extensible plugin system. Designed with a modular architecture, Butler is capable of performing a wide range of complex tasks through text, voice, or API commands.
+Butler 是一个功能丰富的智能助手系统，使用 Python 开发。它集成了自然语言处理、强大的算法库、动态程序管理、沙盒代码解释器以及可扩展的插件系统。Butler 采用模块化架构设计，能够通过文本、语音或 API 命令执行各种复杂任务。
 
-This project also includes a comprehensive library of common algorithms and exposes them through a developer-friendly REST API, making them accessible from any programming language.
+该项目还包含一个全面的常用算法库，并通过开发者友好的 REST API 公开它们，使其可以从任何编程语言访问。
 
-## Features
+## 功能特性
 
-*   **Conversational AI**: Uses the DeepSeek API for natural language understanding and response generation.
-*   **Extensible Program Management**: Dynamically loads and executes external program modules.
-*   **Advanced Algorithm Library**: A rich, efficient, and well-documented library of algorithms.
-*   **Developer-Friendly API**: A dedicated REST API for direct access to the algorithm library.
-*   **Interactive Command Panel**: A Tkinter-based GUI for text-based interaction.
-*   **Voice Interaction**: Supports voice commands and speech synthesis using Azure Cognitive Services.
-*   **Local Code Interpreter**: A secure, sandboxed environment for executing Python code generated from natural language commands.
-*   **Plugin System**: Easily extend Butler's functionality with custom plugins.
+*   **对话式 AI**：使用 DeepSeek API 进行自然语言理解和响应生成。
+*   **可扩展的程序管理**：动态加载和执行外部程序模块。
+*   **高级算法库**：丰富、高效且文档齐全的算法库。
+*   **开发者友好 API**：用于直接访问算法库的专用 REST API。
+*   **交互式命令面板**：基于 Tkinter 的 GUI，用于文本交互。
+*   **语音交互**：支持语音命令，并使用 Azure 认知服务进行语音合成。
+*   **本地代码解释器**：一个安全、沙盒化的环境，用于执行从自然语言命令生成的 Python 代码。
+*   **插件系统**：使用自定义插件轻松扩展 Butler 的功能。
 
-## Architecture
+## 架构设计
 
-The Butler assistant is built on a modular and extensible architecture designed for flexibility and scalability. At its core is the `Jarvis` class, which acts as the central orchestrator, managing the flow of information and coordinating the various components of the system.
+Butler 助手建立在模块化且可扩展的架构之上，旨在实现灵活性和可伸缩性。其核心是 `Jarvis` 类，它充当中央编排器，管理信息流并协调系统的各个组件。
 
-The key architectural components include:
+关键架构组件包括：
 
-*   **Command Handling**: User input is processed through a sophisticated command handling system that supports multiple execution paths. Simple commands can be handled directly by the `Jarvis` class, while more complex queries are routed to the appropriate subsystem. The system defaults to a powerful local code interpreter but provides a `/legacy` command to access an older, intent-based system.
+*   **命令处理**：通过支持多条执行路径的高级命令处理系统处理用户输入。简单的命令可以由 `Jarvis` 类直接处理，而更复杂的查询则路由到适当的子系统。系统默认使用强大的本地代码解释器，但也提供 `/legacy` 命令来访问旧的基于意图的系统。
 
-*   **Local Code Interpreter**: For advanced commands, Butler uses a sandboxed local interpreter that can execute Python code generated from natural language. This component is encapsulated within the `Interpreter` class, which leverages an `Orchestrator` to generate code and a `code_executor` to run it in a secure environment.
+*   **本地代码解释器**：对于高级命令，Butler 使用沙盒化的本地解释器，可以执行从自然语言生成的 Python 代码。该组件封装在 `Interpreter` 类中，它利用 `Orchestrator` 生成代码，并利用 `code_executor` 在安全环境中运行代码。
 
-*   **Plugin System**: Butler's functionality can be extended through a dynamic plugin system. The `PluginManager` is responsible for discovering, loading, and executing plugins from the `plugin/` directory. Each plugin is a self-contained module that can be designed to perform specific tasks, such as searching the web, managing a to-do list, or interacting with external APIs.
+*   **插件系统**：Butler 的功能可以通过动态插件系统进行扩展。`PluginManager` 负责发现、加载和执行 `plugin/` 目录中的插件。每个插件都是一个独立的模块，可以设计用于执行特定任务，例如搜索网络、管理待办事项列表或与外部 API 交互。
 
-*   **Package Management**: The `package/` directory contains a collection of standalone tools and utilities that can be invoked by the assistant. These packages are dynamically discovered and can be executed as independent programs, providing a simple way to add new capabilities to the system.
+*   **包管理**：`package/` 目录包含助手可以调用的独立工具和实用程序。这些包是动态发现的，可以作为独立程序执行，为系统添加新功能提供了一种简单的方法。
 
-*   **User Interface**: The primary user interface is a Tkinter-based GUI, managed by the `CommandPanel` class. This component provides a text-based interface for interacting with the assistant and can be extended to support other forms of interaction, such as voice commands.
+*   **用户界面**：主要用户界面是基于 Tkinter 的 GUI，由 `CommandPanel` 类管理。该组件提供了一个用于与助手交互的文本界面，并可以扩展以支持其他形式的交互，例如语音命令。
 
-This modular design allows for independent development and testing of each component, making the system easy to maintain and expand.
+这种模块化设计允许对每个组件进行独立开发和测试，使系统易于维护和扩展。
 
-## Command Processing Workflow
+## 命令处理工作流
 
-User commands are processed through a flexible and multi-layered workflow that ensures the appropriate component handles the request. The default processing path is the local code interpreter, but users can access the legacy intent-based system by prefixing their command with `/legacy`.
+用户命令通过灵活且多层的工作流进行处理，以确保由适当的组件处理请求。默认处理路径是本地代码解释器，但用户可以通过在命令前添加 `/legacy` 前缀来访问旧的基于意图的系统。
 
-The workflow is as follows:
+工作流如下：
 
-1.  **Input**: The user enters a command through the Tkinter GUI, voice input, or another interface.
+1.  **输入**：用户通过 Tkinter GUI、语音输入或其他界面输入命令。
 
-2.  **Routing**:
-    *   If the command starts with `/legacy`, it is routed to the legacy intent-based system. The system uses the DeepSeek API to perform Natural Language Understanding (NLU) and identify the user's intent and any associated entities. The command is then passed to the appropriate handler based on the identified intent.
-    *   Otherwise, the command is sent to the **Local Code Interpreter** by default.
+2.  **路由**：
+    *   如果命令以 `/legacy` 开头，它将被路由到旧的基于意图的系统。系统使用 DeepSeek API 执行自然语言理解 (NLU) 并识别用户的意图和任何关联的实体。然后，根据识别出的意图将命令传递给适当的处理程序。
+    *   否则，命令默认发送到**本地代码解释器**。
 
-3.  **Execution**:
-    *   **Local Interpreter**: The `Interpreter` class sends the natural language command to the `Orchestrator`, which uses an LLM to generate Python code. This code is then executed in a secure, sandboxed environment by the `code_executor`.
-    *   **Legacy System**: If an intent is matched, the corresponding handler in the `Jarvis` class is invoked. This may involve calling a function from the `algorithms` library, interacting with a plugin, or executing a package.
-    *   **Plugin Execution**: If the command is intended for a plugin, the `PluginManager` will identify the correct plugin and execute its `run` method.
-    *   **Package Execution**: If the command corresponds to a package, the `Jarvis` class will execute the package's `run()` function.
+3.  **执行**：
+    *   **本地解释器**：`Interpreter` 类将自然语言命令发送到 `Orchestrator`，后者使用 LLM 生成 Python 代码。然后，该代码由 `code_executor` 在安全、沙盒化的环境中执行。
+    *   **旧版系统**：如果匹配到意图，则调用 `Jarvis` 类中相应的处理程序。这可能涉及调用 `algorithms` 库中的函数、与插件交互或执行包。
+    *   **插件执行**：如果命令旨在用于插件，`PluginManager` 将识别正确的插件并执行其 `run` 方法。
+    *   **包执行**：如果命令对应于包，`Jarvis` 类将执行包的 `run()` 函数。
 
-4.  **Output**: The result of the command execution is displayed to the user through the GUI and, if applicable, spoken back to the user using text-to-speech.
+4.  **输出**：命令执行的结果通过 GUI 显示给用户，并在适用时使用文本转语音功能播报给用户。
 
-This layered approach allows Butler to handle a wide range of commands, from simple, predefined actions to complex, dynamically generated code, while maintaining a clear and organized structure.
+这种分层方法允许 Butler 处理从预定义的简单操作到复杂的动态生成代码的各种命令，同时保持清晰且有条理的结构。
 
-## Project Structure
+## 项目结构
 
-The project is organized into several key directories, each with a specific role:
+项目分为几个关键目录，每个目录都有特定的角色：
 
-*   `butler/`: The core of the Butler assistant. This directory contains the main application logic, including the `Jarvis` class which orchestrates the entire system. It also houses the Tkinter-based GUI (`CommandPanel.py`), conversational AI integration, and the REST API for the algorithms library.
+*   `butler/`：Butler 助手的核心。此目录包含主应用程序逻辑，包括编排整个系统的 `Jarvis` 类。它还包含基于 Tkinter 的 GUI (`CommandPanel.py`)、对话式 AI 集成以及算法库的 REST API。
 
-*   `local_interpreter/`: A standalone, sandboxed code interpreter. This component is responsible for safely executing Python code generated from natural language commands. It features an `Orchestrator` that translates natural language to code and an `Executor` that runs the code in a secure environment, preventing it from affecting the host system.
+*   `local_interpreter/`：一个独立的、沙盒化的代码解释器。该组件负责安全地执行从自然语言命令生成的 Python 代码。它具有一个将自然语言转换为代码的 `Orchestrator` 和一个在安全环境中运行代码的 `Executor`，防止其影响宿主系统。
 
-*   `package/`: A collection of standalone modules and tools that can be invoked by the Butler assistant. Each `.py` file in this directory is treated as a separate package and must contain a `run()` function to be executable. This allows for easy extension of Butler's capabilities with new, independent tools.
+*   `package/`：Butler 助手可以调用的独立模块和工具的集合。此目录中的每个 `.py` 文件都被视为一个单独的包，并且必须包含一个 `run()` 函数才能执行。这使得使用新的、独立的工具轻松扩展 Butler 的功能成为可能。
 
-*   `plugin/`: A framework for creating and managing plugins to extend Butler's core functionality. Plugins are more deeply integrated than packages and are managed by the `PluginManager`. They must inherit from `AbstractPlugin` and can be used to add complex features like web search, long-term memory, or interaction with external services.
+*   `plugin/`：用于创建和管理插件以扩展 Butler 核心功能的框架。插件比包集成得更深，并由 `PluginManager` 管理。它们必须继承自 `AbstractPlugin`，并可用于添加复杂功能，如网络搜索、长期记忆或与外部服务交互。
 
-*   `logs/`: Contains log files for the application, which are useful for debugging and monitoring the system's behavior.
+*   `logs/`：包含应用程序的日志文件，对于调试和监视系统行为非常有用。
 
-## Getting Started
+## 快速入门
 
-### Installation
+### 安装
 
-1.  **Clone the repository:**
+1.  **克隆仓库：**
     ```bash
     git clone https://github.com/PAYDAY3/Butler.git
     cd Butler
     ```
 
-2.  **Create a virtual environment (recommended):**
+2.  **创建虚拟环境（推荐）：**
     ```bash
     python -m venv venv
-    source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+    source venv/bin/activate  # 在 Windows 上，使用 `venv\Scripts\activate`
     ```
 
-3.  **Install dependencies:**
+3.  **安装依赖：**
     ```bash
     pip install -r requirements.txt
     ```
 
-4.  **Configure API Keys:**
-    Create a `.env` file in the root directory by copying the `.env.example` file. Then, add your API keys:
+4.  **配置 API 密钥：**
+    通过复制 `.env.example` 文件在根目录下创建一个 `.env` 文件。然后，添加你的 API 密钥：
     ```
-    DEEPSEEK_API_KEY="your_deepseek_api_key"
-    AZURE_SPEECH_KEY="your_azure_speech_key"
-    AZURE_SERVICE_REGION="your_azure_service_region"
+    DEEPSEEK_API_KEY="你的_deepseek_api_密钥"
+    AZURE_SPEECH_KEY="你的_azure_speech_密钥"
+    AZURE_SERVICE_REGION="你的_azure_服务区域"
     ```
 
-## Usage
+## 使用方法
 
-### Easy Launch (Recommended)
+### 快速启动（推荐）
 
-Once you have installed the dependencies and configured your API keys, you can start the application easily:
+安装依赖并配置 API 密钥后，你可以轻松启动应用程序：
 
-*   **On Windows:** Simply double-click the `run.bat` file.
-*   **On macOS or Linux:** Run the `run.sh` script from your terminal with `./run.sh`, or double-click it in your file manager (you may need to grant it execute permissions first with `chmod +x run.sh`).
+*   **Windows 用户：** 只需双击 `run.bat` 文件。
+*   **macOS 或 Linux 用户：** 从终端使用 `./run.sh` 运行 `run.sh` 脚本，或者在文件管理器中双击它（你可能需要先使用 `chmod +x run.sh` 授予其执行权限）。
 
-These scripts will open the main application with its graphical user interface.
+这些脚本将打开带有图形用户界面的主应用程序。
 
-### Manual Launch
+### 手动启动
 
-If you prefer, you can still run the application manually from the command line.
+如果你愿意，仍然可以从命令行手动运行应用程序。
 
-#### Butler Assistant
+#### Butler 助手
 
-To start the Butler assistant with its GUI:
+启动带有 GUI 的 Butler 助手：
 
 ```bash
 python -m butler.main
 ```
 
-You can interact with the assistant by typing commands in the input box or by using voice commands.
+你可以通过在输入框中输入命令或使用语音命令与助手交互。
 
-### Local Interpreter
+### 本地解释器
 
-To run the standalone local code interpreter:
+运行独立的本地代码解释器：
 
 ```bash
 python -m local_interpreter.main
 ```
 
-This will start a command-line interface where you can type natural language commands to be executed in a sandboxed environment.
+这将启动一个命令行界面，你可以在其中输入要在沙盒环境中执行的自然语言命令。
 
-### Algorithms API
+### 算法 API
 
-To start the REST API server for the algorithms library:
+启动算法库的 REST API 服务器：
 
 ```bash
 python -m butler.api
 ```
 
-The server will run on `http://localhost:5001`. You can then make requests to the available endpoints (e.g., `/api/sort`, `/api/search`).
+服务器将在 `http://localhost:5001` 上运行。然后，你可以向可用的端点（例如 `/api/sort`, `/api/search`）发起请求。
 
-## Packages
+## 包 (Packages)
 
-The `package/` directory contains a collection of tools and utilities that can be executed by the Butler assistant. Each module in this directory should have a `run()` function, which serves as the entry point for execution.
+`package/` 目录包含 Butler 助手可以执行的工具和实用程序。此目录中的每个模块都应该有一个 `run()` 函数，作为执行的入口点。
 
-To add a new package, simply create a new Python file in the `package/` directory and implement a `run()` function within it. Butler will automatically discover and be able to execute it.
+要添加新包，只需在 `package/` 目录中创建一个新的 Python 文件，并在其中实现 `run()` 函数。Butler 将自动发现并能够执行它。
 
-## Plugins
+## 插件 (Plugins)
 
-The `plugin/` directory contains plugins that extend the functionality of the Butler assistant. Each plugin should inherit from `plugin.abstract_plugin.AbstractPlugin` and implement the required methods.
+`plugin/` 目录包含扩展 Butler 助手功能的插件。每个插件都应该继承自 `plugin.abstract_plugin.AbstractPlugin` 并实现所需的方法。
 
-The `PluginManager` will automatically load any valid plugins placed in this directory.
+`PluginManager` 将自动加载放置在此目录中的任何有效插件。
 
-## Contribution
+## 贡献
 
-We welcome contributions! Please feel free to submit a Pull Request. When contributing, please ensure your code adheres to the project's style and that you update documentation where appropriate.
+我们欢迎任何形式的贡献！请随时提交 Pull Request。贡献时，请确保你的代码符合项目的风格，并在适当的地方更新文档。
 
-## License
+## 开源协议
 
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+本项目采用 MIT 协议。有关详细信息，请参阅 `LICENSE` 文件。

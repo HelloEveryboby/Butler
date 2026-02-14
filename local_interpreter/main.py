@@ -14,34 +14,34 @@ class colors:
 
 def main_loop():
     """
-    The main command-line loop for interacting with the local interpreter.
+    与本地解释器交互的主命令行循环。
     """
-    print(f"{colors.HEADER}{colors.BOLD}Welcome to Local Interpreter CLI{colors.ENDC}")
-    print("Type 'exit' to quit.")
+    print(f"{colors.HEADER}{colors.BOLD}欢迎使用本地解释器命令行界面{colors.ENDC}")
+    print("输入 'exit' 退出。")
 
     interpreter = Interpreter()
     if not interpreter.is_ready:
-        print(f"{colors.FAIL}Interpreter could not be initialized. Exiting.{colors.ENDC}")
+        print(f"{colors.FAIL}无法初始化解释器。正在退出。{colors.ENDC}")
         return
 
     while True:
         try:
             user_input = input(f"{colors.BOLD}>>> {colors.ENDC}")
             if user_input.lower().strip() == 'exit':
-                print(f"{colors.WARNING}Exiting...{colors.ENDC}")
+                print(f"{colors.WARNING}正在退出...{colors.ENDC}")
                 break
 
             result = interpreter.run(user_input)
 
-            print(f"{colors.OKBLUE}--- Result ---{colors.ENDC}")
+            print(f"{colors.OKBLUE}--- 结果 ---{colors.ENDC}")
             print(result)
-            print(f"{colors.OKBLUE}--------------{colors.ENDC}\n")
+            print(f"{colors.OKBLUE}------------{colors.ENDC}\n")
 
         except KeyboardInterrupt:
-            print(f"\n{colors.WARNING}Exiting...{colors.ENDC}")
+            print(f"\n{colors.WARNING}正在退出...{colors.ENDC}")
             break
         except Exception as e:
-            print(f"{colors.FAIL}A critical error occurred in the main loop: {e}{colors.ENDC}")
+            print(f"{colors.FAIL}主循环中发生关键错误: {e}{colors.ENDC}")
             break
 
 if __name__ == '__main__':

@@ -40,27 +40,27 @@ class EditTool(BaseTool):
         insert_line: int | None = None,
         **kwargs,
     ):
-        # Ask for user permission before executing the command
-        print(f"Do you want to execute the following command?")
-        print(f"Command: {command}")
-        print(f"Path: {path}")
+        # 执行命令前请求用户许可
+        print(f"是否要执行以下命令？")
+        print(f"命令: {command}")
+        print(f"路径: {path}")
         if file_text:
-            print(f"File text: {file_text}")
+            print(f"文件内容: {file_text}")
         if view_range:
-            print(f"View range: {view_range}")
+            print(f"查看范围: {view_range}")
         if old_str:
-            print(f"Old string: {old_str}")
+            print(f"旧字符串: {old_str}")
         if new_str:
-            print(f"New string: {new_str}")
+            print(f"新字符串: {new_str}")
         if insert_line is not None:
-            print(f"Insert line: {insert_line}")
+            print(f"插入行: {insert_line}")
 
-        user_input = input("Enter 'yes' to proceed, anything else to cancel: ")
+        user_input = input("输入 'yes' 继续，输入其他内容取消: ")
 
         if user_input.lower() != "yes":
             return ToolResult(
-                system="Command execution cancelled by user",
-                error="User did not provide permission to execute the command.",
+                system="命令执行被用户取消",
+                error="用户未提供执行命令的权限。",
             )
         _path = Path(path)
         self.validate_path(command, _path)
@@ -68,54 +68,54 @@ class EditTool(BaseTool):
             return await self.view(_path, view_range)
         elif command == "create":
             if not file_text:
-                raise ToolError("Parameter `file_text` is required for command: create")
+                raise ToolError("对于 create 命令，参数 `file_text` 是必需的")
             self.write_file(_path, file_text)
             self._file_history[_path].append(file_text)
-            return ToolResult(output=f"File created successfully at: {_path}")
+            return ToolResult(output=f"文件已成功创建于: {_path}")
         elif command == "str_replace":
             if not old_str:
                 raise ToolError(
-                    "Parameter `old_str` is required for command: str_replace"
+                    "对于 str_replace 命令，参数 `old_str` 是必需的"
                 )
             return self.str_replace(_path, old_str, new_str)
         elif command == "insert":
             if insert_line is None:
                 raise ToolError(
-                    "Parameter `insert_line` is required for command: insert"
+                    "对于 insert 命令，参数 `insert_line` 是必需的"
                 )
             if not new_str:
-                raise ToolError("Parameter `new_str` is required for command: insert")
+                raise ToolError("对于 insert 命令，参数 `new_str` 是必需的")
             return self.insert(_path, insert_line, new_str)
         elif command == "undo_edit":
             return self.undo_edit(_path)
         raise ToolError(
-            f'Unrecognized command {command}. The allowed commands for the {self.name} tool are: {", ".join(get_args(Command))}'
+            f'无法识别的命令 {command}。{self.name} 工具允许使用的命令是: {", ".join(get_args(Command))}'
         )
 
     def validate_path(self, command: str, path: Path):
         """
         检查路径/命令组合是否有效。
         """
-        # Check if its an absolute path
+        # 检查是否为绝对路径
         if not path.is_absolute():
             suggested_path = Path("") / path
             raise ToolError(
-                f"The path {path} is not an absolute path, it should start with `/`. Maybe you meant {suggested_path}?"
+                f"路径 {path} 不是绝对路径，它应该以 `/` 开头。你可能是想指 {suggested_path}？"
             )
-        # Check if path exists
+        # 检查路径是否存在
         if not path.exists() and command != "create":
             raise ToolError(
-                f"The path {path} does not exist. Please provide a valid path."
+                f"路径 {path} 不存在。请提供一个有效的路径。"
             )
         if path.exists() and command == "create":
             raise ToolError(
-                f"File already exists at: {path}. Cannot overwrite files using command `create`."
+                f"文件已存在于: {path}。不能使用 `create` 命令覆盖文件。"
             )
-        # Check if the path points to a directory
+        # 检查路径是否指向目录
         if path.is_dir():
             if command != "view":
                 raise ToolError(
-                    f"The path {path} is a directory and only the `view` command can be used on directories"
+                    f"路径 {path} 是一个目录，只有 `view` 命令可以用于目录"
                 )
 
     async def view(self, path: Path, view_range: list[int] | None = None):
@@ -123,14 +123,14 @@ class EditTool(BaseTool):
         if path.is_dir():
             if view_range:
                 raise ToolError(
-                    "The `view_range` parameter is not allowed when `path` points to a directory."
+                    "当 `path` 指向目录时，不允许使用 `view_range` 参数。"
                 )
 
             _, stdout, stderr = await run(
                 rf"find {path} -maxdepth 2 -not -path '*/\.*'"
             )
             if not stderr:
-                stdout = f"Here's the files and directories up to 2 levels deep in {path}, excluding hidden items:\n{stdout}\n"
+                stdout = f"这是 {path} 中深达 2 级的文件和目录（不包括隐藏项目）：\n{stdout}\n"
             return CLIResult(output=stdout, error=stderr)
 
         file_content = self.read_file(path)
@@ -138,22 +138,22 @@ class EditTool(BaseTool):
         if view_range:
             if len(view_range) != 2 or not all(isinstance(i, int) for i in view_range):
                 raise ToolError(
-                    "Invalid `view_range`. It should be a list of two integers."
+                    "无效的 `view_range`。它应该是包含两个整数的列表。"
                 )
             file_lines = file_content.split("\n")
             n_lines_file = len(file_lines)
             init_line, final_line = view_range
             if init_line < 1 or init_line > n_lines_file:
                 raise ToolError(
-                    f"Invalid `view_range`: {view_range}. It's first element `{init_line}` should be within the range of lines of the file: {[1, n_lines_file]}"
+                    f"无效的 `view_range`: {view_range}。它的第一个元素 `{init_line}` 应该在文件的行数范围内: {[1, n_lines_file]}"
                 )
             if final_line > n_lines_file:
                 raise ToolError(
-                    f"Invalid `view_range`: {view_range}. It's second element `{final_line}` should be smaller than the number of lines in the file: `{n_lines_file}`"
+                    f"无效的 `view_range`: {view_range}。它的第二个元素 `{final_line}` 应该小于文件的行数: `{n_lines_file}`"
                 )
             if final_line != -1 and final_line < init_line:
                 raise ToolError(
-                    f"Invalid `view_range`: {view_range}. It's second element `{final_line}` should be larger or equal than its first `{init_line}`"
+                    f"无效的 `view_range`: {view_range}。它的第二个元素 `{final_line}` 应该大于或等于第一个元素 `{init_line}`"
                 )
 
             if final_line == -1:
@@ -172,7 +172,7 @@ class EditTool(BaseTool):
         old_str = old_str.expandtabs()
         new_str = new_str.expandtabs() if new_str is not None else ""
 
-        # Check if old_str is unique in the file
+        # 检查 old_str 在文件中是否唯一
         occurrences = file_content.count(old_str)
         if occurrences == 0:
             raise ToolError(
@@ -205,9 +205,9 @@ class EditTool(BaseTool):
         snippet = "\n".join(new_file_content.split("\n")[start_line : end_line + 1])
 
         # 准备成功消息
-        success_msg = f"The file {path} has been edited. "
+        success_msg = f"文件 {path} 已编辑。"
         success_msg += self._make_output(
-            snippet, f"a snippet of {path}", start_line + 1
+            snippet, f"{path} 的代码片段", start_line + 1
         )
         success_msg += "检查更改并确保它们符合预期。如有必要，再次编辑该文件。"
 
@@ -243,40 +243,40 @@ class EditTool(BaseTool):
         self.write_file(path, new_file_text)
         self._file_history[path].append(file_text)
 
-        success_msg = f"The file {path} has been edited. "
+        success_msg = f"文件 {path} 已编辑。"
         success_msg += self._make_output(
             snippet,
-            "a snippet of the edited file",
+            "编辑后文件的代码片段",
             max(1, insert_line - SNIPPET_LINES + 1),
         )
-        success_msg += "检查更改并确保它们符合预期(正确的缩进、无重复行等)。 如有必要，再次编辑文件."
+        success_msg += "检查更改并确保它们符合预期(正确的缩进、无重复行等)。如有必要，再次编辑文件。"
         return CLIResult(output=success_msg)
 
     def undo_edit(self, path: Path):
-        """执行undo_edit命令."""
+        """执行 undo_edit 命令。"""
         if not self._file_history[path]:
-            raise ToolError(f"No edit history found for {path}.")
+            raise ToolError(f"未找到 {path} 的编辑历史。")
 
         old_text = self._file_history[path].pop()
         self.write_file(path, old_text)
 
         return CLIResult(
-            output=f"Last edit to {path} undone successfully. {self._make_output(old_text, str(path))}"
+            output=f"成功撤销对 {path} 的最后一次编辑。{self._make_output(old_text, str(path))}"
         )
 
     def read_file(self, path: Path):
-        """从给定路径读取文件的内容；如果发生错误，则引发ToolError."""
+        """从给定路径读取文件的内容；如果发生错误，则引发 ToolError。"""
         try:
             return path.read_text()
         except Exception as e:
-            raise ToolError(f"Ran into {e} while trying to read {path}") from None
+            raise ToolError(f"尝试读取 {path} 时遇到 {e}") from None
 
     def write_file(self, path: Path, file: str):
-        """将文件的内容写入给定的路径；如果发生错误，则引发ToolError."""
+        """将文件的内容写入给定的路径；如果发生错误，则引发 ToolError。"""
         try:
             path.write_text(file)
         except Exception as e:
-            raise ToolError(f"Ran into {e} while trying to write to {path}") from None
+            raise ToolError(f"尝试写入 {path} 时遇到 {e}") from None
 
     def _make_output(
         self,
@@ -285,7 +285,7 @@ class EditTool(BaseTool):
         init_line: int = 1,
         expand_tabs: bool = True,
     ):
-        """Generate output for the CLI based on the content of a file."""
+        """基于文件内容为 CLI 生成输出。"""
         file_content = maybe_truncate(file_content)
         if expand_tabs:
             file_content = file_content.expandtabs()
@@ -296,7 +296,7 @@ class EditTool(BaseTool):
             ]
         )
         return (
-            f"Here's the result of running `cat -n` on {file_descriptor}:\n"
+            f"这是对 {file_descriptor} 运行 `cat -n` 的结果：\n"
             + file_content
             + "\n"
         )
