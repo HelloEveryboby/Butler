@@ -3,6 +3,7 @@
 import os
 import cv2
 import datetime
+import threading
 from .intent_dispatcher import register_intent
 from . import algorithms
 
@@ -102,6 +103,17 @@ def handle_open_program(jarvis_app, entities, programs, **kwargs):
     # This function relies on the `execute_program` method of the Jarvis instance
     # and the program mapping, so we delegate back to it.
     jarvis_app._handle_open_program(entities, programs)
+
+@register_intent("open_switchboard", requires_entities=False)
+def handle_open_switchboard(jarvis_app, **kwargs):
+    """打开程序交换机以防止系统混乱。"""
+    try:
+        from package import autonomous_switch
+        # 启动后台守护进程
+        threading.Thread(target=autonomous_switch.run, daemon=True).start()
+        jarvis_app.speak("自动交换机已在后台启动，将自动管理程序排序并防止混乱。")
+    except Exception as e:
+        jarvis_app.speak(f"无法启动自动交换机: {e}")
 
 @register_intent("exit", requires_entities=False)
 def handle_exit(jarvis_app, **kwargs):
