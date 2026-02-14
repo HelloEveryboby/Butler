@@ -17,6 +17,7 @@ openai
 opencv-python
 openpyxl
 pandas
+paho-mqtt
 paramiko
 pdfplumber
 prompt_toolkit

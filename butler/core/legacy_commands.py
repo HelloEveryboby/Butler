@@ -124,3 +124,46 @@ def handle_cleanup(jarvis_app, **kwargs):
         jarvis_app.speak(f"数据回收完成。{summary}")
     except Exception as e:
         jarvis_app.speak(f"数据回收失败: {e}")
+
+@register_intent("iot_control")
+def handle_iot_control(jarvis_app, entities, **kwargs):
+    """控制连接的单片机设备（如开灯、关灯）。"""
+    device = entities.get("device", "设备")
+    action_raw = entities.get("action", "toggle")
+
+    try:
+        from package import mqtt_gateway
+        # 归一化操作指令
+        if any(word in action_raw.lower() for word in ["open", "on", "开启", "打开", "开"]):
+            state = "on"
+            action_desc = "开启"
+        elif any(word in action_raw.lower() for word in ["close", "off", "关闭", "关"]):
+            state = "off"
+            action_desc = "关闭"
+        else:
+            state = "toggle"
+            action_desc = "切换"
+
+        result = mqtt_gateway.run("publish", "light_control", f"state={state}")
+
+        if isinstance(result, dict) and result.get("success"):
+            jarvis_app.speak(f"好的，已为您{action_desc}{device}。")
+        else:
+            jarvis_app.speak(f"抱歉，控制{device}失败，请确保单片机在线且 MQTT 服务正常。")
+    except Exception as e:
+        jarvis_app.speak(f"执行 IOT 控制时出错: {e}")
+
+@register_intent("get_mcu_status", requires_entities=False)
+def handle_get_mcu_status(jarvis_app, **kwargs):
+    """获取单片机终端的当前状态。"""
+    try:
+        from package import mqtt_gateway
+        status = mqtt_gateway.run("status")
+        if status:
+            uptime = status.get("uptime", 0)
+            light_state = "开启" if status.get("light_state") else "关闭"
+            jarvis_app.speak(f"单片机报告在线。当前灯光状态：{light_state}。运行时间：{uptime}秒。")
+        else:
+            jarvis_app.speak("暂未收到单片机状态上报，它可能处于离线状态。")
+    except Exception as e:
+        jarvis_app.speak(f"查询单片机状态时出错: {e}")
