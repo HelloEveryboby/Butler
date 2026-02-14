@@ -114,3 +114,14 @@ def handle_get_current_time(jarvis_app, **kwargs):
     """Gets the current time and speaks it."""
     current_time = datetime.datetime.now().strftime("%H:%M")
     jarvis_app.speak(f"现在时间是 {current_time}")
+
+@register_intent("cleanup", requires_entities=False)
+def handle_cleanup(jarvis_app, **kwargs):
+    """Executes the data recycling/cleanup system to remove temporary files."""
+    jarvis_app.ui_print("正在执行系统数据回收...")
+    try:
+        from package import data_recycler
+        summary = data_recycler.run()
+        jarvis_app.speak(f"数据回收完成。{summary}")
+    except Exception as e:
+        jarvis_app.speak(f"数据回收失败: {e}")
