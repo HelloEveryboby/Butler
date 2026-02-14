@@ -35,7 +35,7 @@ class Jarvis:
         self.panel = None
 
         load_dotenv()
-        self.logging = LogManager.get_logger(__name__)
+        self.logger = LogManager.get_logger(__name__)
 
         # Initialize services
         self._initialize_long_memory()
@@ -52,7 +52,7 @@ class Jarvis:
             with open(path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            self.logging.error(f"Failed to load {filename}: {e}")
+            self.logger.error(f"Failed to load {filename}: {e}")
             return {}
 
     def _initialize_long_memory(self):
@@ -60,7 +60,7 @@ class Jarvis:
         try:
             if api_key:
                 self.long_memory = RedisLongMemory(api_key=api_key)
-                self.long_memory.init(self.logging)
+                self.long_memory.init(self.logger)
             else: raise ValueError("No API Key")
         except Exception:
             self.long_memory = SQLiteLongMemory()
@@ -107,12 +107,20 @@ class Jarvis:
                 if code_blocks:
                     edited_code = code_blocks[-1].strip()
                     if edited_code != self.interpreter.last_code_for_approval.strip():
-                        self.logging.info("Detected edited code in UI. Using edited version.")
+                        self.logger.info("Detected edited code in UI. Using edited version.")
                         self.interpreter.last_code_for_approval = edited_code
             self.stream_interpreter_response(cmd, approved=True)
         elif cmd.startswith("/os-mode "):
             self.interpreter.os_mode = (cmd.split()[1].lower() == 'on')
             self.ui_print(f"OS 模式: {'开启' if self.interpreter.os_mode else '关闭'}")
+        elif cmd == "/cleanup":
+            self.ui_print("正在执行系统数据回收...")
+            try:
+                from package import data_recycler
+                summary = data_recycler.run()
+                self.ui_print(summary)
+            except Exception as e:
+                self.ui_print(f"数据回收失败: {e}", tag='error')
         elif cmd.startswith("/legacy "):
             self._handle_legacy_command(cmd[8:])
         else:
@@ -197,7 +205,7 @@ class Jarvis:
                 "content": f"User performed manual action: {action} {payload.get('coordinate', '')} {payload.get('text', '')}"
             })
         except Exception as e:
-            self.logging.error(f"Manual action error: {e}")
+            self.logger.error(f"Manual action error: {e}")
 
     def _handle_open_program(self, entities, programs):
         program_name = entities.get("program_name")
@@ -210,7 +218,7 @@ class Jarvis:
             self.speak("未指定程序名称")
 
     def _handle_exit(self):
-        self.logging.info("程序已退出")
+        self.logger.info("程序已退出")
         self.speak("再见")
         self.running = False
         self.voice_service.stop_listening()
@@ -230,6 +238,13 @@ class Jarvis:
                     if os.path.isfile(path): os.remove(path)
                     else: shutil.rmtree(path)
                 except Exception: pass
+
+        # Integrated Data Recycler
+        try:
+            from package import data_recycler
+            data_recycler.run()
+        except Exception as e:
+            self.logger.error(f"Startup cleanup failed: {e}")
 
 def main():
     import argparse
