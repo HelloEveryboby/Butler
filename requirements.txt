@@ -18,6 +18,7 @@ opencv-python
 openpyxl
 pandas
 paho-mqtt
+pyserial
 paramiko
 pdfplumber
 prompt_toolkit
