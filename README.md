@@ -14,6 +14,9 @@ Butler 是一个功能丰富的智能助手系统，使用 Python 开发。它�
 *   **语音交互**：支持语音命令，并使用 Azure 认知服务进行语音合成。
 *   **本地代码解释器**：一个安全、沙盒化的环境，用于执行从自然语言命令生成的 Python 代码。
 *   **插件系统**：使用自定义插件轻松扩展 Butler 的功能。
+*   **单片机集成**：
+    *   **分布式模式**：通过 MQTT 接入硬件终端（参见 [EMBEDDED_GUIDE.md](EMBEDDED_GUIDE.md)）。
+    *   **独立模式**：单片机直接连接云端 AI，无需 PC 中转（参见 [STANDALONE_MCU_GUIDE.md](STANDALONE_MCU_GUIDE.md)）。
 
 ## 架构设计
 
