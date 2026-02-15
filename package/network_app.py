@@ -1,3 +1,6 @@
+"""
+网络工具。支持启动简单的 HTTP 服务器、执行 HTTP GET 请求以及上传文件到 FTP 服务器。
+"""
 import requests
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 from ftplib import FTP
@@ -46,6 +49,12 @@ def upload_file(ftp_server, username, password, file_to_upload):
         logging.info(f"文件 '{file_to_upload}' 上传成功.")
     except Exception as e:
         logging.error("FTP 上传失败: %s", str(e))
+
+def run(**kwargs):
+    """
+    运行网络工具。
+    """
+    network()
 
 # 主程序
 def network():

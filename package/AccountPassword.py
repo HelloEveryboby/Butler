@@ -1,3 +1,6 @@
+"""
+账号密码管理器。支持自动登录、账号创建、密码修改、数据导出及强密码生成等功能。
+"""
 import sqlite3
 import pyautogui
 import time
@@ -506,17 +509,24 @@ def AccountPassword():
         else:
             print("⚠️ 无效的选择，请重试。")
 
-# 程序启动时尝试自动登录
-try:
-    print("="*50)
-    print("🔐 正在启动账号密码管理器...")
-    print("="*50)
-    
-    # 创建必要的目录
-    os.makedirs("exports", exist_ok=True)
-    
-    if not auto_login():  # 如果自动登录失败或跳过，启动主菜单
-        AccountPassword()
-finally:
-    conn.close()  # 确保数据库连接在程序结束时关闭
-    print("✅ 数据库连接已关闭")
+def run(**kwargs):
+    """
+    启动账号密码管理器。
+    """
+    # 程序启动时尝试自动登录
+    try:
+        print("="*50)
+        print("🔐 正在启动账号密码管理器...")
+        print("="*50)
+
+        # 创建必要的目录
+        os.makedirs("exports", exist_ok=True)
+
+        if not auto_login():  # 如果自动登录失败或跳过，启动主菜单
+            AccountPassword()
+    finally:
+        conn.close()  # 确保数据库连接在程序结束时关闭
+        print("✅ 数据库连接已关闭")
+
+if __name__ == "__main__":
+    run()

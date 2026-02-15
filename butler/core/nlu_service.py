@@ -17,6 +17,31 @@ class NLUService:
         """使用 DeepSeek API 从用户文本中提取意图和实体。"""
         system_prompt = self.prompts.get("nlu_intent_extraction", {}).get("prompt", "Extract intent and entities as JSON.")
 
+        # 动态注入可用意图和工具
+        try:
+            from .extension_manager import extension_manager
+            from .intent_dispatcher import intent_registry
+
+            tool_descriptions = []
+            # 1. 获取已注册的硬编码意图
+            for intent_name, doc in intent_registry.get_all_intents().items():
+                tool_descriptions.append(f"- `{intent_name}`: {doc or '执行特定操作。'}")
+
+            # 2. 获取动态加载的扩展工具（包、插件、外部程序）
+            for tool in extension_manager.get_all_tools():
+                # 避免与已注册意图重复描述
+                if tool['name'] not in intent_registry.get_all_intents():
+                    tool_descriptions.append(f"- `{tool['name']}`: {tool['description']}")
+
+            tools_str = "\n".join(tool_descriptions)
+            if "{{TOOLS}}" in system_prompt:
+                system_prompt = system_prompt.replace("{{TOOLS}}", tools_str)
+            else:
+                # 回退：如果没有占位符，尝试将其附加到提示末尾
+                system_prompt += f"\n\n可能的意图/工具列表:\n{tools_str}"
+        except Exception as e:
+            logger.error(f"Failed to inject dynamic tools into NLU prompt: {e}")
+
         messages = [{"role": "system", "content": system_prompt}]
         if history:
             for item in history:

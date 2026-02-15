@@ -1,6 +1,12 @@
+"""
+音乐播放器工具。支持扫描本地文件、搜索歌曲、播放列表展示以及简单的播放控制。
+"""
 import os
 import json
-from jarvis.jarvis import takecommand
+try:
+    from jarvis.jarvis import takecommand
+except ImportError:
+    takecommand = None
 from playsound import playsound
 
 # 音乐库文件路径
@@ -120,7 +126,7 @@ def music_player():
                 print(f"发生错误: {e}")
                 
     # 初始设置
-    use_voice_input = True
+    use_voice_input = True if takecommand else False
 
     while True:
         if use_voice_input:
@@ -140,5 +146,11 @@ def music_player():
         else:
             print("未知命令，请重新输入。")
 
-if __name__ == "__main__":
+def run(**kwargs):
+    """
+    启动音乐播放器。
+    """
     music_player()
+
+if __name__ == "__main__":
+    run()

@@ -1,3 +1,6 @@
+"""
+二维码识别工具。支持通过摄像头或屏幕截图识别二维码，并处理其中的 URL（如打开网页或下载文件）。
+"""
 import cv2
 import requests
 import os
@@ -359,13 +362,18 @@ class QRScannerApp:
             self.status_var.set("正在扫描屏幕内容...")
             Thread(target=scan_qr_code_screen, args=(save_folder,), daemon=True).start()
 
-def main():
-    """主程序入口"""
+def run(**kwargs):
+    """
+    运行二维码识别工具。
+    """
     root = tk.Tk()
     app = QRScannerApp(root)
     
     root.protocol("WM_DELETE_WINDOW", lambda: on_exit(root))
     root.mainloop()
 
+def main():
+    run()
+
 if __name__ == "__main__":
-    main()
+    run()

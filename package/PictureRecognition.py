@@ -7,9 +7,12 @@ import io
 import base64
 from package.log_manager import LogManager
 
+"""
+图片识别与搜索工具。通过上传本地图片到搜索引擎（如 Bing）来获取相关的识别信息、描述及相似图片。
+"""
 logger = LogManager.get_logger(__name__)
 
-def run():
+def run(**kwargs):
     logger.info("PictureRecognition tool started")
     # 创建 Tkinter 窗口
     window = tk.Tk()

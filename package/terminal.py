@@ -1,3 +1,6 @@
+"""
+终端工具。提供一个支持多标签页的图形化终端界面，可以执行系统命令、编译运行多种语言的代码。
+"""
 import tkinter as tk
 from tkinter import ttk
 import subprocess
@@ -140,6 +143,12 @@ class TerminalApp(TkinterDnD.Tk):
         self.notebook.add(new_tab, text=f"Tab {len(self.notebook.tabs())+1}")
 
 
-if __name__ == "__main__":
+def run(**kwargs):
+    """
+    启动终端。
+    """
     app = TerminalApp()
     app.mainloop()
+
+if __name__ == "__main__":
+    run()

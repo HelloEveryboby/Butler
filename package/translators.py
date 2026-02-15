@@ -1,3 +1,6 @@
+"""
+翻译工具。支持使用 Azure 翻译服务进行文本、文件和网页的翻译。
+"""
 import os
 import requests
 import uuid
@@ -81,6 +84,17 @@ def translate_website(url):
 
     translated_html = soup.prettify()
     print(translated_html)
+
+def run(text=None, **kwargs):
+    """
+    运行翻译工具。
+    :param text: 要翻译的文本。
+    """
+    if text:
+        result = translate_text(text)
+        print(f"翻译结果: {result}")
+        return result
+    return translators()
 
 def translators():
     choice = input("请选择翻译类型: 1. 文件 2. 网页\n")
