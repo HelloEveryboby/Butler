@@ -1,3 +1,6 @@
+"""
+文件转换器工具。支持 PDF、DOCX、图片、TXT 等多种格式之间的互相转换和处理（如旋转、格式转换）。
+"""
 import os
 from PyPDF2 import PdfReader, PdfWriter
 from PIL import Image
@@ -234,3 +237,12 @@ def file_converter():
             convert_file(input_file, output_file, output_folder)
         else:
             print("无法识别的命令，请重试。")
+
+def run(**kwargs):
+    """
+    启动文件转换器。
+    """
+    file_converter()
+
+if __name__ == "__main__":
+    run()

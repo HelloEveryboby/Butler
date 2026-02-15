@@ -1,3 +1,6 @@
+"""
+天气预报工具。通过爬取中国天气网提供指定城市的天气信息。
+"""
 import requests
 from bs4 import BeautifulSoup
 
@@ -34,3 +37,25 @@ def get_weather_from_web(city):
     except AttributeError as e:
         print(f"解析天气数据错误: {e}")
         return None
+
+def run(city=None, **kwargs):
+    """
+    运行天气预报工具。
+    :param city: 城市名称或代码。
+    """
+    if not city:
+        city = input("请输入城市名称或代码: ")
+
+    print(f"正在查询 {city} 的天气...")
+    weather = get_weather_from_web(city)
+    if weather:
+        result = (f"{city}当前天气：\n"
+                  f"温度：{weather['temperature']}\n"
+                  f"状况：{weather['description']}\n"
+                  f"湿度：{weather['humidity']}\n"
+                  f"风力：{weather['wind']}")
+        print(result)
+        return result
+    else:
+        print("无法获取天气信息。")
+        return "无法获取天气信息。"

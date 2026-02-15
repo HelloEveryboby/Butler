@@ -1,5 +1,11 @@
+"""
+虚拟键盘工具。提供一个图形界面的屏幕键盘，支持拼音、数字、表情和符号输入。
+"""
 import tkinter as tk
-from pypinyin import lazy_pinyin, Style
+try:
+    from pypinyin import lazy_pinyin, Style
+except ImportError:
+    lazy_pinyin = None
 
 class VirtualKeyboard(tk.Frame):
     def __init__(self, master, **kwargs):
@@ -169,7 +175,10 @@ class VirtualKeyboard(tk.Frame):
         return self.entry_text.get()
 
 
-if __name__ == '__main__':
+def run(**kwargs):
+    """
+    启动虚拟键盘。
+    """
     root = tk.Tk()
     root.title("Virtual Keyboard")
 
@@ -181,3 +190,6 @@ if __name__ == '__main__':
     keyboard.grid(row=0, column=0, sticky="nsew")
 
     root.mainloop()
+
+if __name__ == '__main__':
+    run()
