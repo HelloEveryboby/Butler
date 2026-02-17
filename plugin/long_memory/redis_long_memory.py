@@ -6,11 +6,9 @@ from typing import List, Dict, Optional
 from butler.redis_client import redis_client
 from ..long_memory.long_memory_interface import AbstractLongMemory, LongMemoryItem
 from package.log_manager import LogManager
-import requests
 from redisvl.index import SearchIndex
 from redisvl.query import VectorQuery
-
-DEEPSEEK_API_URL = "https://api.deepseek.com/v1/embeddings"
+from package.embedding_utils import get_embedding
 
 class RedisLongMemory(AbstractLongMemory):
     def __init__(self, api_key: str, collection_name: str = "long_memory_collection"):
@@ -18,10 +16,6 @@ class RedisLongMemory(AbstractLongMemory):
         if not api_key:
             raise ValueError("DeepSeek API key is required.")
         self._api_key = api_key
-        self._headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json"
-        }
         self._collection_name = collection_name
         self.redis_client = redis_client
         if not self.redis_client:
@@ -40,7 +34,7 @@ class RedisLongMemory(AbstractLongMemory):
                     "name": "embedding",
                     "type": "vector",
                     "attrs": {
-                        "dims": 1024, # Assuming deepseek-coder uses 1024 dimensions
+                        "dims": 1024,
                         "distance_metric": "cosine",
                         "algorithm": "flat",
                     }
@@ -56,37 +50,18 @@ class RedisLongMemory(AbstractLongMemory):
 
     def init(self, logger: LogManager):
         self._logger = logger
-        try:
-            # Perform a test request to check API key and connectivity
-            response = requests.post(DEEPSEEK_API_URL, headers=self._headers, json={"input": "test", "model": "deepseek-coder"})
-            response.raise_for_status()
+        # Health check moved to simple embedding test
+        emb = get_embedding("test", self._api_key)
+        if emb is not None:
             self._logger.info("DeepSeek API health check successful.")
-        except requests.exceptions.RequestException as e:
-            self._logger.error(f"DeepSeek API health check failed: {e}")
-            raise ConnectionError("Failed to connect to DeepSeek API.") from e
-
-    def _get_embedding(self, text: str) -> Optional[np.ndarray]:
-        """Generates an embedding for the given text using the DeepSeek API."""
-        try:
-            response = requests.post(
-                DEEPSEEK_API_URL,
-                headers=self._headers,
-                json={"input": text, "model": "deepseek-coder"}
-            )
-            response.raise_for_status()
-            embedding_data = response.json()['data'][0]['embedding']
-            return np.array(embedding_data, dtype=np.float32)
-        except requests.exceptions.RequestException as e:
-            self._logger.error(f"Failed to get embedding from DeepSeek API: {e}")
-        except (KeyError, IndexError) as e:
-            self._logger.error(f"Unexpected response format from DeepSeek API: {e}")
-        return None
+        else:
+            self._logger.error("DeepSeek API health check failed.")
 
     def save(self, items: List[LongMemoryItem]):
         """Saves items to Redis after generating embeddings for their content."""
         records = []
         for item in items:
-            embedding = self._get_embedding(item.content)
+            embedding = get_embedding(item.content, self._api_key)
             if embedding is not None:
                 record = {
                     "id": item.id,
@@ -108,7 +83,7 @@ class RedisLongMemory(AbstractLongMemory):
 
     def search(self, text: str, n_results: int, metadata_filter: Optional[Dict[str, str]] = None) -> List[LongMemoryItem]:
         """Searches for items in Redis based on semantic similarity."""
-        query_embedding = self._get_embedding(text)
+        query_embedding = get_embedding(text, self._api_key)
         if query_embedding is None:
             return []
 

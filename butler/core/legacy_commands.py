@@ -136,3 +136,48 @@ def handle_cleanup(jarvis_app, **kwargs):
         jarvis_app.speak(f"数据回收完成。{summary}")
     except Exception as e:
         jarvis_app.speak(f"数据回收失败: {e}")
+
+@register_intent("query_local_knowledge")
+def handle_query_local_knowledge(jarvis_app, entities, **kwargs):
+    """在本地知识库中搜索相关信息。"""
+    query = entities.get("query")
+    kb_name = entities.get("kb_name", "default")
+    if not query:
+        jarvis_app.speak("请提供您想在知识库中查询的内容。")
+        return
+
+    try:
+        from package import knowledge_base_manager
+        results = knowledge_base_manager.run(operation="query", query=query, kb_name=kb_name)
+        jarvis_app.ui_print(results)
+        jarvis_app.speak(f"已在知识库 '{kb_name}' 中完成搜索，结果已显示在面板上。")
+    except Exception as e:
+        jarvis_app.speak(f"查询知识库时出错: {e}")
+
+@register_intent("index_local_files")
+def handle_index_local_files(jarvis_app, entities, **kwargs):
+    """将本地文件或目录索引到知识库以供后续查询。"""
+    path = entities.get("path")
+    kb_name = entities.get("kb_name", "default")
+    if not path:
+        jarvis_app.speak("请提供要索引的文件或目录路径。")
+        return
+
+    if not os.path.exists(path):
+        jarvis_app.speak(f"找不到路径: {path}")
+        return
+
+    def run_index():
+        try:
+            from package import knowledge_base_manager
+            operation = "index_dir" if os.path.isdir(path) else "index_file"
+            param = "dir_path" if operation == "index_dir" else "file_path"
+
+            jarvis_app.ui_print(f"开始索引 {path}，这可能需要一点时间...")
+            result = knowledge_base_manager.run(operation=operation, kb_name=kb_name, **{param: path})
+            jarvis_app.speak(result)
+        except Exception as e:
+            jarvis_app.speak(f"索引过程中出错: {e}")
+
+    # 开启线程执行，避免阻塞 UI
+    threading.Thread(target=run_index, daemon=True).start()
