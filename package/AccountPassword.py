@@ -1,522 +1,436 @@
+"""
+🔐 账号密码管理器 (AccountPassword)
+提供安全的账号密码存储、自动登录和强密码生成功能。
+采用主密码加密机制，所有数据均通过 AES-256 进行本地加密存储。
+"""
+
 import sqlite3
 import pyautogui
 import time
 import sys
 import os
 import re
+import csv
+import threading
 from getpass import getpass
 import bcrypt
+import pyperclip
 from package.log_manager import LogManager
-import pyperclip  # 新增剪贴板功能
+from package.crypto_core import SymmetricCrypto
 
+# 初始化日志
 logging = LogManager.get_logger(__name__)
 
-# 初始化数据库连接
-conn = sqlite3.connect('account_manager.db', check_same_thread=False)
-cursor = conn.cursor()
+class AccountManager:
+    # 数据库存储路径，符合系统惯例
+    DB_PATH = os.path.join("data", "system_data", "account_manager.db")
 
-# 创建用户表结构，添加 website 字段
-cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY,
-                    username TEXT UNIQUE NOT NULL,
-                    password TEXT NOT NULL,
-                    category TEXT NOT NULL,
-                    website TEXT NOT NULL,
-                    notes TEXT DEFAULT ''
-                 )''')
-conn.commit()
+    def __init__(self):
+        os.makedirs(os.path.dirname(self.DB_PATH), exist_ok=True)
+        self.conn = sqlite3.connect(self.DB_PATH, check_same_thread=False)
+        self.cursor = self.conn.cursor()
+        self._init_db()
+        self.master_key = None
 
-# 自动登录功能
-def auto_login():
-    cursor.execute("SELECT id, username, category, website FROM users")
-    accounts = cursor.fetchall()
+        # 获取或生成加密盐（用于 PBKDF2 派生 AES 密钥）
+        salt_hex = self._get_config("encryption_salt")
+        if not salt_hex:
+            self.encryption_salt = os.urandom(16)
+            self._set_config("encryption_salt", self.encryption_salt.hex())
+        else:
+            self.encryption_salt = bytes.fromhex(salt_hex)
 
-    if accounts:
-        print("\n" + "="*50)
-        print("可用账号列表:")
-        print("-"*50)
-        for i, account in enumerate(accounts):
-            print(f"{i+1}. {account[1]} [{account[2]}] - {account[3]}")
-        print("="*50 + "\n")
+    def _init_db(self):
+        """初始化数据库表结构"""
+        # 配置表
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS config (
+                                name TEXT PRIMARY KEY,
+                                value TEXT
+                             )''')
+        # 账号表
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS accounts (
+                                id INTEGER PRIMARY KEY,
+                                username TEXT NOT NULL,
+                                password_encrypted TEXT NOT NULL,
+                                iv TEXT NOT NULL,
+                                category TEXT NOT NULL,
+                                website TEXT NOT NULL,
+                                notes TEXT DEFAULT '',
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                             )''')
+        self.conn.commit()
 
-        choice = input("请输入要自动登录的账号编号 (0返回主菜单): ")
+    def _get_config(self, name):
+        self.cursor.execute("SELECT value FROM config WHERE name = ?", (name,))
+        result = self.cursor.fetchone()
+        return result[0] if result else None
 
-        if choice.strip() == "" or choice == "0":
-            return False  # 用户跳过自动登录
+    def _set_config(self, name, value):
+        self.cursor.execute("INSERT OR REPLACE INTO config (name, value) VALUES (?, ?)", (name, value))
+        self.conn.commit()
+
+    def authenticate(self):
+        """验证主密码或引导设置主密码"""
+        master_hash = self._get_config("master_hash")
+        if not master_hash:
+            print("\n" + "="*50)
+            print("首次运行：请设置主密码 (Master Password)")
+            print("⚠️ 请务必记住该密码，丢失后无法找回加密的账号！")
+            print("="*50)
+            while True:
+                p1 = getpass("设置主密码 (至少8位): ")
+                if len(p1) < 8:
+                    print("❌ 密码太短，请至少输入8位")
+                    continue
+                p2 = getpass("请再次输入以确认: ")
+                if p1 != p2:
+                    print("❌ 两次输入不一致")
+                    continue
+                break
+
+            # 使用 bcrypt 哈希存储主密码，用于身份验证
+            hashed = bcrypt.hashpw(p1.encode('utf-8'), bcrypt.gensalt())
+            self._set_config("master_hash", hashed.decode('utf-8'))
+            # 派生 AES 密钥
+            self.master_key = SymmetricCrypto.derive_key(p1, self.encryption_salt)
+            print("✅ 主密码设置成功！")
+            return True
+        else:
+            print("\n" + "="*50)
+            print("🔐 请输入主密码以解锁管理器")
+            print("="*50)
+            for i in range(3):
+                p = getpass("主密码: ")
+                if bcrypt.checkpw(p.encode('utf-8'), master_hash.encode('utf-8')):
+                    self.master_key = SymmetricCrypto.derive_key(p, self.encryption_salt)
+                    print("✅ 解锁成功")
+                    return True
+                else:
+                    print(f"❌ 密码错误 (剩余尝试次数: {2-i})")
+            print("❌ 尝试次数过多，程序退出。")
+            return False
+
+    def _encrypt(self, plaintext):
+        iv, ct = SymmetricCrypto.encrypt_data(plaintext, self.master_key)
+        return iv, ct
+
+    def _decrypt(self, iv, ct):
+        try:
+            return SymmetricCrypto.decrypt_data(iv, ct, self.master_key)
+        except Exception as e:
+            logging.error(f"解密失败: {e}")
+            return None
+
+    def check_password_strength(self, password):
+        """检查密码强度"""
+        if len(password) < 8: return "弱 (长度不够)"
+        if not re.search(r"\d", password): return "中 (缺少数字)"
+        if not re.search(r"[a-z]", password) or not re.search(r"[A-Z]", password): return "中 (缺少大小写混合)"
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password): return "强 (建议添加特殊字符)"
+        return "极强"
+
+    def generate_password(self, length=16):
+        """生成随机强密码"""
+        import string
+        import random
+        chars = string.ascii_letters + string.digits + string.punctuation
+        return ''.join(random.choice(chars) for _ in range(length))
+
+    def create_account(self):
+        print("\n--- 创建新账号 ---")
+        username = input("用户名: ")
+
+        while True:
+            choice = input("是否生成强密码? (y/n, 默认n): ").lower()
+            if choice == 'y':
+                password = self.generate_password()
+                print(f"生成的密码: {password}")
+                confirm = input("使用此密码? (y/n): ").lower()
+                if confirm != 'y': continue
+            else:
+                password = getpass("请输入密码: ")
+                strength = self.check_password_strength(password)
+                print(f"密码强度: {strength}")
+                if len(password) < 8:
+                    print("❌ 密码太短，请重试")
+                    continue
+            break
+            
+        category = input("分类 (如 社交/工作/银行): ")
+        website = input("网站/应用地址 (URL): ")
+        notes = input("备注 (可选): ")
+
+        iv, ct = self._encrypt(password)
 
         try:
-            account_id = accounts[int(choice) - 1][0]  # 获取选择的账号ID
-        except (ValueError, IndexError):
-            print("⚠️ 无效的选择，请重试。")
-            return False  # 无效选择后跳过自动登录
+            self.cursor.execute("INSERT INTO accounts (username, password_encrypted, iv, category, website, notes) VALUES (?, ?, ?, ?, ?, ?)",
+                               (username, ct, iv, category, website, notes))
+            self.conn.commit()
+            print("✅ 账号信息已安全加密保存")
+        except Exception as e:
+            print(f"❌ 保存失败: {e}")
 
-        cursor.execute("SELECT username, password, website FROM users WHERE id = ?", (account_id,))
-        user = cursor.fetchone()
+    def view_accounts(self, search_term=None):
+        query = "SELECT id, username, category, website FROM accounts"
+        params = []
+        if search_term:
+            query += " WHERE username LIKE ? OR category LIKE ? OR website LIKE ?"
+            like_term = f"%{search_term}%"
+            params = [like_term, like_term, like_term]
 
-        if user:
-            username, hashed_password, website = user
-            
-            # 显示登录提示
-            print(f"\n即将登录: {username} @ {website}")
-            print("请确保:")
-            print("1. 浏览器窗口已打开并位于前台")
-            print("2. 焦点在登录页面的用户名输入框")
-            print("3. 等待5秒后开始自动输入...")
-            time.sleep(5)
-            
-            password = getpass(f"请输入密码以自动登录 (或按Enter跳过): ")
-            
+        self.cursor.execute(query, params)
+        accounts = self.cursor.fetchall()
+        if not accounts:
+            print("ℹ️ 未找到匹配的账号记录")
+            return
+
+        print("\n" + "-"*75)
+        print(f"{'ID':<5}{'用户名':<20}{'分类':<15}{'网站':<30}")
+        print("-"*75)
+        for acc in accounts:
+            print(f"{acc[0]:<5}{acc[1]:<20}{acc[2]:<15}{acc[3]:<30}")
+        print("-"*75)
+
+        choice = input("\n输入ID查看详情 (或按Enter返回主菜单): ")
+        if choice.isdigit():
+            self.cursor.execute("SELECT username, password_encrypted, iv, category, website, notes FROM accounts WHERE id=?", (choice,))
+            acc = self.cursor.fetchone()
+            if acc:
+                print("\n" + "="*30)
+                print(f"用户名: {acc[0]}")
+                print(f"分类: {acc[3]}")
+                print(f"网站: {acc[4]}")
+                print(f"备注: {acc[5]}")
+                print("="*30)
+                
+                print("\n操作: [1] 复制密码 [2] 显示密码 [Enter] 返回")
+                op = input("> ")
+                password = self._decrypt(acc[2], acc[1])
+                if not password:
+                    print("❌ 无法解密密码，可能密钥已损坏。")
+                    return
+
+                if op == '1':
+                    pyperclip.copy(password)
+                    print("✅ 密码已复制到剪贴板，10秒后将自动清除...")
+                    def delayed_clear():
+                        time.sleep(10)
+                        pyperclip.copy("")
+                    threading.Thread(target=delayed_clear, daemon=True).start()
+                elif op == '2':
+                    print(f"🔑 密码: {password}")
+                    input("\n按回车键隐藏并返回...")
+            else:
+                print("❌ 未找到该ID")
+
+    def auto_login(self):
+        self.cursor.execute("SELECT id, username, website FROM accounts")
+        accounts = self.cursor.fetchall()
+        if not accounts:
+            print("ℹ️ 暂无账号记录，请先创建。")
+            return
+
+        print("\n可用登录账号列表:")
+        for i, acc in enumerate(accounts):
+            print(f"{i+1}. {acc[1]} (@ {acc[2]})")
+
+        choice = input("\n选择编号进行自动登录 (或按Enter返回): ")
+        if choice.isdigit() and 0 < int(choice) <= len(accounts):
+            acc_id = accounts[int(choice)-1][0]
+            self.cursor.execute("SELECT username, password_encrypted, iv, website FROM accounts WHERE id=?", (acc_id,))
+            username, ct, iv, website = self.cursor.fetchone()
+            password = self._decrypt(iv, ct)
             if not password:
-                print("已跳过自动登录")
-                return False
+                print("❌ 解密失败，无法自动登录")
+                return
 
-            # 验证密码
-            if bcrypt.checkpw(password.encode('utf-8'), hashed_password):
-                print(f"\n🚀 自动登录 {username} 到 {website}...")
-                
-                # 记录日志
-                logging.info(f"用户 {username} 登录了网站 {website}")
-                
-                # 更可靠的输入方式
+            print(f"\n🚀 准备登录: {username} @ {website}")
+            print("⚠️ 重要: 请在5秒内将鼠标焦点点击到目标页面的用户名输入框中！")
+            for i in range(5, 0, -1):
+                print(f"{i}...", end=" ", flush=True)
+                time.sleep(1)
+            print("\n正在模拟键盘输入...")
+
+            try:
+                # 模拟输入
                 pyautogui.write(username, interval=0.05)
                 pyautogui.press('tab')
                 pyautogui.write(password, interval=0.05)
                 pyautogui.press('enter')
-                
-                print("\n✅ 登录操作已完成，程序将在5秒后退出...")
-                time.sleep(5)
-                sys.exit()  # 登录完成后退出程序
-            else:
-                print("🔒 密码错误，无法自动登录。")
-                return False  # 密码错误后跳过自动登录
+                print("✅ 登录指令已发出。")
+                logging.info(f"Auto-login triggered for {username} on {website}")
+            except Exception as e:
+                print(f"❌ 模拟输入时出错: {e}")
+        elif choice != "":
+            print("❌ 无效选择")
+
+    def delete_account(self):
+        username = input("请输入要删除的用户名: ")
+        self.cursor.execute("SELECT id FROM accounts WHERE username=?", (username,))
+        row = self.cursor.fetchone()
+        if row:
+            confirm = input(f"⚠️ 警告: 确定要永久删除账号 '{username}' 吗? (y/n): ").lower()
+            if confirm == 'y':
+                self.cursor.execute("DELETE FROM accounts WHERE id=?", (row[0],))
+                self.conn.commit()
+                print(f"✅ 账号 '{username}' 已被移除")
         else:
-            print("❌ 无法找到指定用户。")
-            return False  # 用户未找到后跳过自动登录
-    else:
-        print("ℹ️ 没有找到任何账号，无法自动登录。")
-        return False  # 没有账号时跳过自动登录
+            print("❌ 未找到该用户")
 
-# 创建新账号
-def create_account():
-    logging.info("Attempting to create a new account")
-    print("\n" + "="*50)
-    print("创建新账号")
-    print("="*50)
-    
-    while True:
-        username = input("请输入用户名 (至少3个字符): ")
+    def update_account(self):
+        username = input("请输入要修改的用户名: ")
+        self.cursor.execute("SELECT id, category, website, notes FROM accounts WHERE username=?", (username,))
+        row = self.cursor.fetchone()
+        if not row:
+            print("❌ 未找到该用户")
+            return
+            
+        acc_id, cat, web, note = row
+        print(f"\n当前信息 - 分类: {cat}, 网站: {web}, 备注: {note}")
         
-        if len(username) < 3:
-            print("❌ 用户名长度必须大于3个字符")
-            continue
-            
-        # 检查用户名是否已存在
-        cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
-        if cursor.fetchone():
-            print("❌ 用户名已存在，请选择其他用户名")
-            continue
-            
-        break
-    
-    while True:
-        password = getpass("请输入密码 (至少8个字符): ")
+        new_cat = input(f"新分类 (直接回车保持不变): ") or cat
+        new_web = input(f"新网站 (直接回车保持不变): ") or web
+        new_note = input(f"新备注 (直接回车保持不变): ") or note
         
-        if len(password) < 8:
-            print("❌ 密码长度必须至少8个字符")
-            continue
-            
-        confirm_password = getpass("请再次输入密码: ")
-        
-        if password != confirm_password:
-            print("❌ 两次输入的密码不一致")
-            continue
-            
-        break
-    
-    # 对密码进行加密
-    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-    
-    category = input("请输入账号分类 (如: 社交媒体/工作/娱乐): ")
-    
-    while True:
-        website = input("请输入网站地址 (如 https://example.com): ")
-        # 简单的URL验证
-        if not re.match(r'https?://.+', website):
-            print("⚠️ 网址格式可能不正确，建议以http://或https://开头")
-            choice = input("是否继续? (y/n): ").lower()
-            if choice != 'y':
-                continue
-        break
-    
-    notes = input("请输入备注信息 (可选): ")
+        if input("是否需要更改密码? (y/n): ").lower() == 'y':
+            new_pwd = getpass("输入新密码: ")
+            iv, ct = self._encrypt(new_pwd)
+            self.cursor.execute("UPDATE accounts SET category=?, website=?, notes=?, password_encrypted=?, iv=? WHERE id=?",
+                               (new_cat, new_web, new_note, ct, iv, acc_id))
+        else:
+            self.cursor.execute("UPDATE accounts SET category=?, website=?, notes=? WHERE id=?",
+                               (new_cat, new_web, new_note, acc_id))
+        self.conn.commit()
+        print("✅ 信息已成功更新")
 
-    try:
-        cursor.execute("INSERT INTO users (username, password, category, website, notes) VALUES (?, ?, ?, ?, ?)", 
-                       (username, hashed_password, category, website, notes))
-        conn.commit()
-        print("\n✅ 账号创建成功!")
-        print(f"用户名: {username}")
-        print(f"分类: {category}")
-        print(f"网站: {website}")
-    except sqlite3.IntegrityError:
-        print("❌ 创建账号时发生错误")
-
-# 修改密码
-def change_password():
-    logging.info("Attempting to change a password")
-    print("\n" + "="*50)
-    print("修改密码")
-    print("="*50)
-    
-    username = input("请输入用户名: ")
-    cursor.execute("SELECT id, password FROM users WHERE username = ?", (username,))
-    user = cursor.fetchone()
-
-    if user:
-        user_id, hashed_password = user
-        
-        # 验证当前密码
-        current_password = getpass("请输入当前密码: ")
-        if not bcrypt.checkpw(current_password.encode('utf-8'), hashed_password):
-            print("❌ 当前密码错误")
+    def change_master_password(self):
+        print("\n--- 修改主密码 (数据重加密) ---")
+        p_current = getpass("请输入当前主密码: ")
+        master_hash = self._get_config("master_hash")
+        if not bcrypt.checkpw(p_current.encode('utf-8'), master_hash.encode('utf-8')):
+            print("❌ 验证失败，无法修改主密码")
             return
             
         while True:
-            new_password = getpass("请输入新密码 (至少8个字符): ")
-            if len(new_password) < 8:
-                print("❌ 密码长度必须至少8个字符")
+            p1 = getpass("设置新主密码 (至少8位): ")
+            if len(p1) < 8:
+                print("❌ 密码太短")
                 continue
-                
-            confirm_password = getpass("请再次输入新密码: ")
-            if new_password != confirm_password:
-                print("❌ 两次输入的密码不一致")
+            p2 = getpass("请再次输入以确认: ")
+            if p1 != p2:
+                print("❌ 两次输入不一致")
                 continue
-                
             break
             
-        new_hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
-        cursor.execute("UPDATE users SET password = ? WHERE id = ?", (new_hashed_password, user_id))
-        conn.commit()
-        print(f"\n✅ {username} 的密码修改成功!")
-    else:
-        print("❌ 未找到指定用户名")
-
-# 修改账号信息
-def update_account():
-    logging.info("Attempting to update an account")
-    print("\n" + "="*50)
-    print("修改账号信息")
-    print("="*50)
-    
-    username = input("请输入要修改的用户名: ")
-    cursor.execute("SELECT id, category, website, notes FROM users WHERE username = ?", (username,))
-    user = cursor.fetchone()
-
-    if user:
-        user_id, current_category, current_website, current_notes = user
+        # 重新加密所有账号数据
+        self.cursor.execute("SELECT id, password_encrypted, iv FROM accounts")
+        all_accounts = self.cursor.fetchall()
         
-        print(f"\n当前信息:")
-        print(f"1. 分类: {current_category}")
-        print(f"2. 网站: {current_website}")
-        print(f"3. 备注: {current_notes}")
-        print(f"4. 返回")
+        new_master_key = SymmetricCrypto.derive_key(p1, self.encryption_salt)
         
-        while True:
-            choice = input("\n请选择要修改的项目 (1-4): ")
-            
-            if choice == '1':
-                new_category = input("请输入新的账号分类: ")
-                cursor.execute("UPDATE users SET category = ? WHERE id = ?", (new_category, user_id))
-                conn.commit()
-                print("✅ 分类修改成功!")
+        print("正在重新加密所有数据，请勿关闭程序...")
+        try:
+            for acc_id, ct, iv in all_accounts:
+                old_pwd = self._decrypt(iv, ct)
+                if old_pwd is None: continue
                 
-            elif choice == '2':
-                new_website = input("请输入新的网站地址: ")
-                cursor.execute("UPDATE users SET website = ? WHERE id = ?", (new_website, user_id))
-                conn.commit()
-                print("✅ 网站地址修改成功!")
+                # 临时替换密钥进行加密
+                orig_key = self.master_key
+                self.master_key = new_master_key
+                new_iv, new_ct = self._encrypt(old_pwd)
+                self.master_key = orig_key
                 
-            elif choice == '3':
-                new_notes = input("请输入新的备注: ")
-                cursor.execute("UPDATE users SET notes = ? WHERE id = ?", (new_notes, user_id))
-                conn.commit()
-                print("✅ 备注修改成功!")
-                
-            elif choice == '4':
-                break
-                
-            else:
-                print("❌ 无效选择")
-    else:
-        print("❌ 未找到指定用户名")
-
-# 复制密码到剪贴板
-def copy_password():
-    logging.info("Attempting to copy a password")
-    print("\n" + "="*50)
-    print("复制密码")
-    print("="*50)
-    
-    username = input("请输入用户名: ")
-    cursor.execute("SELECT password FROM users WHERE username = ?", (username,))
-    result = cursor.fetchone()
-    
-    if result:
-        hashed_password = result[0]
-        password = getpass("请输入密码以验证: ")
-        
-        if bcrypt.checkpw(password.encode('utf-8'), hashed_password):
-            # 解密并复制到剪贴板
-            pyperclip.copy(password)
-            print("\n✅ 密码已复制到剪贴板，10秒后自动清除...")
+                self.cursor.execute("UPDATE accounts SET password_encrypted=?, iv=? WHERE id=?", (new_ct, new_iv, acc_id))
             
-            # 10秒后清除剪贴板
-            time.sleep(10)
-            pyperclip.copy('')
-            print("剪贴板已清除")
-        else:
-            print("❌ 密码错误")
-    else:
-        print("❌ 未找到指定用户名")
+            # 更新主密码哈希
+            new_hashed = bcrypt.hashpw(p1.encode('utf-8'), bcrypt.gensalt())
+            self._set_config("master_hash", new_hashed.decode('utf-8'))
+            self.master_key = new_master_key
+            self.conn.commit()
+            print("✅ 主密码修改成功，所有本地数据已完成重加密")
+        except Exception as e:
+            self.conn.rollback()
+            print(f"❌ 修改失败: {e}")
+            logging.error(f"Master password change failed: {e}")
 
-# 删除指定的账号
-def delete_account():
-    logging.info("Attempting to delete an account")
-    print("\n" + "="*50)
-    print("删除账号")
-    print("="*50)
-    
-    username = input("请输入要删除的用户名: ")
-    cursor.execute("SELECT id, password FROM users WHERE username = ?", (username,))
-    user = cursor.fetchone()
-
-    if user:
-        user_id, hashed_password = user
-        password = getpass("请输入密码以确认删除: ")
-
-        if bcrypt.checkpw(password.encode('utf-8'), hashed_password):
-            confirm = input(f"⚠️ 确定要永久删除 {username} 吗? (y/n): ").lower()
-            if confirm == 'y':
-                cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
-                conn.commit()
-                print(f"✅ 账号 {username} 已成功删除。")
-        else:
-            print("❌ 密码错误")
-    else:
-        print("❌ 未找到指定用户名")
-
-# 查看账号
-def view_accounts():
-    logging.info("Viewing accounts")
-    print("\n" + "="*50)
-    print("查看账号")
-    print("="*50)
-    print("1. 查看所有账号")
-    print("2. 按分类查看")
-    print("3. 搜索账号")
-    print("4. 返回")
-    
-    choice = input("请选择查看方式: ")
-    
-    if choice == '1':
-        cursor.execute("SELECT id, username, category, website FROM users")
-        accounts = cursor.fetchall()
+    def export_accounts(self):
+        print("\n⚠️ 注意: 导出文件将包含明文密码，请在安全的环境下操作。")
+        filename = input("请输入导出文件名 (默认 accounts_export.csv): ") or "accounts_export.csv"
         
-        if accounts:
-            print("\n" + "-"*70)
-            print(f"{'ID':<5}{'用户名':<20}{'分类':<15}{'网站':<30}")
-            print("-"*70)
-            for account in accounts:
-                print(f"{account[0]:<5}{account[1]:<20}{account[2]:<15}{account[3]:<30}")
-            print("-"*70 + "\n")
-        else:
-            print("ℹ️ 没有找到任何账号")
-            
-    elif choice == '2':
-        category = input("请输入要查看的分类: ")
-        cursor.execute("SELECT username, website FROM users WHERE category = ?", (category,))
-        accounts = cursor.fetchall()
+        self.cursor.execute("SELECT username, category, website, notes, password_encrypted, iv FROM accounts")
+        rows = self.cursor.fetchall()
         
-        if accounts:
-            print(f"\n分类 '{category}' 下的账号:")
-            print("-"*50)
-            for account in accounts:
-                print(f"用户名: {account[0]}")
-                print(f"网站: {account[1]}")
-                print("-"*50)
-        else:
-            print(f"ℹ️ 分类 '{category}' 下没有找到账号")
-            
-    elif choice == '3':
-        search_term = input("请输入搜索关键词: ")
-        cursor.execute("SELECT username, category, website FROM users WHERE username LIKE ? OR website LIKE ? OR category LIKE ?", 
-                      (f'%{search_term}%', f'%{search_term}%', f'%{search_term}%'))
-        accounts = cursor.fetchall()
-        
-        if accounts:
-            print("\n搜索结果:")
-            print("-"*50)
-            for account in accounts:
-                print(f"用户名: {account[0]}")
-                print(f"分类: {account[1]}")
-                print(f"网站: {account[2]}")
-                print("-"*50)
-        else:
-            print("ℹ️ 没有找到匹配的账号")
+        try:
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(['用户名', '明文密码', '分类', '网站', '备注'])
+                for r in rows:
+                    pwd = self._decrypt(r[5], r[4])
+                    writer.writerow([r[0], pwd, r[1], r[2], r[3]])
+            print(f"✅ 成功导出到: {os.path.abspath(filename)}")
+        except Exception as e:
+            print(f"❌ 导出失败: {e}")
 
-# 导出账号数据
-def export_accounts():
-    logging.info("Exporting accounts")
-    print("\n" + "="*50)
-    print("导出账号数据")
-    print("="*50)
-    
-    filename = input("请输入导出文件名 (默认为 accounts_export.csv): ") or "accounts_export.csv"
-    
-    try:
-        cursor.execute("SELECT username, category, website, notes FROM users")
-        accounts = cursor.fetchall()
-        
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write("用户名,分类,网站,备注\n")
-            for account in accounts:
-                f.write(f"{account[0]},{account[1]},{account[2]},{account[3]}\n")
-        
-        print(f"✅ 账号数据已导出到 {filename}")
-        print(f"文件路径: {os.path.abspath(filename)}")
-    except Exception as e:
-        print(f"❌ 导出失败: {str(e)}")
+    def close(self):
+        if self.conn:
+            self.conn.close()
 
-# 生成强密码
-def generate_password():
-    logging.info("Generating a new password")
-    print("\n" + "="*50)
-    print("生成强密码")
-    print("="*50)
-    
-    import random
-    import string
-    
-    length = input("请输入密码长度 (默认12): ") or 12
-    try:
-        length = int(length)
-        if length < 8:
-            length = 8
-    except:
-        length = 12
-        
-    chars = string.ascii_letters + string.digits + string.punctuation
-    password = ''.join(random.choice(chars) for _ in range(length))
-    
-    print(f"\n生成的密码: {password}")
-    pyperclip.copy(password)
-    print("✅ 密码已复制到剪贴板")
-
-# 处理用户选择
-def process_choice(choice):
-    choice = choice.lower()
-    
-    if choice in ['登录', 'login']:
-        auto_login()
-    elif choice in ['创建', 'create', 'new']:
-        create_account()
-    elif choice in ['修改密码', 'changepass']:
-        change_password()
-    elif choice in ['修改', 'update', 'edit']:
-        update_account()
-    elif choice in ['复制密码', 'copy']:
-        copy_password()
-    elif choice in ['删除', 'delete', 'remove']:
-        delete_account()
-    elif choice in ['查看', 'view', 'list']:
-        view_accounts()
-    elif choice in ['导出', 'export']:
-        export_accounts()
-    elif choice in ['生成密码', 'generate']:
-        generate_password()
-    elif choice in ['退出', 'exit', 'quit']:
-        print("👋 退出程序。")
-        sys.exit()
-    else:
-        print("⚠️ 无效的选择，请重试。")
-
-# 显示主菜单
 def display_menu():
     print("\n" + "="*50)
-    print("🔐 账号密码管理器")
+    print("🔐 账号密码管理器 (AccountManager V2.0)")
     print("="*50)
-    print("1. 自动登录账号")
-    print("2. 创建新账号")
-    print("3. 修改密码")
-    print("4. 修改账号信息")
-    print("5. 复制密码到剪贴板")
-    print("6. 删除账号")
-    print("7. 查看账号")
-    print("8. 导出账号数据")
-    print("9. 生成强密码")
-    print("0. 退出程序")
+    print(" 1. 自动登录 (模拟键盘输入)")
+    print(" 2. 查看/复制账号 (包含搜索)")
+    print(" 3. 创建新账号 (支持随机强密码)")
+    print(" 4. 修改账号信息")
+    print(" 5. 删除已有账号")
+    print(" 6. 修改主密码 (数据重加密)")
+    print(" 7. 导出账号数据 (CSV)")
+    print(" 8. 生成随机强密码")
+    print(" 0. 退出程序")
     print("="*50)
 
-# 主菜单
-def AccountPassword():
-    logging.info("AccountPassword tool started")
-    while True:
-        display_menu()
-        choice = input("请选择操作 (0-9): ")
+def run(*args, **kwargs):
+    """Butler 系统扩展调用入口"""
+    manager = AccountManager()
+    try:
+        if not manager.authenticate():
+            return
 
-        # 语音控制选项
-        if choice == '语音控制':
-            print("\n🎤 请说出您的命令...")
-            command = takecommand()
-            if command:
-                print(f"识别到的命令: {command}")
-                process_choice(command)
-            else:
-                print("❌ 未识别到命令")
-            continue
-        
-        # 文字输入处理
-        try:
-            choice = int(choice)
-        except ValueError:
-            print("⚠️ 请输入有效数字")
-            continue
+        while True:
+            display_menu()
+            choice = input("请选择操作 (0-8): ")
             
-        if choice == 0:
-            print("👋 退出程序。")
-            sys.exit()
-        elif choice == 1:
-            auto_login()
-        elif choice == 2:
-            create_account()
-        elif choice == 3:
-            change_password()
-        elif choice == 4:
-            update_account()
-        elif choice == 5:
-            copy_password()
-        elif choice == 6:
-            delete_account()
-        elif choice == 7:
-            view_accounts()
-        elif choice == 8:
-            export_accounts()
-        elif choice == 9:
-            generate_password()
-        else:
-            print("⚠️ 无效的选择，请重试。")
+            if choice == '0':
+                print("👋 已安全退出管理器")
+                break
+            elif choice == '1':
+                manager.auto_login()
+            elif choice == '2':
+                search = input("输入关键词搜索 (直接回车查看全部): ")
+                manager.view_accounts(search)
+            elif choice == '3':
+                manager.create_account()
+            elif choice == '4':
+                manager.update_account()
+            elif choice == '5':
+                manager.delete_account()
+            elif choice == '6':
+                manager.change_master_password()
+            elif choice == '7':
+                manager.export_accounts()
+            elif choice == '8':
+                length = input("密码长度 (默认16): ") or 16
+                pwd = manager.generate_password(int(length) if str(length).isdigit() else 16)
+                print(f"\n生成的随机强密码: {pwd}")
+                pyperclip.copy(pwd)
+                print("✅ 已复制到剪贴板")
+            else:
+                print("⚠️ 无效选择，请重新输入")
+    except KeyboardInterrupt:
+        print("\n👋 强制退出")
+    finally:
+        manager.close()
 
-# 程序启动时尝试自动登录
-try:
-    print("="*50)
-    print("🔐 正在启动账号密码管理器...")
-    print("="*50)
-    
-    # 创建必要的目录
-    os.makedirs("exports", exist_ok=True)
-    
-    if not auto_login():  # 如果自动登录失败或跳过，启动主菜单
-        AccountPassword()
-finally:
-    conn.close()  # 确保数据库连接在程序结束时关闭
-    print("✅ 数据库连接已关闭")
+if __name__ == "__main__":
+    run()
