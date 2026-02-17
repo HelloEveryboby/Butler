@@ -49,7 +49,10 @@
 
 1.  **安装所有预设依赖**：
     ```bash
-    # 如果已下载 runtime，推荐使用它来运行安装命令
+    # Windows (如果已下载 runtime)
+    runtime\python.exe -m package.dependency_manager install_all
+
+    # Linux/macOS (如果已下载 runtime)
     ./runtime/bin/python3 -m package.dependency_manager install_all
     ```
 

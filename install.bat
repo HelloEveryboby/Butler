@@ -2,6 +2,10 @@
 setlocal
 
 echo Starting Butler installation...
+
+REM Change directory to the script's location
+cd /d "%~dp0"
+
 echo This script will guide you through the setup process.
 echo -----------------------------------------------------
 

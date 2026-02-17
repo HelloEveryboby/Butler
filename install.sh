@@ -3,6 +3,11 @@
 # A script to automate the installation and configuration of the Butler assistant.
 
 echo "Starting Butler installation..."
+
+# Get the directory where the script is located and change to it
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+cd "$DIR"
+
 echo "This script will guide you through the setup process."
 echo "-----------------------------------------------------"
 
