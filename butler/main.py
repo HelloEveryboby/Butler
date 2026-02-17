@@ -36,6 +36,10 @@ from plugin.long_memory.long_memory_interface import LongMemoryItem
 from butler.core.intent_dispatcher import intent_registry
 from butler.core import legacy_commands # Ensure legacy intents are registered
 
+# Import new gateways
+from butler.web_server import WebGateway
+from package.mqtt_gateway import MQTTGateway
+
 class Jarvis:
     def __init__(self, root, usb_screen=None):
         self.root = root
@@ -56,6 +60,10 @@ class Jarvis:
         self.nlu_service = NLUService(os.getenv("DEEPSEEK_API_KEY"), self.prompts)
         self.voice_service = VoiceService(self.handle_user_command, self.ui_print)
         self.interpreter = Interpreter()
+
+        # Initialize Gateways for Cross-Platform use (Mobile, PCB, etc.)
+        self.web_gateway = WebGateway(self)
+        self.mqtt_gateway = MQTTGateway(self)
         
     def _load_json_resource(self, filename):
         path = os.path.join(os.path.dirname(__file__), filename)
@@ -99,6 +107,10 @@ class Jarvis:
                 self.panel.append_to_history(message, tag)
         if self.display_mode in ('usb', 'both') and self.usb_screen:
             self.usb_screen.display(message, clear_screen=True)
+
+        # Push to Web Clients (Mobile)
+        if tag == 'ai_response' or not tag:
+             self.web_gateway.notify_ai_response(message)
 
     def speak(self, text):
         """朗读给定的文本并在 UI 中打印。"""
@@ -204,6 +216,15 @@ class Jarvis:
             self.display_mode = payload
         elif command_type == "manual_action":
             self._handle_manual_action(payload)
+        elif command_type == "voice":
+            if self.voice_service.is_listening:
+                self.voice_service.stop_listening()
+                self.ui_print("语音聆听已停止。")
+            else:
+                self.voice_service.start_listening()
+                self.ui_print("语音聆听已开启...")
+            if self.panel:
+                self.panel.update_listen_button_state(self.voice_service.is_listening)
 
     def _handle_manual_action(self, payload):
         """处理来自 UI 的手动操作。"""
@@ -249,7 +270,14 @@ class Jarvis:
 
     def main(self):
         self._cleanup_temp_files()
-        self.voice_service.start_listening()
+
+        # Start Gateways
+        threading.Thread(target=self.web_gateway.start, kwargs={'host': '0.0.0.0', 'port': 5000}, daemon=True).start()
+        self.mqtt_gateway.start()
+
+        # Optional: Start voice listening on startup
+        # self.voice_service.start_listening()
+
         self.speak("Jarvis 已启动并就绪")
 
     def _cleanup_temp_files(self):
