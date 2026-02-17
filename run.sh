@@ -19,8 +19,20 @@ if [ ! -f ".env" ]; then
   ./install.sh
 fi
 
+# Detect and use portable runtime if available
+PYTHON_CMD="python3"
+if [ -f "./runtime/bin/python3" ]; then
+    PYTHON_CMD="./runtime/bin/python3"
+    echo "Using portable Python runtime (Linux)."
+    export PYTHONPATH=$PYTHONPATH:.
+elif [ -f "./runtime/python" ]; then
+    PYTHON_CMD="./runtime/python"
+    echo "Using portable Python runtime (Darwin/Generic)."
+    export PYTHONPATH=$PYTHONPATH:.
+fi
+
 # Run the main application using the python module flag
 echo "Launching main application..."
-python -m butler.main
+$PYTHON_CMD -m butler.main
 
 echo "Application closed."

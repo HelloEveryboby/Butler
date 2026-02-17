@@ -2,6 +2,10 @@
 setlocal
 
 echo Starting Butler installation...
+
+REM Change directory to the script's location
+cd /d "%~dp0"
+
 echo This script will guide you through the setup process.
 echo -----------------------------------------------------
 
@@ -28,14 +32,45 @@ echo pip found.
 echo -----------------------------------------------------
 
 REM --- Install Python packages ---
-echo Step 2: Installing Python dependencies from setup.py...
-pip install .
-if %errorlevel% neq 0 (
-    echo Error: Failed to install Python dependencies. Please check the output above for errors.
-    pause
-    exit /b 1
+echo Step 2: Installing Python dependencies...
+
+echo Choose Installation Mode:
+echo 1) Standard (System Python/venv)
+echo 2) Portable (External Libs only)
+echo 3) Full Portable (Portable Python Runtime + External Libs)
+set /p install_mode="Select mode (1/2/3): "
+
+if "%install_mode%"=="3" (
+    echo Setting up portable Python runtime...
+    python -m package.dependency_manager setup_runtime
+
+    echo Installing dependencies to lib_external (using system pip)...
+    python -m package.dependency_manager install_all
+    if %errorlevel% neq 0 (
+        echo Error: Failed to install local dependencies.
+        pause
+        exit /b 1
+    )
+    echo Full Portable setup complete.
+) else if "%install_mode%"=="2" (
+    echo Installing dependencies to lib_external...
+    python -m package.dependency_manager install_all
+    if %errorlevel% neq 0 (
+        echo Error: Failed to install local dependencies.
+        pause
+        exit /b 1
+    )
+    echo Local dependencies installed successfully.
+) else (
+    echo Installing dependencies globally/in venv from setup.py...
+    pip install .
+    if %errorlevel% neq 0 (
+        echo Error: Failed to install Python dependencies. Please check the output above for errors.
+        pause
+        exit /b 1
+    )
+    echo Python dependencies installed successfully.
 )
-echo Python dependencies installed successfully.
 
 echo -----------------------------------------------------
 

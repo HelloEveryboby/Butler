@@ -15,6 +15,7 @@ class DataRecycler:
         self.root_dir = pathlib.Path(root_dir).resolve()
         self.log_retention_days = log_retention_days
         self.temp_dirs = {"temp", "build", "dist", "target"}
+        self.protected_dirs = {"lib_external", "runtime", ".git", ".venv", "venv"}
         self.temp_patterns = {
             "*.pyc", "*.pyo", "*.pyd", ".DS_Store", "*_last_run.txt",
             "*_exec", "*.so", "*.o", "*.class", "hello_executable"
@@ -35,6 +36,9 @@ class DataRecycler:
         for root, dirs, files in os.walk(self.root_dir, topdown=True):
             # Check for directories to delete
             for d in list(dirs):
+                if d in self.protected_dirs:
+                    dirs.remove(d)
+                    continue
                 if d == "__pycache__" or d.endswith(".egg-info") or (root == str(self.root_dir) and d in self.temp_dirs):
                     path = pathlib.Path(root) / d
                     try:

@@ -15,9 +15,17 @@ if not exist ".env" (
     call install.bat
 )
 
+REM Detect and use portable runtime if available
+set PYTHON_CMD=python
+if exist "runtime\python.exe" (
+    set PYTHON_CMD=runtime\python.exe
+    echo Using portable Python runtime (Windows).
+    set PYTHONPATH=%PYTHONPATH%;.
+)
+
 REM Run the main application using the python module flag
 echo Launching main application...
-python -m butler.main
+%PYTHON_CMD% -m butler.main
 
 echo Application closed.
 pause

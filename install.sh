@@ -3,6 +3,11 @@
 # A script to automate the installation and configuration of the Butler assistant.
 
 echo "Starting Butler installation..."
+
+# Get the directory where the script is located and change to it
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+cd "$DIR"
+
 echo "This script will guide you through the setup process."
 echo "-----------------------------------------------------"
 
@@ -18,14 +23,44 @@ echo "✅ pip3 found."
 echo "-----------------------------------------------------"
 
 # --- Install Python packages ---
-echo "Step 2: Installing Python dependencies from setup.py..."
+echo "Step 2: Installing Python dependencies..."
 
-pip3 install .
-if [ $? -eq 0 ]; then
-    echo "✅ Python dependencies installed successfully."
+echo "Choose Installation Mode:"
+echo "1) Standard (System Python/venv)"
+echo "2) Portable (External Libs only)"
+echo "3) Full Portable (Portable Python Runtime + External Libs)"
+read -r install_mode
+
+if [ "$install_mode" == "3" ]; then
+    echo "Setting up portable Python runtime..."
+    python3 -m package.dependency_manager setup_runtime
+
+    echo "Installing dependencies to lib_external (using system pip)..."
+    python3 -m package.dependency_manager install_all
+    if [ $? -eq 0 ]; then
+        echo "✅ Full Portable setup complete."
+    else
+        echo >&2 "Error: Failed to install dependencies."
+        exit 1
+    fi
+elif [ "$install_mode" == "2" ]; then
+    echo "Installing dependencies to lib_external..."
+    python3 -m package.dependency_manager install_all
+    if [ $? -eq 0 ]; then
+        echo "✅ Local dependencies installed successfully."
+    else
+        echo >&2 "Error: Failed to install local dependencies."
+        exit 1
+    fi
 else
-    echo >&2 "Error: Failed to install Python dependencies. Please check the output above for errors."
-    exit 1
+    echo "Installing dependencies globally/in venv from setup.py..."
+    pip3 install .
+    if [ $? -eq 0 ]; then
+        echo "✅ Python dependencies installed successfully."
+    else
+        echo >&2 "Error: Failed to install Python dependencies. Please check the output above for errors."
+        exit 1
+    fi
 fi
 
 echo "-----------------------------------------------------"
