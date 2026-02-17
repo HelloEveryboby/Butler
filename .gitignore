@@ -147,6 +147,7 @@ memos.json
 
 # Local dependencies
 lib_external/
+runtime/
 
 # Butler build artifacts
 programs/*/hello_*

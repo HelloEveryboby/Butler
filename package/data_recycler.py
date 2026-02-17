@@ -15,7 +15,7 @@ class DataRecycler:
         self.root_dir = pathlib.Path(root_dir).resolve()
         self.log_retention_days = log_retention_days
         self.temp_dirs = {"temp", "build", "dist", "target"}
-        self.protected_dirs = {"lib_external", ".git", ".venv", "venv"}
+        self.protected_dirs = {"lib_external", "runtime", ".git", ".venv", "venv"}
         self.temp_patterns = {
             "*.pyc", "*.pyo", "*.pyd", ".DS_Store", "*_last_run.txt",
             "*_exec", "*.so", "*.o", "*.class", "hello_executable"

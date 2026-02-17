@@ -30,9 +30,28 @@ echo -----------------------------------------------------
 REM --- Install Python packages ---
 echo Step 2: Installing Python dependencies...
 
-set /p use_portable="Do you want to install dependencies to a local folder (Portable Mode)? (y/n): "
+echo Choose Installation Mode:
+echo 1) Standard (System Python/venv)
+echo 2) Portable (External Libs only)
+echo 3) Full Portable (Portable Python Runtime + External Libs)
+set /p install_mode="Select mode (1/2/3): "
 
-if /i "%use_portable%"=="y" (
+if "%install_mode%"=="3" (
+    echo Setting up portable Python runtime...
+    python -m package.dependency_manager setup_runtime
+
+    set PYTHON_CMD=python
+    if exist "runtime\python.exe" set PYTHON_CMD=runtime\python.exe
+
+    echo Installing dependencies using portable runtime...
+    %PYTHON_CMD% -m package.dependency_manager install_all
+    if %errorlevel% neq 0 (
+        echo Error: Failed to install local dependencies.
+        pause
+        exit /b 1
+    )
+    echo Full Portable setup complete.
+) else if "%install_mode%"=="2" (
     echo Installing dependencies to lib_external...
     python -m package.dependency_manager install_all
     if %errorlevel% neq 0 (
