@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jarvis Mobile</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        header {
+            padding: 15px;
+            background-color: #2c2c2c;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-bottom: 1px solid #444;
+        }
+        #chat-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .message {
+            max-width: 85%;
+            padding: 10px 15px;
+            border-radius: 18px;
+            line-height: 1.4;
+            font-size: 0.95rem;
+        }
+        .user {
+            align-self: flex-end;
+            background-color: #007bff;
+            color: white;
+            border-bottom-right-radius: 2px;
+        }
+        .ai {
+            align-self: flex-start;
+            background-color: #3d3d3d;
+            border-bottom-left-radius: 2px;
+        }
+        footer {
+            padding: 15px;
+            background-color: #2c2c2c;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        #input-text {
+            flex: 1;
+            background-color: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 20px;
+            padding: 8px 15px;
+            color: white;
+            outline: none;
+        }
+        button {
+            background-color: #007bff;
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+        #voice-btn {
+            background-color: #444;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        #voice-btn.active {
+            background-color: #e06c75;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <header>Jarvis 助手 (Mobile)</header>
+    <div id="chat-history"></div>
+    <footer>
+        <button id="voice-btn">🎙️</button>
+        <input type="text" id="input-text" placeholder="输入指令...">
+        <button id="send-btn">发送</button>
+    </footer>
+
+    <script>
+        const socket = io();
+        const chatHistory = document.getElementById('chat-history');
+        const inputText = document.getElementById('input-text');
+        const sendBtn = document.getElementById('send-btn');
+        const voiceBtn = document.getElementById('voice-btn');
+
+        let recognition;
+        let isListening = false;
+
+        // Initialize Web Speech API
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'zh-CN';
+
+            recognition.onresult = (event) => {
+                const text = event.results[0][0].transcript;
+                inputText.value = text;
+                sendCommand();
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                voiceBtn.classList.remove('active');
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error', event.error);
+                isListening = false;
+                voiceBtn.classList.remove('active');
+            };
+        }
+
+        function appendMessage(text, role) {
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            div.innerText = text;
+            chatHistory.appendChild(div);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            if (role === 'ai') {
+                speak(text);
+            }
+        }
+
+        function sendCommand() {
+            const text = inputText.value.trim();
+            if (text) {
+                appendMessage(text, 'user');
+                socket.emit('user_command', { message: text });
+                inputText.value = '';
+            }
+        }
+
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'zh-CN';
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        sendBtn.onclick = sendCommand;
+        inputText.onkeypress = (e) => { if (e.key === 'Enter') sendCommand(); };
+
+        voiceBtn.onclick = () => {
+            if (!recognition) {
+                alert('您的浏览器不支持语音识别');
+                return;
+            }
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+                isListening = true;
+                voiceBtn.classList.add('active');
+            }
+        };
+
+        socket.on('ai_response', (data) => {
+            appendMessage(data.message, 'ai');
+        });
+
+        socket.on('system_message', (data) => {
+            console.log('System:', data.message);
+        });
+    </script>
+</body>
+</html>
