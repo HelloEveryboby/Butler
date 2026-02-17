@@ -20,6 +20,7 @@ from butler.usb_screen import USBScreen
 from butler.resource_manager import ResourceManager, PerformanceMode
 from local_interpreter.interpreter import Interpreter
 from plugin.long_memory.redis_long_memory import RedisLongMemory
+from plugin.long_memory.zvec_long_memory import ZvecLongMemory
 from plugin.long_memory.chroma_long_memory import SQLiteLongMemory
 from plugin.long_memory.long_memory_interface import LongMemoryItem
 from butler.core.intent_dispatcher import intent_registry
@@ -59,12 +60,22 @@ class Jarvis:
         api_key = os.getenv("DEEPSEEK_API_KEY")
         try:
             if api_key:
+                # 优先尝试使用 Redis (如果已配置且运行中)
                 self.long_memory = RedisLongMemory(api_key=api_key)
                 self.long_memory.init(self.logger)
             else: raise ValueError("No API Key")
-        except Exception:
-            self.long_memory = SQLiteLongMemory()
-            self.long_memory.init()
+        except Exception as e:
+            self.logger.warning(f"无法初始化 RedisLongMemory: {e}。尝试使用轻量级 ZvecLongMemory...")
+            try:
+                if api_key:
+                    # 如果 Redis 不可用，则尝试使用 zvec (极速本地向量库)
+                    self.long_memory = ZvecLongMemory(api_key=api_key)
+                    self.long_memory.init(self.logger)
+                else: raise ValueError("No API Key for Zvec")
+            except Exception as e2:
+                self.logger.error(f"无法初始化 ZvecLongMemory: {e2}。降级到 SQLiteLongMemory...")
+                self.long_memory = SQLiteLongMemory()
+                self.long_memory.init()
 
     def set_panel(self, panel):
         self.panel = panel
