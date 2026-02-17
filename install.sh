@@ -18,14 +18,29 @@ echo "✅ pip3 found."
 echo "-----------------------------------------------------"
 
 # --- Install Python packages ---
-echo "Step 2: Installing Python dependencies from setup.py..."
+echo "Step 2: Installing Python dependencies..."
 
-pip3 install .
-if [ $? -eq 0 ]; then
-    echo "✅ Python dependencies installed successfully."
+echo "Do you want to install dependencies to a local folder (Portable Mode)? (y/n)"
+read -r use_portable
+
+if [ "$use_portable" == "y" ]; then
+    echo "Installing dependencies to lib_external..."
+    python3 -m package.dependency_manager install_all
+    if [ $? -eq 0 ]; then
+        echo "✅ Local dependencies installed successfully."
+    else
+        echo >&2 "Error: Failed to install local dependencies."
+        exit 1
+    fi
 else
-    echo >&2 "Error: Failed to install Python dependencies. Please check the output above for errors."
-    exit 1
+    echo "Installing dependencies globally/in venv from setup.py..."
+    pip3 install .
+    if [ $? -eq 0 ]; then
+        echo "✅ Python dependencies installed successfully."
+    else
+        echo >&2 "Error: Failed to install Python dependencies. Please check the output above for errors."
+        exit 1
+    fi
 fi
 
 echo "-----------------------------------------------------"

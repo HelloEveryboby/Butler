@@ -257,3 +257,20 @@ def handle_cloud_info(jarvis_app, **kwargs):
             jarvis_app.speak(f"查询网盘信息时出错: {e}")
 
     threading.Thread(target=run_info, daemon=True).start()
+
+@register_intent("manage_dependencies")
+def handle_manage_dependencies(jarvis_app, entities, **kwargs):
+    """安装或管理本地依赖库到 lib_external 文件夹。"""
+    command = entities.get("command", "install_all")
+    package = entities.get("package")
+
+    def run_dep_mgr():
+        try:
+            from package import dependency_manager
+            jarvis_app.ui_print(f"正在启动依赖管理器 (命令: {command})...")
+            result = dependency_manager.run(command=command, package=package)
+            jarvis_app.speak(result)
+        except Exception as e:
+            jarvis_app.speak(f"依赖管理执行失败: {e}")
+
+    threading.Thread(target=run_dep_mgr, daemon=True).start()

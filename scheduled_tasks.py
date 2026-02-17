@@ -1,4 +1,15 @@
 import os
+import sys
+
+# Add project root and local lib to sys.path
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+lib_path = os.path.join(project_root, "lib_external")
+if os.path.exists(lib_path) and lib_path not in sys.path:
+    sys.path.insert(0, lib_path)
+
 import time
 import datetime
 import subprocess

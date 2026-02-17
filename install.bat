@@ -28,14 +28,29 @@ echo pip found.
 echo -----------------------------------------------------
 
 REM --- Install Python packages ---
-echo Step 2: Installing Python dependencies from setup.py...
-pip install .
-if %errorlevel% neq 0 (
-    echo Error: Failed to install Python dependencies. Please check the output above for errors.
-    pause
-    exit /b 1
+echo Step 2: Installing Python dependencies...
+
+set /p use_portable="Do you want to install dependencies to a local folder (Portable Mode)? (y/n): "
+
+if /i "%use_portable%"=="y" (
+    echo Installing dependencies to lib_external...
+    python -m package.dependency_manager install_all
+    if %errorlevel% neq 0 (
+        echo Error: Failed to install local dependencies.
+        pause
+        exit /b 1
+    )
+    echo Local dependencies installed successfully.
+) else (
+    echo Installing dependencies globally/in venv from setup.py...
+    pip install .
+    if %errorlevel% neq 0 (
+        echo Error: Failed to install Python dependencies. Please check the output above for errors.
+        pause
+        exit /b 1
+    )
+    echo Python dependencies installed successfully.
 )
-echo Python dependencies installed successfully.
 
 echo -----------------------------------------------------
 
