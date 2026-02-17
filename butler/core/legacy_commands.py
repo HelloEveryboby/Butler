@@ -181,3 +181,79 @@ def handle_index_local_files(jarvis_app, entities, **kwargs):
 
     # 开启线程执行，避免阻塞 UI
     threading.Thread(target=run_index, daemon=True).start()
+
+@register_intent("cloud_upload")
+def handle_cloud_upload(jarvis_app, entities, **kwargs):
+    """上传本地文件到云端网盘。"""
+    local_path = entities.get("path")
+    remote_path = entities.get("remote_path", "/")
+
+    if not local_path:
+        jarvis_app.speak("请提供要上传的本地文件路径。")
+        return
+
+    def run_upload():
+        try:
+            from package import cloud_storage_manager
+            jarvis_app.ui_print(f"正在上传 {local_path} 到网盘...")
+            result = cloud_storage_manager.run(operation="upload", local_path=local_path, remote_path=remote_path)
+            jarvis_app.speak(result)
+        except Exception as e:
+            jarvis_app.speak(f"上传过程中出错: {e}")
+
+    threading.Thread(target=run_upload, daemon=True).start()
+
+@register_intent("cloud_download")
+def handle_cloud_download(jarvis_app, entities, **kwargs):
+    """从云端网盘下载文件。"""
+    remote_path = entities.get("remote_path")
+    local_path = entities.get("local_path", ".")
+
+    if not remote_path:
+        jarvis_app.speak("请提供要下载的网盘文件路径。")
+        return
+
+    def run_download():
+        try:
+            from package import cloud_storage_manager
+            jarvis_app.ui_print(f"正在从网盘下载 {remote_path}...")
+            result = cloud_storage_manager.run(operation="download", remote_path=remote_path, local_path=local_path)
+            jarvis_app.speak(result)
+        except Exception as e:
+            jarvis_app.speak(f"下载过程中出错: {e}")
+
+    threading.Thread(target=run_download, daemon=True).start()
+
+@register_intent("cloud_list")
+def handle_cloud_list(jarvis_app, entities, **kwargs):
+    """列出云端网盘中的文件和文件夹。"""
+    path = entities.get("remote_path", "/")
+
+    def run_list():
+        try:
+            from package import cloud_storage_manager
+            jarvis_app.ui_print(f"正在获取网盘目录 {path} 的列表...")
+            result = cloud_storage_manager.run(operation="list", path=path)
+            if len(result) > 200:
+                jarvis_app.ui_print(result)
+                jarvis_app.speak(f"已获取目录 {path} 的列表，文件较多，请在面板查看。")
+            else:
+                jarvis_app.speak(result)
+        except Exception as e:
+            jarvis_app.speak(f"获取网盘列表时出错: {e}")
+
+    threading.Thread(target=run_list, daemon=True).start()
+
+@register_intent("cloud_info", requires_entities=False)
+def handle_cloud_info(jarvis_app, **kwargs):
+    """查看网盘的配额和空间使用信息。"""
+    def run_info():
+        try:
+            from package import cloud_storage_manager
+            jarvis_app.ui_print("正在查询网盘容量信息...")
+            result = cloud_storage_manager.run(operation="info")
+            jarvis_app.speak(result)
+        except Exception as e:
+            jarvis_app.speak(f"查询网盘信息时出错: {e}")
+
+    threading.Thread(target=run_info, daemon=True).start()
