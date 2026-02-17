@@ -6,6 +6,7 @@ Pygments
 anthropic
 azure-cognitiveservices-speech
 beautifulsoup4
+bypy
 chardet
 deepseek
 instructor
@@ -36,6 +37,7 @@ pyttsx3
 redis
 redisvl
 requests>=2.32.0
+requests-toolbelt
 rtf-converter
 schedule
 scikit-learn
