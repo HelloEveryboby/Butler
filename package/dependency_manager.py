@@ -52,7 +52,10 @@ def setup_runtime(target_dir):
                     break
             if pth_file:
                 with open(pth_file, "a") as f:
+                    # 允许加载 site-packages 并将项目根目录加入路径
                     f.write("\nimport site\n")
+                    f.write("..\n")
+                    f.write("../lib_external\n")
         else:
             with tarfile.open(archive_path, 'r:gz') as tar_ref:
                 tar_ref.extractall(target_dir)

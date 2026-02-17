@@ -40,11 +40,8 @@ if "%install_mode%"=="3" (
     echo Setting up portable Python runtime...
     python -m package.dependency_manager setup_runtime
 
-    set PYTHON_CMD=python
-    if exist "runtime\python.exe" set PYTHON_CMD=runtime\python.exe
-
-    echo Installing dependencies using portable runtime...
-    %PYTHON_CMD% -m package.dependency_manager install_all
+    echo Installing dependencies to lib_external (using system pip)...
+    python -m package.dependency_manager install_all
     if %errorlevel% neq 0 (
         echo Error: Failed to install local dependencies.
         pause

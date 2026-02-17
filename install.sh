@@ -30,17 +30,8 @@ if [ "$install_mode" == "3" ]; then
     echo "Setting up portable Python runtime..."
     python3 -m package.dependency_manager setup_runtime
 
-    # Switch to portable python if successfully setup
-    if [ -f "./runtime/bin/python3" ]; then
-        PYTHON_CMD="./runtime/bin/python3"
-    elif [ -f "./runtime/python" ]; then
-        PYTHON_CMD="./runtime/python"
-    else
-        PYTHON_CMD="python3"
-    fi
-
-    echo "Installing dependencies using portable runtime..."
-    $PYTHON_CMD -m package.dependency_manager install_all
+    echo "Installing dependencies to lib_external (using system pip)..."
+    python3 -m package.dependency_manager install_all
     if [ $? -eq 0 ]; then
         echo "✅ Full Portable setup complete."
     else

@@ -24,9 +24,11 @@ PYTHON_CMD="python3"
 if [ -f "./runtime/bin/python3" ]; then
     PYTHON_CMD="./runtime/bin/python3"
     echo "Using portable Python runtime (Linux)."
+    export PYTHONPATH=$PYTHONPATH:.
 elif [ -f "./runtime/python" ]; then
     PYTHON_CMD="./runtime/python"
     echo "Using portable Python runtime (Darwin/Generic)."
+    export PYTHONPATH=$PYTHONPATH:.
 fi
 
 # Run the main application using the python module flag

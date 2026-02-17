@@ -20,6 +20,7 @@ set PYTHON_CMD=python
 if exist "runtime\python.exe" (
     set PYTHON_CMD=runtime\python.exe
     echo Using portable Python runtime (Windows).
+    set PYTHONPATH=%PYTHONPATH%;.
 )
 
 REM Run the main application using the python module flag
