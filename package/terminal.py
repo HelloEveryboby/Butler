@@ -3,6 +3,7 @@ from tkinter import ttk
 import subprocess
 import threading
 import os
+import shlex
 # try:
 #     from tkinterdnd2 import DND_FILES, TkinterDnD
 #     HAS_DND = True
@@ -93,26 +94,32 @@ class TerminalTab(tk.Frame):
                 if command.startswith("python"):
                     # 运行Python脚本
                     script_name = command.split(maxsplit=1)[1]
-                    process = subprocess.Popen(f"python {script_name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
+                    safe_script_name = shlex.quote(script_name)
+                    process = subprocess.Popen(f"python {safe_script_name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
                 elif command.startswith("gcc"):
                     # 编译并运行C程序
                     file_name = command.split()[1]
-                    process = subprocess.Popen(f"gcc {file_name} -o {file_name}.exe && ./{file_name}.exe", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
+                    safe_file_name = shlex.quote(file_name)
+                    process = subprocess.Popen(f"gcc {safe_file_name} -o {safe_file_name}.exe && ./{safe_file_name}.exe", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
                 elif command.startswith("g++"):
                     # 编译并运行C++程序
                     file_name = command.split()[1]
-                    process = subprocess.Popen(f"g++ {file_name} -o {file_name}.exe && ./{file_name}.exe", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
+                    safe_file_name = shlex.quote(file_name)
+                    process = subprocess.Popen(f"g++ {safe_file_name} -o {safe_file_name}.exe && ./{safe_file_name}.exe", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
                 elif command.startswith("go run"):
                     # 运行Go程序
                     script_name = command.split(maxsplit=2)[2]
-                    process = subprocess.Popen(f"go run {script_name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
+                    safe_script_name = shlex.quote(script_name)
+                    process = subprocess.Popen(f"go run {safe_script_name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
                 elif command.startswith("javac"):
                     # 编译Java程序
                     file_name = command.split()[1]
-                    process = subprocess.Popen(f"javac {file_name} && java {file_name.split('.')[0]}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
+                    safe_file_name = shlex.quote(file_name)
+                    process = subprocess.Popen(f"javac {safe_file_name} && java {shlex.quote(file_name.split('.')[0])}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
                 else:
                     # 默认使用shell运行命令
-                    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)            
+                    # 注意：由于这是终端模拟器，我们直接运行用户输入的整个命令字符串
+                    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
             
                 for line in process.stdout:
                     self.output_area.insert(tk.END, line)

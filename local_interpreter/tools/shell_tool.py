@@ -1,5 +1,6 @@
 import subprocess
 import platform
+import shlex
 from .tool_decorator import tool
 
 @tool
@@ -15,12 +16,18 @@ def run_shell(command: str) -> str:
     try:
         # For cross-platform compatibility, split the command into a list.
         # This is generally safer than `shell=True`.
-        command_parts = command.split()
+        try:
+            command_parts = shlex.split(command)
+        except ValueError:
+            # Fallback to simple split if shell parsing fails
+            command_parts = command.split()
 
         # Windows needs a different way to run shell commands sometimes
         if platform.system() == "Windows":
+            # On Windows, we use shell=True to support built-in commands like 'dir'
             result = subprocess.run(command, shell=True, capture_output=True, text=True, check=False)
         else:
+            # On Unix-like systems, we use the list of parts for better security
             result = subprocess.run(command_parts, capture_output=True, text=True, check=False)
 
         if result.returncode == 0:

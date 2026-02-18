@@ -2,6 +2,7 @@ import os
 import json
 import subprocess
 import logging
+import shlex
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -77,8 +78,8 @@ class CodeExecutionManager:
 
             # Create a dictionary of placeholders to format the build command
             # Use relative paths since the command is run inside the project directory
-            source_paths = " ".join(source_files)
-            output_path = executable_name # This is also relative to the project dir
+            source_paths = " ".join([shlex.quote(f) for f in source_files])
+            output_path = shlex.quote(executable_name) # This is also relative to the project dir
 
             format_dict = {
                 'source': source_paths,
@@ -147,8 +148,8 @@ class CodeExecutionManager:
         run_command_template = program_info.get('run_command')
 
         if run_command_template:
-            # Join args into a single string to be safe
-            args_str = " ".join(map(str, args))
+            # Quote arguments for safe shell execution
+            args_str = " ".join([shlex.quote(str(arg)) for arg in args])
             command = run_command_template.format(args=args_str)
         else:
             command = [program_info['path']] + list(args)

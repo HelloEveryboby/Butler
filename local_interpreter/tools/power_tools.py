@@ -20,6 +20,10 @@ def open_application(app_name: str):
         command = ["open", "-a", app_name]
     elif current_os == "Windows":
         # The 'start' command is a shell built-in, so we run it through cmd.exe
+        # Use shlex.quote if we were using shell=True, but here we are using a list.
+        # However, cmd /c start still might interpret some characters.
+        # For maximal safety, we'll keep it as is since it's a list,
+        # but be aware that 'start' itself has special argument handling.
         command = ["cmd", "/c", "start", app_name]
     elif current_os == "Linux":
         # xdg-open is the standard way to open files/apps on most Linux desktops
