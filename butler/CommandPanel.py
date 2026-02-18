@@ -249,6 +249,72 @@ class CommandPanel(tk.Frame):
         self._configure_styles_and_tags()
         self.update_font_size('medium')
 
+        # Auto-scaling support
+        self.bind("<Configure>", self.on_resize)
+        self.last_scale_factor = 1.0
+
+    def on_resize(self, event):
+        """Handle window resize and auto-scale fonts."""
+        # Only scale if it's the main frame resize
+        if event.widget != self:
+            return
+
+        # Reference size 1000x700
+        new_scale_factor = min(event.width / 1000, event.height / 700)
+
+        # Only update if change is more than 5% to avoid constant redraws
+        if abs(new_scale_factor - self.last_scale_factor) > 0.05:
+            self.last_scale_factor = new_scale_factor
+            self.auto_scale_fonts(new_scale_factor)
+
+    def auto_scale_fonts(self, scale):
+        """Dynamically scale fonts based on window size."""
+        # Base sizes for 'medium'
+        base_fonts = {
+            "menu_label": 12,
+            "program_listbox": 10,
+            "output_text": 11,
+            "input_entry": 11,
+            "buttons": 9,
+            "user_prompt": 11,
+            "system_message": 11
+        }
+
+        scaled_fonts = {}
+        for key, size in base_fonts.items():
+            new_size = max(int(size * scale), 7)
+            if key == "menu_label":
+                scaled_fonts[key] = ("Arial", new_size, "bold")
+            elif key == "user_prompt":
+                scaled_fonts[key] = ("Consolas", new_size, "bold")
+            elif key == "system_message":
+                scaled_fonts[key] = ("Consolas", new_size, "italic")
+            elif key in ["output_text", "input_entry"]:
+                scaled_fonts[key] = ("Consolas", new_size)
+            else:
+                scaled_fonts[key] = ("Arial", new_size)
+
+        # Apply scaled fonts
+        self.menu_label.config(font=scaled_fonts["menu_label"])
+        self.program_listbox.config(font=scaled_fonts["program_listbox"])
+        self.output_text.config(font=scaled_fonts["output_text"])
+        self.input_entry.config(font=scaled_fonts["input_entry"])
+
+        self.send_button.config(font=scaled_fonts["buttons"])
+        self.listen_button.config(font=scaled_fonts["buttons"])
+        self.clear_button.config(font=scaled_fonts["buttons"])
+        self.restart_button.config(font=scaled_fonts["buttons"])
+        self.settings_button.config(font=scaled_fonts["buttons"])
+
+        # Update manual toolbar buttons
+        manual_btn_font = ("Arial", max(int(8 * scale), 6))
+        self.btn_screenshot.config(font=manual_btn_font)
+        self.btn_click.config(font=manual_btn_font)
+        self.btn_type.config(font=manual_btn_font)
+
+        self.output_text.tag_config('user_prompt', font=scaled_fonts["user_prompt"])
+        self.output_text.tag_config('system_message', font=scaled_fonts["system_message"])
+
     def on_program_select(self, event=None):
         """处理列表框中的程序选择。"""
         # 获取选中的索引

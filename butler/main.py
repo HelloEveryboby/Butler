@@ -57,7 +57,7 @@ class Jarvis:
         self._initialize_long_memory()
         
         self.nlu_service = NLUService(os.getenv("DEEPSEEK_API_KEY"), self.prompts)
-        self.voice_service = VoiceService(self.handle_user_command, self.ui_print)
+        self.voice_service = VoiceService(self.handle_user_command, self.ui_print, self._on_voice_status_change)
         
         # Apply voice config
         voice_mode = self.config.get("voice", {}).get("mode", "offline")
@@ -124,6 +124,10 @@ class Jarvis:
 
     def set_panel(self, panel):
         self.panel = panel
+
+    def _on_voice_status_change(self, is_listening):
+        if self.panel:
+            self.root.after(0, self.panel.update_listen_button_state, is_listening)
 
     def ui_print(self, message, tag='ai_response', response_id=None):
         print(message)
@@ -239,6 +243,11 @@ class Jarvis:
             self.display_mode = payload
         elif command_type == "manual_action":
             self._handle_manual_action(payload)
+        elif command_type == "voice":
+            if self.voice_service.is_listening:
+                self.voice_service.stop_listening()
+            else:
+                self.voice_service.start_listening()
 
     def _handle_manual_action(self, payload):
         """处理来自 UI 的手动操作。"""

@@ -4,7 +4,6 @@ Pillow
 PyPDF2
 Pygments
 anthropic
-azure-cognitiveservices-speech
 beautifulsoup4
 bypy
 chardet
@@ -22,7 +21,7 @@ paramiko
 pdfplumber
 prompt_toolkit
 psutil
-pvporcupine
+baidu-aip
 pvrecorder
 pyautogui
 pycryptodome
@@ -47,6 +46,5 @@ tabulate
 tkinterdnd2
 tqdm
 twisted>=24.7.0rc1
-vosk
 watchdog
 zvec
