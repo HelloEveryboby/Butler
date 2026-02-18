@@ -2,7 +2,7 @@ import os
 import time
 import json
 import threading
-import logging
+import tempfile
 from typing import Optional, Callable
 from dotenv import load_dotenv
 from package.log_manager import LogManager
@@ -10,140 +10,182 @@ from package.log_manager import LogManager
 logger = LogManager.get_logger(__name__)
 
 class VoiceService:
-    def __init__(self, on_command_received: Callable[[str], None], ui_print_func: Callable):
+    def __init__(self, on_command_received: Callable[[str], None], ui_print_func: Callable, on_status_change: Optional[Callable[[bool], None]] = None):
         self.on_command_received = on_command_received
         self.ui_print = ui_print_func
+        self.on_status_change = on_status_change
         self.is_listening = False
-        self.voice_mode = 'offline'  # 'offline' or 'online'
-        self.engine = None
-        self.speech_recognizer = None
+        self.voice_mode = 'online'  # Default to online since offline is removed
+        self.client = None
+
+        load_dotenv()
+        self._init_baidu_client()
 
         base_dir = os.path.dirname(__file__)
         self.ACTIVATION_SOUND_FILE = os.path.join(base_dir, "resources", "activate.wav")
 
+    def _init_baidu_client(self):
+        try:
+            from aip import AipSpeech
+            app_id = os.getenv("BAIDU_APP_ID")
+            api_key = os.getenv("BAIDU_API_KEY")
+            secret_key = os.getenv("BAIDU_SECRET_KEY")
+            if app_id and api_key and secret_key:
+                self.client = AipSpeech(app_id, api_key, secret_key)
+                logger.info("Baidu AipSpeech client initialized.")
+            else:
+                logger.warning("Baidu API keys missing in .env")
+        except ImportError:
+            logger.error("baidu-aip not installed")
+
     def speak(self, text: str):
-        """Perform text-to-speech."""
+        """Perform text-to-speech using Baidu AIP."""
+        if not self.client:
+            self._offline_fallback_speak(text)
+            return
+
+        try:
+            result = self.client.synthesis(text, 'zh', 1, {
+                'vol': 5,
+                'per': 4, # 4 is a common female voice
+            })
+
+            if not isinstance(result, dict):
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as f:
+                    f.write(result)
+                    temp_file = f.name
+
+                self._play_audio(temp_file)
+                os.remove(temp_file)
+            else:
+                logger.error(f"Baidu TTS error: {result}")
+                self._offline_fallback_speak(text)
+        except Exception as e:
+            logger.error(f"Baidu TTS Exception: {e}")
+            self._offline_fallback_speak(text)
+
+    def _offline_fallback_speak(self, text: str):
         try:
             import pyttsx3
-            if not self.engine:
-                self.engine = pyttsx3.init()
-            self.engine.say(text)
-            self.engine.runAndWait()
+            engine = pyttsx3.init()
+            engine.say(text)
+            engine.runAndWait()
         except Exception as e:
-            self.ui_print(f"音频处理(TTS)出错: {e}", tag='error')
-            logger.warning(f"Could not initialize or use pyttsx3 for TTS: {e}")
+            logger.warning(f"Offline fallback TTS failed: {e}")
 
-    def play_activation_sound(self):
-        """Plays a sound to indicate wake word detection."""
+    def _play_audio(self, file_path: str):
         try:
             import pygame
-            pygame.mixer.init()
-            pygame.mixer.music.load(self.ACTIVATION_SOUND_FILE)
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+            pygame.mixer.music.load(file_path)
             pygame.mixer.music.play()
             while pygame.mixer.music.get_busy():
                 time.sleep(0.1)
-            pygame.mixer.quit()
         except Exception as e:
-            logger.warning(f"Could not play activation sound: {e}")
+            logger.warning(f"Could not play audio {file_path}: {e}")
+
+    def play_activation_sound(self):
+        """Plays a sound to indicate listening started."""
+        if os.path.exists(self.ACTIVATION_SOUND_FILE):
+            self._play_audio(self.ACTIVATION_SOUND_FILE)
 
     def start_listening(self):
+        """Start listening for a command. Triggered manually now since wake word is removed."""
         if self.is_listening:
             return
         self.is_listening = True
-        target_loop = self._offline_listen_loop if self.voice_mode == 'offline' else self._online_listen_loop
-        self.listen_thread = threading.Thread(target=target_loop)
+        if self.on_status_change:
+            self.on_status_change(True)
+        self.listen_thread = threading.Thread(target=self._baidu_listen_loop)
         self.listen_thread.daemon = True
         self.listen_thread.start()
 
     def stop_listening(self):
         self.is_listening = False
+        if self.on_status_change:
+            self.on_status_change(False)
 
     def set_voice_mode(self, mode: str):
-        if mode in ['online', 'offline'] and self.voice_mode != mode:
-            self.voice_mode = mode
-            if self.is_listening:
-                self.stop_listening()
-                self.start_listening()
-            return True
-        return False
+        # Only 'online' (Baidu) is supported now for Chinese
+        self.voice_mode = 'online'
+        return True
 
-    def _offline_listen_loop(self):
-        porcupine_access_key = os.getenv("PICOVOICE_ACCESS_KEY")
-        vosk_model_path = "vosk-model-small-en-us-0.15"
-
-        if not porcupine_access_key or not os.path.exists(vosk_model_path):
-            self.ui_print("离线语音环境配置不完整，请检查 PICOVOICE_ACCESS_KEY 和 Vosk 模型。", tag='error')
+    def _baidu_listen_loop(self):
+        if not self.client:
+            self.ui_print("Baidu 语音服务未配置，请检查 .env 文件。", tag='error')
             self.is_listening = False
             return
 
         try:
             from pvrecorder import PvRecorder
-            import pvporcupine
-            from vosk import Model, KaldiRecognizer
+            # Using PvRecorder as a simple audio capturer (no model involved)
+            access_key = os.getenv("PICOVOICE_ACCESS_KEY")
+            if access_key:
+                recorder = PvRecorder(access_key=access_key, device_index=-1, frame_length=512)
+            else:
+                recorder = PvRecorder(device_index=-1, frame_length=512)
 
-            keyword_paths = [pvporcupine.KEYWORD_PATHS["jarvis"]]
-            porcupine = pvporcupine.create(access_key=porcupine_access_key, keyword_paths=keyword_paths)
-            vosk_model = Model(vosk_model_path)
+            self.ui_print("正在录音...", tag='system_message')
+            self.play_activation_sound()
 
-            self.ui_print("离线语音引擎已就绪，正在监听 'Jarvis'...", tag='system_message')
+            recorder.start()
+            audio_data = []
 
-            while self.is_listening:
-                recorder = PvRecorder(device_index=-1, frame_length=porcupine.frame_length)
-                recorder.start()
-                while self.is_listening:
-                    pcm = recorder.read()
-                    if porcupine.process(pcm) >= 0:
-                        self.play_activation_sound()
-                        recorder.stop()
-                        break
+            silence_threshold = 500 # Adjust based on environment
+            max_silence_frames = 40
+            silence_frames = 0
+            max_record_frames = 300 # ~10 seconds
+
+            for _ in range(max_record_frames):
                 if not self.is_listening: break
+                frame = recorder.read()
+                audio_data.extend(frame)
 
-                recognizer = KaldiRecognizer(vosk_model, 16000)
-                cmd_recorder = PvRecorder(device_index=-1, frame_length=512)
-                cmd_recorder.start()
+                # Simple VAD (Voice Activity Detection)
+                rms = (sum(f**2 for f in frame) / len(frame))**0.5
+                if rms < silence_threshold:
+                    silence_frames += 1
+                else:
+                    silence_frames = 0
 
-                silence_frames = 0
-                while self.is_listening:
-                    pcm = cmd_recorder.read()
-                    if recognizer.AcceptWaveform(bytes(pcm)):
-                        result = json.loads(recognizer.Result()).get("text", "")
-                        if result:
-                            self.ui_print(f"识别到指令: {result}", tag='user_input')
-                            self.on_command_received(result)
-                        break
-                    elif not json.loads(recognizer.PartialResult()).get("partial", ""):
-                        silence_frames += 1
-                    else:
-                        silence_frames = 0
-                    if silence_frames > 30: break
-                cmd_recorder.stop()
+                if silence_frames > max_silence_frames and len(audio_data) > 16000: # at least 1s
+                    break
+
+            recorder.stop()
+            recorder.delete()
+
+            if audio_data:
+                # Convert to 16bit PCM WAV
+                import struct
+                import wave
+                import io
+
+                buffer = io.BytesIO()
+                with wave.open(buffer, 'wb') as wf:
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)
+                    wf.setframerate(16000)
+                    wf.writeframes(struct.pack('<' + ('h' * len(audio_data)), *audio_data))
+
+                wav_data = buffer.getvalue()
+
+                self.ui_print("正在识别...", tag='system_message')
+                res = self.client.asr(wav_data, 'wav', 16000, {'dev_pid': 1537})
+
+                if res.get('err_no') == 0:
+                    result_text = res.get('result', [""])[0]
+                    if result_text:
+                        self.ui_print(f"识别到指令: {result_text}", tag='user_input')
+                        self.on_command_received(result_text)
+                else:
+                    logger.error(f"Baidu ASR error: {res}")
+                    self.ui_print(f"识别失败: {res.get('err_msg')}", tag='error')
 
         except Exception as e:
-            self.ui_print(f"离线语音错误: {e}", tag='error')
+            self.ui_print(f"语音识别错误: {e}", tag='error')
+            logger.exception("Baidu listen loop error")
         finally:
             self.is_listening = False
-
-    def _online_listen_loop(self):
-        try:
-            import azure.cognitiveservices.speech as speechsdk
-            speech_key = os.getenv("AZURE_SPEECH_KEY")
-            service_region = os.getenv("AZURE_SERVICE_REGION", "chinaeast2")
-            if not speech_key: raise ValueError("Azure Key missing")
-
-            speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
-            speech_config.speech_recognition_language = "zh-CN"
-            self.speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config)
-
-            def recognized_cb(evt):
-                if evt.result.text:
-                    self.ui_print(f"识别到指令 (在线): {evt.result.text}", tag='user_input')
-                    self.on_command_received(evt.result.text)
-
-            self.speech_recognizer.recognized.connect(recognized_cb)
-            self.speech_recognizer.start_continuous_recognition()
-            while self.is_listening: time.sleep(0.5)
-            self.speech_recognizer.stop_continuous_recognition()
-        except Exception as e:
-            self.ui_print(f"在线语音错误: {e}", tag='error')
-        finally:
-            self.is_listening = False
+            if self.on_status_change:
+                self.on_status_change(False)
