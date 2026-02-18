@@ -1131,13 +1131,14 @@ def extract_app():
     path = d.shell("pm path " + app)
     d.shell("pull " + path[8:])
 
-def _run_scrcpy(command):
+def _run_scrcpy(args):
     if shutil.which("scrcpy") is None:
         print(arrow + Fore.RED + "scrcpy is not installed. Please install it from https://github.com/Genymobile/scrcpy")
         return
 
     try:
-        subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        # Use a list of arguments for better security and avoid shell=True
+        subprocess.Popen(["scrcpy"] + args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     except Exception as e:
         print(arrow + Fore.RED + f"An error occurred running scrcpy: {e}")
 
@@ -1148,14 +1149,14 @@ def screenrecord():
         ans = my_input(arrow + " adbsploit" + Fore.RED + "(screenrecord) " + Fore.WHITE + "> ")
         if ans == "":
             ans = "record.mp4"
-        _run_scrcpy(f"scrcpy -r {ans} -s {device}")
+        _run_scrcpy(["-r", ans, "-s", device])
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
 
 def remote_control():
     global device
     if device != 'none':
-        _run_scrcpy(f"scrcpy -s {device}")
+        _run_scrcpy(["-s", device])
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
 #TODO

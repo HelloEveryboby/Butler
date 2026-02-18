@@ -94,12 +94,12 @@ class TerminalTab(tk.Frame):
                 if command.startswith("python"):
                     # 运行Python脚本
                     script_name = command.split(maxsplit=1)[1]
-                    safe_script_name = shlex.quote(script_name)
-                    process = subprocess.Popen(f"python {safe_script_name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
+                    process = subprocess.Popen(["python", script_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
                 elif command.startswith("gcc"):
                     # 编译并运行C程序
                     file_name = command.split()[1]
                     safe_file_name = shlex.quote(file_name)
+                    # Using shell=True for complex command with &&, but ensuring safe filenames
                     process = subprocess.Popen(f"gcc {safe_file_name} -o {safe_file_name}.exe && ./{safe_file_name}.exe", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
                 elif command.startswith("g++"):
                     # 编译并运行C++程序
@@ -109,8 +109,7 @@ class TerminalTab(tk.Frame):
                 elif command.startswith("go run"):
                     # 运行Go程序
                     script_name = command.split(maxsplit=2)[2]
-                    safe_script_name = shlex.quote(script_name)
-                    process = subprocess.Popen(f"go run {safe_script_name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
+                    process = subprocess.Popen(["go", "run", script_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
                 elif command.startswith("javac"):
                     # 编译Java程序
                     file_name = command.split()[1]
