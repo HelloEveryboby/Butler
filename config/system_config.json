@@ -1,0 +1,21 @@
+{
+    "voice": {
+        "mode": "offline",
+        "vosk_model_path": "vosk-model-small-en-us-0.15",
+        "azure_region": "chinaeast2"
+    },
+    "display": {
+        "default_mode": "host",
+        "usb_screen": {
+            "width": 40,
+            "height": 8
+        }
+    },
+    "performance": {
+        "mode": "NORMAL"
+    },
+    "interpreter": {
+        "safety_mode": true,
+        "max_iterations": 10
+    }
+}

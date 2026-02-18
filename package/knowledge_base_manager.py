@@ -15,7 +15,6 @@ from package.embedding_utils import get_embedding
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'markitdown', 'src')))
 
 try:
-    import zvec
     import numpy as np
     from markitdown.main import convert as md_convert
 except ImportError:
@@ -37,25 +36,32 @@ class KnowledgeBase:
         self._init_zvec()
 
     def _init_zvec(self):
+        try:
+            import zvec
+        except (ImportError, RuntimeError, Exception) as e:
+            logger.error(f"zvec 库加载失败 (可能由于硬件不兼容或未安装): {e}")
+            return
+
         if not os.path.exists(self.base_path):
             os.makedirs(self.base_path, exist_ok=True)
 
-        schema = zvec.CollectionSchema(
-            name=self.name,
-            vectors=zvec.VectorSchema("embedding", zvec.DataType.VECTOR_FP32, 1024),
-            fields=[
-                zvec.FieldSchema("content", zvec.DataType.STRING),
-                zvec.FieldSchema("source", zvec.DataType.STRING),
-                zvec.FieldSchema("timestamp", zvec.DataType.DOUBLE)
-            ]
-        )
         try:
+            schema = zvec.CollectionSchema(
+                name=self.name,
+                vectors=zvec.VectorSchema("embedding", zvec.DataType.VECTOR_FP32, 1024),
+                fields=[
+                    zvec.FieldSchema("content", zvec.DataType.STRING),
+                    zvec.FieldSchema("source", zvec.DataType.STRING),
+                    zvec.FieldSchema("timestamp", zvec.DataType.DOUBLE)
+                ]
+            )
             self.collection = zvec.create_and_open(path=self.base_path, schema=schema)
         except Exception as e:
             logger.error(f"初始化知识库 {self.name} 失败: {e}")
 
     def add_document(self, content: str, source: str):
         if not self.collection: return
+        import zvec
 
         chunk_size = 1000
         overlap = 200
@@ -91,6 +97,7 @@ class KnowledgeBase:
 
     def search(self, query_text: str, topk: int = 5) -> List[Dict[str, Any]]:
         if not self.collection: return []
+        import zvec
 
         emb = get_embedding(query_text, API_KEY, offline=self._offline)
         if emb is None: return []

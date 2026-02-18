@@ -14,7 +14,10 @@ from uuid import uuid4
 
 # 导入 PyAutoGUI 用于计算机控制
 import pyautogui
-from deepseek.types.beta import BetaToolComputerUse20241022Param  # DeepSeek API 类型
+try:
+    from deepseek.types.beta import BetaToolComputerUse20241022Param  # DeepSeek API 类型
+except ImportError:
+    BetaToolComputerUse20241022Param = dict
 
 from .base import BaseDeepSeekTool, ToolError, ToolResult
 from .run import run

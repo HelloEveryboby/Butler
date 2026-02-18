@@ -48,15 +48,38 @@ class Jarvis:
         load_dotenv()
         self.logger = LogManager.get_logger(__name__)
 
-        # Initialize services
-        self._initialize_long_memory()
+        # Load configurations
+        self.config = self._load_config()
         self.prompts = self._load_json_resource("prompts.json")
         self.program_mapping = self._load_json_resource("program_mapping.json")
+
+        # Initialize services
+        self._initialize_long_memory()
         
         self.nlu_service = NLUService(os.getenv("DEEPSEEK_API_KEY"), self.prompts)
         self.voice_service = VoiceService(self.handle_user_command, self.ui_print)
-        self.interpreter = Interpreter()
         
+        # Apply voice config
+        voice_mode = self.config.get("voice", {}).get("mode", "offline")
+        self.voice_service.set_voice_mode(voice_mode)
+
+        self.interpreter = Interpreter(
+            safety_mode=self.config.get("interpreter", {}).get("safety_mode", True),
+            max_iterations=self.config.get("interpreter", {}).get("max_iterations", 10)
+        )
+
+    def _load_config(self):
+        config_path = os.path.join(project_root, "config", "system_config.json")
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            else:
+                return {}
+        except Exception as e:
+            print(f"Failed to load system_config.json: {e}")
+            return {}
+
     def _load_json_resource(self, filename):
         path = os.path.join(os.path.dirname(__file__), filename)
         try:
@@ -76,12 +99,24 @@ class Jarvis:
             else: raise ValueError("No API Key")
         except Exception as e:
             self.logger.warning(f"无法初始化 RedisLongMemory: {e}。尝试使用轻量级 ZvecLongMemory...")
+
+            # 安全检查 zvec 是否可用且不会导致 Illegal Instruction
+            zvec_safe = False
             try:
-                if api_key:
+                import subprocess
+                res = subprocess.run([sys.executable, "-c", "import zvec"],
+                                     capture_output=True, timeout=2)
+                zvec_safe = (res.returncode == 0)
+            except Exception:
+                zvec_safe = False
+
+            try:
+                if api_key and zvec_safe:
                     # 如果 Redis 不可用，则尝试使用 zvec (极速本地向量库)
                     self.long_memory = ZvecLongMemory(api_key=api_key)
                     self.long_memory.init(self.logger)
-                else: raise ValueError("No API Key for Zvec")
+                else:
+                    raise ValueError("No API Key for Zvec or zvec is incompatible with this CPU")
             except Exception as e2:
                 self.logger.error(f"无法初始化 ZvecLongMemory: {e2}。降级到 SQLiteLongMemory...")
                 self.long_memory = SQLiteLongMemory()

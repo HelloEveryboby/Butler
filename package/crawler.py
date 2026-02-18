@@ -6,7 +6,6 @@ from bs4 import BeautifulSoup
 import os
 import concurrent.futures
 import argparse
-import urlparse
 from package.log_manager import LogManager
 from urllib.parse import urlparse, urljoin
 from scrapy.crawler import CrawlerProcess
@@ -165,10 +164,19 @@ class MyScrapySpider(scrapy.Spider):
             f.write(response.body)
         self.log(f'下载 {response.url}')    
 
+def run(*args, **kwargs):
+    search_query = kwargs.get('search_query')
+    file_type = kwargs.get('type', 'image')
+    url = kwargs.get('url')
+
+    if url:
+        crawl_website(url, max_depth)
+    elif search_query:
+        search_and_crawl_files(search_query, file_type)
+    else:
+        print("Please provide search_query or url")
+
 def crawler():
-    command = Jarvis.takecommand()
-    crawl_website(command())
-    
     parser = argparse.ArgumentParser(description="Multimedia Search and Crawler")
     parser.add_argument('search_query', type=str, nargs='?', help='输入搜索查询')
     parser.add_argument('--type', type=str, default='image', choices=['image', 'video'], help='文件类型')
@@ -179,7 +187,7 @@ def crawler():
     if not search_query:
         search_query = input('搜索内容: ')
     
-    if urlparse.urlparse(input_str).scheme:  # 如果输入的是网址
+    if urlparse(input_str).scheme:  # 如果输入的是网址
         success = crawl_website(input_str, max_depth)
         if not success:
             logger.info("切换到Scrapy爬虫")

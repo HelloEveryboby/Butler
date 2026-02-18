@@ -2,7 +2,7 @@ import io
 import numpy as np
 import cv2
 from PIL import Image
-from ...utils.lazy_import import lazy_import
+from .lazy_import import lazy_import
 
 # 延迟导入可选包
 np = lazy_import("numpy")

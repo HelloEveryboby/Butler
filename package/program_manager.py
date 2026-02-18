@@ -4,11 +4,13 @@ import shutil
 import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-import winreg
+try:
+    import winreg
+except ImportError:
+    winreg = None
 from datetime import datetime
 import locale
 import threading
-from jarvis.jarvis import Jarvis
 
 class ProgramManager:
     def __init__(self, root):
@@ -78,7 +80,7 @@ class ProgramManager:
         self.jarvis_frame = ttk.Frame(self.root, padding="10")
         self.jarvis_frame.pack(fill=tk.X)
         
-        self.jarvis = Jarvis()
+        self.jarvis = None
         
         self.voice_button = ttk.Button(self.jarvis_frame, text="语音控制", command=self.voice_control)
         self.voice_button.pack(side=tk.LEFT, padx=5)

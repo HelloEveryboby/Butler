@@ -3,7 +3,11 @@ from tkinter import ttk
 import subprocess
 import threading
 import os
-from tkinterdnd2 import DND_FILES, TkinterDnD
+# try:
+#     from tkinterdnd2 import DND_FILES, TkinterDnD
+#     HAS_DND = True
+# except ImportError:
+HAS_DND = False
 
 
 class TerminalTab(tk.Frame):
@@ -33,8 +37,12 @@ class TerminalTab(tk.Frame):
         self.command_input.bind("<Down>", self.show_next_command)
 
         # 支持拖放文件
-        self.command_input.drop_target_register(DND_FILES)
-        self.command_input.dnd_bind('<<Drop>>', self.on_file_drop)
+        if HAS_DND:
+            try:
+                self.command_input.drop_target_register(DND_FILES)
+                self.command_input.dnd_bind('<<Drop>>', self.on_file_drop)
+            except Exception:
+                pass
 
         # 创建运行按钮
         self.run_button = tk.Button(self, text="Run", command=self.run_command)
@@ -120,9 +128,15 @@ class TerminalTab(tk.Frame):
         file_path = event.data.strip('{}')
         self.command_input.insert(tk.END, file_path)
 
-class TerminalApp(TkinterDnD.Tk):
+class TerminalApp(tk.Tk):
     def __init__(self):
         super().__init__()
+        if HAS_DND:
+            try:
+                # Try to initialize DnD if available
+                self.TkdndVersion = TkinterDnD._require(self)
+            except Exception:
+                pass
         self.title("Terminal Panel")
         self.geometry("800x600")
         self.notebook = ttk.Notebook(self)
@@ -139,6 +153,10 @@ class TerminalApp(TkinterDnD.Tk):
         new_tab = TerminalTab(self.notebook)
         self.notebook.add(new_tab, text=f"Tab {len(self.notebook.tabs())+1}")
 
+
+def run(*args, **kwargs):
+    app = TerminalApp()
+    app.mainloop()
 
 if __name__ == "__main__":
     app = TerminalApp()
