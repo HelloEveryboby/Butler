@@ -1,3 +1,4 @@
+import shlex
 from collections import defaultdict
 from pathlib import Path
 from typing import Literal, get_args
@@ -126,8 +127,9 @@ class EditTool(BaseTool):
                     "当 `path` 指向目录时，不允许使用 `view_range` 参数。"
                 )
 
+            safe_path = shlex.quote(str(path))
             _, stdout, stderr = await run(
-                rf"find {path} -maxdepth 2 -not -path '*/\.*'"
+                rf"find {safe_path} -maxdepth 2 -not -path '*/\.*'"
             )
             if not stderr:
                 stdout = f"这是 {path} 中深达 2 级的文件和目录（不包括隐藏项目）：\n{stdout}\n"

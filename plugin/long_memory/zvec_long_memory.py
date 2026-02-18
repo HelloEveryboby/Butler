@@ -1,6 +1,5 @@
 import os
 import json
-import zvec
 import time
 from typing import List, Dict, Optional
 from .long_memory_interface import AbstractLongMemory, LongMemoryItem
@@ -26,20 +25,25 @@ class ZvecLongMemory(AbstractLongMemory):
         if logger:
             self._logger = logger
 
+        try:
+            import zvec
+        except (ImportError, RuntimeError, Exception) as e:
+            self._logger.error(f"zvec 库加载失败 (可能由于硬件不兼容或未安装): {e}")
+            raise RuntimeError(f"zvec is not available: {e}")
+
         if not os.path.exists(self._data_path):
             os.makedirs(self._data_path, exist_ok=True)
 
-        schema = zvec.CollectionSchema(
-            name=self._collection_name,
-            vectors=zvec.VectorSchema("embedding", zvec.DataType.VECTOR_FP32, 1024),
-            fields=[
-                zvec.FieldSchema("content", zvec.DataType.STRING),
-                zvec.FieldSchema("metadata", zvec.DataType.STRING),
-                zvec.FieldSchema("timestamp", zvec.DataType.DOUBLE)
-            ]
-        )
-
         try:
+            schema = zvec.CollectionSchema(
+                name=self._collection_name,
+                vectors=zvec.VectorSchema("embedding", zvec.DataType.VECTOR_FP32, 1024),
+                fields=[
+                    zvec.FieldSchema("content", zvec.DataType.STRING),
+                    zvec.FieldSchema("metadata", zvec.DataType.STRING),
+                    zvec.FieldSchema("timestamp", zvec.DataType.DOUBLE)
+                ]
+            )
             self.collection = zvec.create_and_open(path=self._data_path, schema=schema)
             mode_str = "离线" if self._offline else "在线"
             self._logger.info(f"ZvecLongMemory ({mode_str}模式) 初始化成功: {self._data_path}")
@@ -49,6 +53,7 @@ class ZvecLongMemory(AbstractLongMemory):
 
     def save(self, items: List[LongMemoryItem]):
         if not self.collection: return
+        import zvec
 
         docs = []
         for item in items:
@@ -71,6 +76,7 @@ class ZvecLongMemory(AbstractLongMemory):
 
     def search(self, text: str, n_results: int, metadata_filter: Optional[Dict[str, str]] = None) -> List[LongMemoryItem]:
         if not self.collection: return []
+        import zvec
 
         emb = get_embedding(text, self._api_key, offline=self._offline)
         if emb is None: return []

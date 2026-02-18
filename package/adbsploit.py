@@ -7,6 +7,7 @@ try:
     import subprocess
     import sys
     import random
+    import shlex
     import adbutils
     from colorama import Fore
     from pyfiglet import Figlet
@@ -418,7 +419,7 @@ def shell():
     global device
     if device != 'none':
         try:
-            os.system("adb -s " + device + " shell")
+            os.system("adb -s " + shlex.quote(device) + " shell")
         except:
             print(arrow + ("[{0}+{1}] An error ocurred opening the shell...").format(Fore.RED, Fore.WHITE))
     else:
@@ -482,10 +483,11 @@ def logs():
             print(arrow + ("[{0}+{1}] You want all the logs or only an app? (all/package_name) ").format(Fore.RED,
                                                                                                          Fore.WHITE))
             app = my_input(arrow + " adbsploit" + Fore.RED + "(logs) " + Fore.WHITE + "> ")
+            safe_device = shlex.quote(device)
             if app == "all":
-                os.system('adb -s ' + device + " logcat ")
+                os.system('adb -s ' + safe_device + " logcat ")
             else:
-                os.system('adb -s ' + device + " logcat " + "app")
+                os.system('adb -s ' + safe_device + " logcat " + shlex.quote(app))
         except:
             print(arrow + ("[{0}+{1}] An error ocurred getting the logs...").format(Fore.RED, Fore.WHITE))
     else:
@@ -929,7 +931,7 @@ def screenshot():
         try:
             print(arrow + ("[{0}+{1}] Specify the name of the screenshot").format(Fore.RED, Fore.WHITE))
             name = my_input(arrow + " adbsploit" + Fore.RED + "(screenshot) " + Fore.WHITE + "> ")
-            os.system("adb -s " + device + " exec-out screencap -p >" + name + ".png")
+            os.system("adb -s " + shlex.quote(device) + " exec-out screencap -p >" + shlex.quote(name) + ".png")
             print(arrow + Fore.GREEN + "An image is created with the name " + name + ".png ...")
         except:
             print(arrow + ("[{0}+{1}] An error ocurred making the screenshot...").format(Fore.RED, Fore.WHITE))
@@ -975,7 +977,7 @@ def tcpip():
             if port == '':
                 print(Fore.RED + "You must specify a port to listen on your device...")
             else:
-                os.system("adb -s " + device + " tcpip " + port)
+                os.system("adb -s " + shlex.quote(device) + " tcpip " + shlex.quote(port))
         except:
             print(arrow + ("[{0}+{1}] An error ocurred enabling the tcpip mode..").format(Fore.RED, Fore.WHITE))
     else:
@@ -1129,13 +1131,14 @@ def extract_app():
     path = d.shell("pm path " + app)
     d.shell("pull " + path[8:])
 
-def _run_scrcpy(command):
+def _run_scrcpy(args):
     if shutil.which("scrcpy") is None:
         print(arrow + Fore.RED + "scrcpy is not installed. Please install it from https://github.com/Genymobile/scrcpy")
         return
 
     try:
-        subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        # Use a list of arguments for better security and avoid shell=True
+        subprocess.Popen(["scrcpy"] + args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     except Exception as e:
         print(arrow + Fore.RED + f"An error occurred running scrcpy: {e}")
 
@@ -1146,14 +1149,14 @@ def screenrecord():
         ans = my_input(arrow + " adbsploit" + Fore.RED + "(screenrecord) " + Fore.WHITE + "> ")
         if ans == "":
             ans = "record.mp4"
-        _run_scrcpy(f"scrcpy -r {ans} -s {device}")
+        _run_scrcpy(["-r", ans, "-s", device])
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
 
 def remote_control():
     global device
     if device != 'none':
-        _run_scrcpy(f"scrcpy -s {device}")
+        _run_scrcpy(["-s", device])
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
 #TODO

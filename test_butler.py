@@ -107,7 +107,7 @@ class TestButler(unittest.TestCase):
         self.assertIn("Success from External Program", tool_output)
 
         # Verify the final completion message is yielded
-        final_msg = next((item[1] for item in events if item[0] == 'result' and "**Final Answer:**" in item[1]), None)
+        final_msg = next((item[1] for item in events if item[0] == 'result' and ("**Final Answer:**" in item[1] or "**最终回答：** " in item[1])), None)
         self.assertIsNotNone(final_msg)
         self.assertIn("Task complete", final_msg)
 

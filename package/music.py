@@ -1,9 +1,10 @@
 import os
 import json
-from jarvis.jarvis import takecommand
-from playsound import playsound
-
-# 音乐库文件路径
+try:
+    from playsound import playsound
+except ImportError:
+    def playsound(path):
+        print(f"[模拟播放] {path}")
 MUSIC_LIBRARY_FILE = "music_library.json"
 
 # 音乐播放器函数
@@ -23,9 +24,10 @@ def music_player():
         with open(MUSIC_LIBRARY_FILE, "w") as f:
             json.dump(music_library, f)
 
-    # 遍历整个文件系统以查找音乐文件
+    # 遍历当前目录以查找音乐文件
     def build_music_library():
-        for root, _, files in os.walk("/"):
+        search_path = os.getcwd()
+        for root, _, files in os.walk(search_path):
             for file in files:
                 if file.endswith(('.mp3', '.wav', '.ogg')):
                     music_library.append(os.path.join(root, file))
@@ -95,7 +97,10 @@ def music_player():
         global current_song_index
         while True:
             try:
-                command = takecommand()
+                # 模拟语音输入，因为 jarvis.jarvis.takecommand 不存在
+                print("语音输入模式暂不可用，请使用文字模式。")
+                return
+                command = None # takecommand()
                 if command:
                     if "播放" in command:
                         play_music(current_song_index)
@@ -139,6 +144,12 @@ def music_player():
             print("已切换到语音输入模式")
         else:
             print("未知命令，请重新输入。")
+
+def run(*args, **kwargs):
+    """
+    运行音乐播放器插件。
+    """
+    music_player()
 
 if __name__ == "__main__":
     music_player()

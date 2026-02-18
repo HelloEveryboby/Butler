@@ -6,7 +6,6 @@ from docx import Document
 from docx.shared import Inches
 import pypandoc
 from fpdf import FPDF
-from jarvis import InputProcessor
 
 def rotate_image(image):
     """逆时针旋转图像90度"""
@@ -206,31 +205,18 @@ def convert_with_pandoc(input_file_path, output_file_path):
     pypandoc.convert_file(input_file_path, os.path.splitext(output_file_path)[1][1:], outputfile=output_file_path)
     print(f"转换 {input_file_path} to {output_file_path}")
 
+def run(*args, **kwargs):
+    """
+    运行文件转换器插件。
+    """
+    input_file = kwargs.get('input_file')
+    output_file = kwargs.get('output_file')
+    output_folder = kwargs.get('output_folder', './downloaded')
+
+    if input_file and output_file:
+        convert_file(input_file, output_file, output_folder)
+    else:
+        print("Usage: run(input_file='...', output_file='...')")
+
 def file_converter():
-    mode = 'voice'  # 默认语音输入模式
-    inputProcessor = InputProcessor.InputProcessor()
-    while True:
-        if mode == 'voice':
-            command = inputProcessor.process_voice_input()
-        elif mode == 'text':
-            command = inputProcessor.process_text_input()
-
-        if command == '1' and mode == 'voice':
-            mode = 'text'
-            continue
-        elif command == '2' and mode == 'text':
-            mode = 'voice'
-            continue
-
-        input_file = input("请输入文件路径：")
-        output_file = input("请输入要转换后的文件名：")
-        output_folder = './my_package/downloaded'
-
-        if "处理pdf" in command:
-            convert_file(input_file, output_file, output_folder)
-        elif "处理docx" in command:
-            convert_file(input_file, output_file, output_folder)
-        elif "转换图片" in command:
-            convert_file(input_file, output_file, output_folder)
-        else:
-            print("无法识别的命令，请重试。")
+    print("命令行模式暂不完全支持，请通过 run 函数调用。")
