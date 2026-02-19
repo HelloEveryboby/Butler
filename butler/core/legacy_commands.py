@@ -376,3 +376,31 @@ def handle_vmail_set_key(jarvis_app, entities, **kwargs):
         jarvis_app.speak("Vmail API 密钥已成功保存。")
     except Exception as e:
         jarvis_app.speak(f"设置密钥失败: {e}")
+
+@register_intent("vmail_wait_otp", requires_entities=False)
+def handle_vmail_wait_otp(jarvis_app, **kwargs):
+    """等待最新的 vmail 验证码并自动播报。"""
+    try:
+        from package import vmail_tool
+        assistant = vmail_tool.VMailAssistant(jarvis_app=jarvis_app)
+        if not assistant.api_key:
+            jarvis_app.speak("请先设置 Vmail API 密钥。")
+            return
+        if not assistant.active_mailbox:
+            jarvis_app.speak("没有激活的临时邮箱，请先创建一个。")
+            return
+
+        jarvis_app.speak("正在为您监控新邮件中的验证码，请在网页上点击发送。")
+        jarvis_app.ui_print("⏳ 正在等待验证码 (超时时间 60s)...")
+
+        def do_wait():
+            otp, err = assistant.wait_for_otp(timeout=60)
+            if otp:
+                jarvis_app.speak(f"已收到验证码：{otp}。已自动为您复制到剪贴板。")
+                jarvis_app.ui_print(f"✨ 成功获取验证码: {otp}")
+            else:
+                jarvis_app.speak(f"等待验证码失败：{err}")
+
+        threading.Thread(target=do_wait, daemon=True).start()
+    except Exception as e:
+        jarvis_app.speak(f"启动等待程序失败: {e}")

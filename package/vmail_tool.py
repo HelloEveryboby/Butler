@@ -197,6 +197,46 @@ class VMailAssistant:
         else:
             print(f"\n🔔 [Vmail] {msg_text}")
 
+    def wait_for_otp(self, timeout=60, poll_interval=5):
+        """等待并获取最新的验证码"""
+        if not self.active_mailbox:
+            return None, "未激活邮箱"
+
+        # 记录当前的最新消息 ID
+        initial_messages = self.list_messages()
+        last_id = initial_messages[0].get("id") if initial_messages else None
+
+        start_time = time.time()
+        logger.info(f"开始等待验证码，超时时间: {timeout}s")
+
+        while time.time() - start_time < timeout:
+            msgs = self.list_messages()
+            if msgs:
+                latest = msgs[0]
+                if latest.get("id") != last_id:
+                    # 发现新邮件
+                    subject = latest.get("subject", "")
+                    otp = self.extract_otp(subject)
+                    if not otp:
+                        detail = self.get_message_detail(latest.get("id"))
+                        if detail:
+                            otp = self.extract_otp(detail.get("text", "") or detail.get("html", ""))
+
+                    if otp:
+                        if pyperclip:
+                            try:
+                                pyperclip.copy(otp)
+                            except:
+                                pass
+                        return otp, None
+                    else:
+                        # 虽然有新邮件但没找到验证码，继续更新 last_id 以便检测下一封
+                        last_id = latest.get("id")
+
+            time.sleep(poll_interval)
+
+        return None, "等待超时"
+
 def run(*args, **kwargs):
     """扩展运行入口"""
     assistant = VMailAssistant()
@@ -232,11 +272,12 @@ def run(*args, **kwargs):
         print("2. 查看当前收件箱")
         print("3. 开启后台自动监控")
         print("4. 查看历史邮箱")
-        print("5. 设置 API Key")
+        print("5. 等待收验证码 (60s)")
+        print("6. 设置 API Key")
         print("0. 返回主菜单")
         print("="*50)
 
-        choice = input("请选择操作 (0-5): ").strip()
+        choice = input("请选择操作 (0-6): ").strip()
 
         if choice == '1':
             success, res = assistant.create_mailbox()
@@ -292,6 +333,14 @@ def run(*args, **kwargs):
                     print(f"{i+1}. {h.get('address')} ({h.get('id')})")
 
         elif choice == '5':
+            print("⏳ 正在等待新邮件中的验证码...")
+            otp, err = assistant.wait_for_otp(timeout=60)
+            if otp:
+                print(f"✨ 成功获取验证码: {otp}")
+            else:
+                print(f"❌ {err}")
+
+        elif choice == '6':
             key = input("新 API Key: ").strip()
             if key:
                 assistant.set_api_key(key)

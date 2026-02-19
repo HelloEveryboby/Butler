@@ -24,5 +24,6 @@
     "程序交换机": "package/autonomous_switch.py",
     "防止混乱": "package/autonomous_switch.py",
     "临时邮箱": "package/vmail_tool.py",
-    "vmail": "package/vmail_tool.py"
+    "vmail": "package/vmail_tool.py",
+    "等待验证码": "package/vmail_tool.py"
 }
