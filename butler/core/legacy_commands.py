@@ -274,3 +274,105 @@ def handle_manage_dependencies(jarvis_app, entities, **kwargs):
             jarvis_app.speak(f"依赖管理执行失败: {e}")
 
     threading.Thread(target=run_dep_mgr, daemon=True).start()
+
+@register_intent("vmail_create", requires_entities=False)
+def handle_vmail_create(jarvis_app, **kwargs):
+    """创建一个新的 vmail.dev 临时邮箱。"""
+    try:
+        from package import vmail_tool
+        assistant = vmail_tool.VMailAssistant(jarvis_app=jarvis_app)
+        success, res = assistant.create_mailbox()
+        if success:
+            jarvis_app.speak(f"成功创建临时邮箱: {res.get('address')}")
+            jarvis_app.ui_print(f"临时邮箱已创建: {res.get('address')}\nID: {res.get('id')}")
+        else:
+            jarvis_app.speak(f"创建失败: {res}")
+    except Exception as e:
+        jarvis_app.speak(f"执行 Vmail 创建时出错: {e}")
+
+@register_intent("vmail_check")
+def handle_vmail_check(jarvis_app, entities, **kwargs):
+    """检查 vmail 临时邮箱的收件箱。"""
+    try:
+        from package import vmail_tool
+        assistant = vmail_tool.VMailAssistant(jarvis_app=jarvis_app)
+        if not assistant.api_key:
+            jarvis_app.speak("未检测到 Vmail API Key，请先使用 '设置 vmail 密钥' 命令进行设置。")
+            return
+        msgs = assistant.list_messages()
+        if not msgs:
+            jarvis_app.speak("收件箱目前是空的。")
+        else:
+            jarvis_app.speak(f"收件箱中有 {len(msgs)} 封邮件。")
+            summary = "📬 Vmail 收件箱:\n"
+            for i, m in enumerate(msgs[:5]): # 只显示前5个
+                summary += f"[{i+1}] {m.get('from')}: {m.get('subject')}\n"
+            summary += "\n提示: 可以通过 '查看 vmail 详情' 并提供编号来阅读全文。"
+            jarvis_app.ui_print(summary)
+    except Exception as e:
+        jarvis_app.speak(f"检查 Vmail 时出错: {e}")
+
+@register_intent("vmail_detail")
+def handle_vmail_detail(jarvis_app, entities, **kwargs):
+    """获取指定编号或 ID 的 vmail 邮件详情。"""
+    try:
+        from package import vmail_tool
+        index = entities.get("index")
+        if index is None:
+            jarvis_app.speak("请提供您想查看的邮件编号。")
+            return
+
+        assistant = vmail_tool.VMailAssistant(jarvis_app=jarvis_app)
+        msgs = assistant.list_messages()
+
+        try:
+            idx = int(index) - 1
+            if 0 <= idx < len(msgs):
+                msg_id = msgs[idx].get("id")
+                detail = assistant.get_message_detail(msg_id)
+                if detail:
+                    content = detail.get("text", "") or "无正文内容"
+                    jarvis_app.ui_print(f"📧 详情:\n发件人: {detail.get('from')}\n主题: {detail.get('subject')}\n\n{content}")
+                    otp = assistant.extract_otp(content)
+                    if otp:
+                        jarvis_app.speak(f"识别到验证码 {otp}，已为您显示在面板上。")
+                    else:
+                        jarvis_app.speak("详情已显示在面板上。")
+                else:
+                    jarvis_app.speak("获取邮件详情失败。")
+            else:
+                jarvis_app.speak(f"找不到编号为 {index} 的邮件。")
+        except ValueError:
+             jarvis_app.speak("无效的邮件编号。")
+    except Exception as e:
+        jarvis_app.speak(f"获取 Vmail 详情时出错: {e}")
+
+@register_intent("vmail_monitor", requires_entities=False)
+def handle_vmail_monitor(jarvis_app, **kwargs):
+    """启动 Vmail 后台监控。"""
+    try:
+        from package import vmail_tool
+        assistant = vmail_tool.VMailAssistant(jarvis_app=jarvis_app)
+        if not assistant.api_key:
+            jarvis_app.speak("未设置 API Key，无法启动监控。")
+            return
+        assistant.start_monitoring()
+        jarvis_app.speak("已启动 Vmail 后台监控，如有新邮件我将提醒您。")
+    except Exception as e:
+        jarvis_app.speak(f"启动监控失败: {e}")
+
+@register_intent("vmail_set_key")
+def handle_vmail_set_key(jarvis_app, entities, **kwargs):
+    """设置 vmail.dev 的 API 密钥。"""
+    api_key = entities.get("api_key")
+    if not api_key:
+        jarvis_app.speak("请提供有效的 API 密钥。")
+        return
+
+    try:
+        from package import vmail_tool
+        assistant = vmail_tool.VMailAssistant(jarvis_app=jarvis_app)
+        assistant.set_api_key(api_key)
+        jarvis_app.speak("Vmail API 密钥已成功保存。")
+    except Exception as e:
+        jarvis_app.speak(f"设置密钥失败: {e}")

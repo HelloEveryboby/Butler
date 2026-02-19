@@ -22,5 +22,7 @@
     "本地库安装": "package/dependency_manager.py",
     "交换机": "package/autonomous_switch.py",
     "程序交换机": "package/autonomous_switch.py",
-    "防止混乱": "package/autonomous_switch.py"
+    "防止混乱": "package/autonomous_switch.py",
+    "临时邮箱": "package/vmail_tool.py",
+    "vmail": "package/vmail_tool.py"
 }
