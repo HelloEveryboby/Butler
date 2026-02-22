@@ -1,0 +1,10 @@
+{
+  "name": "hybrid_crypto",
+  "language": "rust",
+  "version": "1.0",
+  "description": "High-performance Rust cryptographic module for hashing and encryption. BHL compatible.",
+  "protocol": "bhl",
+  "build": "cargo build --release",
+  "source": ["src/main.rs", "Cargo.toml"],
+  "executable": "target/release/hybrid_crypto_exec"
+}
