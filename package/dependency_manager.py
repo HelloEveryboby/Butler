@@ -1,6 +1,6 @@
 """
-依赖管理器 - 用于管理项目本地依赖与 Python 运行环境的工具。
-支持将第三方库安装到 lib_external，以及设置便携式 Python (runtime)。
+依赖管理器 - 用于管理项目本地依赖与多语言运行环境的工具。
+支持将第三方库安装到 lib_external，以及设置便携式 Python, Go, Java, Rust 运行环境。
 此工具可实现项目的“完全绿色便携化”。
 """
 import os
@@ -11,19 +11,56 @@ import zipfile
 import tarfile
 import platform
 import shutil
+import logging
 from package.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
 
-def setup_runtime(target_dir):
+# 获取项目根目录
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RUNTIME_DIR = os.path.join(PROJECT_ROOT, "runtime")
+
+def download_and_extract(url, target_subdir):
+    """通用的下载与解压工具"""
+    target_path = os.path.join(RUNTIME_DIR, target_subdir)
+    os.makedirs(target_path, exist_ok=True)
+
+    archive_path = os.path.join(target_path, "download.tmp")
+
+    try:
+        logger.info(f"正在从 {url} 下载...")
+        urllib.request.urlretrieve(url, archive_path)
+
+        logger.info(f"正在解压到 {target_path}...")
+        if url.endswith(".zip"):
+            with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+                zip_ref.extractall(target_path)
+        elif url.endswith(".tar.gz") or url.endswith(".tgz"):
+            with tarfile.open(archive_path, 'r:gz') as tar_ref:
+                tar_ref.extractall(target_path)
+
+        os.remove(archive_path)
+
+        # 优化目录结构（如果解压后只有一层同名文件夹，将其内容上移）
+        items = os.listdir(target_path)
+        if len(items) == 1:
+            inner_dir = os.path.join(target_path, items[0])
+            if os.path.isdir(inner_dir):
+                for item in os.listdir(inner_dir):
+                    shutil.move(os.path.join(inner_dir, item), target_path)
+                os.rmdir(inner_dir)
+
+        return True
+    except Exception as e:
+        logger.error(f"下载或解压失败: {e}")
+        if os.path.exists(archive_path): os.remove(archive_path)
+        return False
+
+def setup_python():
     """下载并设置便携式 Python 运行环境"""
-    os.makedirs(target_dir, exist_ok=True)
     system = platform.system()
     arch = platform.machine().lower()
 
-    logger.info(f"正在为 {system} ({arch}) 准备便携式 Python 环境...")
-
-    # 定义下载链接 (示例使用 3.12.3)
     urls = {
         "Windows": "https://www.python.org/ftp/python/3.12.3/python-3.12.3-embed-amd64.zip",
         "Linux": "https://github.com/indygreg/python-build-standalone/releases/download/20240415/cpython-3.12.3+20240415-x86_64-unknown-linux-gnu-install_only.tar.gz",
@@ -31,84 +68,79 @@ def setup_runtime(target_dir):
     }
 
     url = urls.get(system)
-    if not url:
-        return f"错误: 暂不支持为系统 {system} 自动下载便携版 Python。"
+    if not url: return "错误: 暂不支持此系统的 Python 下载。"
 
-    archive_path = os.path.join(target_dir, "python_runtime.archive")
-
-    try:
-        logger.info(f"正在从 {url} 下载...")
-        urllib.request.urlretrieve(url, archive_path)
-
-        logger.info("正在解压运行环境...")
-        if url.endswith(".zip"):
-            with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-                zip_ref.extractall(target_dir)
-            # Windows Embeddable 特殊处理: 启用 site-packages
-            pth_file = None
-            for f in os.listdir(target_dir):
-                if f.endswith("._pth"):
-                    pth_file = os.path.join(target_dir, f)
-                    break
+    if download_and_extract(url, "python"):
+        # Windows Embeddable 特殊处理: 启用 site-packages
+        if system == "Windows":
+            target_dir = os.path.join(RUNTIME_DIR, "python")
+            pth_file = next((os.path.join(target_dir, f) for f in os.listdir(target_dir) if f.endswith("._pth")), None)
             if pth_file:
                 with open(pth_file, "a") as f:
-                    # 允许加载 site-packages 并将项目根目录加入路径
-                    f.write("\nimport site\n")
-                    f.write("..\n")
-                    f.write("../lib_external\n")
-        else:
-            with tarfile.open(archive_path, 'r:gz') as tar_ref:
-                tar_ref.extractall(target_dir)
-            # 移动内容到根部 (针对 python-build-standalone 的结构)
-            inner_dir = os.path.join(target_dir, "python")
-            if os.path.exists(inner_dir):
-                for item in os.listdir(inner_dir):
-                    shutil.move(os.path.join(inner_dir, item), target_dir)
-                os.rmdir(inner_dir)
+                    f.write("\nimport site\n..\n../lib_external\n")
+        return "Python 运行环境设置成功。"
+    return "Python 设置失败。"
 
-        os.remove(archive_path)
-        logger.info("便携式运行环境设置完成。")
-        return "便携式运行环境设置成功。"
-    except Exception as e:
-        logger.error(f"设置运行环境时出错: {e}")
-        return f"错误: {e}"
+def setup_go():
+    """下载便携式 Go 运行环境"""
+    system = platform.system().lower()
+    arch = "amd64" # 简化处理，默认 x64
+    ext = "zip" if system == "windows" else "tar.gz"
+
+    url = f"https://go.dev/dl/go1.22.2.{system}-{arch}.{ext}"
+    if download_and_extract(url, "go"):
+        return "Go 环境设置成功。"
+    return "Go 设置失败。"
+
+def setup_java():
+    """下载便携式 Java (JDK)"""
+    system = platform.system()
+    os_name = "windows" if system == "Windows" else ("linux" if system == "Linux" else "mac")
+    ext = "zip" if system == "Windows" else "tar.gz"
+
+    # 使用 Adoptium Temurin OpenJDK
+    url = f"https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.10%2B7/OpenJDK17U-jdk_x64_{os_name}_hotspot_17.0.10_7.{ext}"
+    if download_and_extract(url, "java"):
+        return "Java JDK 设置成功。"
+    return "Java 设置失败。"
+
+def setup_rust():
+    """下载便携式 Rust 工具链 (主要针对 Windows)"""
+    if platform.system() != "Windows":
+        return "提示: Linux/macOS 建议通过 'curl --proto =https --tlsv1.2 -sSf https://sh.rustup.rs | sh' 安装 Rust。"
+
+    # Windows 下下载独立的 MinGW/GNU 工具链 (示例链接)
+    url = "https://github.com/rust-lang/rust-installer/archive/refs/tags/v1.0.tar.gz" # 仅为示例
+    # 实际上 Rust 较难完全绿色化，通常需要 rustup。这里仅作框架保留。
+    return "Rust 自动安装尚在开发中，请手动安装 rustup。"
 
 def run(*args, **kwargs):
     """
     执行依赖管理操作。
     """
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    target_dir = os.path.join(project_root, "lib_external")
+    target_dir = os.path.join(PROJECT_ROOT, "lib_external")
+    os.makedirs(target_dir, exist_ok=True)
 
-    if not os.path.exists(target_dir):
-        os.makedirs(target_dir, exist_ok=True)
+    command = kwargs.get('command') or (args[0] if args else None)
 
-    command = kwargs.get('command')
-    if not command and args:
-        command = args[0]
-
-    if command == "setup_runtime":
-        runtime_dir = os.path.join(project_root, "runtime")
-        return setup_runtime(runtime_dir)
+    if command == "setup_python": return setup_python()
+    elif command == "setup_go": return setup_go()
+    elif command == "setup_java": return setup_java()
+    elif command == "setup_polyglot":
+        results = [setup_python(), setup_go(), setup_java()]
+        return "\n".join(results)
     elif command == "install_all":
-        req_file = os.path.join(project_root, "requirements.txt")
-        if not os.path.exists(req_file):
-            return "错误: 未找到 requirements.txt。"
-
+        req_file = os.path.join(PROJECT_ROOT, "requirements.txt")
+        if not os.path.exists(req_file): return "错误: 未找到 requirements.txt。"
         cmd = [sys.executable, "-m", "pip", "install", "-t", target_dir, "-r", req_file, "--upgrade"]
-        logger.info(f"正在安装所有依赖到 {target_dir}...")
+        logger.info(f"正在安装 Python 依赖到 {target_dir}...")
     elif command == "install":
-        pkg_name = kwargs.get('package')
-        if not pkg_name and len(args) > 1:
-            pkg_name = args[1]
-
-        if not pkg_name:
-            return "错误: 未指定包名。"
-
+        pkg_name = kwargs.get('package') or (args[1] if len(args) > 1 else None)
+        if not pkg_name: return "错误: 未指定包名。"
         cmd = [sys.executable, "-m", "pip", "install", "-t", target_dir, pkg_name, "--upgrade"]
         logger.info(f"正在安装包 '{pkg_name}'...")
     else:
-        return f"未知命令 '{command}'。"
+        return f"未知命令 '{command}'。可用: setup_python, setup_go, setup_java, setup_polyglot, install_all, install"
 
     try:
         process = subprocess.run(cmd, capture_output=True, text=True)
@@ -120,16 +152,7 @@ def run(*args, **kwargs):
         return f"异常: {str(e)}"
 
 if __name__ == "__main__":
-    import sys as sys_module
-    if len(sys_module.argv) > 1:
-        cmd = sys_module.argv[1]
-        if cmd == "install_all":
-            print(run(command="install_all"))
-        elif cmd == "install" and len(sys_module.argv) > 2:
-            print(run(command="install", package=sys_module.argv[2]))
-        elif cmd == "setup_runtime":
-            print(run(command="setup_runtime"))
-        else:
-            print("用法: python -m package.dependency_manager setup_runtime|install_all|install <pkg>")
+    if len(sys.argv) > 1:
+        print(run(command=sys.argv[1], package=sys.argv[2] if len(sys.argv) > 2 else None))
     else:
-        print("可用命令: setup_runtime, install_all, install <package>")
+        print("用法: python -m package.dependency_manager <command> [args]")

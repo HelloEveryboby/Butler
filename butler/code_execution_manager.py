@@ -11,9 +11,40 @@ class CodeExecutionManager:
     def __init__(self, programs_dir="programs"):
         self.programs_dir = programs_dir
         self.registered_programs = {}
+        # Get project root to find portable runtime
+        self.project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.runtime_dir = os.path.join(self.project_root, "runtime")
+
         if not os.path.isdir(self.programs_dir):
             logging.warning(f"Programs directory '{self.programs_dir}' not found. Creating it.")
             os.makedirs(self.programs_dir)
+
+    def _resolve_compiler_path(self, cmd):
+        """
+        Resolves a compiler/runtime command by checking the portable 'runtime/'
+        directory before falling back to the system PATH.
+        """
+        # Mapping common tools to their portable subdirectories
+        tool_map = {
+            'go': 'go/bin',
+            'java': 'java/bin',
+            'javac': 'java/bin',
+            'python': 'python/bin' if os.name != 'nt' else 'python',
+            'rustc': 'rust/bin',
+            'gcc': 'cpp/bin',
+            'g++': 'cpp/bin',
+            'make': 'cpp/bin'
+        }
+
+        tool_root = tool_map.get(cmd.lower())
+        if tool_root:
+            executable = cmd + (".exe" if os.name == "nt" else "")
+            portable_path = os.path.join(self.runtime_dir, tool_root, executable)
+            if os.path.exists(portable_path):
+                logging.info(f"Using portable tool: {portable_path}")
+                return portable_path
+
+        return cmd # Fallback to system PATH
 
     def scan_and_register(self):
         """
@@ -91,17 +122,24 @@ class CodeExecutionManager:
                 formatted_command = build_command.format(**format_dict)
                 logging.info(f"Executing build command: {formatted_command}")
 
+                # Resolve the compiler path for the build command
+                parts = shlex.split(formatted_command)
+                if parts:
+                    parts[0] = self._resolve_compiler_path(parts[0])
+
+                # Re-construct command with resolved path
+                resolved_command_str = " ".join([shlex.quote(p) for p in parts])
+
                 # Execute the command from within the project directory
                 # Note: build_command comes from manifest.json which is trusted internal config.
                 # For security, we prefer list-based execution if possible.
                 shell_chars = {'|', '&', ';', '<', '>', '$', '*', '?', '(', ')', '[', ']', '!', '#', '~'}
-                has_shell_meta = any(char in formatted_command for char in shell_chars)
+                has_shell_meta = any(char in resolved_command_str for char in shell_chars)
 
                 if not has_shell_meta:
-                    command_parts = shlex.split(formatted_command)
-                    result = subprocess.run(command_parts, shell=False, cwd=project_path, check=True, capture_output=True, text=True)
+                    result = subprocess.run(parts, shell=False, cwd=project_path, check=True, capture_output=True, text=True)
                 else:
-                    result = subprocess.run(formatted_command, shell=True, cwd=project_path, check=True, capture_output=True, text=True)
+                    result = subprocess.run(resolved_command_str, shell=True, cwd=project_path, check=True, capture_output=True, text=True)
 
                 logging.info(f"Successfully compiled '{name}'.\nCompiler output:\n{result.stdout}")
 
@@ -160,7 +198,13 @@ class CodeExecutionManager:
         if run_command_template:
             # Quote arguments for safe shell execution
             args_str = " ".join([shlex.quote(str(arg)) for arg in args])
-            command = run_command_template.format(args=args_str)
+            command_str = run_command_template.format(args=args_str)
+
+            # Resolve the runtime path (e.g. 'java')
+            parts = shlex.split(command_str)
+            if parts:
+                parts[0] = self._resolve_compiler_path(parts[0])
+            command = parts # Use list form
         else:
             command = [program_info['path']] + list(args)
 
