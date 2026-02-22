@@ -20,8 +20,12 @@ class SQLiteLongMemory(AbstractLongMemory):
         self._logger = LogManager.get_logger(__name__)
         # 初始化集合为 None
         self._conn: Optional[sqlite3.Connection] = None
-        # 使用提供的集合名称（或默认值）
+
+        # 使用提供的集合名称（或默认值），并进行安全性检查，防止 SQL 注入
+        if not collection_name.replace('_', '').isalnum():
+            raise ValueError(f"Invalid collection name: {collection_name}. Must be alphanumeric.")
         self._collection_name = collection_name
+
         # 初始化缓存字典
         self._cache: Dict[Tuple[str, int, Optional[frozenset]], List[LongMemoryItem]] = {}
         # 缓存大小限制
@@ -107,12 +111,17 @@ class SQLiteLongMemory(AbstractLongMemory):
         try:
             cursor = self._conn.cursor()
             if metadata_filter:
-                # 使用元数据过滤
-                filter_conditions = " AND ".join([f"json_extract(metadata, '$.{key}') = ?" for key in metadata_filter.keys()])
-                filter_values = list(metadata_filter.values())
+                # 使用元数据过滤，采用参数化查询以防止 SQL 注入
+                filter_conditions = []
+                filter_values = []
+                for key, value in metadata_filter.items():
+                    filter_conditions.append("json_extract(metadata, ?) = ?")
+                    filter_values.extend([f"$.{key}", value])
+
+                filter_sql = " AND ".join(filter_conditions)
                 query = f"""
                 SELECT id, content, metadata FROM {self._collection_name}
-                WHERE content LIKE ? AND {filter_conditions}
+                WHERE content LIKE ? AND {filter_sql}
                 LIMIT ?
                 """
                 cursor.execute(query, (f"%{text}%", *filter_values, n_results))

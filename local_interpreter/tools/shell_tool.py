@@ -35,7 +35,8 @@ def run_shell(command: str) -> str:
                 use_shell = True
 
         if use_shell:
-            # When shell=True is absolutely necessary, we use the original command string
+            # When shell=True is absolutely necessary, we use the original command string.
+            # This is audited and restricted to specific Windows built-in commands.
             result = subprocess.run(command, shell=True, capture_output=True, text=True, check=False)
         else:
             # Use the list of parts with shell=False for better security
