@@ -1,6 +1,10 @@
 """超时异步运行shell命令的实用程序."""
 
 import asyncio
+import shlex
+import logging
+
+logger = logging.getLogger(__name__)
 
 TRUNCATED_MESSAGE: str = "<response clipped><NOTE>To save on context only part of this file has been shown to you. You should retry this tool after you have searched inside the file with `grep -n` in order to find the line numbers of what you are looking for.</NOTE>"
 MAX_RESPONSE_LEN: int = 16000
@@ -21,9 +25,28 @@ async def run(
     truncate_after: int | None = MAX_RESPONSE_LEN,
 ):
     """在超时的情况下异步运行Shell命令."""
-    process = await asyncio.create_subprocess_shell(
-        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
+
+    # Security Hardening: Prefer create_subprocess_exec for simple commands to avoid shell injection
+    try:
+        command_parts = shlex.split(cmd)
+        shell_chars = {'|', '&', ';', '<', '>', '$', '*', '?', '(', ')', '[', ']', '!', '#', '~'}
+        has_shell_meta = any(char in cmd for char in shell_chars)
+
+        if command_parts and not has_shell_meta:
+            logger.info(f"Executing secure command (no shell): {command_parts}")
+            process = await asyncio.create_subprocess_exec(
+                *command_parts, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+        else:
+            logger.warning(f"Executing command with shell (meta-characters detected): {cmd}")
+            process = await asyncio.create_subprocess_shell(
+                cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+    except Exception as e:
+        logger.error(f"Failed to split command, falling back to shell: {e}")
+        process = await asyncio.create_subprocess_shell(
+            cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
 
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)

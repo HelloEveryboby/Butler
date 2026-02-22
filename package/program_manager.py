@@ -211,7 +211,10 @@ class ProgramManager:
                 for item in selected_items:
                     program_name = self.tree.item(item, "values")[0]
                     try:
-                        subprocess.run(["wmic", "product", "where", f"name='{program_name}'", "call", "uninstall", "/nointeractive"], check=True)
+                        # Harden the wmic call by using a list and avoiding shell=True.
+                        # We also ensure the program_name doesn't contain single quotes that could break the query.
+                        safe_program_name = program_name.replace("'", "")
+                        subprocess.run(["wmic", "product", "where", f"name='{safe_program_name}'", "call", "uninstall", "/nointeractive"], check=True)
                         self.tree.delete(item)
                     except subprocess.CalledProcessError:
                         messagebox.showerror("错误", f"卸载 {program_name} 时发生错误")

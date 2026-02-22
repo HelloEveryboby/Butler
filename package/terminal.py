@@ -72,17 +72,21 @@ class TerminalTab(tk.Frame):
 
     def execute_command(self, command):
         try:
-            if command.startswith("cd"):
+            command_parts = shlex.split(command)
+            if not command_parts:
+                return
+
+            if command_parts[0] == "cd":
                 try:
-                    path = command.split(maxsplit=1)[1]
+                    path = command_parts[1]
                     os.chdir(path)
                     self.current_directory = os.getcwd()
                     self.output_area.insert(tk.END, f"Changed directory to: {self.current_directory}\n")
                 except IndexError:
                     self.output_area.insert(tk.END, "cd: missing operand\n")
                 except FileNotFoundError:
-                    self.output_area.insert(tk.END, f"cd: no such file or directory: {path}\n")
-            elif command == "ls":
+                    self.output_area.insert(tk.END, f"cd: no such file or directory\n")
+            elif command_parts[0] == "ls":
                 try:
                     files = os.listdir(self.current_directory)
                     for file in files:
@@ -91,33 +95,16 @@ class TerminalTab(tk.Frame):
                     self.output_area.insert(tk.END, f"ls: {e}\n")
             # 处理其他命令
             else:
-                if command.startswith("python"):
-                    # 运行Python脚本
-                    script_name = command.split(maxsplit=1)[1]
-                    process = subprocess.Popen(["python", script_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
-                elif command.startswith("gcc"):
-                    # 编译并运行C程序
-                    file_name = command.split()[1]
-                    safe_file_name = shlex.quote(file_name)
-                    # Using shell=True for complex command with &&, but ensuring safe filenames
-                    process = subprocess.Popen(f"gcc {safe_file_name} -o {safe_file_name}.exe && ./{safe_file_name}.exe", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
-                elif command.startswith("g++"):
-                    # 编译并运行C++程序
-                    file_name = command.split()[1]
-                    safe_file_name = shlex.quote(file_name)
-                    process = subprocess.Popen(f"g++ {safe_file_name} -o {safe_file_name}.exe && ./{safe_file_name}.exe", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
-                elif command.startswith("go run"):
-                    # 运行Go程序
-                    script_name = command.split(maxsplit=2)[2]
-                    process = subprocess.Popen(["go", "run", script_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
-                elif command.startswith("javac"):
-                    # 编译Java程序
-                    file_name = command.split()[1]
-                    safe_file_name = shlex.quote(file_name)
-                    process = subprocess.Popen(f"javac {safe_file_name} && java {shlex.quote(file_name.split('.')[0])}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
+                # For safety, we prefer using list-based Popen which avoids the shell
+                # unless special shell characters are detected.
+                shell_chars = {'|', '&', ';', '<', '>', '$', '*', '?', '(', ')', '[', ']', '!', '#', '~'}
+                has_shell_meta = any(char in command for char in shell_chars)
+
+                if not has_shell_meta:
+                    # Simple command, run directly
+                    process = subprocess.Popen(command_parts, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
                 else:
-                    # 默认使用shell运行命令
-                    # 注意：由于这是终端模拟器，我们直接运行用户输入的整个命令字符串
+                    # Complex command, use shell but with caution
                     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=self.current_directory)
             
                 for line in process.stdout:

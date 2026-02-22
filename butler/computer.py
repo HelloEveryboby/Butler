@@ -204,12 +204,13 @@ class ComputerTool(BaseDeepSeekTool):
                             keystroke = " "
                         elif keystroke.lower() == "enter":
                             keystroke = "\n"
-                        script = f"""
-                        tell application "System Events"
-                            keystroke "{keystroke}" using {modifier}
-                        end tell
-                        """
-                        os.system("osascript -e '{}'".format(script))
+                        # Standardize modifiers for AppleScript
+                        mod_map = {"command": "command", "control": "control", "option": "option", "shift": "shift"}
+                        mods = [mod_map.get(m.lower(), m) for m in keys[:-1]]
+                        mod_string = "{" + ", ".join([f"{m} down" for m in mods]) + "}"
+
+                        script = f'tell application "System Events" to keystroke "{keystroke}" using {mod_string}'
+                        subprocess.run(["osascript", "-e", script], check=False)
                     else:
                         pyautogui.hotkey(*keys)  # 其他系统直接使用hotkey
                 else:
