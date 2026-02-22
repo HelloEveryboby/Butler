@@ -105,6 +105,9 @@ class CodeExecutionManager:
 
                 logging.info(f"Successfully compiled '{name}'.\nCompiler output:\n{result.stdout}")
 
+            except FileNotFoundError:
+                logging.error(f"Failed to compile '{name}': Compiler or build tool not found for command: {formatted_command}")
+                return
             except subprocess.CalledProcessError as e:
                 logging.error(f"Failed to compile '{name}'.\nCommand: {e.cmd}\nReturn Code: {e.returncode}\nStderr: {e.stderr}")
                 return # Do not register if compilation fails

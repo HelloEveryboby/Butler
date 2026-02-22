@@ -6,12 +6,13 @@ import uuid
 import logging
 import time
 from typing import Dict, Any, Optional, Callable, List
+from .hybrid_fallbacks import dispatch_fallback
 
 class HybridLinkClient:
     """
     Client for communicating with multi-language modules via the BHL protocol.
     """
-    def __init__(self, executable_path: str, cwd: Optional[str] = None):
+    def __init__(self, executable_path: str, cwd: Optional[str] = None, fallback_enabled: bool = True):
         self.executable_path = executable_path
         self.cwd = cwd
         self.process = None
@@ -21,6 +22,7 @@ class HybridLinkClient:
         self._responses: Dict[str, Any] = {}
         self._running = False
         self._event_callbacks: List[Callable[[Dict[str, Any]], None]] = []
+        self.fallback_enabled = fallback_enabled
 
     def register_event_callback(self, callback: Callable[[Dict[str, Any]], None]):
         """Registers a callback for asynchronous events (messages without an ID)."""
@@ -54,7 +56,6 @@ class HybridLinkClient:
 
     def stop(self):
         """Stops the external process."""
-        self._running = False
         if self.process:
             try:
                 # Try graceful exit if possible
@@ -63,6 +64,7 @@ class HybridLinkClient:
                 except:
                     pass
 
+                self._running = False
                 time.sleep(0.1)
                 if self.process.stdin:
                     self.process.stdin.close()
@@ -120,8 +122,11 @@ class HybridLinkClient:
 
     def call(self, method: str, params: Dict[str, Any], timeout: float = 10.0, wait: bool = True) -> Any:
         """Calls a method in the remote module."""
-        if not self.process:
-            return {"error": {"message": "Process not started"}}
+        if not self.process or not self._running:
+            if self.fallback_enabled:
+                self.logger.info(f"Using Python fallback for method: {method}")
+                return dispatch_fallback(method, params)
+            return {"error": {"message": "Process not started and fallback disabled"}}
 
         req_id = str(uuid.uuid4())
         request = {

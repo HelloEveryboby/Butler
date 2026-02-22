@@ -47,20 +47,24 @@ def run(*args, **kwargs):
         if not compute_info: missing.append("C++ (hybrid_compute)")
         if not net_info: missing.append("Go (hybrid_net)")
         if not crypto_info: missing.append("Rust (hybrid_crypto)")
-        return f"Error: Missing BHL modules: {', '.join(missing)}. Please compile them."
+        print(f"[Python] Warning: Some BHL modules are missing ({', '.join(missing)}). Falling back to Python implementations.")
 
     results = []
 
     # Using the new Context Manager for automatic cleanup
     try:
-        with HybridLinkClient(compute_info['path'], cwd=os.path.dirname(compute_info['path'])) as compute_client, \
-             HybridLinkClient(net_info['path'], cwd=os.path.dirname(net_info['path'])) as net_client, \
-             HybridLinkClient(crypto_info['path'], cwd=os.path.dirname(crypto_info['path'])) as crypto_client:
+        # Helper to get path safely
+        get_path = lambda info: info['path'] if info else "MISSING"
+        get_cwd = lambda info: os.path.dirname(info['path']) if info else None
+
+        with HybridLinkClient(get_path(compute_info), cwd=get_cwd(compute_info)) as compute_client, \
+             HybridLinkClient(get_path(net_info), cwd=get_cwd(net_info)) as net_client, \
+             HybridLinkClient(get_path(crypto_info), cwd=get_cwd(crypto_info)) as crypto_client:
 
             # Register event callback for Go module
             net_client.register_event_callback(on_bhl_event)
 
-            print("[Python] All modules started successfully.")
+            print("[Python] Initialization complete (Hybrid or Fallback).")
 
             # --- 1. Rust Task: Hashing ---
             secret_msg = "Butler is the best AI assistant!"
