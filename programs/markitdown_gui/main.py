@@ -15,7 +15,7 @@ project_root = os.path.abspath(os.path.join(current_dir, "../../"))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-markitdown_path = os.path.join(project_root, "butler/markitdown/src")
+markitdown_path = os.path.join(project_root, "markitdown/src")
 if markitdown_path not in sys.path:
     sys.path.insert(0, markitdown_path)
 
@@ -27,7 +27,7 @@ try:
     from markitdown.main import convert
 except ImportError:
     # Fallback if pathing is different
-    sys.path.insert(0, os.path.join(project_root, "butler/markitdown/src/markitdown"))
+    sys.path.insert(0, os.path.join(project_root, "markitdown/src/markitdown"))
     from main import convert
 
 class MarkItDownGUI:

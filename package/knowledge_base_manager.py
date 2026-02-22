@@ -12,7 +12,7 @@ from package.log_manager import LogManager
 from package.embedding_utils import get_embedding
 
 # 动态添加 markitdown 源码路径
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'butler', 'markitdown', 'src')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'markitdown', 'src')))
 
 try:
     import numpy as np
