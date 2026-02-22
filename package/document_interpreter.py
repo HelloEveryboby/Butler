@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 
 # Local imports
 # Ensure markitdown can be found if it's in the repo
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'markitdown', 'src')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'butler', 'markitdown', 'src')))
 try:
     from markitdown import MarkItDown
     MARKITDOWN_AVAILABLE = True

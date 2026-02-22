@@ -274,3 +274,103 @@ def handle_manage_dependencies(jarvis_app, entities, **kwargs):
             jarvis_app.speak(f"依赖管理执行失败: {e}")
 
     threading.Thread(target=run_dep_mgr, daemon=True).start()
+
+# 用于存储待确认的转换任务
+pending_marker_tasks = {}
+
+@register_intent("marker_convert")
+def handle_marker_convert(jarvis_app, entities, **kwargs):
+    """使用 Marker 高质量转换文档。支持 PDF, DOCX, PPTX, XLSX, HTML, EPUB, 图片。"""
+    path = entities.get("path")
+    output_format = entities.get("format", "markdown")
+    confirm_bypass = entities.get("confirm", False)
+
+    if not path:
+        jarvis_app.speak("请提供要转换的文件路径。")
+        return
+
+    if not confirm_bypass:
+        # 第一步：预解析并请求确认
+        try:
+            from package import marker_tool
+            tool = marker_tool.MarkerTool()
+            ext = os.path.splitext(path)[1].lower()
+
+            # 本地初步提取（不耗费 API）
+            if ext == '.pdf': extracted = tool.extract_pdf(path)
+            elif ext == '.docx': extracted = tool.extract_docx(path)
+            elif ext == '.pptx': extracted = tool.extract_pptx(path)
+            elif ext in ['.xlsx', '.xls']: extracted = tool.extract_xlsx(path)
+            elif ext == '.epub': extracted = tool.extract_epub(path)
+            else: extracted = {"text": "文本提取中...", "images": []}
+
+            char_count = len(extracted.get("text", ""))
+            img_count = len(extracted.get("images", []))
+
+            task_id = str(datetime.datetime.now().timestamp())
+            pending_marker_tasks[task_id] = {"path": path, "format": output_format}
+
+            jarvis_app.ui_print(f"--- 预解析完成 ---\n文件: {path}\n字数: {char_count}\n图像: {img_count}")
+            jarvis_app.speak(f"文件预解析已完成。提取了约 {char_count} 个字符和 {img_count} 张图像。请确认是否继续调用 DeepSeek 进行精准转换？如果是，请说“确认转换”。")
+            jarvis_app._last_marker_task_id = task_id # 记录在 app 实例中
+            return
+        except Exception as e:
+            jarvis_app.speak(f"预解析失败: {e}")
+            return
+
+    # 如果已经确认，则直接运行
+    def run_marker():
+        try:
+            from package import marker_tool
+            jarvis_app.ui_print(f"正在进行精准解析: {path}")
+            result = marker_tool.MarkerTool().convert(file_path=path, output_format=output_format, skip_confirmation=True)
+            jarvis_app.ui_print(result)
+            jarvis_app.speak(f"文档转换完成。")
+        except Exception as e:
+            jarvis_app.speak(f"解析过程中出错: {e}")
+
+    threading.Thread(target=run_marker, daemon=True).start()
+
+@register_intent("marker_approve", requires_entities=False)
+def handle_marker_approve(jarvis_app, **kwargs):
+    """确认执行待定的 Marker 转换任务。"""
+    task_id = getattr(jarvis_app, "_last_marker_task_id", None)
+    if not task_id or task_id not in pending_marker_tasks:
+        jarvis_app.speak("没有待确认的转换任务。")
+        return
+
+    task = pending_marker_tasks.pop(task_id)
+    handle_marker_convert(jarvis_app, entities={"path": task["path"], "format": task["format"], "confirm": True})
+
+@register_intent("structured_extract")
+def handle_structured_extract(jarvis_app, entities, **kwargs):
+    """根据指定的 JSON Schema 从文档中提取结构化数据。"""
+    path = entities.get("path")
+    schema_path = entities.get("schema_path")
+
+    if not path:
+        jarvis_app.speak("请提供要提取数据的文件路径。")
+        return
+
+    def run_extract():
+        try:
+            from package import marker_tool
+            import json
+
+            schema = None
+            if schema_path and os.path.exists(schema_path):
+                with open(schema_path, 'r', encoding='utf-8') as f:
+                    schema = json.load(f)
+
+            jarvis_app.ui_print(f"正在根据 Schema 提取结构化数据: {path}")
+            result = marker_tool.MarkerTool().convert(file_path=path, json_schema=schema)
+
+            if "用户取消转换" in str(result):
+                jarvis_app.speak("已取消结构化提取。")
+            else:
+                jarvis_app.ui_print(result)
+                jarvis_app.speak("结构化提取完成。")
+        except Exception as e:
+            jarvis_app.speak(f"提取过程中出错: {e}")
+
+    threading.Thread(target=run_extract, daemon=True).start()

@@ -19,6 +19,9 @@ openpyxl
 pandas
 paramiko
 pdfplumber
+python-docx
+python-pptx
+ebooklib
 prompt_toolkit
 psutil
 baidu-aip
