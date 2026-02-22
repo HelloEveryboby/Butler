@@ -10,7 +10,7 @@ from .hybrid_fallbacks import dispatch_fallback
 
 class HybridLinkClient:
     """
-    Client for communicating with multi-language modules via the BHL protocol.
+    用于通过 BHL 协议与多语言模块通信的客户端。
     """
     def __init__(self, executable_path: str, cwd: Optional[str] = None, fallback_enabled: bool = True):
         self.executable_path = executable_path
@@ -25,24 +25,24 @@ class HybridLinkClient:
         self.fallback_enabled = fallback_enabled
 
     def register_event_callback(self, callback: Callable[[Dict[str, Any]], None]):
-        """Registers a callback for asynchronous events (messages without an ID)."""
+        """注册异步事件回调（不含 ID 的消息）。"""
         self._event_callbacks.append(callback)
 
     def start(self):
-        """Starts the external process."""
+        """启动外部进程。"""
         if not os.path.isfile(self.executable_path):
-            self.logger.error(f"Executable not found: {self.executable_path}")
+            self.logger.error(f"找不到可执行文件: {self.executable_path}")
             return False
 
         try:
-            # Use shell=False (default) for security. Arguments are passed as a list.
+            # 为了安全起见，使用 shell=False（默认）。参数作为列表传递。
             self.process = subprocess.Popen(
                 [self.executable_path],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                bufsize=1, # Line buffered
+                bufsize=1, # 行缓冲
                 cwd=self.cwd,
                 shell=False
             )
@@ -51,14 +51,14 @@ class HybridLinkClient:
             threading.Thread(target=self._listen_stderr, daemon=True).start()
             return True
         except Exception as e:
-            self.logger.error(f"Failed to start hybrid module: {e}")
+            self.logger.error(f"无法启动混合模块: {e}")
             return False
 
     def stop(self):
-        """Stops the external process."""
+        """停止外部进程。"""
         if self.process:
             try:
-                # Try graceful exit if possible
+                # 尽可能优雅地退出
                 try:
                     self.call("exit", {}, wait=False, timeout=0.1)
                 except:
@@ -87,7 +87,7 @@ class HybridLinkClient:
         self.stop()
 
     def _listen_stdout(self):
-        """Reads responses from the module."""
+        """从模块读取响应。"""
         while self._running and self.process and self.process.stdout:
             line = self.process.stdout.readline()
             if not line:
@@ -100,33 +100,33 @@ class HybridLinkClient:
                     self._responses[req_id] = msg
                     self._pending_requests[req_id].set()
                 elif not req_id:
-                    # Treat as an event
+                    # 视为事件
                     for callback in self._event_callbacks:
                         try:
                             callback(msg)
                         except Exception as e:
-                            self.logger.error(f"Error in event callback: {e}")
+                            self.logger.error(f"事件回调出错: {e}")
                 else:
-                    self.logger.debug(f"Received message with unknown id: {req_id}")
+                    self.logger.debug(f"收到具有未知 id 的消息: {req_id}")
             except json.JSONDecodeError:
-                # Sometimes modules might print non-JSON for debugging (though discouraged)
-                self.logger.warning(f"Non-JSON from module: {line.strip()}")
+                # 有时模块可能出于调试目的打印非 JSON 内容（尽管不鼓励这样做）
+                self.logger.warning(f"模块输出非 JSON 内容: {line.strip()}")
 
     def _listen_stderr(self):
-        """Logs errors from the module."""
+        """记录模块中的错误。"""
         while self._running and self.process and self.process.stderr:
             line = self.process.stderr.readline()
             if not line:
                 break
-            self.logger.error(f"Module Stderr: {line.strip()}")
+            self.logger.error(f"模块标准错误输出: {line.strip()}")
 
     def call(self, method: str, params: Dict[str, Any], timeout: float = 10.0, wait: bool = True) -> Any:
-        """Calls a method in the remote module."""
+        """调用远程模块中的方法。"""
         if not self.process or not self._running:
             if self.fallback_enabled:
-                self.logger.info(f"Using Python fallback for method: {method}")
+                self.logger.info(f"对方法 {method} 使用 Python 降级方案")
                 return dispatch_fallback(method, params)
-            return {"error": {"message": "Process not started and fallback disabled"}}
+            return {"error": {"message": "进程未启动且降级方案已禁用"}}
 
         req_id = str(uuid.uuid4())
         request = {
@@ -146,10 +146,10 @@ class HybridLinkClient:
                     self.process.stdin.write(json.dumps(request) + "\n")
                     self.process.stdin.flush()
                 else:
-                    return {"error": {"message": "Stdin not available"}}
+                    return {"error": {"message": "标准输入不可用"}}
             except Exception as e:
                 if wait: self._pending_requests.pop(req_id, None)
-                return {"error": {"message": f"Failed to send request: {e}"}}
+                return {"error": {"message": f"发送请求失败: {e}"}}
 
         if not wait:
             return None
@@ -161,10 +161,10 @@ class HybridLinkClient:
                     return {"error": response["error"]}
                 return response.get("result")
             else:
-                return {"error": {"message": "Request timed out"}}
+                return {"error": {"message": "请求超时"}}
         finally:
             self._pending_requests.pop(req_id, None)
 
 if __name__ == "__main__":
-    # Test would go here, but we need a server first.
+    # 此处应有测试代码，但需要先建立服务器。
     pass

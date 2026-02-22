@@ -34,7 +34,7 @@ class BLEConnector:
     def _init_library(cls):
         try:
             # Find the .so file in the programs directory
-            base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             lib_path = os.path.join(base_path, "programs/ble_framework/libble.so")
 
             if not os.path.exists(lib_path):
