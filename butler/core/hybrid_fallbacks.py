@@ -49,7 +49,7 @@ def check_network(urls: List[str]) -> Dict[str, Any]:
         except Exception as e:
             return {"url": url, "status": "error", "message": str(e)}
 
-    with ThreadPoolExecutor(max_workers=len(urls)) as executor:
+    with ThreadPoolExecutor(max_workers=len(urls) or 1) as executor:
         results = list(executor.map(check_one, urls))
 
     return {"results": results}
