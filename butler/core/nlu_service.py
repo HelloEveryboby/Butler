@@ -8,14 +8,15 @@ from package.log_manager import LogManager
 logger = LogManager.get_logger(__name__)
 
 class NLUService:
+    """自然语言理解服务，使用 DeepSeek API 进行意图识别和文本生成。"""
     def __init__(self, api_key: str, prompts: Dict[str, Any]):
         self.api_key = api_key
         self.prompts = prompts
         self.url = "https://api.deepseek.com/v1/chat/completions"
 
     def extract_intent(self, text: str, history: List[Any] = None) -> Dict[str, Any]:
-        """使用 DeepSeek API 从用户文本中提取意图和实体。"""
-        system_prompt = self.prompts.get("nlu_intent_extraction", {}).get("prompt", "Extract intent and entities as JSON.")
+        """使用 DeepSeek API 从用户输入的文本中提取意图和实体。"""
+        system_prompt = self.prompts.get("nlu_intent_extraction", {}).get("prompt", "提取意图和实体并以 JSON 格式输出。")
 
         messages = [{"role": "system", "content": system_prompt}]
         if history:
@@ -44,12 +45,12 @@ class NLUService:
 
             return json.loads(result_text)
         except Exception as e:
-            logger.error(f"NLU extraction failed: {e}")
+            logger.error(f"NLU 提取失败: {e}")
             return {"intent": "unknown", "entities": {"error": str(e)}}
 
     def generate_general_response(self, text: str) -> str:
         """生成简单的聊天响应。"""
-        system_prompt = self.prompts.get("general_response", {}).get("prompt", "You are a helpful assistant.")
+        system_prompt = self.prompts.get("general_response", {}).get("prompt", "你是一个得力的助手。")
         payload = {
             "model": "deepseek-chat",
             "messages": [
@@ -65,5 +66,5 @@ class NLUService:
             response.raise_for_status()
             return response.json()['choices'][0]['message']['content']
         except Exception as e:
-            logger.error(f"General response generation failed: {e}")
+            logger.error(f"通用响应生成失败: {e}")
             return "抱歉，我暂时无法回答这个问题。"

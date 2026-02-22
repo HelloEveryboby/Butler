@@ -4,26 +4,26 @@ from tqdm import tqdm
 
 def read_file_list(file_path: str) -> List[Tuple[str, int, str]]:
     """读取文件列表，并获取每个文件的优先级、插入位置标识符。"""
-    with open(file_path, 'r') as file:
+    with open(file_path, 'r', encoding='utf-8') as file:
         return [(line.split()[0], int(line.split()[1]), line.split()[2]) for line in file if line.strip()]
 
 def hybrid_sort_with_progress(arr: List[Tuple[str, int, str]]):
     """
-    使用tqdm包装hybridSort以显示进度条。
+    使用 tqdm 包装 hybridSort 以显示进度条。
     """
-    with tqdm(total=len(arr), desc="Sorting modules") as pbar:
+    with tqdm(total=len(arr), desc="正在排序模块") as pbar:
         hybridSort(arr, pbar=pbar)
 
 def hybridSort(arr: List[Tuple[str, int, str]], left=None, right=None, depth=0, pbar=None):
     """
     混合排序算法，结合快速排序和插入排序。
 
-    Args:
+    参数:
         arr: 要排序的列表。
         left: 排序子数组的起始索引。
         right: 排序子数组的结束索引。
         depth: 递归深度（用于调试输出缩进）。
-        pbar: tqdm progress bar instance.
+        pbar: tqdm 进度条实例。
     """
     if left is None:
         left = 0
@@ -51,14 +51,14 @@ def partition(arr: List[Tuple[str, int, str]], left: int, right: int, depth: int
     """
     对列表进行分区，并将枢轴放置在正确的位置。
 
-    Args:
+    参数:
         arr: 要分区的列表。
         left: 分区子数组的起始索引。
         right: 分区子数组的结束索引。
         depth: 递归深度（用于调试输出缩进）。
-        pbar: tqdm progress bar instance.
+        pbar: tqdm 进度条实例。
 
-    Returns:
+    返回:
         枢轴的最终位置。
     """
     mid = (left + right) // 2
@@ -88,13 +88,13 @@ def median_of_three(arr: List[Tuple[str, int, str]], left: int, mid: int, right:
     """
     返回三个元素的中位数的索引。
 
-    Args:
+    参数:
         arr: 包含三个元素的列表。
         left: 列表中第一个元素的索引。
         mid: 列表中第二个元素的索引。
         right: 列表中第三个元素的索引。
 
-    Returns:
+    返回:
         三个元素中位数的索引。
     """
     if arr[left][1] < arr[mid][1]:
@@ -116,7 +116,7 @@ def insertionSort(arr: List[Tuple[str, int, str]], left: int, right: int):
     """
     插入排序算法，对小数组进行排序。
 
-    Args:
+    参数:
         arr: 要排序的列表。
         left: 排序子数组的起始索引。
         right: 排序子数组的结束索引。
@@ -154,7 +154,7 @@ def execute_program(module_name: str, modules: List[Tuple[str, int, str]], posit
 
 def insert_into_file(file_path: str, insert_content: str, after_marker: str):
     """将内容插入到指定文件的指定标记之后。"""
-    with open(file_path, 'r') as file:
+    with open(file_path, 'r', encoding='utf-8') as file:
         content = file.read()
 
     insert_point = content.find(after_marker)
@@ -165,7 +165,7 @@ def insert_into_file(file_path: str, insert_content: str, after_marker: str):
 
     new_content = content[:insert_index] + "\n" + insert_content + "\n" + content[insert_index:]
 
-    with open(file_path, 'w') as file:
+    with open(file_path, 'w', encoding='utf-8') as file:
         file.write(new_content)
 
 if __name__ == "__main__":
@@ -176,9 +176,9 @@ if __name__ == "__main__":
     try:
         files_with_priority = read_file_list(file_list_path)
     except FileNotFoundError:
-        print(f"Error: {file_list_path} not found. Please create it.")
+        print(f"错误: 找不到 {file_list_path}。正在创建一个示例。")
         # 创建一个示例 file_list.txt
-        with open(file_list_path, "w") as f:
+        with open(file_list_path, "w", encoding='utf-8') as f:
             f.write("package.module1 1 pos1\n")
             f.write("package.module2 3 pos2\n")
             f.write("package.module3 2 pos3\n")
@@ -196,6 +196,6 @@ if __name__ == "__main__":
     }
     
     # 执行排序后的程序文件
-    with tqdm(total=len(files_with_priority), desc="Executing modules") as pbar:
+    with tqdm(total=len(files_with_priority), desc="正在执行模块") as pbar:
         for module_name, _, _ in files_with_priority:
             execute_program(module_name, files_with_priority, position_mapping, pbar)

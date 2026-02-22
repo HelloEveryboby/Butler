@@ -12,7 +12,7 @@ from package.log_manager import LogManager
 from package.embedding_utils import get_embedding
 
 # 动态添加 markitdown 源码路径
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'markitdown', 'src')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'markitdown', 'src')))
 
 try:
     import numpy as np
@@ -30,7 +30,7 @@ class KnowledgeBase:
     def __init__(self, name: str):
         self.name = name
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        self.base_path = os.path.join(base_dir, "../data/knowledge_bases", name)
+        self.base_path = os.path.join(base_dir, "../../data/knowledge_bases", name)
         self.collection = None
         self._offline = (API_KEY is None)
         self._init_zvec()
@@ -171,7 +171,7 @@ def run(*args, **kwargs):
 
     elif operation == "list":
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        kb_dir = os.path.join(base_dir, "../data/knowledge_bases")
+        kb_dir = os.path.join(base_dir, "../../data/knowledge_bases")
         if not os.path.exists(kb_dir): return "目前没有任何知识库。"
         kbs = [d for d in os.listdir(kb_dir) if os.path.isdir(os.path.join(kb_dir, d))]
         return "现有知识库: " + ", ".join(kbs) if kbs else "目前没有任何知识库。"

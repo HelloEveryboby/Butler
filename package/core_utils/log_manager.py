@@ -11,7 +11,7 @@ import json
 from typing import Dict, Any, Optional, Callable
 
 class LogManager:
-    """A comprehensive logging management class."""
+    """一个综合性的日志管理类。"""
     _configured = False
     _loggers = {}
     _log_dir = "logs"
@@ -64,31 +64,31 @@ class LogManager:
             # 1. 所有级别日志
             cls._add_file_handler(root_logger, "all.log", logging.NOTSET, default_formatter)
             
-            # 2. DEBUG级别日志
+            # 2. DEBUG 级别日志
             cls._add_file_handler(root_logger, "debug.log", logging.DEBUG, 
                                  cls._get_formatter('debug'), 
                                  lambda r: r.levelno == logging.DEBUG)
             
-            # 3. INFO级别日志
+            # 3. INFO 级别日志
             cls._add_file_handler(root_logger, "info.log", logging.INFO, 
                                  cls._get_formatter('info'), 
                                  lambda r: r.levelno == logging.INFO)
             
-            # 4. WARNING级别日志
+            # 4. WARNING 级别日志
             cls._add_file_handler(root_logger, "warning.log", logging.WARNING, 
                                  cls._get_formatter('warning'), 
                                  lambda r: r.levelno == logging.WARNING)
             
-            # 5. ERROR级别日志
+            # 5. ERROR 级别日志
             cls._add_file_handler(root_logger, "error.log", logging.ERROR, 
                                  cls._get_formatter('error'))
             
-            # 6. CRITICAL级别日志
+            # 6. CRITICAL 级别日志
             cls._add_file_handler(root_logger, "critical.log", logging.CRITICAL, 
                                  cls._get_formatter('critical'), 
                                  lambda r: r.levelno == logging.CRITICAL)
             
-            # 7. JSON格式日志
+            # 7. JSON 格式日志
             json_formatter = cls._get_formatter('json') or cls._create_json_formatter()
             cls._add_file_handler(root_logger, "application.json", logging.INFO, json_formatter)
         
@@ -155,7 +155,7 @@ class LogManager:
     @classmethod
     def _compress_namer(cls, name: str) -> str:
         """
-        A namer for RotatingFileHandler that gzips the rotated log file.
+        用于 RotatingFileHandler 的命名器，会对轮转后的日志文件进行 gzip 压缩。
         """
         if name.endswith(".gz"):
             return name
@@ -164,8 +164,8 @@ class LogManager:
     @classmethod
     def _rotate_and_compress(cls, handler: RotatingFileHandler):
         """
-        Rotates and compresses the log file.
-        This is a custom rotator that adds compression to the standard rotation.
+        轮转并压缩日志文件。
+        这是一个自定义轮转器，在标准轮转的基础上增加了压缩功能。
         """
         handler.doRollover()
         if cls._compression_enabled:
@@ -194,7 +194,7 @@ class LogManager:
     
     @staticmethod
     def _create_json_formatter() -> logging.Formatter:
-        """创建JSON格式的日志格式化器"""
+        """创建 JSON 格式的日志格式化器"""
         class JsonFormatter(logging.Formatter):
             def format(self, record):
                 log_record = {
@@ -230,7 +230,7 @@ class LogManager:
         if not cls._configured:
             cls._update_config(**kwargs)
         else:
-            raise RuntimeError("Logger already configured. Configure must be called before first use.")
+            raise RuntimeError("日志记录器已配置。Configure 必须在首次使用前调用。")
     
     @classmethod
     def add_context(cls, key: str, value: Any):
@@ -265,7 +265,7 @@ class LogManager:
             end_time = datetime.datetime.now()
             elapsed = (end_time - start_time).total_seconds() * 1000  # 毫秒
             
-            logger.info(f"PERFORMANCE: {func.__name__} executed in {elapsed:.2f}ms")
+            logger.info(f"性能统计: {func.__name__} 执行耗时 {elapsed:.2f}ms")
             return result
         return wrapper
     
@@ -288,10 +288,10 @@ LogManager._custom_filters = {
     )
 }
 
-# 预定义JSON日志格式
+# 预定义 JSON 日志格式
 LogManager._log_formats = {
     'json': {
-        'format': None  # 使用自定义JSON格式化器
+        'format': None  # 使用自定义 JSON 格式化器
     },
     'debug': {
         'format': '%(asctime)s | DEBUG | %(name)s | %(filename)s:%(lineno)d | %(message)s | %(funcName)s'

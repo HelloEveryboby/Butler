@@ -77,7 +77,7 @@ def run(*args, **kwargs):
     """
     执行依赖管理操作。
     """
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     target_dir = os.path.join(project_root, "lib_external")
 
     if not os.path.exists(target_dir):

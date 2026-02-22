@@ -7,7 +7,7 @@ from package.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
 
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "system_config.json")
+CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "config", "system_config.json")
 
 def load_config():
     if os.path.exists(CONFIG_PATH):
