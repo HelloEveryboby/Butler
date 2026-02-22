@@ -1,3 +1,4 @@
+import os
 import subprocess
 import json
 import threading
@@ -22,7 +23,12 @@ class HybridLinkClient:
 
     def start(self):
         """Starts the external process."""
+        if not os.path.isfile(self.executable_path):
+            self.logger.error(f"Executable not found: {self.executable_path}")
+            return False
+
         try:
+            # Use shell=False (default) for security. Arguments are passed as a list.
             self.process = subprocess.Popen(
                 [self.executable_path],
                 stdin=subprocess.PIPE,
@@ -30,7 +36,8 @@ class HybridLinkClient:
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1, # Line buffered
-                cwd=self.cwd
+                cwd=self.cwd,
+                shell=False
             )
             self._running = True
             threading.Thread(target=self._listen_stdout, daemon=True).start()
