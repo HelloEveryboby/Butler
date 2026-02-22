@@ -1238,11 +1238,9 @@ def backdoor():
 
 def clear():
     if sys.platform.startswith('win32'):
-        os.system('cls')
-    elif sys.platform.startswith('linux'):
-        os.system('clear')
-    elif sys.platform.startswith('darwin'):
-        os.system('clear')
+        subprocess.run(['cls'], shell=True)
+    elif sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
+        subprocess.run(['clear'])
 
     f = Figlet()
     list = ["graffiti", "slant", "avatar", "bell", "big", "doom",
