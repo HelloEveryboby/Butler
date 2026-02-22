@@ -6,15 +6,11 @@
 #include <algorithm>
 
 // A very simple "manual" JSON parser for BHL Protocol (PC/MCU compatible style)
-// For a real production system, use a library like nlohmann/json or RapidJSON.
-
 std::string get_json_value(const std::string& json, const std::string& key) {
-    // Robust search for "key":
     std::string search_key = "\"" + key + "\"";
     size_t pos = 0;
     while ((pos = json.find(search_key, pos)) != std::string::npos) {
         size_t after_key = pos + search_key.length();
-        // Skip whitespace
         while (after_key < json.length() && std::isspace(json[after_key])) after_key++;
 
         if (after_key < json.length() && json[after_key] == ':') {
@@ -26,17 +22,14 @@ std::string get_json_value(const std::string& json, const std::string& key) {
     return "";
 
 found:
-    // Skip spaces
     while (pos < json.length() && std::isspace(json[pos])) pos++;
 
     if (pos < json.length() && json[pos] == '\"') {
-        // String value
         pos++;
         size_t end = json.find('\"', pos);
         if (end == std::string::npos) return "";
         return json.substr(pos, end - pos);
     } else {
-        // Numeric or other value
         size_t end = json.find_first_of(",} ", pos);
         if (end == std::string::npos) end = json.length();
         return json.substr(pos, end - pos);
@@ -57,6 +50,17 @@ std::vector<long long> factorize(long long n) {
     }
     if (n > 2) factors.push_back(n);
     return factors;
+}
+
+long long fibonacci(int n) {
+    if (n <= 1) return n;
+    long long a = 0, b = 1;
+    for (int i = 2; i <= n; i++) {
+        long long temp = a + b;
+        a = b;
+        b = temp;
+    }
+    return b;
 }
 
 void process_request(const std::string& line) {
@@ -80,6 +84,15 @@ void process_request(const std::string& line) {
         }
         ss << "],\"count\":" << factors.size() << "},\"id\":\"" << id << "\"}";
         std::cout << ss.str() << std::endl;
+    } else if (method == "fibonacci") {
+        std::string n_str = get_json_value(line, "n");
+        if (n_str.empty()) {
+             std::cout << "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-1,\"message\":\"Missing n\"},\"id\":\"" << id << "\"}" << std::endl;
+             return;
+        }
+        int n = std::stoi(n_str);
+        long long result = fibonacci(n);
+        std::cout << "{\"jsonrpc\":\"2.0\",\"result\":{\"n\":" << n << ",\"value\":" << result << "},\"id\":\"" << id << "\"}" << std::endl;
     } else if (method == "exit") {
         std::exit(0);
     } else {

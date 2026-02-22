@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -22,6 +23,12 @@ type Response struct {
 	Result  interface{} `json:"result,omitempty"`
 	Error   interface{} `json:"error,omitempty"`
 	Id      string      `json:"id"`
+}
+
+type Event struct {
+	Jsonrpc string      `json:"jsonrpc"`
+	Method  string      `json:"method"`
+	Params  interface{} `json:"params"`
 }
 
 func checkURL(url string, wg *sync.WaitGroup, results chan<- map[string]interface{}) {
@@ -50,6 +57,16 @@ func checkURL(url string, wg *sync.WaitGroup, results chan<- map[string]interfac
 		"status":   "ok",
 		"code":     resp.StatusCode,
 		"duration": duration,
+	}
+}
+
+func scanPort(host string, port int, timeout time.Duration, results chan<- int, wg *sync.WaitGroup) {
+	defer wg.Done()
+	address := fmt.Sprintf("%s:%d", host, port)
+	conn, err := net.DialTimeout("tcp", address, timeout)
+	if err == nil {
+		results <- port
+		conn.Close()
 	}
 }
 
@@ -99,6 +116,48 @@ func main() {
 				"results": results,
 			})
 
+		case "scan_ports":
+			host, _ := req.Params["host"].(string)
+			if host == "" {
+				host = "127.0.0.1"
+			}
+			startPort := int(req.Params["start"].(float64))
+			endPort := int(req.Params["end"].(float64))
+
+			if startPort == 0 { startPort = 1 }
+			if endPort == 0 { endPort = 1024 }
+
+			resultsChan := make(chan int, endPort-startPort+1)
+			var wg sync.WaitGroup
+
+			sendEvent("scan_started", map[string]interface{}{
+				"host": host,
+				"range": fmt.Sprintf("%d-%d", startPort, endPort),
+			})
+
+			for port := startPort; port <= endPort; port++ {
+				wg.Add(1)
+				go scanPort(host, port, 500*time.Millisecond, resultsChan, &wg)
+
+				// Small delay to avoid hitting OS limits on open files if range is too large
+				if port % 100 == 0 {
+					time.Sleep(10 * time.Millisecond)
+				}
+			}
+
+			wg.Wait()
+			close(resultsChan)
+
+			openPorts := []int{}
+			for p := range resultsChan {
+				openPorts = append(openPorts, p)
+			}
+
+			sendResult(req.Id, map[string]interface{}{
+				"host":       host,
+				"open_ports": openPorts,
+			})
+
 		case "exit":
 			os.Exit(0)
 
@@ -128,5 +187,15 @@ func sendError(id string, code int, message string) {
 		Id: id,
 	}
 	b, _ := json.Marshal(resp)
+	fmt.Println(string(b))
+}
+
+func sendEvent(method string, params interface{}) {
+	event := Event{
+		Jsonrpc: "2.0",
+		Method:  method,
+		Params:  params,
+	}
+	b, _ := json.Marshal(event)
 	fmt.Println(string(b))
 }

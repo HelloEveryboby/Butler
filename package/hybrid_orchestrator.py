@@ -1,14 +1,16 @@
 """
-Butler Hybrid-Link Orchestrator
-This tool demonstrates the power of mixed-language programming by coordinating:
-1. C++ for high-performance math (Prime Factorization).
-2. Go for high-concurrency networking (URL Status Checking).
-3. Python for AI orchestration and result presentation.
+Butler Hybrid-Link Orchestrator (Enhanced)
+This tool demonstrates the power of multi-language collaboration:
+1. C++ for high-performance math (Prime Factorization & Fibonacci).
+2. Go for concurrent networking (URL Checking & Port Scanning).
+3. Rust for memory-safe high-speed crypto (SHA256 Hashing).
+4. Python for orchestration and event handling.
 """
 
 import os
 import sys
-import logging
+import time
+import traceback
 from typing import Dict, Any
 
 # Add project root to sys.path
@@ -18,75 +20,86 @@ if project_root not in sys.path:
 
 from butler.core.hybrid_link import HybridLinkClient
 
+def on_bhl_event(event: Dict[str, Any]):
+    """Callback for BHL events."""
+    method = event.get("method")
+    params = event.get("params")
+    print(f"!!! [Event Received] Method: {method}, Data: {params}")
+
 def run(*args, **kwargs):
     """
     Main entry point for the hybrid orchestrator.
     """
     from butler.core.extension_manager import extension_manager
-    print("--- Butler Hybrid-Link System Starting ---")
+    print("\n" + "="*50)
+    print("      Butler Hybrid-Link System (V2.0)")
+    print("="*50)
 
     # 1. Initialize Clients
-    # We find the executables via CodeExecutionManager (via ExtensionManager)
+    extension_manager.code_execution_manager.scan_and_register()
+
     compute_info = extension_manager.code_execution_manager.get_program("hybrid_compute")
     net_info = extension_manager.code_execution_manager.get_program("hybrid_net")
+    crypto_info = extension_manager.code_execution_manager.get_program("hybrid_crypto")
 
-    if not compute_info or not net_info:
-        # Try to scan again if not found
-        extension_manager.code_execution_manager.scan_and_register()
-        compute_info = extension_manager.code_execution_manager.get_program("hybrid_compute")
-        net_info = extension_manager.code_execution_manager.get_program("hybrid_net")
-
-    if not compute_info or not net_info:
-        return "Error: Could not find BHL modules. Please ensure they are compiled."
-
-    compute_client = HybridLinkClient(compute_info['path'], cwd=os.path.dirname(compute_info['path']))
-    net_client = HybridLinkClient(net_info['path'], cwd=os.path.dirname(net_info['path']))
+    if not all([compute_info, net_info, crypto_info]):
+        missing = []
+        if not compute_info: missing.append("C++ (hybrid_compute)")
+        if not net_info: missing.append("Go (hybrid_net)")
+        if not crypto_info: missing.append("Rust (hybrid_crypto)")
+        print(f"[Python] Warning: Some BHL modules are missing ({', '.join(missing)}). Falling back to Python implementations.")
 
     results = []
 
+    # Using the new Context Manager for automatic cleanup
     try:
-        # Start modules
-        print("[Python] Starting C++ and Go modules...")
-        compute_client.start()
-        net_client.start()
+        # Helper to get path safely
+        get_path = lambda info: info['path'] if info else "MISSING"
+        get_cwd = lambda info: os.path.dirname(info['path']) if info else None
 
-        # 2. Performance Task (C++)
-        target_number = 12345678901234567
-        print(f"[Python -> C++] Requesting factorization of {target_number}...")
-        math_result = compute_client.call("factorize", {"number": target_number})
-        if "error" in math_result:
-            results.append(f"C++ Error: {math_result['error']['message']}")
-        else:
-            factors = math_result.get("factors", [])
-            results.append(f"C++ Result: Factors of {target_number} are {factors}")
+        with HybridLinkClient(get_path(compute_info), cwd=get_cwd(compute_info)) as compute_client, \
+             HybridLinkClient(get_path(net_info), cwd=get_cwd(net_info)) as net_client, \
+             HybridLinkClient(get_path(crypto_info), cwd=get_cwd(crypto_info)) as crypto_client:
 
-        # 3. Concurrency Task (Go)
-        urls = [
-            "https://www.google.com",
-            "https://www.github.com",
-            "https://www.python.org",
-            "https://www.golang.org",
-            "https://www.cppreference.com"
-        ]
-        print(f"[Python -> Go] Requesting concurrent check of {len(urls)} URLs...")
-        net_result = net_client.call("check_network", {"urls": urls})
-        if "error" in net_result:
-            results.append(f"Go Error: {net_result['error']['message']}")
-        else:
-            status_list = net_result.get("results", [])
-            results.append(f"Go Result: Checked {len(status_list)} URLs concurrently.")
-            for r in status_list:
-                results.append(f"  - {r['url']}: {r['status']} ({r.get('code', 'N/A')})")
+            # Register event callback for Go module
+            net_client.register_event_callback(on_bhl_event)
+
+            print("[Python] Initialization complete (Hybrid or Fallback).")
+
+            # --- 1. Rust Task: Hashing ---
+            secret_msg = "Butler is the best AI assistant!"
+            print(f"[Python -> Rust] Hashing message: '{secret_msg}'")
+            rust_result = crypto_client.call("hash_sha256", {"text": secret_msg})
+            if "error" in rust_result:
+                results.append(f"Rust Error: {rust_result['error']['message']}")
+            else:
+                results.append(f"Rust Result: SHA256 of '{secret_msg}' is {rust_result['hash'][:16]}...")
+
+            # --- 2. C++ Task: Heavy Math ---
+            n_fib = 40
+            print(f"[Python -> C++] Calculating Fibonacci({n_fib})...")
+            math_result = compute_client.call("fibonacci", {"n": n_fib})
+            if "error" in math_result:
+                results.append(f"C++ Error: {math_result['error']['message']}")
+            else:
+                results.append(f"C++ Result: Fibonacci({n_fib}) = {math_result['value']}")
+
+            # --- 3. Go Task: Network Scan (with Events) ---
+            target_host = "127.0.0.1"
+            print(f"[Python -> Go] Scanning common ports on {target_host}...")
+            # We'll scan a small range for speed in demo
+            net_result = net_client.call("scan_ports", {"host": target_host, "start": 20, "end": 1024}, timeout=15)
+            if "error" in net_result:
+                results.append(f"Go Error: {net_result['error']['message']}")
+            else:
+                open_ports = net_result.get("open_ports", [])
+                results.append(f"Go Result: Found {len(open_ports)} open ports on {target_host}: {open_ports}")
 
     except Exception as e:
-        return f"Orchestration Error: {e}"
-    finally:
-        print("[Python] Stopping modules...")
-        compute_client.stop()
-        net_client.stop()
+        return f"Orchestration Error: {e}\n{traceback.format_exc()}"
 
     summary = "\n".join(results)
-    return f"Hybrid System Execution Complete:\n\n{summary}"
+    return f"\n--- Hybrid System Execution Summary ---\n{summary}\n"
 
 if __name__ == "__main__":
     # For local testing

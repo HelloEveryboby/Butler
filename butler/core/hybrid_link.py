@@ -5,13 +5,14 @@ import threading
 import uuid
 import logging
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable, List
+from .hybrid_fallbacks import dispatch_fallback
 
 class HybridLinkClient:
     """
     Client for communicating with multi-language modules via the BHL protocol.
     """
-    def __init__(self, executable_path: str, cwd: Optional[str] = None):
+    def __init__(self, executable_path: str, cwd: Optional[str] = None, fallback_enabled: bool = True):
         self.executable_path = executable_path
         self.cwd = cwd
         self.process = None
@@ -20,6 +21,12 @@ class HybridLinkClient:
         self._pending_requests: Dict[str, threading.Event] = {}
         self._responses: Dict[str, Any] = {}
         self._running = False
+        self._event_callbacks: List[Callable[[Dict[str, Any]], None]] = []
+        self.fallback_enabled = fallback_enabled
+
+    def register_event_callback(self, callback: Callable[[Dict[str, Any]], None]):
+        """Registers a callback for asynchronous events (messages without an ID)."""
+        self._event_callbacks.append(callback)
 
     def start(self):
         """Starts the external process."""
@@ -49,10 +56,15 @@ class HybridLinkClient:
 
     def stop(self):
         """Stops the external process."""
-        self._running = False
         if self.process:
             try:
-                self.call("exit", {}, wait=False)
+                # Try graceful exit if possible
+                try:
+                    self.call("exit", {}, wait=False, timeout=0.1)
+                except:
+                    pass
+
+                self._running = False
                 time.sleep(0.1)
                 if self.process.stdin:
                     self.process.stdin.close()
@@ -63,8 +75,16 @@ class HybridLinkClient:
                 self.process.terminate()
                 self.process.wait(timeout=1)
             except:
-                pass
+                if self.process:
+                    self.process.kill()
             self.process = None
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
 
     def _listen_stdout(self):
         """Reads responses from the module."""
@@ -73,13 +93,24 @@ class HybridLinkClient:
             if not line:
                 break
             try:
-                response = json.loads(line.strip())
-                req_id = response.get("id")
-                if req_id in self._pending_requests:
-                    self._responses[req_id] = response
+                msg = json.loads(line.strip())
+                req_id = msg.get("id")
+
+                if req_id and req_id in self._pending_requests:
+                    self._responses[req_id] = msg
                     self._pending_requests[req_id].set()
+                elif not req_id:
+                    # Treat as an event
+                    for callback in self._event_callbacks:
+                        try:
+                            callback(msg)
+                        except Exception as e:
+                            self.logger.error(f"Error in event callback: {e}")
+                else:
+                    self.logger.debug(f"Received message with unknown id: {req_id}")
             except json.JSONDecodeError:
-                self.logger.warning(f"Invalid JSON from module: {line.strip()}")
+                # Sometimes modules might print non-JSON for debugging (though discouraged)
+                self.logger.warning(f"Non-JSON from module: {line.strip()}")
 
     def _listen_stderr(self):
         """Logs errors from the module."""
@@ -91,8 +122,11 @@ class HybridLinkClient:
 
     def call(self, method: str, params: Dict[str, Any], timeout: float = 10.0, wait: bool = True) -> Any:
         """Calls a method in the remote module."""
-        if not self.process:
-            return {"error": {"message": "Process not started"}}
+        if not self.process or not self._running:
+            if self.fallback_enabled:
+                self.logger.info(f"Using Python fallback for method: {method}")
+                return dispatch_fallback(method, params)
+            return {"error": {"message": "Process not started and fallback disabled"}}
 
         req_id = str(uuid.uuid4())
         request = {
@@ -108,8 +142,11 @@ class HybridLinkClient:
 
         with self._lock:
             try:
-                self.process.stdin.write(json.dumps(request) + "\n")
-                self.process.stdin.flush()
+                if self.process and self.process.stdin:
+                    self.process.stdin.write(json.dumps(request) + "\n")
+                    self.process.stdin.flush()
+                else:
+                    return {"error": {"message": "Stdin not available"}}
             except Exception as e:
                 if wait: self._pending_requests.pop(req_id, None)
                 return {"error": {"message": f"Failed to send request: {e}"}}
