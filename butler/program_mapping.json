@@ -25,5 +25,7 @@
     "本地库安装": "package/dependency_manager.py",
     "交换机": "package/autonomous_switch.py",
     "程序交换机": "package/autonomous_switch.py",
-    "防止混乱": "package/autonomous_switch.py"
+    "防止混乱": "package/autonomous_switch.py",
+    "混合编程": "package/hybrid_orchestrator.py",
+    "多语言交互": "package/hybrid_orchestrator.py"
 }

@@ -1,0 +1,10 @@
+{
+  "name": "hybrid_net",
+  "language": "go",
+  "version": "1.0",
+  "description": "High-concurrency Go networking module for concurrent URL checking. BHL compatible.",
+  "protocol": "bhl",
+  "build": "go build -o hybrid_net_exec main.go",
+  "source": ["main.go"],
+  "executable": "hybrid_net_exec"
+}
