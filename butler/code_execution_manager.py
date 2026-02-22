@@ -92,6 +92,7 @@ class CodeExecutionManager:
                 logging.info(f"Executing build command: {formatted_command}")
 
                 # Execute the command from within the project directory
+                # Note: build_command comes from manifest.json which is trusted internal config
                 result = subprocess.run(formatted_command, shell=True, cwd=project_path, check=True, capture_output=True, text=True)
                 logging.info(f"Successfully compiled '{name}'.\nCompiler output:\n{result.stdout}")
 
@@ -159,6 +160,7 @@ class CodeExecutionManager:
         try:
             # If command is a string (from run_command), use shell=True
             is_shell_command = isinstance(command, str)
+            # Ensure arguments in string commands were already quoted with shlex.quote
             result = subprocess.run(
                 command,
                 capture_output=True,

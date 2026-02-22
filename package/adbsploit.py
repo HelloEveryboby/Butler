@@ -419,7 +419,8 @@ def shell():
     global device
     if device != 'none':
         try:
-            os.system("adb -s " + shlex.quote(device) + " shell")
+            # Use subprocess.run for better security than os.system
+            subprocess.run(["adb", "-s", device, "shell"])
         except:
             print(arrow + ("[{0}+{1}] An error ocurred opening the shell...").format(Fore.RED, Fore.WHITE))
     else:
@@ -483,11 +484,10 @@ def logs():
             print(arrow + ("[{0}+{1}] You want all the logs or only an app? (all/package_name) ").format(Fore.RED,
                                                                                                          Fore.WHITE))
             app = my_input(arrow + " adbsploit" + Fore.RED + "(logs) " + Fore.WHITE + "> ")
-            safe_device = shlex.quote(device)
             if app == "all":
-                os.system('adb -s ' + safe_device + " logcat ")
+                subprocess.run(["adb", "-s", device, "logcat"])
             else:
-                os.system('adb -s ' + safe_device + " logcat " + shlex.quote(app))
+                subprocess.run(["adb", "-s", device, "logcat", app])
         except:
             print(arrow + ("[{0}+{1}] An error ocurred getting the logs...").format(Fore.RED, Fore.WHITE))
     else:
@@ -931,8 +931,11 @@ def screenshot():
         try:
             print(arrow + ("[{0}+{1}] Specify the name of the screenshot").format(Fore.RED, Fore.WHITE))
             name = my_input(arrow + " adbsploit" + Fore.RED + "(screenshot) " + Fore.WHITE + "> ")
-            os.system("adb -s " + shlex.quote(device) + " exec-out screencap -p >" + shlex.quote(name) + ".png")
-            print(arrow + Fore.GREEN + "An image is created with the name " + name + ".png ...")
+            filename = name + ".png"
+            # Using subprocess with a list and redirecting output via python file handle
+            with open(filename, "wb") as f:
+                subprocess.run(["adb", "-s", device, "exec-out", "screencap", "-p"], stdout=f)
+            print(arrow + Fore.GREEN + "An image is created with the name " + filename + " ...")
         except:
             print(arrow + ("[{0}+{1}] An error ocurred making the screenshot...").format(Fore.RED, Fore.WHITE))
     else:
@@ -977,7 +980,7 @@ def tcpip():
             if port == '':
                 print(Fore.RED + "You must specify a port to listen on your device...")
             else:
-                os.system("adb -s " + shlex.quote(device) + " tcpip " + shlex.quote(port))
+                subprocess.run(["adb", "-s", device, "tcpip", port])
         except:
             print(arrow + ("[{0}+{1}] An error ocurred enabling the tcpip mode..").format(Fore.RED, Fore.WHITE))
     else:

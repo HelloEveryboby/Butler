@@ -102,18 +102,20 @@ class HybridLinkClient:
             "id": req_id
         }
 
+        if wait:
+            event = threading.Event()
+            self._pending_requests[req_id] = event
+
         with self._lock:
             try:
                 self.process.stdin.write(json.dumps(request) + "\n")
                 self.process.stdin.flush()
             except Exception as e:
+                if wait: self._pending_requests.pop(req_id, None)
                 return {"error": {"message": f"Failed to send request: {e}"}}
 
         if not wait:
             return None
-
-        event = threading.Event()
-        self._pending_requests[req_id] = event
 
         try:
             if event.wait(timeout):
