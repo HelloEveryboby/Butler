@@ -19,12 +19,12 @@ def open_application(app_name: str):
     if current_os == "Darwin":  # macOS
         command = ["open", "-a", app_name]
     elif current_os == "Windows":
-        # The 'start' command is a shell built-in, so we run it through cmd.exe
-        # Use shlex.quote if we were using shell=True, but here we are using a list.
-        # However, cmd /c start still might interpret some characters.
-        # For maximal safety, we'll keep it as is since it's a list,
-        # but be aware that 'start' itself has special argument handling.
-        command = ["cmd", "/c", "start", app_name]
+        # On Windows, os.startfile is the safest and most direct way to open an app/file.
+        try:
+            os.startfile(app_name)
+            return f"Successfully launched {app_name}."
+        except Exception as e:
+            return f"Error opening {app_name} on Windows: {e}"
     elif current_os == "Linux":
         # xdg-open is the standard way to open files/apps on most Linux desktops
         command = ["xdg-open", app_name]

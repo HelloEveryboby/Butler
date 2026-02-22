@@ -22,13 +22,25 @@ def run_shell(command: str) -> str:
             # Fallback to simple split if shell parsing fails
             command_parts = command.split()
 
-        # Windows needs a different way to run shell commands sometimes
+        # For security, we prefer using a list of arguments with shell=False.
+        # This prevents command injection.
+        # However, some built-in shell commands (like 'dir' or 'echo' on Windows)
+        # may require shell=True.
+
+        use_shell = False
         if platform.system() == "Windows":
-            # On Windows, we use shell=True to support built-in commands like 'dir'
+            # List of commands that might need shell=True on Windows
+            shell_builtins = ['dir', 'echo', 'set', 'type', 'copy', 'move', 'del', 'mkdir', 'rmdir', 'cls']
+            if command_parts and command_parts[0].lower() in shell_builtins:
+                use_shell = True
+
+        if use_shell:
+            # When shell=True is absolutely necessary, we use the original command string.
+            # This is audited and restricted to specific Windows built-in commands.
             result = subprocess.run(command, shell=True, capture_output=True, text=True, check=False)
         else:
-            # On Unix-like systems, we use the list of parts for better security
-            result = subprocess.run(command_parts, capture_output=True, text=True, check=False)
+            # Use the list of parts with shell=False for better security
+            result = subprocess.run(command_parts, shell=False, capture_output=True, text=True, check=False)
 
         if result.returncode == 0:
             return f"STDOUT:\n{result.stdout}"

@@ -26,11 +26,9 @@ class _BashSession:
         if self._started:
             return
 
-        self._process = await asyncio.create_subprocess_shell(
+        self._process = await asyncio.create_subprocess_exec(
             self.command,
             preexec_fn=os.setsid,
-            shell=True,
-            bufsize=0,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
