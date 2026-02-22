@@ -92,8 +92,17 @@ class CodeExecutionManager:
                 logging.info(f"Executing build command: {formatted_command}")
 
                 # Execute the command from within the project directory
-                # Note: build_command comes from manifest.json which is trusted internal config
-                result = subprocess.run(formatted_command, shell=True, cwd=project_path, check=True, capture_output=True, text=True)
+                # Note: build_command comes from manifest.json which is trusted internal config.
+                # For security, we prefer list-based execution if possible.
+                shell_chars = {'|', '&', ';', '<', '>', '$', '*', '?', '(', ')', '[', ']', '!', '#', '~'}
+                has_shell_meta = any(char in formatted_command for char in shell_chars)
+
+                if not has_shell_meta:
+                    command_parts = shlex.split(formatted_command)
+                    result = subprocess.run(command_parts, shell=False, cwd=project_path, check=True, capture_output=True, text=True)
+                else:
+                    result = subprocess.run(formatted_command, shell=True, cwd=project_path, check=True, capture_output=True, text=True)
+
                 logging.info(f"Successfully compiled '{name}'.\nCompiler output:\n{result.stdout}")
 
             except subprocess.CalledProcessError as e:
@@ -160,6 +169,17 @@ class CodeExecutionManager:
         try:
             # If command is a string (from run_command), use shell=True
             is_shell_command = isinstance(command, str)
+
+            # Security hardening: even if it's a shell command, check if it actually needs shell features
+            if is_shell_command:
+                shell_chars = {'|', '&', ';', '<', '>', '$', '*', '?', '(', ')', '[', ']', '!', '#', '~'}
+                if not any(char in command for char in shell_chars):
+                    try:
+                        command = shlex.split(command)
+                        is_shell_command = False
+                    except ValueError:
+                        pass
+
             # Ensure arguments in string commands were already quoted with shlex.quote
             result = subprocess.run(
                 command,

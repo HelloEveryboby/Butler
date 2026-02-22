@@ -1,6 +1,8 @@
 import sqlite3
 import os
 import threading
+import json
+import ast
 from typing import List, Dict, Optional, Tuple
 from .long_memory_interface import AbstractLongMemory, LongMemoryItem
 from package.log_manager import LogManager
@@ -83,9 +85,10 @@ class SQLiteLongMemory(AbstractLongMemory):
             try:
                 with self._conn:
                     for item in items:
+                        # Use JSON for safer metadata storage
                         self._conn.execute(f"""
                         INSERT INTO {self._collection_name} (id, content, metadata) VALUES (?, ?, ?)
-                        """, (item.id, item.content, str(item.metadata)))
+                        """, (item.id, item.content, json.dumps(item.metadata)))
                 self._update_cache(items)
             except Exception as e:
                 self._logger.error(f"保存项到 SQLiteLongMemory 失败: {e}")
@@ -123,7 +126,20 @@ class SQLiteLongMemory(AbstractLongMemory):
 
             rows = cursor.fetchall()
             # 初始化结果项
-            items = [LongMemoryItem.new(content=row[1], metadata=eval(row[2]), id=row[0]) for row in rows]
+            items = []
+            for row in rows:
+                metadata_str = row[2]
+                try:
+                    # Try JSON first
+                    metadata = json.loads(metadata_str)
+                except json.JSONDecodeError:
+                    # Fallback to ast.literal_eval for legacy data stored as str(dict)
+                    try:
+                        metadata = ast.literal_eval(metadata_str)
+                    except Exception:
+                        metadata = {}
+
+                items.append(LongMemoryItem.new(content=row[1], metadata=metadata, id=row[0]))
 
             with self._lock:
                 # 更新缓存，如果缓存满了，删除最旧的项
