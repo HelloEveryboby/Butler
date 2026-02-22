@@ -1,10 +1,8 @@
 {
-  "name": "hybrid_secure",
-  "language": "rust",
-  "version": "1.0",
-  "description": "High-safety Rust module for secure data integrity and hashing. BHL compatible.",
-  "protocol": "bhl",
-  "build": "rustc src/main.rs -o hybrid_secure_exec",
-  "source": ["src/main.rs"],
-  "executable": "hybrid_secure_exec"
+    "name": "hybrid_secure",
+    "language": "rust",
+    "description": "Secure integrity module (Rust)",
+    "source": ["src/main.rs"],
+    "executable": "secure_exec",
+    "build": "rustc {source} -o {output}"
 }

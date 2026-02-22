@@ -11,122 +11,61 @@ import (
 )
 
 type Request struct {
-	Jsonrpc string                 `json:"jsonrpc"`
-	Method  string                 `json:"method"`
-	Params  map[string]interface{} `json:"params"`
-	Id      string                 `json:"id"`
+	Method string        `json:"method"`
+	Params []interface{} `json:"params"`
+	ID     interface{}   `json:"id"`
 }
 
 type Response struct {
-	Jsonrpc string      `json:"jsonrpc"`
-	Result  interface{} `json:"result,omitempty"`
-	Error   interface{} `json:"error,omitempty"`
-	Id      string      `json:"id"`
+	JSONRPC string      `json:"jsonrpc"`
+	Result  interface{} `json:"result"`
+	ID      interface{} `json:"id"`
 }
 
 func checkURL(url string, wg *sync.WaitGroup, results chan<- map[string]interface{}) {
 	defer wg.Done()
-
-	client := http.Client{
-		Timeout: 5 * time.Second,
-	}
-
-	start := time.Now()
+	client := http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(url)
-	duration := time.Since(start).Milliseconds()
-
 	if err != nil {
-		results <- map[string]interface{}{
-			"url":     url,
-			"status":  "error",
-			"message": err.Error(),
-		}
+		results <- map[string]interface{}{"url": url, "status": "error", "error": err.Error()}
 		return
 	}
 	defer resp.Body.Close()
-
-	results <- map[string]interface{}{
-		"url":      url,
-		"status":   "ok",
-		"code":     resp.StatusCode,
-		"duration": duration,
-	}
+	results <- map[string]interface{}{"url": url, "status": resp.StatusCode}
 }
 
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line == "" {
-			continue
-		}
-
 		var req Request
-		err := json.Unmarshal([]byte(line), &req)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing JSON: %v\n", err)
+		if err := json.Unmarshal([]byte(line), &req); err != nil {
 			continue
 		}
 
-		switch req.Method {
-		case "check_network":
-			urls, ok := req.Params["urls"].([]interface{})
-			if !ok {
-				sendError(req.Id, -1, "Invalid or missing 'urls' parameter")
-				continue
-			}
-
-			resultsChan := make(chan map[string]interface{}, len(urls))
+		if req.Method == "check_urls" {
+			urls := req.Params[0].([]interface{})
 			var wg sync.WaitGroup
+			resultsChan := make(chan map[string]interface{}, len(urls))
 
 			for _, u := range urls {
-				urlStr, ok := u.(string)
-				if ok {
-					wg.Add(1)
-					go checkURL(urlStr, &wg, resultsChan)
-				}
+				wg.Add(1)
+				go checkURL(u.(string), &wg, resultsChan)
 			}
 
 			wg.Wait()
 			close(resultsChan)
 
-			results := []map[string]interface{}{}
+			var results []map[string]interface{}
 			for r := range resultsChan {
 				results = append(results, r)
 			}
 
-			sendResult(req.Id, map[string]interface{}{
-				"results": results,
-			})
-
-		case "exit":
-			os.Exit(0)
-
-		default:
-			sendError(req.Id, -32601, "Method not found")
+			resp := Response{JSONRPC: "2.0", Result: results, ID: req.ID}
+			respJSON, _ := json.Marshal(resp)
+			fmt.Println(string(respJSON))
+		} else if req.Method == "exit" {
+			break
 		}
 	}
-}
-
-func sendResult(id string, result interface{}) {
-	resp := Response{
-		Jsonrpc: "2.0",
-		Result:  result,
-		Id:      id,
-	}
-	b, _ := json.Marshal(resp)
-	fmt.Println(string(b))
-}
-
-func sendError(id string, code int, message string) {
-	resp := Response{
-		Jsonrpc: "2.0",
-		Error: map[string]interface{}{
-			"code":    code,
-			"message": message,
-		},
-		Id: id,
-	}
-	b, _ := json.Marshal(resp)
-	fmt.Println(string(b))
 }

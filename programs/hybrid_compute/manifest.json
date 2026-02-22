@@ -1,10 +1,8 @@
 {
-  "name": "hybrid_compute",
-  "language": "cpp",
-  "version": "1.0",
-  "description": "High-performance C++ computing module for heavy math (e.g. prime factorization). BHL compatible.",
-  "protocol": "bhl",
-  "build": "g++ -O3 compute.cpp -o hybrid_compute_exec",
-  "source": ["compute.cpp"],
-  "executable": "hybrid_compute_exec"
+    "name": "hybrid_compute",
+    "language": "cpp",
+    "description": "High-performance math module (C++)",
+    "source": ["compute.cpp"],
+    "executable": "compute_exec",
+    "build": "g++ -O3 {source} -o {output}"
 }

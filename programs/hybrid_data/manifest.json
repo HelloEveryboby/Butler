@@ -1,11 +1,9 @@
 {
-  "name": "hybrid_data",
-  "language": "java",
-  "version": "1.0",
-  "description": "Robust Java module for complex data transformation and XML generation. BHL compatible.",
-  "protocol": "bhl",
-  "build": "javac src/Main.java -d .",
-  "source": ["src/Main.java"],
-  "executable": "Main.class",
-  "run": "java Main"
+    "name": "hybrid_data",
+    "language": "java",
+    "description": "Enterprise data logic (Java)",
+    "source": ["src/Main.java"],
+    "executable": "bhl/Main.class",
+    "build": "javac -d . {source}",
+    "run": "java bhl.Main"
 }

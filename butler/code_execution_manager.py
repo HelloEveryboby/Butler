@@ -50,6 +50,10 @@ class CodeExecutionManager:
         """
         Scans the programs directory, compiles necessary projects, and registers them.
         """
+        if not os.path.isdir(self.programs_dir):
+            logging.warning(f"Programs directory '{self.programs_dir}' not found. Skipping scan.")
+            return self.registered_programs
+
         logging.info(f"Starting scan of programs directory: '{self.programs_dir}'")
         for project_name in os.listdir(self.programs_dir):
             project_path = os.path.join(self.programs_dir, project_name)
