@@ -50,6 +50,8 @@ def run(*args, **kwargs):
     net_info = extension_manager.code_execution_manager.get_program("hybrid_net")
     crypto_info = extension_manager.code_execution_manager.get_program("hybrid_crypto")
     sysutil_info = extension_manager.code_execution_manager.get_program("hybrid_sysutil")
+    math_info = extension_manager.code_execution_manager.get_program("hybrid_math")
+    vision_info = extension_manager.code_execution_manager.get_program("hybrid_vision")
 
     # 检查模块可用性，若不可用将自动回退到 Python 原生实现
     missing = []
@@ -57,6 +59,8 @@ def run(*args, **kwargs):
     if not net_info: missing.append("Go (hybrid_net)")
     if not crypto_info: missing.append("Rust (hybrid_crypto)")
     if not sysutil_info: missing.append("C (hybrid_sysutil)")
+    if not math_info: missing.append("C++ (hybrid_math)")
+    if not vision_info: missing.append("C++ (hybrid_vision)")
 
     if missing:
         print(f"⚠️ [警告] 部分 BHL 模块缺失: ({', '.join(missing)})。")
@@ -73,7 +77,9 @@ def run(*args, **kwargs):
         with HybridLinkClient(get_path(compute_info), cwd=get_cwd(compute_info)) as compute_client, \
              HybridLinkClient(get_path(net_info), cwd=get_cwd(net_info)) as net_client, \
              HybridLinkClient(get_path(crypto_info), cwd=get_cwd(crypto_info)) as crypto_client, \
-             HybridLinkClient(get_path(sysutil_info), cwd=get_cwd(sysutil_info)) as sysutil_client:
+             HybridLinkClient(get_path(sysutil_info), cwd=get_cwd(sysutil_info)) as sysutil_client, \
+             HybridLinkClient(get_path(math_info), cwd=get_cwd(math_info)) as math_client, \
+             HybridLinkClient(get_path(vision_info), cwd=get_cwd(vision_info)) as vision_client:
 
             # 注册 Go 模块的异步事件回调
             net_client.register_event_callback(on_bhl_event)
@@ -95,6 +101,21 @@ def run(*args, **kwargs):
             else:
                 p_count = len(proc_info.get("processes", []))
                 results.append(f"✅ C 结果: 发现 {p_count} 个 Butler 相关进程")
+
+            # --- 0.1 C++ 任务：高级数学与视觉 ---
+            print("🔹 [Python -> C++] 正在进行统计分析任务...")
+            stats_res = math_client.call("get_stats", {})
+            if "error" in stats_res:
+                results.append(f"❌ C++ 数学错误: {stats_res['error']['message']}")
+            else:
+                results.append(f"✅ C++ 结果: 数据均值 {stats_res['mean']}, 中位数 {stats_res['median']}")
+
+            print("🔹 [Python -> C++] 正在执行边缘检测算法...")
+            vision_res = vision_client.call("process_test", {})
+            if "error" in vision_res:
+                results.append(f"❌ C++ 视觉错误: {vision_res['error']['message']}")
+            else:
+                results.append(f"✅ C++ 结果: {vision_res['status']}")
 
             # --- 1. Rust 任务：高速哈希计算 ---
             secret_msg = "Butler 是最优秀的智能助手系统！"

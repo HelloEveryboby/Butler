@@ -1,0 +1,8 @@
+{
+    "name": "hybrid_vision",
+    "description": "计算机视觉模块 (纯 C++ 实现)，支持灰度化、Sobel 边缘检测等基础算法。",
+    "language": "C++",
+    "source": ["src/main.cpp"],
+    "build": "g++ -O3 -Iinclude src/main.cpp -o hybrid_vision_exec",
+    "executable": "hybrid_vision_exec"
+}
