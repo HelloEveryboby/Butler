@@ -44,7 +44,7 @@ class SearchPlugin(AbstractPlugin):
         return ["在百度搜索", "在Bing搜索", "bilibili搜索", "快手搜索", "抖音搜索"]
 
     def run(self, takecommand: str, args: dict) -> PluginResult:
-        from butler.main import Jarvis
+        from butler.butler_app import Jarvis
         query = args.get("query")
         if not query:
             return PluginResult.new(result=None, need_call_brain=False, success=False, error_message="缺少查询参数")

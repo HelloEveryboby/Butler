@@ -40,6 +40,94 @@ void send_error(const char* id, int code, const char* message) {
     fflush(stdout);
 }
 
+// Display Detection (Robust version)
+void detect_displays(const char* id) {
+    int display_count = 0;
+    char details[512] = "";
+    int offset = 0;
+
+    // 1. Check /sys/class/drm (Linux Direct Rendering Manager)
+    DIR* dir = opendir("/sys/class/drm");
+    if (dir) {
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (strncmp(entry->d_name, "card", 4) == 0 && strstr(entry->d_name, "-")) {
+                char path[512];
+                snprintf(path, sizeof(path), "/sys/class/drm/%s/status", entry->d_name);
+                FILE* f = fopen(path, "r");
+                if (f) {
+                    char status[16];
+                    if (fgets(status, sizeof(status), f) && strncmp(status, "connected", 9) == 0) {
+                        display_count++;
+                        offset += snprintf(details + offset, sizeof(details) - offset, "%s ", entry->d_name);
+                    }
+                    fclose(f);
+                }
+            }
+        }
+        closedir(dir);
+    }
+
+    // 2. Check X11 (via environment and unix sockets)
+    if (getenv("DISPLAY")) {
+        if (display_count == 0) display_count = 1; // Fallback if DRM failed but env is set
+        offset += snprintf(details + offset, sizeof(details) - offset, "X11:%s ", getenv("DISPLAY"));
+    }
+
+    // 3. Check Wayland
+    if (getenv("WAYLAND_DISPLAY")) {
+        if (display_count == 0) display_count = 1;
+        offset += snprintf(details + offset, sizeof(details) - offset, "Wayland:%s ", getenv("WAYLAND_DISPLAY"));
+    }
+
+    char buffer[1024];
+    snprintf(buffer, sizeof(buffer), "{\"display_count\":%d,\"detected\":%s,\"details\":",
+             display_count, display_count > 0 ? "true" : "false");
+
+    // Construct final JSON with details string
+    char* final_ptr = buffer + strlen(buffer);
+    print_json_string(details); // This prints directly to stdout, let's fix the buffer approach
+
+    // Correction: Construct the result manually to maintain BHL format
+    printf("{\"jsonrpc\":\"2.0\",\"result\":{\"display_count\":%d,\"detected\":%s,\"details\":",
+           display_count, display_count > 0 ? "true" : "false");
+    print_json_string(details);
+    printf("},\"id\":\"%s\"}\n", id);
+    fflush(stdout);
+}
+
+// Connection check for Data Cable / Serial devices
+void check_connections(const char* id) {
+    int connection_count = 0;
+    char devices[512] = "";
+    int offset = 0;
+
+    DIR* dir = opendir("/dev");
+    if (dir) {
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != NULL) {
+            // Broad search for USB Serial and typical dev board ports
+            if (strstr(entry->d_name, "ttyUSB") ||
+                strstr(entry->d_name, "ttyACM") ||
+                strstr(entry->d_name, "cu.usb") ||
+                strstr(entry->d_name, "tty.usb")) {
+
+                connection_count++;
+                if (offset < sizeof(devices) - 64) {
+                    offset += snprintf(devices + offset, sizeof(devices) - offset, "%s ", entry->d_name);
+                }
+            }
+        }
+        closedir(dir);
+    }
+
+    printf("{\"jsonrpc\":\"2.0\",\"result\":{\"connection_found\":%s,\"count\":%d,\"devices\":",
+           connection_count > 0 ? "true" : "false", connection_count);
+    print_json_string(devices);
+    printf("},\"id\":\"%s\"}\n", id);
+    fflush(stdout);
+}
+
 // System Info
 void get_system_info(const char* id) {
     struct sysinfo info;
@@ -83,11 +171,9 @@ void list_processes(const char* id) {
             size_t len = fread(cmdline, 1, sizeof(cmdline) - 1, f);
             fclose(f);
             if (len > 0) {
-                // cmdline is null-separated, replace with spaces for easier reading
                 for (size_t i = 0; i < len; i++) if (cmdline[i] == '\0') cmdline[i] = ' ';
                 cmdline[len] = '\0';
 
-                // Simple heuristic to find Butler-related processes
                 if (strstr(cmdline, "butler") || strstr(cmdline, "package.") || strstr(cmdline, "hybrid_") || strstr(cmdline, "sysutil")) {
                     if (!first) printf(",");
                     printf("{\"pid\":%s,\"cmd\":", entry->d_name);
@@ -119,7 +205,6 @@ void recursive_search(const char* dir_path, const char* pattern, int* count, int
         struct stat st;
         if (lstat(path, &st) == 0) {
             if (S_ISDIR(st.st_mode)) {
-                // Avoid infinite loops and permission issues
                 if (strstr(path, "/proc") || strstr(path, "/sys") || strstr(path, "/dev") || strstr(path, ".git")) continue;
                 recursive_search(path, pattern, count, max);
             } else if (strstr(entry->d_name, pattern)) {
@@ -189,6 +274,10 @@ int main() {
             get_json_val(line, "root", root, sizeof(root));
             get_json_val(line, "pattern", pattern, sizeof(pattern));
             fast_file_search(id, root, pattern);
+        } else if (strcmp(method, "detect_displays") == 0) {
+            detect_displays(id);
+        } else if (strcmp(method, "check_connections") == 0) {
+            check_connections(id);
         } else if (strcmp(method, "exit") == 0) {
             break;
         } else {

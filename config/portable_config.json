@@ -1,0 +1,12 @@
+{
+    "portable_mode": {
+        "enabled": true,
+        "auto_detect_display": true,
+        "suggest_ui": true,
+        "serial_link": {
+            "enabled": true,
+            "baudrate": 115200,
+            "auto_connect": true
+        }
+    }
+}

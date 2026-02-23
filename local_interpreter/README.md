@@ -17,7 +17,7 @@ A simple, local code interpreter powered by a language model, designed to run sa
 1.  Navigate to the project directory.
 2.  Run the main entry point:
     ```bash
-    python3 local_interpreter/main.py
+    python3 local_interpreter.interpreter_app.py
     ```
 3.  The application will start, and you can type commands at the `>>>` prompt.
 4.  Type `exit` to quit the application.

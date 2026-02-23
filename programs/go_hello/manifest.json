@@ -4,6 +4,6 @@
   "version": "1.0",
   "description": "A simple Go program that prints a greeting.",
   "build": "go build -o {output} {source}",
-  "source": ["main.go"],
+  "source": ["hello.go"],
   "executable": "hello_go_exec"
 }

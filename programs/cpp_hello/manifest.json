@@ -4,6 +4,6 @@
   "version": "1.0",
   "description": "A simple C++ program that prints a greeting.",
   "build": "g++ {source} -o {output}",
-  "source": ["main.cpp"],
+  "source": ["hello.cpp"],
   "executable": "hello_executable"
 }

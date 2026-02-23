@@ -150,7 +150,7 @@ For easier distribution, you can build a standalone executable using `PyInstalle
 2.  **Run the build command**:
     Make sure you have already placed the `jarvis.wav` file in the correct directory as described in Section 5.
     ```bash
-    pyinstaller --name Butler --onefile --add-data "butler/resources:butler/resources" butler/main.py
+    pyinstaller --name Butler --onefile --add-data "butler/resources:butler/resources" butler.butler_app.py
     ```
 
 The final executable will be located in the `dist/` directory.

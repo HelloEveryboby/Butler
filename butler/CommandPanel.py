@@ -182,6 +182,18 @@ class CommandPanel(tk.Frame):
         tk.Radiobutton(self.display_mode_frame, text="USB", value='usb', **radio_button_config).pack(side=tk.LEFT)
         tk.Radiobutton(self.display_mode_frame, text="双显", value='both', **radio_button_config).pack(side=tk.LEFT)
 
+        # --- 连接状态指示器 ---
+        self.link_status_frame = tk.Frame(self.display_mode_frame, bg=self.background_color)
+        self.link_status_frame.pack(side=tk.RIGHT, padx=10)
+
+        self.link_label = tk.Label(self.link_status_frame, text="数据链:", bg=self.background_color, fg=self.foreground_color, font=("Arial", 9))
+        self.link_label.pack(side=tk.LEFT)
+
+        self.link_indicator = tk.Label(self.link_status_frame, text="●", fg="gray", bg=self.background_color, font=("Arial", 12))
+        self.link_indicator.pack(side=tk.LEFT, padx=2)
+
+        self.link_text = tk.Label(self.link_status_frame, text="未连接", bg=self.background_color, fg=self.foreground_color, font=("Arial", 9))
+        self.link_text.pack(side=tk.LEFT)
 
         # --- 主输出文本区域 ---
         self.output_text = scrolledtext.ScrolledText(
@@ -546,6 +558,15 @@ class CommandPanel(tk.Frame):
             self.listen_button.config(text="停止", relief=tk.SUNKEN, bg="#e06c75")
         else:
             self.listen_button.config(text="聆听", relief=tk.RAISED, bg=self.button_bg_color)
+
+    def update_link_status(self, connected, device_name=""):
+        """更新 UI 中的连接状态指示器。"""
+        if connected:
+            self.link_indicator.config(fg="#98c379") # Green
+            self.link_text.config(text=f"已连接 ({device_name})")
+        else:
+            self.link_indicator.config(fg="gray")
+            self.link_text.config(text="未连接")
 
     def set_input_text(self, text):
         self.input_entry.delete(0, tk.END)

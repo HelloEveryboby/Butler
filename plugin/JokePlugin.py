@@ -56,7 +56,7 @@ class JokePlugin(AbstractPlugin):
         return ["我无聊了", "休息一下", "讲个笑话", "好无聊"]
 
     def run(self, takecommand: str, args: dict) -> PluginResult:
-        from butler.main import Jarvis
+        from butler.butler_app import Jarvis
         # 随机选择一个笑话
         joke_question, joke_answer = random.choice(self.jokes)
         Jarvis(None).speak(joke_question)

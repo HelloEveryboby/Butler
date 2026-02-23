@@ -5,7 +5,7 @@ import os
 # 它确保在 butler 应用程序导入此模块时可以找到 'markitdown' 包。
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'markitdown', 'src')))
 
-from markitdown.main import convert
+from markitdown.markitdown_app import convert
 
 def convert_to_markdown(file_path: str):
     """

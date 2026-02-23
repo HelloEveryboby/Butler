@@ -3,6 +3,10 @@ name = "hybrid_crypto_exec"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "hybrid_crypto_exec"
+path = "src/crypto_service.rs"
+
 [dependencies]
 hex = "0.4.3"
 serde = { version = "1.0.228", features = ["derive"] }

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import sys
 
 
-from butler.main import Jarvis
+from butler.butler_app import Jarvis
 from local_interpreter.interpreter import Interpreter
 from local_interpreter.coordinator.orchestrator import ExternalToolCall, FinalResponse
 

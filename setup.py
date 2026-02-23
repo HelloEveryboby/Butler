@@ -57,7 +57,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'butler=butler.main:main',
+            'butler=butler.butler_app:main',
         ],
     },
     include_package_data=True,
