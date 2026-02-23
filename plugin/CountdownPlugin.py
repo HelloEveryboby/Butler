@@ -48,7 +48,7 @@ class CountdownPlugin(AbstractPlugin):
 
     def run(self, takecommand: str, args: dict) -> PluginResult:
         import time
-        from butler.main import Jarvis
+        from butler.butler_app import Jarvis
 
         seconds = args.get("seconds")
         if not seconds:

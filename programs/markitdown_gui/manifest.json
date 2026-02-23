@@ -3,7 +3,7 @@
   "description": "支持批量将各种格式文件转换为Markdown的GUI工具。",
   "language": "python",
   "build": "echo 'No build required for Python'",
-  "source": ["main.py"],
-  "executable": "main.py",
-  "run": "python main.py {args}"
+  "source": ["gui_app.py"],
+  "executable": "gui_app.py",
+  "run": "python gui_app.py {args}"
 }

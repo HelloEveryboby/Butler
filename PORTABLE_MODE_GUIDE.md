@@ -80,7 +80,7 @@ Butler (Jarvis) 已集成依赖管理意图。你可以直接对它说：
 启动脚本（`run.bat` / `run.sh`）会优先检查项目根目录下的 `runtime` 文件夹。如果存在有效的 Python 解释器，则跳过系统变量中的 Python，使用内置环境运行。
 
 ### 路径自动加载
-项目在启动时（`butler/main.py`），会自动执行以下逻辑：
+项目在启动时（`butler.butler_app.py`），会自动执行以下逻辑：
 1. 识别项目根目录。
 2. 将项目根目录加入 `sys.path`。
 3. 检查是否存在 `lib_external` 文件夹。

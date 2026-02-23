@@ -24,7 +24,7 @@ if os.path.exists(lib_path) and lib_path not in sys.path:
     sys.path.insert(0, lib_path)
 
 try:
-    from markitdown.main import convert
+    from markitdown.markitdown_app import convert
 except ImportError:
     # Fallback if pathing is different
     sys.path.insert(0, os.path.join(project_root, "markitdown/src/markitdown"))

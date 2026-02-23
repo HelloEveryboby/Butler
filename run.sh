@@ -33,6 +33,6 @@ fi
 
 # Run the main application using the python module flag
 echo "Launching main application..."
-$PYTHON_CMD -m butler.main
+$PYTHON_CMD -m butler.butler_app
 
 echo "Application closed."

@@ -8,7 +8,7 @@ CFLAGS = -Wall -Wextra -std=c99
 TARGET = word_counter_exec
 
 # Source files
-SOURCES = main.c counter.c
+SOURCES = word_counter.c counter.c
 
 # Object files derived from source files
 OBJECTS = $(SOURCES:.c=.o)

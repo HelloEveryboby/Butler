@@ -4,6 +4,6 @@
   "version": "1.0",
   "description": "A simple C program that prints a greeting.",
   "build": "gcc {source} -o {output}",
-  "source": ["main.c"],
+  "source": ["hello.c"],
   "executable": "hello_c_exec"
 }

@@ -52,10 +52,10 @@ class TestImport(unittest.TestCase):
         with patch.dict(sys.modules, MOCK_MODULES):
             try:
                 from butler import main
-                print("Successfully imported butler.main")
+                print("Successfully imported butler.butler_app")
             except Exception as e:
                 traceback.print_exc()
-                self.fail(f"Failed to import butler.main: {e}")
+                self.fail(f"Failed to import butler.butler_app: {e}")
 
 if __name__ == "__main__":
     unittest.main()

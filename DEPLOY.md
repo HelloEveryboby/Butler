@@ -78,6 +78,6 @@ butler
 
 可以使用 `PyInstaller` 构建独立的可执行文件。本指南已为此准备好了项目结构。基本命令是：
 ```bash
-pyinstaller --name Butler --onefile --add-data "butler/resources:butler/resources" butler/main.py
+pyinstaller --name Butler --onefile --add-data "butler/resources:butler/resources" butler.butler_app.py
 ```
 **注意**：在运行此命令之前，必须确保所需的数据文件（如第 4 节所述）已就绪。可执行文件将在 `dist` 目录中生成。

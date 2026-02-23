@@ -35,6 +35,8 @@ from plugin.long_memory.chroma_long_memory import SQLiteLongMemory
 from plugin.long_memory.long_memory_interface import LongMemoryItem
 from butler.core.intent_dispatcher import intent_registry
 from butler.core import legacy_commands # Ensure legacy intents are registered
+from butler.core.hybrid_link import HybridLinkClient
+from package.device.standalone_manager import StandaloneManager
 
 class Jarvis:
     def __init__(self, root, usb_screen=None):
@@ -67,6 +69,20 @@ class Jarvis:
             safety_mode=self.config.get("interpreter", {}).get("safety_mode", True),
             max_iterations=self.config.get("interpreter", {}).get("max_iterations", 10)
         )
+
+        # Initialize Hybrid Link for system utility
+        self.sysutil = HybridLinkClient(
+            executable_path=os.path.join(project_root, "programs/hybrid_sysutil/sysutil"),
+            fallback_enabled=True
+        )
+        self.sysutil.start()
+
+        # Initialize Standalone Manager
+        self.standalone_manager = StandaloneManager(self)
+        self.standalone_manager.start()
+
+        self.ui_suggested = False
+        self.waiting_for_ui_confirm = False
 
     def _load_config(self):
         config_path = os.path.join(project_root, "config", "system_config.json")
@@ -150,6 +166,18 @@ class Jarvis:
     def handle_user_command(self, command, programs=None):
         if not command: return
         cmd = command.strip()
+
+        # Handle UI confirmation prompt
+        if self.waiting_for_ui_confirm:
+            if any(word in cmd.lower() for word in ['是', '好', '打开', '需要', 'yes', 'ok', 'open']):
+                self.waiting_for_ui_confirm = False
+                self.ui_print("正在为您打开 UI 界面...")
+                self._activate_full_ui()
+                return
+            elif any(word in cmd.lower() for word in ['不', '否', '取消', 'no', 'cancel']):
+                self.waiting_for_ui_confirm = False
+                self.ui_print("已取消 UI 启动。")
+                return
 
         # Command Dispatching
         if cmd.startswith("/voice-mode "):
@@ -295,6 +323,50 @@ class Jarvis:
         self._cleanup_temp_files()
         self.voice_service.start_listening()
         self.speak("Jarvis 已启动并就绪")
+
+        # Start general monitoring thread
+        threading.Thread(target=self._update_ui_loop, daemon=True).start()
+
+    def suggest_ui_activation(self):
+        """Called by StandaloneManager when a display is detected."""
+        if not self.ui_suggested and self.display_mode in ('usb', 'host'):
+            if self.root is None: # We are in headless mode
+                 self.speak("检测到可用屏幕。是否需要开启图形界面程序？")
+                 self.waiting_for_ui_confirm = True
+                 self.ui_suggested = True
+
+    def _activate_full_ui(self):
+        """Dynamically launches the Tkinter UI if running in headless mode."""
+        if self.root:
+            self.ui_print("UI 已经处于运行状态。", tag='system_message')
+            return
+
+        def launch():
+            try:
+                self.logger.info("Starting UI thread...")
+                # In a real scenario, we might need to restart the process or launch a subprocess
+                # For this implementation, we simulate the 'CommandPanel' initialization
+                self.speak("提示：在当前终端环境下直接启动 Tkinter 可能需要有效的 X11/Wayland 转发。")
+                # If we had a mechanism to relaunch with UI, we'd trigger it here.
+                # For now, we update state.
+                self.display_mode = 'host'
+            except Exception as e:
+                self.logger.error(f"Failed to launch UI: {e}")
+
+        threading.Thread(target=launch, daemon=True).start()
+
+    def _update_ui_loop(self):
+        """Regularly updates the UI state based on hardware status."""
+        while self.running:
+            try:
+                if self.standalone_manager and self.panel:
+                    status = self.standalone_manager.get_status()
+                    connected = (status["connection"] == "Connected")
+                    device = status["devices"][0] if status["devices"] else ""
+                    self.root.after(0, self.panel.update_link_status, connected, device)
+            except Exception:
+                pass
+            time.sleep(5)
 
     def _cleanup_temp_files(self):
         temp_dir = tempfile.gettempdir()

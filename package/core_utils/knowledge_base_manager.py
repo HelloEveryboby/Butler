@@ -16,7 +16,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 
 try:
     import numpy as np
-    from markitdown.main import convert as md_convert
+    from markitdown.markitdown_app import convert as md_convert
 except ImportError:
     pass
 
