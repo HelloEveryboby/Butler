@@ -1,0 +1,8 @@
+# 模块名 成本 依赖项
+entry 0
+core_service 10 entry
+data_layer 5 core_service
+ui_engine 15 core_service
+network_module 8 data_layer
+plugin_system 12 data_layer,ui_engine
+final_app 2 network_module,plugin_system
