@@ -5,7 +5,7 @@ import json
 import ast
 from typing import List, Dict, Optional, Tuple
 from .long_memory_interface import AbstractLongMemory, LongMemoryItem
-from package.log_manager import LogManager
+from package.core_utils.log_manager import LogManager
 
 # 系统数据路径
 SYSTEM_DATA_PATH = "./data/system_data"

@@ -3,7 +3,7 @@ import pkgutil
 import inspect
 from typing import Type, Optional, List, Dict
 from .abstract_plugin import AbstractPlugin, PluginResult
-from package.log_manager import LogManager
+from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
 

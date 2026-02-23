@@ -1,4 +1,4 @@
-from package.log_manager import LogManager
+from package.core_utils.log_manager import LogManager
 
 from plugin.plugin_interface import AbstractPlugin, PluginResult
 

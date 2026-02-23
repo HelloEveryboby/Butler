@@ -4,7 +4,7 @@ import sys
 import os
 import json
 import re
-from package.log_manager import LogManager
+from package.core_utils.log_manager import LogManager
 
 # 用于语法高亮显示的 Pygments
 try:

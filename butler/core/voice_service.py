@@ -5,7 +5,7 @@ import threading
 import tempfile
 from typing import Optional, Callable
 from dotenv import load_dotenv
-from package.log_manager import LogManager
+from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
 
