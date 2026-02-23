@@ -1,0 +1,8 @@
+{
+    "name": "hybrid_sysutil",
+    "description": "高性能系统工具模块 (C 语言实现)，提供系统状态监控、进程扫描与极速文件搜索。",
+    "language": "C",
+    "source": ["sysutil.c"],
+    "build": "gcc -O2 {source} -o {output}",
+    "executable": "sysutil"
+}

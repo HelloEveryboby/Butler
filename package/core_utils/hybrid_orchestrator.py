@@ -49,12 +49,14 @@ def run(*args, **kwargs):
     compute_info = extension_manager.code_execution_manager.get_program("hybrid_compute")
     net_info = extension_manager.code_execution_manager.get_program("hybrid_net")
     crypto_info = extension_manager.code_execution_manager.get_program("hybrid_crypto")
+    sysutil_info = extension_manager.code_execution_manager.get_program("hybrid_sysutil")
 
     # 检查模块可用性，若不可用将自动回退到 Python 原生实现
     missing = []
     if not compute_info: missing.append("C++ (hybrid_compute)")
     if not net_info: missing.append("Go (hybrid_net)")
     if not crypto_info: missing.append("Rust (hybrid_crypto)")
+    if not sysutil_info: missing.append("C (hybrid_sysutil)")
 
     if missing:
         print(f"⚠️ [警告] 部分 BHL 模块缺失: ({', '.join(missing)})。")
@@ -70,12 +72,29 @@ def run(*args, **kwargs):
 
         with HybridLinkClient(get_path(compute_info), cwd=get_cwd(compute_info)) as compute_client, \
              HybridLinkClient(get_path(net_info), cwd=get_cwd(net_info)) as net_client, \
-             HybridLinkClient(get_path(crypto_info), cwd=get_cwd(crypto_info)) as crypto_client:
+             HybridLinkClient(get_path(crypto_info), cwd=get_cwd(crypto_info)) as crypto_client, \
+             HybridLinkClient(get_path(sysutil_info), cwd=get_cwd(sysutil_info)) as sysutil_client:
 
             # 注册 Go 模块的异步事件回调
             net_client.register_event_callback(on_bhl_event)
 
             print("✅ 跨语言环境初始化完成。\n")
+
+            # --- 0. C 任务：高性能系统工具 ---
+            print("🔹 [Python -> C] 正在获取系统资源状态...")
+            sys_info = sysutil_client.call("get_system_info", {})
+            if "error" in sys_info:
+                results.append(f"❌ C 系统工具错误: {sys_info['error']['message']}")
+            else:
+                results.append(f"✅ C 结果: 运行时间 {sys_info['uptime']}s, 负载 {sys_info['load_1m']}, 剩余内存 {sys_info['free_mb']}MB")
+
+            print("🔹 [Python -> C] 正在扫描 Butler 相关进程...")
+            proc_info = sysutil_client.call("list_processes", {})
+            if "error" in proc_info:
+                results.append(f"❌ C 进程扫描错误: {proc_info['error']['message']}")
+            else:
+                p_count = len(proc_info.get("processes", []))
+                results.append(f"✅ C 结果: 发现 {p_count} 个 Butler 相关进程")
 
             # --- 1. Rust 任务：高速哈希计算 ---
             secret_msg = "Butler 是最优秀的智能助手系统！"

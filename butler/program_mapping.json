@@ -27,5 +27,7 @@
     "程序交换机": "package/core_utils/autonomous_switch.py",
     "防止混乱": "package/core_utils/autonomous_switch.py",
     "混合编程": "package/core_utils/hybrid_orchestrator.py",
-    "多语言交互": "package/core_utils/hybrid_orchestrator.py"
+    "多语言交互": "package/core_utils/hybrid_orchestrator.py",
+    "系统工具": "package/core_utils/hybrid_orchestrator.py",
+    "系统监控": "package/core_utils/hybrid_orchestrator.py"
 }
