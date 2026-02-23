@@ -69,6 +69,48 @@ def hash_sha256(text: str) -> Dict[str, Any]:
     h = hashlib.sha256(text.encode()).hexdigest()
     return {"hash": h}
 
+def get_system_info() -> Dict[str, Any]:
+    """Python implementation of system info retrieval."""
+    import psutil
+    import os
+    import time
+    vm = psutil.virtual_memory()
+    return {
+        "uptime": int(time.time() - psutil.boot_time()),
+        "load_1m": os.getloadavg()[0] if hasattr(os, 'getloadavg') else 0.0,
+        "total_mb": vm.total // (1024 * 1024),
+        "free_mb": vm.available // (1024 * 1024)
+    }
+
+def list_processes() -> Dict[str, Any]:
+    """Python implementation of process scanning."""
+    import psutil
+    processes = []
+    for proc in psutil.process_iter(['pid', 'cmdline']):
+        try:
+            cmdline = " ".join(proc.info['cmdline'] or [])
+            if any(k in cmdline for k in ["butler", "package.", "hybrid_", "sysutil"]):
+                processes.append({"pid": proc.info['pid'], "cmd": cmdline})
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    return {"processes": processes}
+
+def fast_file_search(root: str, pattern: str) -> Dict[str, Any]:
+    """Python implementation of file searching."""
+    import os
+    files = []
+    for r, d, f in os.walk(root):
+        if any(skip in r for skip in [".git", "/proc", "/sys", "/dev"]):
+            continue
+        for file in f:
+            if pattern in file:
+                files.append(os.path.join(r, file))
+                if len(files) >= 100:
+                    break
+        if len(files) >= 100:
+            break
+    return {"files": files, "count": len(files)}
+
 def dispatch_fallback(method: str, params: Dict[str, Any]) -> Any:
     """Dispatches a BHL call to a Python fallback implementation."""
     if method == "factorize":
@@ -83,5 +125,11 @@ def dispatch_fallback(method: str, params: Dict[str, Any]) -> Any:
                           int(params.get("end", 1024)))
     elif method == "hash_sha256":
         return hash_sha256(params.get("text", ""))
+    elif method == "get_system_info":
+        return get_system_info()
+    elif method == "list_processes":
+        return list_processes()
+    elif method == "fast_file_search":
+        return fast_file_search(params.get("root", "."), params.get("pattern", ""))
     else:
         return {"error": {"code": -32601, "message": f"Method {method} not supported in fallback"}}

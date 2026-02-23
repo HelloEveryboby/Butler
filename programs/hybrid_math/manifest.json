@@ -1,0 +1,8 @@
+{
+    "name": "hybrid_math",
+    "description": "高级数学运算模块 (C++ 17)，包含矩阵论、统计学及信号处理。",
+    "language": "C++",
+    "source": ["src/main.cpp"],
+    "build": "g++ -O3 -Iinclude src/main.cpp -o hybrid_math_exec",
+    "executable": "hybrid_math_exec"
+}
