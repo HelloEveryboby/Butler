@@ -20,7 +20,7 @@ import shutil
 import tkinter as tk
 from dotenv import load_dotenv
 
-from package.log_manager import LogManager
+from package.core_utils.log_manager import LogManager
 from butler.CommandPanel import CommandPanel
 from butler.data_storage import data_storage_manager
 from butler.core.extension_manager import extension_manager

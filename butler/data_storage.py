@@ -2,7 +2,7 @@ import json
 from typing import Any, Optional
 
 from butler.redis_client import redis_client
-from package.log_manager import LogManager
+from package.core_utils.log_manager import LogManager
 
 class DataStorageManager:
     """

@@ -5,10 +5,10 @@ from typing import List, Dict, Optional
 
 from butler.redis_client import redis_client
 from ..long_memory.long_memory_interface import AbstractLongMemory, LongMemoryItem
-from package.log_manager import LogManager
+from package.core_utils.log_manager import LogManager
 from redisvl.index import SearchIndex
 from redisvl.query import VectorQuery
-from package.embedding_utils import get_embedding
+from package.core_utils.embedding_utils import get_embedding
 
 class RedisLongMemory(AbstractLongMemory):
     def __init__(self, api_key: str, collection_name: str = "long_memory_collection"):

@@ -3,7 +3,7 @@ import time
 import requests
 from uuid import uuid4
 from plugin.plugin_interface import AbstractPlugin, PluginResult
-from package.log_manager import LogManager
+from package.core_utils.log_manager import LogManager
 
 TEMP_DIR_PATH = os.getenv("TEMP_DIR_PATH", "./temp")
 

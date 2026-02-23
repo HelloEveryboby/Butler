@@ -3,7 +3,7 @@ import json
 import requests
 import logging
 from typing import Dict, Any, List
-from package.log_manager import LogManager
+from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
 

@@ -3,8 +3,8 @@ import json
 import time
 from typing import List, Dict, Optional
 from .long_memory_interface import AbstractLongMemory, LongMemoryItem
-from package.log_manager import LogManager
-from package.embedding_utils import get_embedding
+from package.core_utils.log_manager import LogManager
+from package.core_utils.embedding_utils import get_embedding
 
 class ZvecLongMemory(AbstractLongMemory):
     """

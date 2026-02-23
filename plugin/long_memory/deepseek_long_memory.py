@@ -3,7 +3,7 @@ import requests
 import numpy as np
 from typing import List, Dict, Optional
 from ..long_memory.long_memory_interface import AbstractLongMemory, LongMemoryItem
-from package.log_manager import LogManager
+from package.core_utils.log_manager import LogManager
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/embeddings"
 
