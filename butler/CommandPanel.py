@@ -5,6 +5,7 @@ import os
 import json
 import re
 from package.core_utils.log_manager import LogManager
+from butler.core.asset_loader import asset_loader
 
 # 用于语法高亮显示的 Pygments
 try:
@@ -131,7 +132,8 @@ class CommandPanel(tk.Frame):
         self.btn_type.grid(row=0, column=2, padx=1, sticky="ew")
 
         # --- 设置按钮 ---
-        self.settings_icon = tk.PhotoImage(file="assets/settings_icon.png")
+        settings_icon_path = asset_loader.resolve_path("asset://settings_icon.png")
+        self.settings_icon = tk.PhotoImage(file=settings_icon_path)
         self.settings_button = tk.Button(
             self.menu_frame,
             text="设置",

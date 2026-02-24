@@ -1,11 +1,15 @@
 document.addEventListener('DOMContentLoaded', () => {
     const interactionFlow = document.getElementById('interaction-flow');
-    const pauseBtn = document.getElementById('pause-btn');
-    const retryBtn = document.getElementById('retry-btn');
-    const terminalBtn = document.getElementById('terminal-btn');
     const terminalOverlay = document.getElementById('terminal-overlay');
     const closeTerminalBtn = document.getElementById('close-terminal');
     const statusBar = document.getElementById('status-bar');
+
+    // Dock Items
+    const dockTerminal = document.getElementById('dock-terminal');
+    const dockVoice = document.getElementById('dock-voice');
+    const dockPause = document.getElementById('dock-pause');
+    const dockRetry = document.getElementById('dock-retry');
+    const dockHome = document.getElementById('dock-home');
 
     let isStreaming = false;
     let currentAILine = null;
@@ -15,32 +19,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const term = new Terminal({
         cursorBlink: true,
         theme: {
-            background: '#1e1e1e'
+            background: '#141414',
+            foreground: '#f0f0f0'
         },
         fontSize: 14,
-        fontFamily: 'Consolas, "Courier New", monospace'
+        fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace'
     });
     const fitAddon = new FitAddon.FitAddon();
     term.loadAddon(fitAddon);
 
     term.open(document.getElementById('terminal-container'));
-
-    // Exact fitting after a small delay to ensure rendering
     setTimeout(() => fitAddon.fit(), 100);
 
-    window.addEventListener('resize', () => {
-        fitAddon.fit();
-    });
+    window.addEventListener('resize', () => fitAddon.fit());
 
-    // Handle terminal input
     term.onData(data => {
         if (window.pywebview && window.pywebview.api) {
             window.pywebview.api.terminal_input(data);
         }
     });
 
-    // Function to create a new user input line
     function createUserInputLine() {
+        // Remove welcome message on first interaction
+        const welcome = document.querySelector('.welcome-message');
+        if (welcome && interactionFlow.children.length > 1) {
+             welcome.style.display = 'none';
+        }
+
         const line = document.createElement('div');
         line.className = 'interaction-line user-input-line';
 
@@ -62,7 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Ensure focus
         document.addEventListener('click', () => {
             if (!isStreaming) inputSpan.focus();
         });
@@ -78,21 +82,20 @@ document.addEventListener('DOMContentLoaded', () => {
         inputSpan.contentEditable = false;
         inputSpan.classList.remove('active-input');
 
-        statusBar.innerText = "处理中...";
+        statusBar.innerText = "Processing...";
 
         if (window.pywebview && window.pywebview.api) {
             window.pywebview.api.handle_command(command);
         } else {
-            // Demo mode
             setTimeout(() => {
                 onAIStreamStart();
-                onAIStreamChunk("这是一个演示响应。由于未检测到后端，我将模拟输出内容...");
+                onAIStreamChunk("Demo Mode: Backend not connected. Your command: " + command);
                 onAIStreamEnd();
             }, 500);
         }
     }
 
-    // Bridge Functions (called from Python)
+    // Bridge Functions
     window.onAIStreamStart = () => {
         isStreaming = true;
         currentAILine = document.createElement('div');
@@ -110,40 +113,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.onAIStreamEnd = () => {
         isStreaming = false;
-        statusBar.innerText = "就绪";
+        statusBar.innerText = "Ready";
         createUserInputLine();
     };
 
-    window.onTerminalOutput = (data) => {
-        term.write(data);
-    };
+    window.onTerminalOutput = (data) => term.write(data);
 
     window.onVoiceStatusChange = (isListening) => {
         const dot = document.getElementById('voice-status');
+        const voiceIcon = dockVoice.querySelector('i');
         if (isListening) {
             dot.classList.add('listening');
+            voiceIcon.style.color = '#ff3b30';
         } else {
             dot.classList.remove('listening');
+            voiceIcon.style.color = 'white';
         }
     };
 
-    // UI Event Listeners
-    pauseBtn.addEventListener('click', () => {
+    // Dock Events
+    dockTerminal.addEventListener('click', () => {
+        terminalOverlay.classList.toggle('hidden');
+        if (!terminalOverlay.classList.contains('hidden')) {
+            fitAddon.fit();
+            if (window.pywebview && window.pywebview.api) {
+                window.pywebview.api.start_terminal();
+            }
+        }
+    });
+
+    dockVoice.addEventListener('click', () => {
+        if (window.pywebview && window.pywebview.api) {
+            // Assume bridge has a way to toggle voice
+            // For now we use the existing mechanism if available via jarvis panel command
+            // or we might need to expose it to bridge
+            window.pywebview.api.handle_command("/voice-toggle");
+        }
+    });
+
+    dockPause.addEventListener('click', () => {
         if (window.pywebview && window.pywebview.api) {
             window.pywebview.api.pause_output();
         }
     });
 
-    retryBtn.addEventListener('click', () => {
+    dockRetry.addEventListener('click', () => {
         if (!isStreaming && lastUserCommand) {
-            // Remove last AI output if exists
             if (currentAILine) currentAILine.remove();
-            // We need to re-execute. Since createUserInputLine was called, we might have an empty active input.
             const activeInput = document.querySelector('.active-input');
-            if (activeInput) {
-                activeInput.parentElement.remove();
-            }
-            // Add a new user line but with the old command to show it's being retried
+            if (activeInput) activeInput.parentElement.remove();
+
             const line = document.createElement('div');
             line.className = 'interaction-line user-input-line';
             const span = document.createElement('span');
@@ -155,11 +174,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    terminalBtn.addEventListener('click', () => {
-        terminalOverlay.classList.remove('hidden');
-        if (window.pywebview && window.pywebview.api) {
-            window.pywebview.api.start_terminal();
-        }
+    dockHome.addEventListener('click', () => {
+        // Clear history and show welcome
+        interactionFlow.innerHTML = '';
+        const welcome = document.createElement('div');
+        welcome.className = 'welcome-message';
+        welcome.innerHTML = '<h1>Butler</h1><p>How can I help you today?</p>';
+        interactionFlow.appendChild(welcome);
+        createUserInputLine();
     });
 
     closeTerminalBtn.addEventListener('click', () => {
