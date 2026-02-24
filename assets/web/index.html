@@ -16,6 +16,11 @@
     <div class="background-animation"></div>
     <div class="glass-container">
         <header>
+            <div class="window-controls">
+                <span class="control-dot close"></span>
+                <span class="control-dot minimize"></span>
+                <span class="control-dot maximize"></span>
+            </div>
             <div class="logo">
                 <i class="fas fa-robot"></i>
                 <span>BUTLER</span>
@@ -23,11 +28,6 @@
             <div class="status-indicators">
                 <span id="voice-status" class="status-dot"></span>
                 <span id="connection-status" class="status-dot connected"></span>
-            </div>
-            <div class="controls">
-                <button id="pause-btn" title="暂停输出"><i class="fas fa-pause"></i></button>
-                <button id="retry-btn" title="重新生成"><i class="fas fa-redo"></i></button>
-                <button id="terminal-btn" title="独立终端"><i class="fas fa-terminal"></i></button>
             </div>
         </header>
 
@@ -42,6 +42,19 @@
         <footer>
             <div id="status-bar">就绪</div>
         </footer>
+
+        <!-- Apple Style Dock -->
+        <div class="dock-container">
+            <div class="dock">
+                <div class="dock-item" id="dock-home" title="首页"><i class="fas fa-home"></i></div>
+                <div class="dock-item" id="dock-terminal" title="终端"><i class="fas fa-terminal"></i></div>
+                <div class="dock-item" id="dock-voice" title="语音控制"><i class="fas fa-microphone"></i></div>
+                <div class="dock-item" id="dock-pause" title="暂停"><i class="fas fa-pause"></i></div>
+                <div class="dock-item" id="dock-retry" title="重试"><i class="fas fa-redo"></i></div>
+                <div class="dock-separator"></div>
+                <div class="dock-item" id="dock-settings" title="设置"><i class="fas fa-cog"></i></div>
+            </div>
+        </div>
     </div>
 
     <div id="terminal-overlay" class="hidden">

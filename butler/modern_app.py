@@ -12,6 +12,7 @@ if project_root not in sys.path:
 
 from butler.butler_app import Jarvis
 from package.core_utils.log_manager import LogManager
+from butler.core.asset_loader import asset_loader
 
 class ModernBridge:
     def __init__(self, jarvis, window):
@@ -22,8 +23,17 @@ class ModernBridge:
 
     def handle_command(self, command):
         self.logger.info(f"Modern UI Command: {command}")
+        if command == "/voice-toggle":
+            self.toggle_voice()
+            return
         # Use a thread to avoid blocking the UI
         threading.Thread(target=self._run_command, args=(command,), daemon=True).start()
+
+    def toggle_voice(self):
+        if self.jarvis.voice_service.is_listening:
+            self.jarvis.voice_service.stop_listening()
+        else:
+            self.jarvis.voice_service.start_listening()
 
     def _run_command(self, command):
         try:
@@ -93,15 +103,15 @@ def main():
     # Initialize Jarvis in headless mode (no Tkinter root)
     jarvis = Jarvis(root=None)
 
-    # Load HTML
-    html_path = os.path.join(project_root, "butler", "web", "index.html")
+    # Load HTML via AssetLoader
+    html_path = asset_loader.resolve_path("ui://index.html")
 
     window = webview.create_window(
         'Butler - Modern UI',
         url=html_path,
         width=1200,
         height=800,
-        background_color='#0f0c29'
+        background_color='#1e1e1e'
     )
 
     bridge = ModernBridge(jarvis, window)
