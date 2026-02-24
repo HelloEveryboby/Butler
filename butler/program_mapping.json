@@ -19,6 +19,8 @@
     "帐号登录": "package/security/AccountPassword.py",
     "文件管理器": "package/file_system/file_manager.py",
     "Markdown转换": "package/document/markdown_converter.py",
+    "混合文档处理": "package/document/hybrid_markdown_tool.py",
+    "高级Markdown转换": "package/document/hybrid_markdown_tool.py",
     "Marker转换": "package/document/marker_tool.py",
     "精准解析": "package/document/marker_tool.py",
     "文档结构化": "package/document/marker_tool.py",
