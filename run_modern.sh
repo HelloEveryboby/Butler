@@ -1,2 +1,2 @@
 #!/bin/bash
-python -m butler.butler_app --modern
+python -m frontend.program.modern_app

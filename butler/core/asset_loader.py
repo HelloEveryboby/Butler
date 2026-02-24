@@ -10,14 +10,15 @@ class AssetLoader:
         # 定位项目根目录
         self.project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.external_flash_base = os.path.join(self.project_root, "data", "external_flash")
+        self.frontend_view_base = os.path.join(self.project_root, "frontend", "view")
 
     def get_ui_path(self):
         """获取 UI 入口 index.html 的物理路径"""
-        return os.path.join(self.external_flash_base, "web", "index.html")
+        return os.path.join(self.frontend_view_base, "index.html")
 
     def get_web_dir(self):
         """获取 Web 资源根目录"""
-        return os.path.join(self.external_flash_base, "web")
+        return self.frontend_view_base
 
     def get_asset_path(self, category, filename):
         """
@@ -30,10 +31,10 @@ class AssetLoader:
     def resolve_path(self, virtual_path):
         """
         将虚拟路径解析为实际物理路径
-        例如: 'ui://index.html' -> '.../data/external_flash/web/index.html'
+        例如: 'ui://index.html' -> '.../frontend/view/index.html'
         """
         if virtual_path.startswith("ui://"):
-            return os.path.join(self.external_flash_base, "web", virtual_path[5:])
+            return os.path.join(self.frontend_view_base, virtual_path[5:])
         elif virtual_path.startswith("asset://"):
             return os.path.join(self.external_flash_base, "assets", virtual_path[8:])
         elif virtual_path.startswith("audio://"):

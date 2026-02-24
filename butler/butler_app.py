@@ -393,7 +393,7 @@ def main():
     args = parser.parse_args()
 
     if args.modern:
-        from butler import modern_app
+        from frontend.program import modern_app
         modern_app.main()
         return
 
