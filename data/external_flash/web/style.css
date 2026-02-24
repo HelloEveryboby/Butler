@@ -1,62 +1,59 @@
 :root {
-    --glass-bg: rgba(30, 30, 30, 0.4);
-    --glass-border: rgba(255, 255, 255, 0.1);
-    --accent-color: #007aff; /* Apple Blue */
+    --glass-bg: rgba(28, 28, 30, 0.85); /* Apple Dark Mode Translucent */
+    --glass-border: rgba(255, 255, 255, 0.15);
+    --accent-color: #007aff;
     --text-color: #ffffff;
-    --error-color: #ff3b30; /* Apple Red */
-    --warning-color: #ffcc00; /* Apple Yellow */
-    --success-color: #34c759; /* Apple Green */
-    --bg-gradient: radial-gradient(circle at center, #2c3e50 0%, #000000 100%);
+    --error-color: #ff3b30;
+    --warning-color: #ffcc00;
+    --success-color: #34c759;
+    --bg-light: #f5f5f7;
 }
 
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
 body {
-    background: #000;
-    background-image: var(--bg-gradient);
+    background: var(--bg-light);
+    /* Mimicking the UI_Preview.png background: light with subtle colored glows */
+    background-image:
+        radial-gradient(at 0% 0%, rgba(255, 59, 48, 0.08) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(0, 122, 255, 0.08) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(52, 199, 89, 0.05) 0px, transparent 50%);
     height: 100vh;
     overflow: hidden;
     color: var(--text-color);
 }
 
 .background-animation {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: -1;
-    background: radial-gradient(circle at 20% 30%, rgba(0, 122, 255, 0.15) 0%, transparent 40%),
-                radial-gradient(circle at 80% 70%, rgba(175, 82, 222, 0.15) 0%, transparent 40%);
-    filter: blur(60px);
+    display: none; /* Background logic moved to body */
 }
 
 .glass-container {
-    height: 96vh;
-    margin: 2vh;
+    height: 94vh;
+    margin: 3vh auto;
+    width: 96vw;
     background: var(--glass-bg);
-    backdrop-filter: blur(30px);
-    -webkit-backdrop-filter: blur(30px);
-    border: 0.5px solid var(--glass-border);
-    border-radius: 18px;
+    backdrop-filter: blur(50px) saturate(180%);
+    -webkit-backdrop-filter: blur(50px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    border-radius: 22px;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
     position: relative;
     overflow: hidden;
 }
 
 header {
-    padding: 15px 20px;
+    padding: 15px 25px;
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.3);
     border-bottom: 0.5px solid var(--glass-border);
 }
 
@@ -69,6 +66,8 @@ header {
     width: 12px;
     height: 12px;
     border-radius: 50%;
+    position: relative;
+    box-shadow: inset 0 0 1px rgba(0,0,0,0.3);
 }
 
 .control-dot.close { background: #ff5f56; }
@@ -78,11 +77,11 @@ header {
 .logo {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 1rem;
-    font-weight: 600;
-    letter-spacing: 1px;
-    opacity: 0.9;
+    gap: 12px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .logo i {
@@ -93,65 +92,52 @@ header {
     justify-self: end;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
 }
 
 main {
     flex: 1;
-    padding: 30px 10%;
+    padding: 40px 15%;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 25px;
-    padding-bottom: 120px; /* Space for Dock */
+    gap: 20px;
+    padding-bottom: 120px;
 }
 
 main::-webkit-scrollbar {
-    width: 5px;
+    width: 6px;
 }
 
 main::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.15);
     border-radius: 10px;
 }
 
 .welcome-message {
     text-align: center;
-    margin-top: 5vh;
-    animation: fadeInDown 1s ease;
-}
-
-@keyframes fadeInDown {
-    from { opacity: 0; transform: translateY(-20px); }
-    to { opacity: 1; transform: translateY(0); }
+    margin-top: 10vh;
 }
 
 .welcome-message h1 {
-    font-size: 3rem;
+    font-size: 3.5rem;
     font-weight: 700;
-    margin-bottom: 15px;
-    background: linear-gradient(180deg, #fff 0%, #ccc 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    margin-bottom: 20px;
+    color: #fff;
+    letter-spacing: -1px;
 }
 
 .welcome-message p {
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 1.2rem;
 }
 
 .interaction-line {
-    font-size: 1.05rem;
-    line-height: 1.5;
-    padding: 12px 18px;
-    border-radius: 15px;
-    max-width: 85%;
-    animation: messageScale 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-@keyframes messageScale {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
+    font-size: 1.1rem;
+    line-height: 1.6;
+    padding: 14px 20px;
+    border-radius: 18px;
+    max-width: 80%;
 }
 
 .user-input-line {
@@ -159,27 +145,25 @@ main::-webkit-scrollbar-thumb {
     background: var(--accent-color);
     color: white;
     border-bottom-right-radius: 4px;
-    box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+    box-shadow: 0 4px 15px rgba(0, 122, 255, 0.2);
 }
 
 .ai-output-line {
     align-self: flex-start;
     background: rgba(255, 255, 255, 0.1);
-    border: 0.5px solid var(--glass-border);
-    color: #f0f0f0;
+    color: #fff;
     border-bottom-left-radius: 4px;
 }
 
 .active-input {
     outline: none;
-    min-width: 5px;
-    display: inline-block;
+    min-width: 2px;
 }
 
-/* Dock Styling */
+/* Dock Styling - Refined Apple Look */
 .dock-container {
     position: absolute;
-    bottom: 20px;
+    bottom: 30px;
     left: 0;
     width: 100%;
     display: flex;
@@ -190,84 +174,60 @@ main::-webkit-scrollbar-thumb {
 
 .dock {
     background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    padding: 8px;
-    border-radius: 20px;
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    padding: 10px;
+    border-radius: 24px;
     border: 0.5px solid rgba(255, 255, 255, 0.2);
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 15px;
     pointer-events: auto;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    transition: transform 0.3s ease;
-}
-
-.dock:hover {
-    transform: scale(1.02);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.4);
 }
 
 .dock-item {
-    width: 50px;
-    height: 50px;
+    width: 48px;
+    height: 48px;
     background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
+    border-radius: 13px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.2rem;
+    font-size: 1.3rem;
     color: white;
     cursor: pointer;
-    transition: all 0.2s ease;
-    position: relative;
+    transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
 
 .dock-item:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: translateY(-10px) scale(1.2);
-    margin: 0 10px;
-}
-
-.dock-item::after {
-    content: attr(title);
-    position: absolute;
-    top: -40px;
-    background: rgba(0,0,0,0.8);
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s;
-}
-
-.dock-item:hover::after {
-    opacity: 1;
+    background: rgba(255, 255, 255, 0.25);
+    transform: translateY(-15px) scale(1.3);
+    margin: 0 8px;
 }
 
 .dock-separator {
     width: 1px;
-    height: 30px;
-    background: rgba(255, 255, 255, 0.2);
-    margin: 0 5px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.15);
 }
 
 footer {
-    padding: 8px 20px;
-    font-size: 0.7rem;
+    padding: 10px 30px;
+    font-size: 0.75rem;
     text-align: right;
-    color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.4);
+    background: rgba(0, 0, 0, 0.1);
 }
 
 .status-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #555;
+    background: #444;
 }
 
-.status-dot.connected { background: var(--success-color); box-shadow: 0 0 5px var(--success-color); }
+.status-dot.connected { background: var(--success-color); }
 .status-dot.listening { background: var(--error-color); box-shadow: 0 0 10px var(--error-color); }
 
 #terminal-overlay {
@@ -276,36 +236,35 @@ footer {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(15px);
     z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-#terminal-overlay.hidden {
-    display: none;
-}
+#terminal-overlay.hidden { display: none; }
 
 .terminal-window {
-    width: 80%;
-    height: 70%;
-    background: rgba(20, 20, 20, 0.95);
-    border-radius: 12px;
-    border: 0.5px solid var(--glass-border);
+    width: 85%;
+    height: 75%;
+    background: #1c1c1e;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.1);
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+    box-shadow: 0 50px 100px rgba(0,0,0,0.7);
 }
 
 .terminal-header {
     background: rgba(255, 255, 255, 0.05);
-    padding: 10px 15px;
+    padding: 12px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 0.85rem;
-    border-bottom: 0.5px solid var(--glass-border);
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.7);
+    border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
 }
