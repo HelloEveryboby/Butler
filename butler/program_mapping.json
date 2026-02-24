@@ -5,6 +5,7 @@
     "组织文件": "package/file_system/OrganizeIT.py",
     "爬虫": "package/network/crawler.py",
     "终端": "package/device/terminal.py",
+    "高性能终端": "package/device/high_perf_terminal.py",
     "加密": "package/security/encrypt.py",
     "对称加密": "package/security/encrypt.py",
     "非对称加密": "package/security/asymmetric_tool.py",

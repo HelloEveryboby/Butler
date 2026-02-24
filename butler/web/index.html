@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Butler Modern UI</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Xterm.js for terminal -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.min.js"></script>
+</head>
+<body>
+    <div class="background-animation"></div>
+    <div class="glass-container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-robot"></i>
+                <span>BUTLER</span>
+            </div>
+            <div class="status-indicators">
+                <span id="voice-status" class="status-dot"></span>
+                <span id="connection-status" class="status-dot connected"></span>
+            </div>
+            <div class="controls">
+                <button id="pause-btn" title="暂停输出"><i class="fas fa-pause"></i></button>
+                <button id="retry-btn" title="重新生成"><i class="fas fa-redo"></i></button>
+                <button id="terminal-btn" title="独立终端"><i class="fas fa-terminal"></i></button>
+            </div>
+        </header>
+
+        <main id="interaction-flow">
+            <!-- Content will be dynamically added here -->
+            <div class="welcome-message">
+                <h1>欢迎使用 Butler</h1>
+                <p>直接开始输入您的指令...</p>
+            </div>
+        </main>
+
+        <footer>
+            <div id="status-bar">就绪</div>
+        </footer>
+    </div>
+
+    <div id="terminal-overlay" class="hidden">
+        <div class="terminal-window">
+            <div class="terminal-header">
+                <span>独立终端</span>
+                <button id="close-terminal"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="terminal-container"></div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
