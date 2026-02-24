@@ -44,6 +44,7 @@ def run():
     <head>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">
         <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"></script>
         <style>
             body { margin: 0; background: #1e1e1e; height: 100vh; overflow: hidden; }
             #terminal { height: 100vh; }
@@ -57,18 +58,16 @@ def run():
                 theme: { background: '#1e1e1e' },
                 fontSize: 14
             });
+            const fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
             term.open(document.getElementById('terminal'));
 
             function fitTerminal() {
-                const charWidth = 9;
-                const charHeight = 17;
-                const cols = Math.floor(window.innerWidth / charWidth);
-                const rows = Math.floor(window.innerHeight / charHeight);
-                term.resize(cols, rows);
+                fitAddon.fit();
             }
 
             window.addEventListener('resize', fitTerminal);
-            fitTerminal();
+            setTimeout(fitTerminal, 100);
 
             term.onData(data => {
                 if (window.pywebview && window.pywebview.api) {

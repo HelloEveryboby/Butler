@@ -200,13 +200,15 @@ footer {
 }
 
 .terminal-window {
-    width: 80%;
-    height: 70%;
+    width: 90%;
+    height: 85%;
     background: #1e1e1e;
-    border-radius: 10px;
+    border-radius: 12px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.1);
 }
 
 .terminal-header {

@@ -20,21 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
         fontSize: 14,
         fontFamily: 'Consolas, "Courier New", monospace'
     });
-    const fitAddon = new (function() {
-        this.fit = function() {
-            const container = document.getElementById('terminal-container');
-            const width = container.clientWidth;
-            const height = container.clientHeight;
-            const charWidth = 9; // Approximate
-            const charHeight = 17; // Approximate
-            const cols = Math.floor(width / charWidth);
-            const rows = Math.floor(height / charHeight);
-            term.resize(cols, rows);
-        };
-    })();
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
 
     term.open(document.getElementById('terminal-container'));
-    fitAddon.fit();
+
+    // Exact fitting after a small delay to ensure rendering
+    setTimeout(() => fitAddon.fit(), 100);
 
     window.addEventListener('resize', () => {
         fitAddon.fit();
