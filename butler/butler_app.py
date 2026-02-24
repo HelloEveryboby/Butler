@@ -28,7 +28,6 @@ from butler.core.voice_service import VoiceService
 from butler.core.nlu_service import NLUService
 from butler.usb_screen import USBScreen
 from butler.resource_manager import ResourceManager, PerformanceMode
-from local_interpreter.interpreter import Interpreter
 from plugin.long_memory.redis_long_memory import RedisLongMemory
 from plugin.long_memory.zvec_long_memory import ZvecLongMemory
 from plugin.long_memory.chroma_long_memory import SQLiteLongMemory
@@ -64,11 +63,6 @@ class Jarvis:
         # Apply voice config
         voice_mode = self.config.get("voice", {}).get("mode", "offline")
         self.voice_service.set_voice_mode(voice_mode)
-
-        self.interpreter = Interpreter(
-            safety_mode=self.config.get("interpreter", {}).get("safety_mode", True),
-            max_iterations=self.config.get("interpreter", {}).get("max_iterations", 10)
-        )
 
         # Initialize Hybrid Link for system utility
         self.sysutil = HybridLinkClient(
@@ -186,22 +180,6 @@ class Jarvis:
                 self.ui_print(f"语音模式切换到: {mode}")
             else:
                 self.ui_print("无效模式", tag='error')
-        elif cmd.startswith("/safety "):
-            self.interpreter.safety_mode = (cmd.split()[1].lower() == 'on')
-            self.ui_print(f"安全模式: {'开启' if self.interpreter.safety_mode else '关闭'}")
-        elif cmd == "/approve":
-            if self.interpreter.last_code_for_approval and self.panel:
-                text = self.panel.output_text.get("1.0", tk.END)
-                code_blocks = re.findall(r"```python\n(.*?)\n```", text, re.DOTALL)
-                if code_blocks:
-                    edited_code = code_blocks[-1].strip()
-                    if edited_code != self.interpreter.last_code_for_approval.strip():
-                        self.logger.info("在 UI 中检测到编辑的代码。使用编辑后的版本。")
-                        self.interpreter.last_code_for_approval = edited_code
-            self.stream_interpreter_response(cmd, approved=True)
-        elif cmd.startswith("/os-mode "):
-            self.interpreter.os_mode = (cmd.split()[1].lower() == 'on')
-            self.ui_print(f"OS 模式: {'开启' if self.interpreter.os_mode else '关闭'}")
         elif cmd == "/cleanup":
             self.ui_print("正在执行系统数据回收...")
             try:
@@ -213,14 +191,12 @@ class Jarvis:
         elif cmd.startswith("/legacy "):
             self._handle_legacy_command(cmd[8:])
         else:
-            if self.interpreter.is_ready:
-                self.stream_interpreter_response(cmd)
-            else:
-                self.ui_print("解释器未就绪，请检查 API Key", tag='error')
+            # Default to legacy command handling (intent-based)
+            self._handle_legacy_command(cmd)
 
     def _handle_legacy_command(self, legacy_command):
         """以旧版模式处理命令。"""
-        self.ui_print(f"正在以旧版模式处理: {legacy_command}")
+        self.ui_print(f"正在处理: {legacy_command}")
         matched_intent = intent_registry.match_intent_locally(legacy_command)
 
         if matched_intent and not intent_registry.intent_requires_entities(matched_intent):
@@ -241,26 +217,6 @@ class Jarvis:
                 if ext_result: self.speak(str(ext_result))
             except Exception:
                 self.speak("抱歉，我不明白您的意思。")
-
-    def stream_interpreter_response(self, command, approved=False):
-        response_id = f"res_{time.time()}"
-        self.root.after(0, self.ui_print, "Jarvis:", 'ai_response_start', response_id)
-
-        def run():
-            stream = self.interpreter.run_approved_code() if approved else self.interpreter.run(command)
-            final_answer = ""
-            for event, payload in stream:
-                if event == "code_chunk":
-                    self.root.after(0, self.panel.append_to_response, payload, response_id)
-                elif event == "result":
-                    self.root.after(0, self.panel.append_to_response, f"\n\n{payload}\n\n", response_id)
-                    if "**Final Answer:**" in payload:
-                        final_answer = payload.split("**Final Answer:**")[-1].strip()
-                elif event == "screenshot":
-                    self.root.after(0, self.panel.update_screenshot, payload)
-            if final_answer: self.root.after(0, self.speak, final_answer)
-
-        threading.Thread(target=run, daemon=True).start()
 
     def panel_command_handler(self, command_type, payload):
         if command_type == "text":
@@ -283,8 +239,8 @@ class Jarvis:
         try:
             import pyautogui
             if action == "screenshot":
-                from local_interpreter.tools import os_tools
-                screenshot_b64 = os_tools.capture_screen()
+                from package.device import os_utils
+                screenshot_b64 = os_utils.capture_screen()
                 self.panel.update_screenshot(screenshot_b64)
             elif action == "left_click":
                 coord = payload.get("coordinate")
@@ -294,11 +250,6 @@ class Jarvis:
                 text = payload.get("text")
                 if text: pyautogui.write(text)
 
-            # 记录到解释器历史记录
-            self.interpreter.conversation_history.append({
-                "role": "assistant",
-                "content": f"用户执行了手动操作: {action} {payload.get('coordinate', '')} {payload.get('text', '')}"
-            })
         except Exception as e:
             self.logger.error(f"Manual action error: {e}")
 
