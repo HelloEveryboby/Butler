@@ -6,6 +6,7 @@ import tempfile
 from typing import Optional, Callable
 from dotenv import load_dotenv
 from package.core_utils.log_manager import LogManager
+from butler.core.asset_loader import asset_loader
 
 logger = LogManager.get_logger(__name__)
 
@@ -21,8 +22,7 @@ class VoiceService:
         load_dotenv()
         self._init_baidu_client()
 
-        base_dir = os.path.dirname(__file__)
-        self.ACTIVATION_SOUND_FILE = os.path.join(base_dir, "resources", "activate.wav")
+        self.ACTIVATION_SOUND_FILE = asset_loader.resolve_path("audio://activate.wav")
 
     def _init_baidu_client(self):
         try:
