@@ -1,0 +1,259 @@
+:root {
+    --apple-bg: rgba(255, 255, 255, 0.7);
+    --apple-dark-bg: rgba(28, 28, 30, 0.8);
+    --apple-border: rgba(255, 255, 255, 0.3);
+    --apple-accent: #007AFF;
+    --apple-text: #1d1d1f;
+    --apple-text-dim: #86868b;
+    --apple-system-gray: #f5f5f7;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Myriad Set Pro", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+body {
+    background: #f5f5f7;
+    background-image: radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%),
+                      radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%),
+                      radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+    background-attachment: fixed;
+    height: 100vh;
+    overflow: hidden;
+    color: var(--apple-text);
+}
+
+.glass-container {
+    height: 96vh;
+    margin: 2vh;
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 30px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+}
+
+header {
+    padding: 25px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.1);
+    border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    color: #1d1d1f;
+}
+
+.logo i {
+    font-size: 1.4rem;
+    color: var(--apple-accent);
+}
+
+.controls {
+    display: flex;
+    gap: 12px;
+}
+
+.controls button {
+    background: rgba(0, 0, 0, 0.05);
+    border: none;
+    color: #1d1d1f;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+}
+
+.controls button:hover {
+    background: rgba(0, 0, 0, 0.1);
+    transform: scale(1.05);
+}
+
+.controls button:active {
+    transform: scale(0.95);
+}
+
+#pause-btn:hover { color: #FF3B30; }
+#retry-btn:hover { color: #34C759; }
+#terminal-btn:hover { color: var(--apple-accent); }
+
+main {
+    flex: 1;
+    padding: 60px 15% 100px 15%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    scroll-behavior: smooth;
+}
+
+main::-webkit-scrollbar {
+    width: 0px;
+}
+
+.welcome-message {
+    text-align: center;
+    margin-bottom: 60px;
+    animation: slideUp 1s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.welcome-message h1 {
+    font-size: 4rem;
+    font-weight: 700;
+    letter-spacing: -2px;
+    margin-bottom: 16px;
+    color: #1d1d1f;
+}
+
+.welcome-message p {
+    font-size: 1.5rem;
+    color: var(--apple-text-dim);
+    font-weight: 400;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(40px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.interaction-line {
+    font-size: 1.4rem;
+    line-height: 1.5;
+    margin-bottom: 30px;
+    max-width: 100%;
+}
+
+.user-input-line {
+    color: #1d1d1f;
+    font-weight: 600;
+    margin-top: 40px;
+}
+
+.user-input-line::before {
+    content: '';
+}
+
+.ai-output-line {
+    color: #1d1d1f;
+    background: rgba(255, 255, 255, 0.3);
+    padding: 20px 30px;
+    border-radius: 20px;
+    border: 0.5px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    display: inline-block;
+    max-width: 90%;
+    align-self: flex-start;
+}
+
+.active-input {
+    outline: none;
+    caret-color: var(--apple-accent);
+    display: inline;
+}
+
+.active-input:empty::before {
+    content: "输入指令...";
+    color: var(--apple-text-dim);
+    opacity: 0.5;
+}
+
+footer {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 20px;
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    font-size: 0.8rem;
+    color: var(--apple-text-dim);
+    border: 0.5px solid rgba(255, 255, 255, 0.5);
+}
+
+/* Apple Style Terminal */
+#terminal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(5px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.terminal-window {
+    width: 900px;
+    height: 600px;
+    background: #1e1e1e;
+    border-radius: 12px;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.terminal-header {
+    background: #323232;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.terminal-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.t-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.t-close { background: #FF5F56; }
+.t-min { background: #FFBD2E; }
+.t-max { background: #27C93F; }
+
+.terminal-header span {
+    color: #ababab;
+    font-size: 0.8rem;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-weight: 500;
+}
+
+#close-terminal {
+    position: absolute;
+    right: 15px;
+    background: transparent;
+    border: none;
+    color: #ababab;
+    cursor: pointer;
+}

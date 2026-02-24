@@ -1,0 +1,124 @@
+import os
+import sys
+import threading
+import time
+import webview
+import json
+
+# Add project root to sys.path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from butler.butler_app import Jarvis
+from package.core_utils.log_manager import LogManager
+
+class ModernBridge:
+    def __init__(self, jarvis, window):
+        self.jarvis = jarvis
+        self.window = window
+        self.logger = LogManager.get_logger(__name__)
+        self.terminal_process = None
+
+    def handle_command(self, command):
+        self.logger.info(f"Modern UI Command: {command}")
+        # Use a thread to avoid blocking the UI
+        threading.Thread(target=self._run_command, args=(command,), daemon=True).start()
+
+    def _run_command(self, command):
+        try:
+            self.window.evaluate_js("window.onAIStreamStart()")
+
+            # We need to capture the output from Jarvis.
+            # Jarvis usually prints to its panel. We'll override its ui_print momentarily or pass a custom one.
+            original_ui_print = self.jarvis.ui_print
+            def web_ui_print(message, tag='ai_response', response_id=None):
+                # Clean up markdown-like markers if needed, or just send chunks
+                # For simplicity, we send the chunk to JS
+                if tag != 'ai_response_start':
+                    # Send as JSON-encoded string to avoid escaping issues
+                    self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
+
+            self.jarvis.ui_print = web_ui_print
+
+            # Execute command
+            self.jarvis.handle_user_command(command)
+
+            # Restore
+            self.jarvis.ui_print = original_ui_print
+
+            self.window.evaluate_js("window.onAIStreamEnd()")
+        except Exception as e:
+            self.logger.error(f"Error in ModernBridge: {e}")
+            self.window.evaluate_js(f"window.onAIStreamChunk(' Error: {str(e)}')")
+            self.window.evaluate_js("window.onAIStreamEnd()")
+
+    def pause_output(self):
+        # Implementation to pause/stop Jarvis interpreter
+        self.logger.info("Pause requested")
+        # For now, just a placeholder. Real implementation would signal the interpreter to stop.
+        if hasattr(self.jarvis, 'interpreter'):
+            self.jarvis.interpreter.stop_execution = True
+
+    def start_terminal(self):
+        if not self.terminal_process:
+            from butler.core.hybrid_link import HybridLinkClient
+            terminal_path = os.path.join(project_root, "programs/hybrid_terminal/terminal_service")
+
+            # Check if it exists, if not, we might need to build it or it was built in previous step
+            if not os.path.exists(terminal_path):
+                 self.logger.error("Terminal service binary not found!")
+                 return
+
+            self.terminal_client = HybridLinkClient(
+                executable_path=terminal_path,
+                fallback_enabled=False
+            )
+            self.terminal_client.start()
+
+            # Register callback for terminal output
+            def on_event(event):
+                if event.get("method") == "terminal_output":
+                    output = event.get("params")
+                    self.window.evaluate_js(f"window.onTerminalOutput({json.dumps(output)})")
+
+            self.terminal_client.add_event_callback(on_event)
+            self.terminal_client.call("start_terminal")
+
+    def terminal_input(self, data):
+        if hasattr(self, 'terminal_client'):
+            self.terminal_client.call("write_input", data)
+
+def main():
+    # Initialize Jarvis in headless mode (no Tkinter root)
+    jarvis = Jarvis(root=None)
+
+    # Load HTML
+    html_path = os.path.join(project_root, "butler", "web", "index.html")
+
+    window = webview.create_window(
+        'Butler - Modern UI',
+        url=html_path,
+        width=1200,
+        height=800,
+        background_color='#0f0c29'
+    )
+
+    bridge = ModernBridge(jarvis, window)
+    window.expose(bridge)
+
+    # Override voice service callback to update UI
+    original_voice_callback = jarvis._on_voice_status_change
+    def modern_voice_callback(is_listening):
+        original_voice_callback(is_listening)
+        window.evaluate_js(f"window.onVoiceStatusChange({str(is_listening).lower()})")
+
+    jarvis._on_voice_status_change = modern_voice_callback
+
+    # Start Jarvis core
+    jarvis.main()
+
+    webview.start(debug=True)
+
+if __name__ == "__main__":
+    main()

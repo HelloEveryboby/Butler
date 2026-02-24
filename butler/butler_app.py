@@ -389,7 +389,13 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--headless", action="store_true", help="以无头模式运行")
+    parser.add_argument("--modern", action="store_true", help="使用精致 Web UI 启动")
     args = parser.parse_args()
+
+    if args.modern:
+        from butler import modern_app
+        modern_app.main()
+        return
 
     usb_screen = USBScreen(40, 8)
     if args.headless:
