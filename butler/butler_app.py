@@ -273,6 +273,16 @@ class Jarvis:
     def main(self):
         self._cleanup_temp_files()
         self.voice_service.start_listening()
+
+        # Start Autonomous Switchboard (Self-healing system)
+        try:
+            from package.core_utils.autonomous_switch import AutonomousSwitch
+            switch = AutonomousSwitch()
+            switch.start(background=True)
+            self.logger.info("Autonomous Switchboard started.")
+        except Exception as e:
+            self.logger.error(f"Failed to start Autonomous Switchboard: {e}")
+
         self.speak("Jarvis 已启动并就绪")
 
         # Start general monitoring thread
