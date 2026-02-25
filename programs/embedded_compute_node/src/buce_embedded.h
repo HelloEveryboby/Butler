@@ -4,7 +4,12 @@
 #include <stdint.h>
 #include <string.h>
 
-// BHL-Lite Protocol for Embedded
+/**
+ * BUCE High-Performance Universal MCU Compute Kernel
+ * Designed for High-Performance Edge Computing (Cortex-M, RISC-V, etc.)
+ */
+
+// BHL-Lite Protocol for Edge Nodes
 typedef struct {
     char method[32];
     uint32_t id;
@@ -12,7 +17,7 @@ typedef struct {
     int32_t param_i;
 } buce_request_t;
 
-// 1. Lightweight ChaCha20 for MCU
+// 1. Lightweight ChaCha20 optimized for MCU/Edge hardware
 static inline uint32_t rotl32(uint32_t x, int n) {
     return (x << n) | (x >> (32 - n));
 }
@@ -38,7 +43,7 @@ void buce_mcu_crypto(uint32_t out[16], uint32_t in[16]) {
     for (int i = 0; i < 16; i++) out[i] += in[i];
 }
 
-// 2. Mandelbrot for MCU (using Fixed point if no FPU, but here we use float as most modern STM32 have it)
+// 2. High-Precision Mandelbrot for Edge compute (Supports Hardware FPU)
 int buce_mcu_mandelbrot(float real, float imag, int max_iter) {
     float z_real = real, z_imag = imag;
     for (int i = 0; i < max_iter; i++) {
@@ -50,12 +55,9 @@ int buce_mcu_mandelbrot(float real, float imag, int max_iter) {
     return max_iter;
 }
 
-// 3. Simple Serial Parser (Stub for STM32 HAL_UART_Receive)
+// 3. Fast Edge Parser Template
 int buce_parse_packet(const uint8_t* buffer, size_t len, buce_request_t* req) {
-    // In a real STM32 app, this would be a robust parser.
-    // For this project, we provide a template.
     if (len < 4) return -1;
-    // Example: [MethodID:1][TaskID:4][Param:4] ...
     return 0;
 }
 

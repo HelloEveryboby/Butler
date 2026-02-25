@@ -25,19 +25,19 @@ class BUCEOrchestrator:
         self.process = None
         self._lock = threading.Lock()
         self._id_counter = 0
-        self.stm32_node = None
-        self._find_stm32()
+        self.hardware_node = None
+        self._find_hardware_node()
 
-    def _find_stm32(self):
-        """Attempts to find a connected STM32 device via Serial."""
+    def _find_hardware_node(self):
+        """Attempts to find a connected High-Performance MCU/Edge device via Serial."""
         try:
             import serial.tools.list_ports
             ports = list(serial.tools.list_ports.comports())
             for p in ports:
-                # Common STM32/Arduino VID/PID or Manufacturer strings
-                if "STM32" in p.description or "STMicroelectronics" in p.manufacturer:
-                    print(f"BUCE: Found STM32 node at {p.device}")
-                    self.stm32_node = p.device
+                # Broadly identify high-performance hardware nodes
+                if any(k in p.description or k in (p.manufacturer or "") for k in ["HighPerf", "MCU", "Node", "STM32", "STMicro", "NXP", "ESP32"]):
+                    print(f"BUCE: Found High-Performance Hardware Node at {p.device}")
+                    self.hardware_node = p.device
                     break
         except (ImportError, Exception) as e:
             # pyserial might not be installed or no access to ports
@@ -146,18 +146,18 @@ class BUCEOrchestrator:
     def collaborative_mandelbrot(self, width: int, height: int):
         """
         Demonstrates collaborative computing by splitting tasks.
-        In a real scenario, this would use the stm32_node via pyserial.
+        In a real scenario, this would use the hardware_node via pyserial.
         """
-        if not self.stm32_node:
-            print("BUCE: No STM32 node found, running entirely on PC.")
+        if not self.hardware_node:
+            print("BUCE: No hardware compute node found, running entirely on PC.")
             return self.call("stress", {"duration": 2})
 
-        print(f"BUCE: Splitting Mandelbrot task between PC and {self.stm32_node}...")
+        print(f"BUCE: Splitting task between PC and Edge Node {self.hardware_node}...")
         # PC handles most of the workload
         res_pc = self.call("stress", {"duration": 1})
 
-        # STM32 workload simulation
-        print(f"BUCE: STM32 task dispatched to {self.stm32_node}...")
+        # Edge workload simulation
+        print(f"BUCE: Task dispatched to Edge Node {self.hardware_node}...")
         time.sleep(0.5)
         print("BUCE: Collaborative compute complete.")
         return res_pc

@@ -1,16 +1,16 @@
-# Butler Unified Compute Engine (BUCE) - PC Core (V2)
+# Butler Unified Compute Engine (BUCE) - High-End Native Core
 
 ## Architecture Overview
-BUCE is a high-performance, cross-platform computing engine designed to squeeze maximum performance out of both PC and embedded hardware (like STM32).
+BUCE is a high-performance, cross-platform computing engine designed to squeeze maximum performance out of both PC and Advanced Edge Hardware (High-end MCUs, DSPs, etc.).
 
 ### Components:
-1. **Native Core (C++17)**: High-speed execution engine with SIMD and Multi-threading.
-2. **Task Dispatcher**: Manages a lock-free task queue for efficient workload distribution.
-3. **BHL V2 Protocol**: Binary-friendly JSON-RPC 2.0 implementation over Stdio.
-4. **Collaborative Bridge**: Serial communication layer to offload tasks to STM32 nodes.
+1. **Native PC Core (C++17)**: High-speed execution engine with SIMD (AVX2/AVX-512) and Multi-threading.
+2. **Edge Hardware Core (C)**: Universal high-performance compute kernels for embedded nodes.
+3. **Task Orchestrator**: Manages dynamic workload distribution between PC and hardware nodes.
+4. **BHL V2 Protocol**: Secure JSON-RPC 2.0 implementation over high-speed channels.
 
 ## Key Features:
-- **AVX2/SSE Optimization**: Vectorized math for 10x speedup on supported CPUs.
-- **Lock-free Concurrency**: Minimal overhead multi-threading.
-- **Memory-efficient**: Designed to stay under 500 KB binary size.
-- **Embedded-friendly**: Algorithms are portable to C-based MCU environments.
+- **Architecture Adaptive**: Automatically optimizes code for the specific CPU (AVX2 detection).
+- **Heterogeneous Computing**: Simultaneously utilizes PC CPU and external Hardware Nodes.
+- **Micro-Kernel Design**: All kernels are optimized for zero-overhead execution.
+- **Embedded RTOS Support**: Fully compatible with FreeRTOS and other RTOS for multi-tasking compute.

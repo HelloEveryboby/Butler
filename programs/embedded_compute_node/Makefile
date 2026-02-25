@@ -1,5 +1,5 @@
-# STM32 BUCE Node Makefile
-# Targeted for STM32F4 series (Cortex-M4)
+# BUCE Universal Edge Node Makefile
+# Optimized for Cortex-M and similar High-Performance MCUs
 
 CC = arm-none-eabi-gcc
 OBJCOPY = arm-none-eabi-objcopy
@@ -10,7 +10,7 @@ LDFLAGS = -specs=nosys.specs
 
 SRC = src/main.c
 OBJ = main.o
-TARGET = buce_stm32
+TARGET = buce_edge_node
 
 all: $(TARGET).bin
 
