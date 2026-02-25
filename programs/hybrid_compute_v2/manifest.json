@@ -1,0 +1,10 @@
+{
+  "name": "hybrid_compute_v2",
+  "language": "cpp",
+  "version": "2.0",
+  "description": "Butler Unified Compute Engine (BUCE) - Advanced Native Core",
+  "protocol": "bhl",
+  "build": "g++ -O3 -std=c++17 -mavx2 -pthread src/main.cpp -o buce_core",
+  "source": ["src/main.cpp", "src/dispatcher.hpp", "src/kernels.hpp"],
+  "executable": "buce_core"
+}

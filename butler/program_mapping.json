@@ -34,5 +34,7 @@
     "混合编程": "package/core_utils/hybrid_orchestrator.py",
     "多语言交互": "package/core_utils/hybrid_orchestrator.py",
     "系统工具": "package/core_utils/hybrid_orchestrator.py",
-    "系统监控": "package/core_utils/hybrid_orchestrator.py"
+    "系统监控": "package/core_utils/hybrid_orchestrator.py",
+    "极致算力": "package/core_utils/buce_orchestrator.py",
+    "BUCE": "package/core_utils/buce_orchestrator.py"
 }
