@@ -1,6 +1,9 @@
 // Pure Rust implementation of ChaCha20 stream cipher for high-performance cryptography
 pub struct ChaCha20 {
     state: [u32; 16],
+    keystream: [u8; 64],
+    index: usize, // current index in the keystream
+    counter: u32,
 }
 
 impl ChaCha20 {
@@ -15,12 +18,17 @@ impl ChaCha20 {
             state[4 + i] = u32::from_le_bytes([key[i*4], key[i*4+1], key[i*4+2], key[i*4+3]]);
         }
 
-        state[12] = 0; // counter
+        state[12] = 0; // initial counter
         for i in 0..3 {
             state[13 + i] = u32::from_le_bytes([nonce[i*4], nonce[i*4+1], nonce[i*4+2], nonce[i*4+3]]);
         }
 
-        ChaCha20 { state }
+        ChaCha20 {
+            state,
+            keystream: [0u8; 64],
+            index: 64, // Start by needing a new block
+            counter: 0,
+        }
     }
 
     fn quarter_round(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize) {
@@ -30,9 +38,9 @@ impl ChaCha20 {
         state[c] = state[c].wrapping_add(state[d]); state[b] ^= state[c]; state[b] = state[b].rotate_left(7);
     }
 
-    pub fn block(&self, counter: u32) -> [u8; 64] {
+    fn generate_block(&mut self) {
         let mut mix = self.state;
-        mix[12] = counter;
+        mix[12] = self.counter;
 
         for _ in 0..10 {
             // Column rounds
@@ -47,11 +55,22 @@ impl ChaCha20 {
             Self::quarter_round(&mut mix, 3, 4, 9, 14);
         }
 
-        let mut out = [0u8; 64];
         for i in 0..16 {
             let res = mix[i].wrapping_add(self.state[if i == 12 { 12 } else { i }]);
-            out[i*4..i*4+4].copy_from_slice(&res.to_le_bytes());
+            self.keystream[i*4..i*4+4].copy_from_slice(&res.to_le_bytes());
         }
-        out
+        self.counter += 1;
+        self.index = 0;
+    }
+
+    /// Process data in-place by XORing with the key stream
+    pub fn apply_keystream(&mut self, data: &mut [u8]) {
+        for byte in data.iter_mut() {
+            if self.index >= 64 {
+                self.generate_block();
+            }
+            *byte ^= self.keystream[self.index];
+            self.index += 1;
+        }
     }
 }

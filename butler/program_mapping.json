@@ -9,6 +9,8 @@
     "加密": "package/security/encrypt.py",
     "对称加密": "package/security/encrypt.py",
     "非对称加密": "package/security/asymmetric_tool.py",
+    "高性能加密": "package/security/high_perf_crypto.py",
+    "Rust加密": "package/security/high_perf_crypto.py",
     "物体识别": "package/vision/PictureRecognition.py",
     "日程管理": "package/core_utils/schedule_management.py",
     "二维码识别": "package/vision/QR-Code-Recognition.py",
