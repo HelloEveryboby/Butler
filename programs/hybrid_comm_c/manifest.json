@@ -1,0 +1,10 @@
+{
+  "name": "hybrid_comm_c",
+  "language": "c",
+  "version": "1.0",
+  "description": "BHL Lower-level IPC Bus using Shared Memory.",
+  "protocol": "bhl",
+  "build": "gcc -O2 -Iinclude shm_service.c -o comm_bus_c",
+  "source": ["shm_service.c"],
+  "executable": "comm_bus_c"
+}

@@ -1,0 +1,10 @@
+{
+  "name": "hybrid_comm_go",
+  "language": "go",
+  "version": "1.0",
+  "description": "BHL High-concurrency Router and Gatekeeper.",
+  "protocol": "bhl",
+  "build": "go build -ldflags=\"-s -w\" -o comm_router_go router_core.go",
+  "source": ["router_core.go"],
+  "executable": "comm_router_go"
+}

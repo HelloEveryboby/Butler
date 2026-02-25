@@ -1,0 +1,10 @@
+{
+  "name": "hybrid_comm_cpp",
+  "language": "cpp",
+  "version": "1.0",
+  "description": "BHL High-performance Stream Processor.",
+  "protocol": "bhl",
+  "build": "g++ -O3 stream_processor.cpp -o comm_processor_cpp",
+  "source": ["stream_processor.cpp"],
+  "executable": "comm_processor_cpp"
+}
