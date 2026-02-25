@@ -49,8 +49,12 @@ def run(file_path: Optional[str] = None):
     if not os.path.exists(executable_path):
         source_path = os.path.join(project_root, "programs", "hybrid_doc_processor", "processor.cpp")
         if os.path.exists(source_path):
+            import subprocess
             print("[*] 正在编译混合编程模块...")
-            os.system(f"g++ -O3 {source_path} -o {executable_path}")
+            try:
+                subprocess.run(["g++", "-O3", source_path, "-o", executable_path], check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"[-] 编译失败: {e}")
 
     if os.path.exists(executable_path):
         print("[*] 正在调用 C++ 模块进行高性能分析...")

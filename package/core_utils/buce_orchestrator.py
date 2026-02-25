@@ -3,16 +3,22 @@ import subprocess
 import json
 import threading
 import time
+import platform
+import shlex
 from typing import List, Dict, Any
 
 class BUCEOrchestrator:
+    """
+    Butler Unified Compute Engine (BUCE) Orchestrator.
+    Manages high-performance native cores and distributed STM32 nodes.
+    """
     def __init__(self):
         # Resolve path to the buce_core executable
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.executable = os.path.join(root, "programs", "hybrid_compute_v2", "buce_core")
+        ext = ".exe" if os.name == "nt" else ""
+        self.executable = os.path.abspath(os.path.join(root, "programs", "hybrid_compute_v2", f"buce_core{ext}"))
 
         if not os.path.exists(self.executable):
-            # Try to build it if missing
             print(f"BUCE: Executable not found at {self.executable}. Attempting build...")
             self._build_native()
 
@@ -33,39 +39,77 @@ class BUCEOrchestrator:
                     print(f"BUCE: Found STM32 node at {p.device}")
                     self.stm32_node = p.device
                     break
-        except ImportError:
-            pass # pyserial not installed
-        except Exception as e:
-            print(f"BUCE: Error scanning for STM32: {e}")
+        except (ImportError, Exception) as e:
+            # pyserial might not be installed or no access to ports
+            pass
 
     def _build_native(self):
+        """
+        Compiles the native C++ core for the current platform.
+        Security: Uses absolute paths and list-based subprocess execution with shell=False.
+        """
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        cwd = os.path.join(root, "programs", "hybrid_compute_v2")
+        cwd = os.path.abspath(os.path.join(root, "programs", "hybrid_compute_v2"))
+
+        # Define static components of the build
+        src_file = "src/main.cpp"
+        ext = ".exe" if os.name == "nt" else ""
+        target = f"buce_core{ext}"
+
         try:
-            # Use list-based arguments and shell=False to prevent injection
-            subprocess.run(["g++", "-O3", "-std=c++17", "-mavx2", "-pthread", "src/main.cpp", "-o", "buce_core"],
-                           cwd=cwd, check=True, shell=False)
-            subprocess.run(["strip", "buce_core"], cwd=cwd, check=True, shell=False)
+            # Construct a safe command list
+            compile_cmd = ["g++", "-O3", "-std=c++17", "-pthread", src_file, "-o", target]
+
+            # Platform-specific optimization
+            if platform.machine().lower() in ["x86_64", "amd64"]:
+                compile_cmd.insert(4, "-mavx2")
+
+            print(f"BUCE: Compiling native core for {platform.system()} ({platform.machine()})...")
+
+            # Security: shell=False and list-based command prevent shell injection
+            subprocess.run(compile_cmd, cwd=cwd, check=True, shell=False)
+
+            if os.name != "nt":
+                # strip is an optional optimization
+                try:
+                    subprocess.run(["strip", target], cwd=cwd, check=False, shell=False)
+                except FileNotFoundError:
+                    pass
+
+            print(f"BUCE: Compilation successful -> {target}")
         except Exception as e:
             print(f"BUCE Build Error: {e}")
+            print("Note: Please ensure a C++ compiler (g++/MinGW) is installed and in your PATH.")
 
     def start(self):
+        """Starts the native compute process."""
         if self.process: return
-        # Explicitly set shell=False and use list-based command for security
-        self.process = subprocess.Popen(
-            [self.executable],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-            shell=False
-        )
+
+        if not os.path.exists(self.executable):
+            self._build_native()
+
+        try:
+            # Security: shell=False and list-based command
+            self.process = subprocess.Popen(
+                [self.executable],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                shell=False
+            )
+        except Exception as e:
+            print(f"BUCE Startup Error: {e}")
 
     def call(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Sends a BHL V2.0 JSON-RPC request to the native core."""
         with self._lock:
             if not self.process:
                 self.start()
+
+            if not self.process:
+                return {"error": "Native core failed to start"}
 
             self._id_counter += 1
             request = {
@@ -75,14 +119,16 @@ class BUCEOrchestrator:
                 **params
             }
 
-            self.process.stdin.write(json.dumps(request) + "\n")
-            self.process.stdin.flush()
+            try:
+                self.process.stdin.write(json.dumps(request) + "\n")
+                self.process.stdin.flush()
 
-            line = self.process.stdout.readline()
-            if not line:
-                return {"error": "Native core disconnected"}
-            # print(f"DEBUG: {line}")
-            return json.loads(line)
+                line = self.process.stdout.readline()
+                if not line:
+                    return {"error": "Native core disconnected"}
+                return json.loads(line)
+            except Exception as e:
+                return {"error": f"Communication error: {e}"}
 
     def stress_test(self, duration: int = 10):
         print(f"BUCE: Starting stress test for {duration} seconds...")
@@ -98,16 +144,20 @@ class BUCEOrchestrator:
         return self.call("pi_calc", {"iterations": iterations})
 
     def collaborative_mandelbrot(self, width: int, height: int):
-        """Demonstrates collaborative computing by splitting tasks."""
+        """
+        Demonstrates collaborative computing by splitting tasks.
+        In a real scenario, this would use the stm32_node via pyserial.
+        """
         if not self.stm32_node:
             print("BUCE: No STM32 node found, running entirely on PC.")
-            return self.call("stress", {"duration": 2}) # Simulation
+            return self.call("stress", {"duration": 2})
 
         print(f"BUCE: Splitting Mandelbrot task between PC and {self.stm32_node}...")
-        # PC handles 80% of the workload, STM32 handles 20%
-        # (Implementation of actual serial communication omitted for simulation without hardware)
+        # PC handles most of the workload
         res_pc = self.call("stress", {"duration": 1})
-        print("BUCE: STM32 task dispatched...")
+
+        # STM32 workload simulation
+        print(f"BUCE: STM32 task dispatched to {self.stm32_node}...")
         time.sleep(0.5)
         print("BUCE: Collaborative compute complete.")
         return res_pc
@@ -141,8 +191,11 @@ def run():
     end = time.time()
     print(f"PI Calc: {res.get('result')} (Time: {end-start:.4f}s)")
 
-    # 4. Stress Test (shorter duration for bench)
+    # 4. Stress Test
     orchestrator.stress_test(duration=2)
+
+    # 5. Collaborative Demo
+    orchestrator.collaborative_mandelbrot(1000, 1000)
 
     orchestrator.stop()
 
