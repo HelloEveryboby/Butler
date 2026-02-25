@@ -42,20 +42,24 @@ class BUCEOrchestrator:
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         cwd = os.path.join(root, "programs", "hybrid_compute_v2")
         try:
-            subprocess.run(["g++", "-O3", "-std=c++17", "-mavx2", "-pthread", "src/main.cpp", "-o", "buce_core"], cwd=cwd, check=True)
-            subprocess.run(["strip", "buce_core"], cwd=cwd, check=True)
+            # Use list-based arguments and shell=False to prevent injection
+            subprocess.run(["g++", "-O3", "-std=c++17", "-mavx2", "-pthread", "src/main.cpp", "-o", "buce_core"],
+                           cwd=cwd, check=True, shell=False)
+            subprocess.run(["strip", "buce_core"], cwd=cwd, check=True, shell=False)
         except Exception as e:
             print(f"BUCE Build Error: {e}")
 
     def start(self):
         if self.process: return
+        # Explicitly set shell=False and use list-based command for security
         self.process = subprocess.Popen(
             [self.executable],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            bufsize=1
+            bufsize=1,
+            shell=False
         )
 
     def call(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
