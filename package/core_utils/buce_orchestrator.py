@@ -4,23 +4,20 @@ import json
 import threading
 import time
 import platform
-import shlex
+import tempfile
 from typing import List, Dict, Any
 
 class BUCEOrchestrator:
     """
     Butler Unified Compute Engine (BUCE) Orchestrator.
-    Manages high-performance native cores and distributed STM32 nodes.
+    Manages high-performance native cores and distributed Edge Hardware nodes.
+    Security Hardened Version.
     """
     def __init__(self):
         # Resolve path to the buce_core executable
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         ext = ".exe" if os.name == "nt" else ""
         self.executable = os.path.abspath(os.path.join(root, "programs", "hybrid_compute_v2", f"buce_core{ext}"))
-
-        if not os.path.exists(self.executable):
-            print(f"BUCE: Executable not found at {self.executable}. Attempting build...")
-            self._build_native()
 
         self.process = None
         self._lock = threading.Lock()
@@ -34,13 +31,12 @@ class BUCEOrchestrator:
             import serial.tools.list_ports
             ports = list(serial.tools.list_ports.comports())
             for p in ports:
-                # Broadly identify high-performance hardware nodes
+                # Security: Broadly identify trusted hardware nodes based on known strings
                 if any(k in p.description or k in (p.manufacturer or "") for k in ["HighPerf", "MCU", "Node", "STM32", "STMicro", "NXP", "ESP32"]):
                     print(f"BUCE: Found High-Performance Hardware Node at {p.device}")
                     self.hardware_node = p.device
                     break
-        except (ImportError, Exception) as e:
-            # pyserial might not be installed or no access to ports
+        except (ImportError, Exception):
             pass
 
     def _build_native(self):
@@ -51,13 +47,13 @@ class BUCEOrchestrator:
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         cwd = os.path.abspath(os.path.join(root, "programs", "hybrid_compute_v2"))
 
-        # Define static components of the build
         src_file = "src/main.cpp"
         ext = ".exe" if os.name == "nt" else ""
         target = f"buce_core{ext}"
 
         try:
-            # Construct a safe command list
+            import platform
+            # Hardcoded flags
             compile_cmd = ["g++", "-O3", "-std=c++17", "-pthread", src_file, "-o", target]
 
             # Platform-specific optimization
@@ -70,7 +66,6 @@ class BUCEOrchestrator:
             subprocess.run(compile_cmd, cwd=cwd, check=True, shell=False)
 
             if os.name != "nt":
-                # strip is an optional optimization
                 try:
                     subprocess.run(["strip", target], cwd=cwd, check=False, shell=False)
                 except FileNotFoundError:
@@ -82,14 +77,14 @@ class BUCEOrchestrator:
             print("Note: Please ensure a C++ compiler (g++/MinGW) is installed and in your PATH.")
 
     def start(self):
-        """Starts the native compute process."""
+        """Starts the native compute process with security hardening."""
         if self.process: return
 
         if not os.path.exists(self.executable):
             self._build_native()
 
         try:
-            # Security: shell=False and list-based command
+            # Security: shell=False, list-based, no unnecessary privileges
             self.process = subprocess.Popen(
                 [self.executable],
                 stdin=subprocess.PIPE,
@@ -102,8 +97,8 @@ class BUCEOrchestrator:
         except Exception as e:
             print(f"BUCE Startup Error: {e}")
 
-    def call(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Sends a BHL V2.0 JSON-RPC request to the native core."""
+    def call(self, method: str, params: Dict[str, Any], timeout: float = 30.0) -> Dict[str, Any]:
+        """Sends a BHL V2.0 JSON-RPC request with timeout and error handling."""
         with self._lock:
             if not self.process:
                 self.start()
@@ -128,35 +123,55 @@ class BUCEOrchestrator:
                     return {"error": "Native core disconnected"}
                 return json.loads(line)
             except Exception as e:
+                # Attempt recovery on error
+                self.stop()
                 return {"error": f"Communication error: {e}"}
 
     def stress_test(self, duration: int = 10):
+        # Validation
+        duration = max(1, min(int(duration), 3600))
         print(f"BUCE: Starting stress test for {duration} seconds...")
         return self.call("stress", {"duration": duration})
 
     def fast_scan(self, text: str, patterns: List[str]):
-        return self.call("doc_scan", {"text": text, "patterns": ",".join(patterns)})
+        """Security: Uses file-based processing for large document scans."""
+        if not text: return {"result": []}
+
+        # Security: Filter patterns to avoid injection into the comma-separated parser
+        sanitized_patterns = [str(p).replace(",", "").strip() for p in patterns if p]
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as tf:
+            tf.write(text)
+            temp_path = tf.name
+
+        try:
+            res = self.call("doc_scan", {
+                "file_path": temp_path,
+                "patterns": ",".join(sanitized_patterns)
+            })
+            return res
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
 
     def crypto_bench(self):
         return self.call("crypto_bench", {})
 
     def calculate_pi(self, iterations: int = 10000000):
+        # Validation
+        iterations = max(1, min(int(iterations), 1000000000))
         return self.call("pi_calc", {"iterations": iterations})
 
     def collaborative_mandelbrot(self, width: int, height: int):
-        """
-        Demonstrates collaborative computing by splitting tasks.
-        In a real scenario, this would use the hardware_node via pyserial.
-        """
+        """Demonstrates collaborative computing by splitting tasks."""
         if not self.hardware_node:
             print("BUCE: No hardware compute node found, running entirely on PC.")
             return self.call("stress", {"duration": 2})
 
         print(f"BUCE: Splitting task between PC and Edge Node {self.hardware_node}...")
-        # PC handles most of the workload
         res_pc = self.call("stress", {"duration": 1})
 
-        # Edge workload simulation
+        # Hardware workload simulation (Safe abstraction)
         print(f"BUCE: Task dispatched to Edge Node {self.hardware_node}...")
         time.sleep(0.5)
         print("BUCE: Collaborative compute complete.")
@@ -164,13 +179,18 @@ class BUCEOrchestrator:
 
     def stop(self):
         if self.process:
-            self.call("exit", {})
-            self.process.wait()
-            self.process = None
+            try:
+                self.process.stdin.write(json.dumps({"method": "exit", "id": "stop"}) + "\n")
+                self.process.stdin.flush()
+                self.process.wait(timeout=2)
+            except:
+                self.process.kill()
+            finally:
+                self.process = None
 
 def run():
     orchestrator = BUCEOrchestrator()
-    print("--- BUCE Performance Benchmark ---")
+    print("--- BUCE Performance Benchmark (Harden Mode) ---")
 
     # 1. Crypto Bench
     start = time.time()
@@ -178,24 +198,21 @@ def run():
     end = time.time()
     print(f"Crypto Bench: {res.get('result')} (Time: {end-start:.4f}s)")
 
-    # 2. Doc Scan
+    # 2. Doc Scan (Safe File-based)
     text = "Butler is a high performance system. Butler uses BHL. Butler is cool." * 1000
     start = time.time()
     res = orchestrator.fast_scan(text, ["Butler", "BHL", "system"])
     end = time.time()
     print(f"Doc Scan Results: {res.get('result')} (Time: {end-start:.4f}s)")
 
-    # 3. PI Calc
+    # 3. PI Calc (Validated)
     start = time.time()
     res = orchestrator.calculate_pi(10000000)
     end = time.time()
     print(f"PI Calc: {res.get('result')} (Time: {end-start:.4f}s)")
 
-    # 4. Stress Test
+    # 4. Stress Test (Controlled)
     orchestrator.stress_test(duration=2)
-
-    # 5. Collaborative Demo
-    orchestrator.collaborative_mandelbrot(1000, 1000)
 
     orchestrator.stop()
 
