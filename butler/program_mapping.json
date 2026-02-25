@@ -34,5 +34,10 @@
     "混合编程": "package/core_utils/hybrid_orchestrator.py",
     "多语言交互": "package/core_utils/hybrid_orchestrator.py",
     "系统工具": "package/core_utils/hybrid_orchestrator.py",
-    "系统监控": "package/core_utils/hybrid_orchestrator.py"
+    "系统监控": "package/core_utils/hybrid_orchestrator.py",
+    "健康监测": "package/core_utils/health_monitor.py",
+    "系统修复": "package/core_utils/health_monitor.py",
+    "自愈系统": "package/core_utils/health_monitor.py",
+    "内存占用": "package/core_utils/health_monitor.py",
+    "二进制统计": "package/core_utils/health_monitor.py"
 }
