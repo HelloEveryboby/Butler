@@ -21,6 +21,7 @@ import psutil
 from collections import defaultdict
 from pathlib import Path
 from package.core_utils.log_manager import LogManager
+from package.core_utils.health_monitor import HealthMonitor
 
 # 获取日志记录器
 logger = LogManager.get_logger("autonomous_switch")
@@ -52,6 +53,7 @@ class AutonomousSwitch:
         self.exclusive_mode = exclusive_mode
         self.running = False
         self._initialized = True
+        self.health_monitor = HealthMonitor()
 
         # 尝试加载资源管理器
         try:
@@ -145,6 +147,8 @@ class AutonomousSwitch:
                 # 动态频率调整：负载高时增加检查频率，负载低时减少
                 if cpu_load > 70 or mem_load > 70:
                     self.current_interval = max(1, self.base_interval // 2)
+                    # 资源紧张时，自动执行一次自愈扫描
+                    self.health_monitor.run_self_healing()
                 else:
                     self.current_interval = self.base_interval
 
