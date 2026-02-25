@@ -111,6 +111,61 @@ def fast_file_search(root: str, pattern: str) -> Dict[str, Any]:
             break
     return {"files": files, "count": len(files)}
 
+def benchmark(url: str, count: int, concurrency: int) -> Dict[str, Any]:
+    """Python fallback for HTTP benchmark."""
+    import requests
+    from concurrent.futures import ThreadPoolExecutor
+    latencies = []
+    def do_req():
+        try:
+            start = time.time()
+            requests.get(url, timeout=10)
+            return int((time.time() - start) * 1000)
+        except:
+            return -1
+
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        results = list(executor.map(lambda _: do_req(), range(count)))
+
+    latencies = [l for l in results if l != -1]
+    if not latencies:
+        return {"error": {"message": "All requests failed"}}
+
+    latencies.sort()
+    return {
+        "total_requests": count,
+        "success": len(latencies),
+        "min_ms": latencies[0],
+        "max_ms": latencies[-1],
+        "avg_ms": sum(latencies) // len(latencies),
+        "p95_ms": latencies[int(len(latencies) * 0.95)]
+    }
+
+def concurrent_download(url: str, path: str, concurrency: int) -> Dict[str, Any]:
+    """Python fallback for concurrent download."""
+    import requests
+    # Simple single-threaded fallback for simplicity in fallback mode
+    try:
+        resp = requests.get(url, stream=True, timeout=30)
+        with open(path, 'wb') as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f.write(chunk)
+        return {"status": "completed", "path": path}
+    except Exception as e:
+        return {"error": {"message": str(e)}}
+
+def batch_ping(hosts: List[str]) -> List[Dict[str, Any]]:
+    """Python fallback for batch ping."""
+    results = []
+    for h in hosts:
+        try:
+            start = time.time()
+            socket.create_connection((h, 80), timeout=2).close()
+            results.append({"host": h, "alive": True, "latency_ms": int((time.time() - start) * 1000)})
+        except:
+            results.append({"host": h, "alive": False})
+    return results
+
 def dispatch_fallback(method: str, params: Dict[str, Any]) -> Any:
     """Dispatches a BHL call to a Python fallback implementation."""
     if method == "factorize":
@@ -131,5 +186,11 @@ def dispatch_fallback(method: str, params: Dict[str, Any]) -> Any:
         return list_processes()
     elif method == "fast_file_search":
         return fast_file_search(params.get("root", "."), params.get("pattern", ""))
+    elif method == "benchmark":
+        return benchmark(params.get("url", ""), int(params.get("count", 10)), int(params.get("concurrency", 2)))
+    elif method == "concurrent_download":
+        return concurrent_download(params.get("url", ""), params.get("path", ""), int(params.get("concurrency", 1)))
+    elif method == "batch_ping":
+        return batch_ping(params.get("hosts", []))
     else:
         return {"error": {"code": -32601, "message": f"Method {method} not supported in fallback"}}
