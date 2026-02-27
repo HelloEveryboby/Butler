@@ -67,3 +67,30 @@ class NLUService:
         except Exception as e:
             logger.error(f"General response generation failed: {e}")
             return "抱歉，我暂时无法回答这个问题。"
+
+    def ask_llm(self, prompt: str, history: List[Any] = None) -> str:
+        """通用 LLM 问答接口。"""
+        messages = []
+        if history:
+            for item in history:
+                role = item.metadata.get('role', 'user') if hasattr(item, 'metadata') else item.get('role', 'user')
+                content = item.content if hasattr(item, 'content') else item.get('content', '')
+                messages.append({"role": role, "content": content})
+
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": "deepseek-chat",
+            "messages": messages,
+            "max_tokens": 2048,
+            "temperature": 0.2
+        }
+
+        try:
+            headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+            response = requests.post(self.url, headers=headers, json=payload)
+            response.raise_for_status()
+            return response.json()['choices'][0]['message']['content']
+        except Exception as e:
+            logger.error(f"ask_llm failed: {e}")
+            return f"Error: {e}"
