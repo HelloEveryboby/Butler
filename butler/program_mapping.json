@@ -39,5 +39,9 @@
     "系统修复": "package/core_utils/health_monitor.py",
     "自愈系统": "package/core_utils/health_monitor.py",
     "内存占用": "package/core_utils/health_monitor.py",
-    "二进制统计": "package/core_utils/health_monitor.py"
+    "二进制统计": "package/core_utils/health_monitor.py",
+    "NFC读取": "package/device/nfc_ir_manager.py",
+    "NFC克隆": "package/device/nfc_ir_manager.py",
+    "红外学习": "package/device/nfc_ir_manager.py",
+    "红外控制": "package/device/nfc_ir_manager.py"
 }
