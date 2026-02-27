@@ -18,9 +18,9 @@ def open_in_native_app(file_path):
         if platform.system() == 'Windows':
             os.startfile(file_path)
         elif platform.system() == 'Darwin':
-            subprocess.run(['open', file_path])
+            subprocess.run(['open', file_path], shell=False)
         else:
-            subprocess.run(['xdg-open', file_path])
+            subprocess.run(['xdg-open', file_path], shell=False)
         return True
     except Exception as e:
         logger.error(f"Error opening file {file_path}: {e}")

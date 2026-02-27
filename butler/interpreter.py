@@ -38,16 +38,30 @@ class Interpreter:
         """Executes a shell command and captures output."""
         logger.info(f"Executing Shell command: {command}")
         try:
-            # We use shell=True for convenience, but with caution.
-            # In a production environment, this should be more restricted.
-            result = subprocess.run(
-                command,
-                shell=True,
-                cwd=self.working_dir,
-                capture_output=True,
-                text=True,
-                timeout=300 # 5 minute timeout
-            )
+            import shlex
+            # Try to run without shell if possible (no pipes, redirects, etc.)
+            shell_chars = {'|', '&', ';', '<', '>', '$', '*', '?', '(', ')', '[', ']', '!', '#', '~'}
+            use_shell = any(char in command for char in shell_chars)
+
+            if not use_shell:
+                cmd_list = shlex.split(command)
+                result = subprocess.run(
+                    cmd_list,
+                    shell=False,
+                    cwd=self.working_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=300
+                )
+            else:
+                result = subprocess.run(
+                    command,
+                    shell=True,
+                    cwd=self.working_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=300 # 5 minute timeout
+                )
             output = result.stdout + result.stderr
             success = (result.returncode == 0)
             return success, output

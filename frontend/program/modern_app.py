@@ -10,7 +10,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from butler.butler_app import Jarvis, project_root
+from butler.butler_app import Jarvis
 from package.core_utils.log_manager import LogManager
 from butler.core.asset_loader import asset_loader
 

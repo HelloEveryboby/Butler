@@ -140,37 +140,69 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderCodeBlock(data) {
         const block = document.createElement('div');
         block.className = 'code-block';
-        block.innerHTML = `
-            <div class="code-header">
-                <span>${data.language || 'code'}</span>
-                <i class="fas fa-terminal"></i>
-            </div>
-            <div class="code-content">${data.code}</div>
-            ${data.output ? `<div class="code-output">${data.output}</div>` : ''}
-        `;
+
+        const header = document.createElement('div');
+        header.className = 'code-header';
+        const langSpan = document.createElement('span');
+        langSpan.textContent = data.language || 'code';
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-terminal';
+        header.appendChild(langSpan);
+        header.appendChild(icon);
+
+        const content = document.createElement('div');
+        content.className = 'code-content';
+        content.textContent = data.code;
+
+        block.appendChild(header);
+        block.appendChild(content);
+
+        if (data.output) {
+            const output = document.createElement('div');
+            output.className = 'code-output';
+            output.textContent = data.output;
+            block.appendChild(output);
+        }
+
         currentAILine.appendChild(block);
     }
 
     function renderDataTable(data) {
         const table = document.createElement('table');
         table.className = 'data-table';
-        let html = '<thead><tr>';
-        data.columns.forEach(col => html += `<th>${col}</th>`);
-        html += '</tr></thead><tbody>';
-        data.rows.forEach(row => {
-            html += '<tr>';
-            row.forEach(cell => html += `<td>${cell}</td>`);
-            html += '</tr>';
+
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        data.columns.forEach(col => {
+            const th = document.createElement('th');
+            th.textContent = col;
+            headerRow.appendChild(th);
         });
-        html += '</tbody>';
-        table.innerHTML = html;
+        thead.appendChild(headerRow);
+
+        const tbody = document.createElement('tbody');
+        data.rows.forEach(rowData => {
+            const tr = document.createElement('tr');
+            rowData.forEach(cellData => {
+                const td = document.createElement('td');
+                td.textContent = cellData;
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+
+        table.appendChild(thead);
+        table.appendChild(tbody);
         currentAILine.appendChild(table);
     }
 
     function renderChart(data) {
         const container = document.createElement('div');
         container.className = 'chart-container';
-        container.innerHTML = `<img src="${data.url}" alt="Chart">`;
+        const img = document.createElement('img');
+        img.src = data.url;
+        img.alt = "Chart";
+        container.appendChild(img);
         currentAILine.appendChild(container);
     }
 
@@ -245,10 +277,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     dockHome.addEventListener('click', () => {
         // Clear history and show welcome
-        interactionFlow.innerHTML = '';
+        while (interactionFlow.firstChild) {
+            interactionFlow.removeChild(interactionFlow.firstChild);
+        }
         const welcome = document.createElement('div');
         welcome.className = 'welcome-message';
-        welcome.innerHTML = '<h1>Butler</h1><p>How can I help you today?</p>';
+        const h1 = document.createElement('h1');
+        h1.textContent = 'Butler';
+        const p = document.createElement('p');
+        p.textContent = 'How can I help you today?';
+        welcome.appendChild(h1);
+        welcome.appendChild(p);
         interactionFlow.appendChild(welcome);
         createUserInputLine();
     });
