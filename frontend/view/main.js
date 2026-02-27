@@ -10,15 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const dockPause = document.getElementById('dock-pause');
     const dockRetry = document.getElementById('dock-retry');
     const dockHome = document.getElementById('dock-home');
-    const dockEditor = document.getElementById('dock-editor');
-
-    // Editor Components
-    const editorOverlay = document.getElementById('editor-overlay');
-    const closeEditorBtn = document.getElementById('close-editor');
-    const markdownEditor = document.getElementById('markdown-editor');
-    const saveEditorBtn = document.getElementById('save-editor');
-    const openOfficeBtn = document.getElementById('open-in-office');
-    const toolbarButtons = document.querySelectorAll('.toolbar-btn');
 
     let isStreaming = false;
     let currentAILine = null;
@@ -115,101 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.onAIStreamChunk = (chunk) => {
         if (currentAILine) {
-            // Check if chunk is a JSON object representing specialized content
-            try {
-                const data = JSON.parse(chunk);
-                if (data.type === 'code_block') {
-                    renderCodeBlock(data);
-                    return;
-                } else if (data.type === 'data_table') {
-                    renderDataTable(data);
-                    return;
-                } else if (data.type === 'chart') {
-                    renderChart(data);
-                    return;
-                }
-            } catch (e) {
-                // Not JSON, just append text
-            }
-
             currentAILine.innerText += chunk;
             interactionFlow.scrollTop = interactionFlow.scrollHeight;
         }
-    };
-
-    function renderCodeBlock(data) {
-        const block = document.createElement('div');
-        block.className = 'code-block';
-
-        const header = document.createElement('div');
-        header.className = 'code-header';
-        const langSpan = document.createElement('span');
-        langSpan.textContent = data.language || 'code';
-        const icon = document.createElement('i');
-        icon.className = 'fas fa-terminal';
-        header.appendChild(langSpan);
-        header.appendChild(icon);
-
-        const content = document.createElement('div');
-        content.className = 'code-content';
-        content.textContent = data.code;
-
-        block.appendChild(header);
-        block.appendChild(content);
-
-        if (data.output) {
-            const output = document.createElement('div');
-            output.className = 'code-output';
-            output.textContent = data.output;
-            block.appendChild(output);
-        }
-
-        currentAILine.appendChild(block);
-    }
-
-    function renderDataTable(data) {
-        const table = document.createElement('table');
-        table.className = 'data-table';
-
-        const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
-        data.columns.forEach(col => {
-            const th = document.createElement('th');
-            th.textContent = col;
-            headerRow.appendChild(th);
-        });
-        thead.appendChild(headerRow);
-
-        const tbody = document.createElement('tbody');
-        data.rows.forEach(rowData => {
-            const tr = document.createElement('tr');
-            rowData.forEach(cellData => {
-                const td = document.createElement('td');
-                td.textContent = cellData;
-                tr.appendChild(td);
-            });
-            tbody.appendChild(tr);
-        });
-
-        table.appendChild(thead);
-        table.appendChild(tbody);
-        currentAILine.appendChild(table);
-    }
-
-    function renderChart(data) {
-        const container = document.createElement('div');
-        container.className = 'chart-container';
-        const img = document.createElement('img');
-        img.src = data.url;
-        img.alt = "Chart";
-        container.appendChild(img);
-        currentAILine.appendChild(container);
-    }
-
-    window.openEditor = (content, filename) => {
-        markdownEditor.value = content || "";
-        document.getElementById('editor-filename').innerText = filename || "未命名文档";
-        editorOverlay.classList.add('active');
     };
 
     window.onAIStreamEnd = () => {
@@ -277,83 +176,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     dockHome.addEventListener('click', () => {
         // Clear history and show welcome
-        while (interactionFlow.firstChild) {
-            interactionFlow.removeChild(interactionFlow.firstChild);
-        }
+        interactionFlow.innerHTML = '';
         const welcome = document.createElement('div');
         welcome.className = 'welcome-message';
-        const h1 = document.createElement('h1');
-        h1.textContent = 'Butler';
-        const p = document.createElement('p');
-        p.textContent = 'How can I help you today?';
-        welcome.appendChild(h1);
-        welcome.appendChild(p);
+        welcome.innerHTML = '<h1>Butler</h1><p>How can I help you today?</p>';
         interactionFlow.appendChild(welcome);
         createUserInputLine();
-    });
-
-    dockEditor.addEventListener('click', () => {
-        editorOverlay.classList.toggle('active');
-    });
-
-    closeEditorBtn.addEventListener('click', () => {
-        editorOverlay.classList.remove('active');
-    });
-
-    // Toolbar logic
-    toolbarButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const action = btn.getAttribute('title');
-            insertMarkdown(action);
-        });
-    });
-
-    function insertMarkdown(action) {
-        const start = markdownEditor.selectionStart;
-        const end = markdownEditor.selectionEnd;
-        const text = markdownEditor.value;
-        const selectedText = text.substring(start, end);
-        let before = text.substring(0, start);
-        let after = text.substring(end);
-        let newText = "";
-
-        switch(action) {
-            case '粗体':
-                newText = `**${selectedText || '粗体文字'}**`;
-                break;
-            case '斜体':
-                newText = `*${selectedText || '斜体文字'}*`;
-                break;
-            case '插入图片':
-                newText = `![描述](url)`;
-                break;
-            case '插入表格':
-                newText = `\n| Header | Header |\n| --- | --- |\n| Cell | Cell |\n`;
-                break;
-        }
-
-        markdownEditor.value = before + newText + after;
-        markdownEditor.focus();
-        markdownEditor.setSelectionRange(start + newText.length, start + newText.length);
-    }
-
-    saveEditorBtn.addEventListener('click', () => {
-        const content = markdownEditor.value;
-        const filename = document.getElementById('editor-filename').innerText;
-        if (window.pywebview && window.pywebview.api) {
-            window.pywebview.api.save_editor_content(content, filename).then(path => {
-                statusBar.innerText = "Saved to " + path;
-            });
-        }
-    });
-
-    openOfficeBtn.addEventListener('click', () => {
-        const filename = document.getElementById('editor-filename').innerText;
-        // In a real app we'd get the full path. For demo, we assume it's in data/
-        const dummyPath = "data/" + filename;
-        if (window.pywebview && window.pywebview.api) {
-            window.pywebview.api.open_office(dummyPath);
-        }
     });
 
     closeTerminalBtn.addEventListener('click', () => {
