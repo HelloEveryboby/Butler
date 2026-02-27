@@ -39,5 +39,8 @@
     "系统修复": "package/core_utils/health_monitor.py",
     "自愈系统": "package/core_utils/health_monitor.py",
     "内存占用": "package/core_utils/health_monitor.py",
-    "二进制统计": "package/core_utils/health_monitor.py"
+    "二进制统计": "package/core_utils/health_monitor.py",
+    "网络检测": "package/network/net_monitor.py",
+    "网络卡顿检测": "package/network/net_monitor.py",
+    "系统安全监测": "package/network/net_monitor.py"
 }

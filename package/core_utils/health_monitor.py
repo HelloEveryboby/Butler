@@ -16,6 +16,10 @@ except ImportError:
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PROGRAMS_DIR = os.path.join(PROJECT_ROOT, "programs")
 
+# BHL 系统扩编限制 (V2.1)
+BHL_GLOBAL_LIMIT = 12 * 1024 * 1024  # 12MB 全局空间限制
+BHL_CORE_LIMIT = 1 * 1024 * 1024     # 1MB 单核限制
+
 class HealthMonitor:
     """
     Butler 自愈与健康监测系统 (Health Monitor & Self-Healing System)
@@ -126,7 +130,7 @@ class HealthMonitor:
     def generate_full_report(self):
         """生成详细的系统健康与内存占用报告"""
         print("\n" + "="*50)
-        print("      Butler 系统健康与内存占用报告")
+        print("      Butler 系统健康与内存占用报告 (V2.1)")
         print("="*50)
 
         # 1. 物理磁盘占用
@@ -137,13 +141,28 @@ class HealthMonitor:
         print(f"- 项目总大小: {self.format_size(project_size)}")
         print(f"- 混合编程源码目录 (programs/): {self.format_size(programs_size)}")
 
-        # 2. BHL 模块清单
-        print(f"\n[2] 混合编程模块 (BHL) 状态:")
+        # 2. BHL 模块清单与空间限制校验
+        print(f"\n[2] 混合编程模块 (BHL) 状态 (限制: 全局 {self.format_size(BHL_GLOBAL_LIMIT)} / 单核 {self.format_size(BHL_CORE_LIMIT)}):")
         bhl_status = self.check_bhl_status()
-        print(f"{'模块名称':<20} | {'语言':<6} | {'状态':<15} | {'体积'}")
-        print("-" * 60)
+        total_bin_size = 0
+
+        print(f"{'模块名称':<20} | {'语言':<6} | {'状态':<15} | {'体积'} | {'合规'}")
+        print("-" * 75)
         for s in bhl_status:
-            print(f"{s['module']:<20} | {s['language']:<6} | {s['status']:<15} | {s['size']}")
+            mod_dir = os.path.join(PROGRAMS_DIR, s["module"])
+            bin_path = os.path.join(mod_dir, s["binary_name"])
+            raw_size = self.get_file_size(bin_path)
+            total_bin_size += raw_size
+
+            compliance = "OK"
+            if raw_size > BHL_CORE_LIMIT:
+                compliance = "!! OVER !!"
+
+            print(f"{s['module']:<20} | {s['language']:<6} | {s['status']:<15} | {s['size']:<8} | {compliance}")
+
+        print("-" * 75)
+        global_compliance = "OK" if total_bin_size <= BHL_GLOBAL_LIMIT else "!! EXCEEDED !!"
+        print(f"BHL 二进制总计: {self.format_size(total_bin_size)} / {self.format_size(BHL_GLOBAL_LIMIT)} | 状态: {global_compliance}")
 
         # 3. 运行内存占用
         print(f"\n[3] 实时运行内存统计:")
