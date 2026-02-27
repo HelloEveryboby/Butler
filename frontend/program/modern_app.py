@@ -26,6 +26,10 @@ class ModernBridge:
         if command == "/voice-toggle":
             self.toggle_voice()
             return
+        if command.startswith("/editor "):
+             content = command[8:]
+             self.window.evaluate_js(f"window.openEditor({json.dumps(content)}, 'Draft.md')")
+             return
         # Use a thread to avoid blocking the UI
         threading.Thread(target=self._run_command, args=(command,), daemon=True).start()
 
@@ -42,11 +46,15 @@ class ModernBridge:
             # We need to capture the output from Jarvis.
             # Jarvis usually prints to its panel. We'll override its ui_print momentarily or pass a custom one.
             original_ui_print = self.jarvis.ui_print
+
             def web_ui_print(message, tag='ai_response', response_id=None):
-                # Clean up markdown-like markers if needed, or just send chunks
-                # For simplicity, we send the chunk to JS
-                if tag != 'ai_response_start':
-                    # Send as JSON-encoded string to avoid escaping issues
+                if tag == 'code_block':
+                    self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
+                elif tag == 'data_table':
+                    self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
+                elif tag == 'chart':
+                    self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
+                elif tag != 'ai_response_start':
                     self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
 
             self.jarvis.ui_print = web_ui_print
@@ -98,6 +106,28 @@ class ModernBridge:
     def terminal_input(self, data):
         if hasattr(self, 'terminal_client'):
             self.terminal_client.call("write_input", data)
+
+    def open_office(self, file_path):
+        import os
+        import platform
+        if os.path.exists(file_path):
+            if platform.system() == 'Windows':
+                os.startfile(file_path)
+            elif platform.system() == 'Darwin':
+                import subprocess
+                subprocess.run(['open', file_path])
+            else:
+                import subprocess
+                subprocess.run(['xdg-open', file_path])
+            return True
+        return False
+
+    def save_editor_content(self, content, filename):
+        save_path = os.path.join(project_root, "data", filename)
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        with open(save_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return save_path
 
 def main():
     # Initialize Jarvis in headless mode (no Tkinter root)
