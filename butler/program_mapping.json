@@ -39,5 +39,17 @@
     "系统修复": "package/core_utils/health_monitor.py",
     "自愈系统": "package/core_utils/health_monitor.py",
     "内存占用": "package/core_utils/health_monitor.py",
-    "二进制统计": "package/core_utils/health_monitor.py"
+    "二进制统计": "package/core_utils/health_monitor.py",
+    "网络检测": "package/network/net_monitor.py",
+    "网络卡顿检测": "package/network/net_monitor.py",
+    "系统安全监测": "package/network/net_monitor.py",
+    "摄像头": "package/device/camera_tool.py",
+    "拍照": "package/device/camera_tool.py",
+    "WiFi检测": "package/network/wifi_tool.py",
+    "WiFi扫描": "package/network/wifi_tool.py",
+    "蓝牙检测": "package/device/ble_connector.py",
+    "蓝牙扫描": "package/device/ble_connector.py",
+    "硬盘管理": "package/device/disk_manager.py",
+    "磁盘占用": "package/device/disk_manager.py",
+    "硬盘健康": "package/device/disk_manager.py"
 }
