@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <sys/sysinfo.h>
 #include <ctype.h>
+#include "../embedded_compute_node/buce_embedded.h"
 
 // Simple JSON helper
 void print_json_string(const char* str) {
@@ -189,6 +190,62 @@ void list_processes(const char* id) {
     fflush(stdout);
 }
 
+// Disk Usage Info
+void get_disk_usage_bhl(const char* id) {
+    // Basic implementation using standard statvfs or system commands
+    // For PC system utility, let's use df as a fallback/easy-to-parse source
+    FILE *fp = popen("df -h --output=source,target,size,used,avail,pcent | tail -n +2", "r");
+    if (!fp) {
+        send_error(id, -1, "Failed to execute df");
+        return;
+    }
+
+    printf("{\"jsonrpc\":\"2.0\",\"result\":{\"partitions\":[");
+    char line[512];
+    int first = 1;
+    while (fgets(line, sizeof(line), fp)) {
+        char source[128], target[128], size[64], used[64], avail[64], pcent[32];
+        if (sscanf(line, "%s %s %s %s %s %s", source, target, size, used, avail, pcent) == 6) {
+            if (!first) printf(",");
+            printf("{\"device\":\"%s\",\"mount\":\"%s\",\"total\":\"%s\",\"used\":\"%s\",\"free\":\"%s\",\"percent\":\"%s\"}",
+                   source, target, size, used, avail, pcent);
+            first = 0;
+        }
+    }
+    pclose(fp);
+    printf("]},\"id\":\"%s\"}\n", id);
+    fflush(stdout);
+}
+
+// WiFi Scanning (Linux/nmcli based)
+void scan_wifi_bhl(const char* id) {
+    FILE *fp = popen("nmcli -t -f SSID,SIGNAL,SECURITY dev wifi", "r");
+    if (!fp) {
+        send_error(id, -1, "Failed to execute nmcli");
+        return;
+    }
+
+    printf("{\"jsonrpc\":\"2.0\",\"result\":{\"networks\":[");
+    char line[512];
+    int first = 1;
+    while (fgets(line, sizeof(line), fp)) {
+        char *ssid = strtok(line, ":");
+        char *signal = strtok(NULL, ":");
+        char *security = strtok(NULL, ":");
+        if (ssid && signal) {
+            if (!first) printf(",");
+            printf("{\"ssid\":"); print_json_string(ssid);
+            printf(",\"signal\":\"%s\",\"security\":", signal);
+            print_json_string(security ? security : "N/A");
+            printf("}");
+            first = 0;
+        }
+    }
+    pclose(fp);
+    printf("]},\"id\":\"%s\"}\n", id);
+    fflush(stdout);
+}
+
 // Fast File Search
 void recursive_search(const char* dir_path, const char* pattern, int* count, int max) {
     if (*count >= max) return;
@@ -278,6 +335,10 @@ int main() {
             detect_displays(id);
         } else if (strcmp(method, "check_connections") == 0) {
             check_connections(id);
+        } else if (strcmp(method, "get_disk_usage") == 0) {
+            get_disk_usage_bhl(id);
+        } else if (strcmp(method, "scan_wifi") == 0) {
+            scan_wifi_bhl(id);
         } else if (strcmp(method, "exit") == 0) {
             break;
         } else {
