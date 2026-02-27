@@ -34,6 +34,7 @@ from plugin.long_memory.chroma_long_memory import SQLiteLongMemory
 from plugin.long_memory.long_memory_interface import LongMemoryItem
 from butler.core.intent_dispatcher import intent_registry
 from butler.core import legacy_commands # Ensure legacy intents are registered
+from butler.interpreter import interpreter
 from butler.core.hybrid_link import HybridLinkClient
 from package.device.standalone_manager import StandaloneManager
 
@@ -190,9 +191,99 @@ class Jarvis:
                 self.ui_print(f"数据回收失败: {e}", tag='error')
         elif cmd.startswith("/legacy "):
             self._handle_legacy_command(cmd[8:])
+        elif cmd.startswith("/py ") or cmd.startswith("/python "):
+            code = cmd.split(maxsplit=1)[1]
+            self._execute_with_interpreter("python", code)
+        elif cmd.startswith("/sh ") or cmd.startswith("/shell "):
+            command = cmd.split(maxsplit=1)[1]
+            self._execute_with_interpreter("shell", command)
         else:
-            # Default to legacy command handling (intent-based)
-            self._handle_legacy_command(cmd)
+            # Check if we should use Interpreter for general queries (Auto-detect)
+            if self._should_use_interpreter(cmd):
+                self._execute_with_llm_interpreter(cmd)
+            else:
+                # Default to legacy command handling (intent-based)
+                self._handle_legacy_command(cmd)
+
+    def _should_use_interpreter(self, command):
+        # Basic heuristic: if command mentions files, calculations, or complex tasks
+        keywords = ['文件', '计算', '报销', '总结', '文件夹', 'excel', 'word', 'pdf', '分析']
+        return any(k in command.lower() for k in keywords)
+
+    def _execute_with_interpreter(self, lang, code):
+        self.ui_print(f"Executing {lang} code...", tag='system_message')
+        success, output = interpreter.run(lang, code)
+
+        # Format for Modern UI
+        # Check if we are running under Modern UI (where ui_print is overridden)
+        # or if we have a panel attached.
+        is_modern = hasattr(self, 'ui_print') and 'onAIStreamChunk' in str(self.ui_print)
+
+        if is_modern or self.panel:
+             self.ui_print(json.dumps({
+                 "type": "code_block",
+                 "language": lang,
+                 "code": code,
+                 "output": output
+             }), tag='code_block')
+        else:
+             self.ui_print(f"Output:\n{output}")
+
+    def _execute_with_llm_interpreter(self, command):
+        """Uses LLM to generate and run code (Open Interpreter style)."""
+        self.ui_print("AI 正在思考并编写代码...", tag='system_message')
+
+        system_prompt = (
+            "You are a desktop agent that solves tasks by writing Python code. "
+            "You have access to the local file system and office software. "
+            "Available tools: \n"
+            "- package.document.office_automator: create_excel_report, create_word_document, fill_pdf_fields, open_in_native_app.\n"
+            "- package.document.expense_report_engine: expense_genius.process_receipts(data).\n"
+            "- package.document.cross_folder_analyzer: analyzer.analyze_folders(folders, query).\n"
+            "Libraries: pandas, python-docx, openpyxl, PIL. "
+            "When asked to edit Word/Excel, write code to modify them and then use "
+            "package.document.office_automator.open_in_native_app(path) to show the result. "
+            "ALWAYS output code in a block starting with ```python. "
+            "If the task is complete, end your message with 'The task is done.' or '任务已完成'。"
+        )
+
+        history = self.long_memory.get_recent_history(10)
+        max_iterations = 5
+        current_input = command
+
+        for i in range(max_iterations):
+            prompt = f"{system_prompt}\n\nUser Question: {current_input}"
+            response = self.nlu_service.ask_llm(prompt, history)
+
+            # Extract code block
+            code_match = re.search(r"```python\n(.*?)```", response, re.DOTALL)
+            if code_match:
+                code = code_match.group(1)
+                self.ui_print(f"AI 正在执行第 {i+1} 步操作...", tag='system_message')
+                success, output = interpreter.run("python", code)
+
+                # Format for Modern UI
+                is_modern = hasattr(self, 'ui_print') and 'onAIStreamChunk' in str(self.ui_print)
+                if is_modern or self.panel:
+                     self.ui_print(json.dumps({
+                         "type": "code_block",
+                         "language": "python",
+                         "code": code,
+                         "output": output
+                     }), tag='code_block')
+                else:
+                     self.ui_print(f"Output:\n{output}")
+
+                if "task is done" in response.lower() or "任务已完成" in response:
+                    break
+
+                # Feedback loop: feed output back to AI
+                current_input = f"Execution Output from step {i+1}:\n{output}\n\nPlease proceed to the next step or fix any errors. If finished, say 'The task is done.'"
+                # We update history to keep the context
+                history.append({"role": "assistant", "content": response})
+            else:
+                self.ui_print(response) # Just a text response
+                break
 
     def _handle_legacy_command(self, legacy_command):
         """以旧版模式处理命令。"""
