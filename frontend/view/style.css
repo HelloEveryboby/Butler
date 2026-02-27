@@ -268,3 +268,160 @@ footer {
     color: rgba(255, 255, 255, 0.7);
     border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
 }
+
+/* New components for Option C */
+.code-block {
+    background: #000;
+    border-radius: 12px;
+    margin: 10px 0;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.code-header {
+    background: #2c2c2e;
+    padding: 8px 15px;
+    font-size: 0.8rem;
+    color: #a1a1aa;
+    display: flex;
+    justify-content: space-between;
+}
+
+.code-content {
+    padding: 15px;
+    font-size: 0.95rem;
+    color: #e4e4e7;
+    white-space: pre-wrap;
+    overflow-x: auto;
+}
+
+.code-output {
+    background: #18181b;
+    padding: 12px 15px;
+    font-size: 0.85rem;
+    color: #34c759;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    font-size: 0.9rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.data-table th, .data-table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.data-table th {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--accent-color);
+}
+
+.chart-container {
+    background: white;
+    padding: 15px;
+    border-radius: 12px;
+    margin: 15px 0;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.chart-container img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+}
+
+/* Markdown Editor Component */
+#editor-overlay {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 50%;
+    height: 100%;
+    background: #1c1c1e;
+    border-left: 1px solid var(--glass-border);
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: -20px 0 50px rgba(0,0,0,0.5);
+}
+
+#editor-overlay.active {
+    transform: translateX(0);
+}
+
+.editor-header {
+    padding: 20px;
+    background: #2c2c2e;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.editor-toolbar {
+    padding: 10px 20px;
+    background: #1c1c1e;
+    display: flex;
+    gap: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.toolbar-btn {
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    font-size: 1.1rem;
+}
+
+.toolbar-btn:hover {
+    color: var(--accent-color);
+}
+
+#markdown-editor {
+    flex: 1;
+    padding: 30px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 1.1rem;
+    line-height: 1.7;
+    resize: none;
+    outline: none;
+    font-family: inherit;
+}
+
+.action-btn {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: opacity 0.2s;
+}
+
+.action-btn:hover {
+    opacity: 0.9;
+}
+
+.secondary-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+}
