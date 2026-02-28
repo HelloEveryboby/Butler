@@ -27,8 +27,9 @@ class HealthMonitor:
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
         # BHL 模块映射 (源码 -> 二进制)
+        # 注意：二进制名称应与各模块 manifest.json 中的 executable 保持一致
         self.bhl_mapping = {
-            "hybrid_compute": {"lang": "C++", "source": "compute.cpp", "binary": "compute"},
+            "hybrid_compute": {"lang": "C++", "source": "compute.cpp", "binary": "hybrid_compute_exec"},
             "hybrid_crypto": {"lang": "Rust", "source": "src/crypto_service.rs", "binary": "target/release/hybrid_crypto_exec"},
             "hybrid_net": {"lang": "Go", "source": "net_service.go", "binary": "hybrid_net_exec"},
             "hybrid_sysutil": {"lang": "C", "source": "sysutil.c", "binary": "sysutil"},

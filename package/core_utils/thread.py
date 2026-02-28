@@ -19,19 +19,20 @@ def get_tasks():
 # 定义任务处理函数
 def process_task(task, result_queue, stop_event):
     start_time = time.time()  # 记录任务开始时间
+    task_result = None
     try:
         task_result = do_something(task)
-        result_queue.put(task_result)  # 将处理结果放入队列中
+        if result_queue:
+            result_queue.put(task_result)  # 将处理结果放入队列中
     except Exception as e:
         logging.error(f"处理任务 {task} 时发生错误: {e}")
     finally:
         end_time = time.time()  # 记录任务结束时间
-        print(f"任务 {task} 执行完成，耗时 {end_time - start_time} 秒")
-        logging.info(f"任务 {task} 执行完成，耗时 {end_time - start_time} 秒")
+        logging.info(f"任务 {task} 执行完成，耗时 {end_time - start_time:.4f} 秒")
         # 检查是否需要停止线程
         if stop_event.is_set():
             logging.info("接收到停止信号，线程将退出。")
-            return
+    return task_result
 
 # 工作线程函数
 def worker(subtasks, result_queue, stop_event):
@@ -70,14 +71,18 @@ def dispatch_tasks(tasks, num_threads):
 
 def retry_task(task, max_retries=3):
     for i in range(max_retries):
-        logging.info(f"第 {i + 1} 次尝试处理任务: {task}")
+        logging.info(f"第 {i + 1} 次尝试处理任务: {task} ({i+1}/{max_retries})")
         try:
             # Create a dummy stop_event for this context
-            result = process_task(task, queue.Queue(), threading.Event())
-            return result
+            result = process_task(task, None, threading.Event())
+            if result is not None:
+                return result
         except Exception as e:
             logging.error(f"处理任务 {task} 时发生错误: {e}")
+
+        if i < max_retries - 1:
             time.sleep(1)  # 等待 1 秒后重试
+
     logging.error(f"任务 {task} 在重试 {max_retries} 次后仍然失败")       
     return None  # 重试次数最多后任务失败
 
@@ -104,7 +109,7 @@ def process_tasks():
     num_threads = min(len(tasks), os.cpu_count() or 1)
     # 创建一个Event对象，用于控制线程退出
     stop_event = threading.Event()
-    stop_event.set()
+    # stop_event.set() # 修复：不应立即设置，否则 worker 会直接退出
     # 分发任务并等待结果
     result = dispatch_tasks(tasks, num_threads)
     logging.info(f"任务处理完成，结果: {result}")

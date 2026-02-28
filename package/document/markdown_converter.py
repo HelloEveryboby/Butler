@@ -1,9 +1,11 @@
 import sys
 import os
 
-# HACK: 这是针对环境可编辑安装问题的临时解决方法。
-# 它确保在 butler 应用程序导入此模块时可以找到 'markitdown' 包。
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'markitdown', 'src')))
+# Use consistent project root resolution
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+markitdown_src = os.path.join(project_root, 'markitdown', 'src')
+if markitdown_src not in sys.path:
+    sys.path.insert(0, markitdown_src)
 
 from markitdown.markitdown_app import convert
 

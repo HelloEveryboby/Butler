@@ -3,12 +3,10 @@ import os
 import tempfile
 from typing import Optional
 
-# Better path resolution
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(current_dir, '..', '..'))
-
-# Use absolute paths for sys.path
+# Use consistent project root resolution
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 markitdown_src = os.path.join(project_root, 'markitdown', 'src')
+
 if markitdown_src not in sys.path:
     sys.path.insert(0, markitdown_src)
 if project_root not in sys.path:
@@ -50,7 +48,13 @@ def run(file_path: Optional[str] = None):
         source_path = os.path.join(project_root, "programs", "hybrid_doc_processor", "processor.cpp")
         if os.path.exists(source_path):
             print("[*] 正在编译混合编程模块...")
-            os.system(f"g++ -O3 {source_path} -o {executable_path}")
+            import subprocess
+            try:
+                subprocess.run(["g++", "-O3", source_path, "-o", executable_path], check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"[-] 编译失败: {e}")
+            except FileNotFoundError:
+                print("[-] 编译失败: 未找到 g++ 编译器")
 
     if os.path.exists(executable_path):
         print("[*] 正在调用 C++ 模块进行高性能分析...")

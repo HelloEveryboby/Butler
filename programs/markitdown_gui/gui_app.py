@@ -9,13 +9,12 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from tkinterdnd2 import DND_FILES, TkinterDnD
 
-# Add project root, markitdown and local lib to sys.path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(current_dir, "../../"))
+# Use consistent project root resolution
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-markitdown_path = os.path.join(project_root, "markitdown/src")
+markitdown_path = os.path.join(project_root, "markitdown", "src")
 if markitdown_path not in sys.path:
     sys.path.insert(0, markitdown_path)
 
