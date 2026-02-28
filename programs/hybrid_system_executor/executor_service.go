@@ -21,14 +21,14 @@ import (
 	"time"
 )
 
-// --- BHL Protocol Structures ---
+// --- BHL 协议基础结构 ---
 
 type Request struct {
-	Jsonrpc string                 `json:"jsonrpc"`
-	Method  string                 `json:"method"`
-	Params  map[string]interface{} `json:"params"`
-	Id      string                 `json:"id"`
-	Priority int                    `json:"priority,omitempty"` // 0: High, 10: Low
+	Jsonrpc  string                 `json:"jsonrpc"`
+	Method   string                 `json:"method"`
+	Params   map[string]interface{} `json:"params"`
+	Id       string                 `json:"id"`
+	Priority int                    `json:"priority,omitempty"` // 优先级: 0 为最高, 10 为最低
 }
 
 type Response struct {
@@ -44,7 +44,7 @@ type Event struct {
 	Params  interface{} `json:"params"`
 }
 
-// --- Priority Queue for Task Scheduling ---
+// --- 任务调度优先级队列 ---
 
 type InternalTask struct {
 	req      Request
@@ -77,7 +77,7 @@ func (pq *PriorityQueue) Pop() interface{} {
 	return item
 }
 
-// --- Global Context & Synchronization ---
+// --- 全局上下文与并发同步控制 ---
 
 var (
 	ctx, cancel = context.WithCancel(context.Background())
@@ -89,9 +89,9 @@ var (
 	pqCond      = sync.NewCond(&pqMu)
 )
 
-// --- Multi-threaded Professional Features ---
+// --- 专业级多线程功能实现 ---
 
-// 1. Parallel File Audit (existing, refined)
+// 1. 多线程文件完整性审计
 func auditFile(path string) map[string]interface{} {
 	f, err := os.Open(path)
 	if err != nil {
@@ -110,7 +110,7 @@ func auditFile(path string) map[string]interface{} {
 	}
 }
 
-// 2. Parallel Regex Log Scanning (NEW)
+// 2. 高性能并行正则表达式日志扫描
 func scanLogFile(path string, pattern *regexp.Regexp) []string {
 	f, err := os.Open(path)
 	if err != nil {
@@ -132,7 +132,7 @@ func scanLogFile(path string, pattern *regexp.Regexp) []string {
 func runLogScan(dir string, regexStr string, id string) {
 	re, err := regexp.Compile(regexStr)
 	if err != nil {
-		sendError(id, -1, "Invalid regex: "+err.Error())
+		sendError(id, -1, "正则表达式无效: "+err.Error())
 		return
 	}
 
@@ -142,6 +142,7 @@ func runLogScan(dir string, regexStr string, id string) {
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err == nil && !info.IsDir() {
 			ext := strings.ToLower(filepath.Ext(path))
+			// 扫描常见的文本、日志及脚本文件
 			if ext == ".log" || ext == ".txt" || ext == ".go" || ext == ".sh" || ext == ".json" || ext == ".py" {
 				files = append(files, path)
 			}
@@ -152,6 +153,7 @@ func runLogScan(dir string, regexStr string, id string) {
 	results := make(map[string][]string)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	// 限制并发 I/O 协程数为 8，平衡速度与资源消耗
 	sem := make(chan struct{}, 8)
 
 	for _, f := range files {
@@ -173,7 +175,7 @@ func runLogScan(dir string, regexStr string, id string) {
 	sendResult(id, results)
 }
 
-// 3. UDP Discovery & Remote Command Dispatch (NEW)
+// 3. UDP 节点发现与分布式指令下发
 func startDiscoveryListener(port int) {
 	addr, _ := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", port))
 	conn, err := net.ListenUDP("udp", addr)
@@ -196,10 +198,11 @@ func startDiscoveryListener(port int) {
 			msg := string(buffer[:n])
 			if msg == "BUTLER_DISCOVER" {
 				hostname, _ := os.Hostname()
+				// 响应节点发现：返回主机名与 CPU 核心数
 				resp := fmt.Sprintf("BUTLER_NODE:%s:%d", hostname, runtime.NumCPU())
 				conn.WriteToUDP([]byte(resp), remoteAddr)
 			} else if strings.HasPrefix(msg, "BUTLER_CMD:") {
-				// Professional: Remote Command Execution (Basic Ping)
+				// 分布式特性：远程指令执行（示例为基础 Ping 回复）
 				cmd := strings.TrimPrefix(msg, "BUTLER_CMD:")
 				resp := fmt.Sprintf("BUTLER_ACK:%s:RECEIVED_%s", os.Getenv("HOSTNAME"), cmd)
 				conn.WriteToUDP([]byte(resp), remoteAddr)
@@ -212,7 +215,7 @@ func dispatchRemoteCmd(port int, targetIP string, cmd string, id string) {
 	addr, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", targetIP, port))
 	conn, err := net.DialUDP("udp", nil, addr)
 	if err != nil {
-		sendError(id, -1, "Dispatch failed: "+err.Error())
+		sendError(id, -1, "指令分发失败: "+err.Error())
 		return
 	}
 	defer conn.Close()
@@ -224,14 +227,14 @@ func dispatchRemoteCmd(port int, targetIP string, cmd string, id string) {
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	n, _, err := conn.ReadFrom(buffer)
 	if err != nil {
-		sendError(id, -1, "Remote node timeout: "+err.Error())
+		sendError(id, -1, "远程节点超时: "+err.Error())
 		return
 	}
 
 	sendResult(id, map[string]string{"node_response": string(buffer[:n])})
 }
 
-// --- Task Scheduler & Loop ---
+// --- 任务调度器逻辑 ---
 
 func scheduler() {
 	for {
@@ -240,12 +243,12 @@ func scheduler() {
 			return
 		case req := <-taskChan:
 			pqMu.Lock()
-			priority := 5
+			priority := 5 // 默认优先级
 			if req.Priority > 0 {
 				priority = req.Priority
 			}
 			heap.Push(pq, &InternalTask{req: req, priority: priority})
-			pqCond.Signal()
+			pqCond.Signal() // 唤醒正在等待任务的工作线程
 			pqMu.Unlock()
 		}
 	}
@@ -255,7 +258,7 @@ func worker() {
 	for {
 		pqMu.Lock()
 		for pq.Len() == 0 {
-			pqCond.Wait()
+			pqCond.Wait() // 任务队列为空，进入等待状态
 			select {
 			case <-ctx.Done():
 				pqMu.Unlock()
@@ -347,7 +350,7 @@ func processRequest(req Request) {
 		os.Exit(0)
 
 	default:
-		sendError(req.Id, -32601, "Method not found")
+		sendError(req.Id, -32601, "方法未找到")
 	}
 }
 
@@ -359,7 +362,7 @@ func main() {
 	}
 	go startDiscoveryListener(9999)
 
-	// Graceful shutdown on signals
+	// 处理操作系统信号，确保优雅退出
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -382,7 +385,7 @@ func main() {
 	}
 }
 
-// --- Helpers ---
+// --- 响应发送辅助函数 ---
 
 func sendResult(id string, result interface{}) {
 	resp := Response{Jsonrpc: "2.0", Result: result, Id: id}

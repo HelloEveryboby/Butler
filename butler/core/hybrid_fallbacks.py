@@ -206,7 +206,7 @@ def dispatch_fallback(method: str, params: Dict[str, Any]) -> Any:
         return {"error": {"code": -32601, "message": f"Method {method} not supported in fallback"}}
 
 def audit_dir(directory: str) -> List[Dict[str, Any]]:
-    """Python implementation of directory auditing."""
+    """Python 实现：目录完整性审计。"""
     import os
     import hashlib
     results = []
@@ -224,7 +224,7 @@ def audit_dir(directory: str) -> List[Dict[str, Any]]:
     return results
 
 def log_scan(directory: str, regex_str: str) -> Dict[str, List[str]]:
-    """Python implementation of log scanning."""
+    """Python 实现：日志并行扫描回退方案。"""
     import os
     import re
     results = {}
@@ -250,7 +250,7 @@ def log_scan(directory: str, regex_str: str) -> Dict[str, List[str]]:
     return results
 
 def discover_nodes() -> List[str]:
-    """Python implementation of node discovery via UDP broadcast."""
+    """Python 实现：通过 UDP 广播进行节点发现。"""
     import socket
     import os
     nodes = []
@@ -269,7 +269,7 @@ def discover_nodes() -> List[str]:
     return nodes
 
 def remote_dispatch(ip: str, cmd: str) -> Dict[str, str]:
-    """Python implementation of remote command dispatch."""
+    """Python 实现：远程指令分发。"""
     import socket
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -281,12 +281,12 @@ def remote_dispatch(ip: str, cmd: str) -> Dict[str, str]:
         return {"error": str(e)}
 
 def get_stats_fallback() -> Dict[str, Any]:
-    """Python implementation of basic stats."""
+    """Python 实现：基础系统统计。"""
     import psutil
     import os
     return {
         "workers": os.cpu_count(),
-        "goroutines": 0, # Not applicable in Python
+        "goroutines": 0, # Python 不适用
         "alloc_mb": psutil.Process().memory_info().rss // (1024 * 1024),
         "sys_mb": psutil.virtual_memory().used // (1024 * 1024),
         "pq_len": 0

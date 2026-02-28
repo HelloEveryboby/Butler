@@ -134,12 +134,19 @@ class HybridLinkClient:
             self.logger.error(f"Module Stderr: {line.strip()}")
 
     def call(self, method: str, params: Dict[str, Any], timeout: float = 10.0, wait: bool = True, priority: int = 5) -> Any:
-        """Calls a method in the remote module."""
+        """
+        调用远程模块中的方法。
+        :param method: 方法名
+        :param params: 参数字典
+        :param timeout: 超时时间（秒）
+        :param wait: 是否等待响应
+        :param priority: 任务优先级（由支持优先级队列的后端处理）
+        """
         if not self.process or not self._running:
             if self.fallback_enabled:
-                self.logger.info(f"Using Python fallback for method: {method}")
+                self.logger.info(f"正在为方法 {method} 使用 Python 回退方案")
                 return dispatch_fallback(method, params)
-            return {"error": {"message": "Process not started and fallback disabled"}}
+            return {"error": {"message": "进程未启动且已禁用回退方案"}}
 
         req_id = str(uuid.uuid4())
         request = {
