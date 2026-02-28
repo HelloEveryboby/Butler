@@ -1,5 +1,5 @@
 from typing import Any
-from .abstract_plugin import AbstractPlugin, PluginResult
+from .plugin_interface import AbstractPlugin, PluginResult
 
 class UserProfilePlugin(AbstractPlugin):
     """
@@ -7,6 +7,23 @@ class UserProfilePlugin(AbstractPlugin):
     """
     def get_name(self) -> str:
         return "UserProfilePlugin"
+
+    def get_chinese_name(self) -> str:
+        return "用户画像插件"
+
+    def get_description(self) -> str:
+        return "管理并记忆用户的个人偏好和基本信息"
+
+    def get_parameters(self) -> dict:
+        return {
+            "name": "用户姓名"
+        }
+
+    def on_startup(self):
+        self.logger.info("UserProfilePlugin 已启动")
+
+    def on_shutdown(self):
+        self.logger.info("UserProfilePlugin 已关闭")
 
     def valid(self) -> bool:
         return True
@@ -22,33 +39,33 @@ class UserProfilePlugin(AbstractPlugin):
         - "what is my name": Retrieves the user's name.
         """
         if not self.data_storage:
-            return PluginResult(success=False, error_message="Data storage not available.")
+            return PluginResult.new(success=False, error_message="Data storage not available.")
 
         if "remember my name is" in command:
             name = args.get("name")
             if name:
                 self.data_storage.save(self.get_name(), "user_name", name)
-                return PluginResult(success=True, result=f"Okay, I've remembered your name is {name}.")
+                return PluginResult.new(success=True, result=f"Okay, I've remembered your name is {name}.")
             else:
-                return PluginResult(success=False, error_message="No name provided.")
+                return PluginResult.new(success=False, error_message="No name provided.")
 
         elif "what is my name" in command:
             name = self.data_storage.load(self.get_name(), "user_name")
             if name:
-                return PluginResult(success=True, result=f"Your name is {name}.")
+                return PluginResult.new(success=True, result=f"Your name is {name}.")
             else:
-                return PluginResult(success=True, result="I don't know your name yet.")
+                return PluginResult.new(success=True, result="I don't know your name yet.")
 
-        return PluginResult(success=False, error_message="Unknown command.")
+        return PluginResult.new(success=False, error_message="Unknown command.")
 
     def stop(self):
-        return PluginResult(success=True, result="UserProfilePlugin stopped.")
+        return "UserProfilePlugin stopped."
 
     def cleanup(self):
         pass
 
     def status(self) -> Any:
-        return PluginResult(success=True, result="UserProfilePlugin is running.")
+        return "UserProfilePlugin is running."
 
     def get_commands(self) -> list[str]:
         return ["remember my name is", "what is my name"]

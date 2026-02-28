@@ -10,7 +10,7 @@ class ClearRecentMemoryPlugin(AbstractPlugin):
 
     #  在 init 方法中初始化类内部的日志记录器
     def init(self, logging):
-        self.logging = LogManager.get_logger(self.name)
+        self.logging = LogManager.get_logger(self.get_name())
 
     def get_name(self):
         return "clear_recent_memory"
