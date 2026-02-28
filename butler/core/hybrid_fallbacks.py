@@ -192,5 +192,102 @@ def dispatch_fallback(method: str, params: Dict[str, Any]) -> Any:
         return concurrent_download(params.get("url", ""), params.get("path", ""), int(params.get("concurrency", 1)))
     elif method == "batch_ping":
         return batch_ping(params.get("hosts", []))
+    elif method == "audit":
+        return audit_dir(params.get("dir", "."))
+    elif method == "log_scan":
+        return log_scan(params.get("dir", "."), params.get("regex", ""))
+    elif method == "discover_nodes":
+        return discover_nodes()
+    elif method == "remote_dispatch":
+        return remote_dispatch(params.get("ip", ""), params.get("cmd", ""))
+    elif method == "get_stats":
+        return get_stats_fallback()
     else:
         return {"error": {"code": -32601, "message": f"Method {method} not supported in fallback"}}
+
+def audit_dir(directory: str) -> List[Dict[str, Any]]:
+    """Python implementation of directory auditing."""
+    import os
+    import hashlib
+    results = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            path = os.path.join(root, file)
+            try:
+                with open(path, "rb") as f:
+                    h = hashlib.sha256()
+                    while chunk := f.read(8192):
+                        h.update(chunk)
+                    results.append({"path": path, "hash": h.hexdigest()})
+            except Exception as e:
+                results.append({"path": path, "error": str(e)})
+    return results
+
+def log_scan(directory: str, regex_str: str) -> Dict[str, List[str]]:
+    """Python implementation of log scanning."""
+    import os
+    import re
+    results = {}
+    try:
+        pattern = re.compile(regex_str)
+    except:
+        return {}
+
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if any(file.endswith(ext) for ext in [".log", ".txt", ".go", ".py", ".sh"]):
+                path = os.path.join(root, file)
+                matches = []
+                try:
+                    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                        for line in f:
+                            if pattern.search(line):
+                                matches.append(line.strip())
+                    if matches:
+                        results[path] = matches
+                except:
+                    continue
+    return results
+
+def discover_nodes() -> List[str]:
+    """Python implementation of node discovery via UDP broadcast."""
+    import socket
+    import os
+    nodes = []
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        s.settimeout(2)
+        s.sendto(b"BUTLER_DISCOVER", ("255.255.255.255", 9999))
+        while True:
+            data, addr = s.recvfrom(1024)
+            nodes.append(f"{addr[0]}:{addr[1]} -> {data.decode()}")
+    except socket.timeout:
+        pass
+    except Exception:
+        pass
+    return nodes
+
+def remote_dispatch(ip: str, cmd: str) -> Dict[str, str]:
+    """Python implementation of remote command dispatch."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(2)
+        s.sendto(f"BUTLER_CMD:{cmd}".encode(), (ip, 9999))
+        data, _ = s.recvfrom(1024)
+        return {"node_response": data.decode()}
+    except Exception as e:
+        return {"error": str(e)}
+
+def get_stats_fallback() -> Dict[str, Any]:
+    """Python implementation of basic stats."""
+    import psutil
+    import os
+    return {
+        "workers": os.cpu_count(),
+        "goroutines": 0, # Not applicable in Python
+        "alloc_mb": psutil.Process().memory_info().rss // (1024 * 1024),
+        "sys_mb": psutil.virtual_memory().used // (1024 * 1024),
+        "pq_len": 0
+    }
