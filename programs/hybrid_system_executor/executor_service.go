@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"container/heap"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -9,9 +11,13 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -22,6 +28,7 @@ type Request struct {
 	Method  string                 `json:"method"`
 	Params  map[string]interface{} `json:"params"`
 	Id      string                 `json:"id"`
+	Priority int                    `json:"priority,omitempty"` // 0: High, 10: Low
 }
 
 type Response struct {
@@ -37,13 +44,54 @@ type Event struct {
 	Params  interface{} `json:"params"`
 }
 
-// --- Multi-threaded Features ---
+// --- Priority Queue for Task Scheduling ---
+
+type InternalTask struct {
+	req      Request
+	priority int
+	index    int
+}
+
+type PriorityQueue []*InternalTask
+
+func (pq PriorityQueue) Len() int { return len(pq) }
+func (pq PriorityQueue) Less(i, j int) bool { return pq[i].priority < pq[j].priority }
+func (pq PriorityQueue) Swap(i, j int) {
+	pq[i], pq[j] = pq[j], pq[i]
+	pq[i].index = i
+	pq[j].index = j
+}
+func (pq *PriorityQueue) Push(x interface{}) {
+	n := len(*pq)
+	item := x.(*InternalTask)
+	item.index = n
+	*pq = append(*pq, item)
+}
+func (pq *PriorityQueue) Pop() interface{} {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	old[n-1] = nil
+	item.index = -1
+	*pq = old[0 : n-1]
+	return item
+}
+
+// --- Global Context & Synchronization ---
 
 var (
-	workerCount = runtime.NumCPU()
+	ctx, cancel = context.WithCancel(context.Background())
+	taskChan    = make(chan Request, 50)
 	outputMu    sync.Mutex
+	workerCount = runtime.NumCPU()
+	pq          = &PriorityQueue{}
+	pqMu        sync.Mutex
+	pqCond      = sync.NewCond(&pqMu)
 )
 
+// --- Multi-threaded Professional Features ---
+
+// 1. Parallel File Audit (existing, refined)
 func auditFile(path string) map[string]interface{} {
 	f, err := os.Open(path)
 	if err != nil {
@@ -62,48 +110,72 @@ func auditFile(path string) map[string]interface{} {
 	}
 }
 
-func runAudit(dir string, id string) {
-	sendEvent("audit_started", map[string]interface{}{"directory": dir})
+// 2. Parallel Regex Log Scanning (NEW)
+func scanLogFile(path string, pattern *regexp.Regexp) []string {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	var matches []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if pattern.MatchString(line) {
+			matches = append(matches, line)
+		}
+	}
+	return matches
+}
+
+func runLogScan(dir string, regexStr string, id string) {
+	re, err := regexp.Compile(regexStr)
+	if err != nil {
+		sendError(id, -1, "Invalid regex: "+err.Error())
+		return
+	}
+
+	sendEvent("scan_started", map[string]interface{}{"directory": dir, "regex": regexStr})
 
 	var files []string
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err == nil && !info.IsDir() {
-			files = append(files, path)
+			ext := strings.ToLower(filepath.Ext(path))
+			if ext == ".log" || ext == ".txt" || ext == ".go" || ext == ".sh" || ext == ".json" || ext == ".py" {
+				files = append(files, path)
+			}
 		}
 		return nil
 	})
 
-	results := make([]map[string]interface{}, 0)
+	results := make(map[string][]string)
 	var mu sync.Mutex
-	var innerWg sync.WaitGroup
-
-	// Limit concurrency for file audit to avoid too many open files
-	sem := make(chan struct{}, 10)
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 8)
 
 	for _, f := range files {
-		innerWg.Add(1)
+		wg.Add(1)
 		go func(file string) {
-			defer innerWg.Done()
+			defer wg.Done()
 			sem <- struct{}{}
-			res := auditFile(file)
-			mu.Lock()
-			results = append(results, res)
-			mu.Unlock()
+			matches := scanLogFile(file, re)
+			if len(matches) > 0 {
+				mu.Lock()
+				results[file] = matches
+				mu.Unlock()
+			}
 			<-sem
 		}(f)
 	}
 
-	innerWg.Wait()
+	wg.Wait()
 	sendResult(id, results)
 }
 
-// --- Node Discovery (UDP) ---
-
-func startDiscovery(port int) {
-	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", port))
-	if err != nil {
-		return
-	}
+// 3. UDP Discovery & Remote Command Dispatch (NEW)
+func startDiscoveryListener(port int) {
+	addr, _ := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", port))
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
 		return
@@ -112,49 +184,189 @@ func startDiscovery(port int) {
 
 	buffer := make([]byte, 1024)
 	for {
-		n, remoteAddr, err := conn.ReadFromUDP(buffer)
-		if err != nil {
-			continue
-		}
-		msg := string(buffer[:n])
-		if msg == "BUTLER_DISCOVER" {
-			hostname, _ := os.Hostname()
-			resp := fmt.Sprintf("BUTLER_NODE:%s:%d", hostname, runtime.NumCPU())
-			conn.WriteToUDP([]byte(resp), remoteAddr)
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			conn.SetReadDeadline(time.Now().Add(1 * time.Second))
+			n, remoteAddr, err := conn.ReadFromUDP(buffer)
+			if err != nil {
+				continue
+			}
+			msg := string(buffer[:n])
+			if msg == "BUTLER_DISCOVER" {
+				hostname, _ := os.Hostname()
+				resp := fmt.Sprintf("BUTLER_NODE:%s:%d", hostname, runtime.NumCPU())
+				conn.WriteToUDP([]byte(resp), remoteAddr)
+			} else if strings.HasPrefix(msg, "BUTLER_CMD:") {
+				// Professional: Remote Command Execution (Basic Ping)
+				cmd := strings.TrimPrefix(msg, "BUTLER_CMD:")
+				resp := fmt.Sprintf("BUTLER_ACK:%s:RECEIVED_%s", os.Getenv("HOSTNAME"), cmd)
+				conn.WriteToUDP([]byte(resp), remoteAddr)
+			}
 		}
 	}
 }
 
-func broadcastDiscovery(port int, timeout time.Duration, id string) {
-	addr, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("255.255.255.255:%d", port))
+func dispatchRemoteCmd(port int, targetIP string, cmd string, id string) {
+	addr, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", targetIP, port))
 	conn, err := net.DialUDP("udp", nil, addr)
 	if err != nil {
-		sendError(id, -1, "Failed to create UDP broadcast: "+err.Error())
+		sendError(id, -1, "Dispatch failed: "+err.Error())
 		return
 	}
 	defer conn.Close()
 
-	conn.Write([]byte("BUTLER_DISCOVER"))
+	payload := "BUTLER_CMD:" + cmd
+	conn.Write([]byte(payload))
 
-	nodes := make([]string, 0)
-	conn.SetReadDeadline(time.Now().Add(timeout))
 	buffer := make([]byte, 1024)
-
-	for {
-		n, remoteAddr, err := conn.ReadFrom(buffer)
-		if err != nil {
-			break
-		}
-		nodes = append(nodes, fmt.Sprintf("%s -> %s", remoteAddr.String(), string(buffer[:n])))
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, _, err := conn.ReadFrom(buffer)
+	if err != nil {
+		sendError(id, -1, "Remote node timeout: "+err.Error())
+		return
 	}
 
-	sendResult(id, nodes)
+	sendResult(id, map[string]string{"node_response": string(buffer[:n])})
 }
 
-// --- Main Loop ---
+// --- Task Scheduler & Loop ---
+
+func scheduler() {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case req := <-taskChan:
+			pqMu.Lock()
+			priority := 5
+			if req.Priority > 0 {
+				priority = req.Priority
+			}
+			heap.Push(pq, &InternalTask{req: req, priority: priority})
+			pqCond.Signal()
+			pqMu.Unlock()
+		}
+	}
+}
+
+func worker() {
+	for {
+		pqMu.Lock()
+		for pq.Len() == 0 {
+			pqCond.Wait()
+			select {
+			case <-ctx.Done():
+				pqMu.Unlock()
+				return
+			default:
+			}
+		}
+		item := heap.Pop(pq).(*InternalTask)
+		pqMu.Unlock()
+
+		processRequest(item.req)
+	}
+}
+
+func processRequest(req Request) {
+	switch req.Method {
+	case "audit":
+		dir, _ := req.Params["dir"].(string)
+		go func() {
+			var files []string
+			filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+				if err == nil && !info.IsDir() {
+					files = append(files, path)
+				}
+				return nil
+			})
+			results := make([]map[string]interface{}, 0)
+			var mu sync.Mutex
+			var wg sync.WaitGroup
+			sem := make(chan struct{}, 10)
+			for _, f := range files {
+				wg.Add(1)
+				go func(file string) {
+					defer wg.Done()
+					sem <- struct{}{}
+					res := auditFile(file)
+					mu.Lock()
+					results = append(results, res)
+					mu.Unlock()
+					<-sem
+				}(f)
+			}
+			wg.Wait()
+			sendResult(req.Id, results)
+		}()
+
+	case "log_scan":
+		dir, _ := req.Params["dir"].(string)
+		regex, _ := req.Params["regex"].(string)
+		go runLogScan(dir, regex, req.Id)
+
+	case "remote_dispatch":
+		ip, _ := req.Params["ip"].(string)
+		cmd, _ := req.Params["cmd"].(string)
+		go dispatchRemoteCmd(9999, ip, cmd, req.Id)
+
+	case "get_stats":
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		sendResult(req.Id, map[string]interface{}{
+			"workers":    workerCount,
+			"goroutines": runtime.NumGoroutine(),
+			"alloc_mb":   m.Alloc / 1024 / 1024,
+			"sys_mb":     m.Sys / 1024 / 1024,
+			"pq_len":     pq.Len(),
+		})
+
+	case "discover_nodes":
+		go func() {
+			addr, _ := net.ResolveUDPAddr("udp", "255.255.255.255:9999")
+			conn, _ := net.DialUDP("udp", nil, addr)
+			defer conn.Close()
+			conn.Write([]byte("BUTLER_DISCOVER"))
+			nodes := make([]string, 0)
+			conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+			buffer := make([]byte, 1024)
+			for {
+				n, remoteAddr, err := conn.ReadFrom(buffer)
+				if err != nil {
+					break
+				}
+				nodes = append(nodes, fmt.Sprintf("%s -> %s", remoteAddr.String(), string(buffer[:n])))
+			}
+			sendResult(req.Id, nodes)
+		}()
+
+	case "exit":
+		cancel()
+		os.Exit(0)
+
+	default:
+		sendError(req.Id, -32601, "Method not found")
+	}
+}
 
 func main() {
-	go startDiscovery(9999) // Background discovery listener
+	heap.Init(pq)
+	go scheduler()
+	for i := 0; i < workerCount; i++ {
+		go worker()
+	}
+	go startDiscoveryListener(9999)
+
+	// Graceful shutdown on signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		cancel()
+		os.Exit(0)
+	}()
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
@@ -162,49 +374,18 @@ func main() {
 		if line == "" {
 			continue
 		}
-
 		var req Request
 		if err := json.Unmarshal([]byte(line), &req); err != nil {
 			continue
 		}
-
-		switch req.Method {
-		case "audit":
-			dir, _ := req.Params["dir"].(string)
-			go runAudit(dir, req.Id)
-
-		case "discover_nodes":
-			go broadcastDiscovery(9999, 2*time.Second, req.Id)
-
-		case "get_stats":
-			var m runtime.MemStats
-			runtime.ReadMemStats(&m)
-			sendResult(req.Id, map[string]interface{}{
-				"workers":    workerCount,
-				"goroutines": runtime.NumGoroutine(),
-				"alloc_mb":   m.Alloc / 1024 / 1024,
-				"sys_mb":     m.Sys / 1024 / 1024,
-				"os":         runtime.GOOS,
-				"arch":       runtime.GOARCH,
-			})
-
-		case "exit":
-			os.Exit(0)
-
-		default:
-			sendError(req.Id, -32601, "Method not found")
-		}
+		taskChan <- req
 	}
 }
 
 // --- Helpers ---
 
 func sendResult(id string, result interface{}) {
-	resp := Response{
-		Jsonrpc: "2.0",
-		Result:  result,
-		Id:      id,
-	}
+	resp := Response{Jsonrpc: "2.0", Result: result, Id: id}
 	b, _ := json.Marshal(resp)
 	outputMu.Lock()
 	defer outputMu.Unlock()
@@ -212,14 +393,7 @@ func sendResult(id string, result interface{}) {
 }
 
 func sendError(id string, code int, message string) {
-	resp := Response{
-		Jsonrpc: "2.0",
-		Error: map[string]interface{}{
-			"code":    code,
-			"message": message,
-		},
-		Id: id,
-	}
+	resp := Response{Jsonrpc: "2.0", Error: map[string]interface{}{"code": code, "message": message}, Id: id}
 	b, _ := json.Marshal(resp)
 	outputMu.Lock()
 	defer outputMu.Unlock()
@@ -227,11 +401,7 @@ func sendError(id string, code int, message string) {
 }
 
 func sendEvent(method string, params interface{}) {
-	event := Event{
-		Jsonrpc: "2.0",
-		Method:  method,
-		Params:  params,
-	}
+	event := Event{Jsonrpc: "2.0", Method: method, Params: params}
 	b, _ := json.Marshal(event)
 	outputMu.Lock()
 	defer outputMu.Unlock()

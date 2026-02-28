@@ -133,7 +133,7 @@ class HybridLinkClient:
                 break
             self.logger.error(f"Module Stderr: {line.strip()}")
 
-    def call(self, method: str, params: Dict[str, Any], timeout: float = 10.0, wait: bool = True) -> Any:
+    def call(self, method: str, params: Dict[str, Any], timeout: float = 10.0, wait: bool = True, priority: int = 5) -> Any:
         """Calls a method in the remote module."""
         if not self.process or not self._running:
             if self.fallback_enabled:
@@ -146,7 +146,8 @@ class HybridLinkClient:
             "jsonrpc": "2.0",
             "method": method,
             "params": params,
-            "id": req_id
+            "id": req_id,
+            "priority": priority
         }
 
         if wait:
