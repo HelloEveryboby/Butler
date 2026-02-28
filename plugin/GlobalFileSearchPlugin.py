@@ -4,7 +4,7 @@ import pickle
 import time
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from .abstract_plugin import AbstractPlugin, PluginResult
+from .plugin_interface import AbstractPlugin, PluginResult
 
 class FileIndexer:
     def __init__(self, logger):
@@ -94,11 +94,39 @@ class GlobalFileSearchPlugin(AbstractPlugin):
         self.max_results = 50
         self.indexer = None
         self.root_paths = self._get_root_paths()
-    
+
+    def get_name(self) -> str:
+        return "GlobalFileSearchPlugin"
+
+    def get_chinese_name(self) -> str:
+        return "全局文件搜索插件"
+
+    def get_description(self) -> str:
+        return "在整个系统范围内构建索引并快速搜索文件"
+
+    def get_parameters(self) -> dict:
+        return {
+            "pattern": "搜索关键词"
+        }
+
+    def on_startup(self):
+        self.logger.info("GlobalFileSearchPlugin 已启动")
+
+    def on_shutdown(self):
+        self.logger.info("GlobalFileSearchPlugin 已关闭")
+
+    def valid(self) -> bool:
+        try:
+            import watchdog
+            return True
+        except ImportError:
+            return False
+
     def _get_root_paths(self):
         """获取系统根路径"""
         if os.name == 'posix':
-            return ["/"]
+            # Avoid scanning root in restricted environments, use current dir
+            return ["."]
         else:
             return [f"{d}:\\" for d in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if os.path.exists(f"{d}:")]
     
@@ -149,16 +177,16 @@ class GlobalFileSearchPlugin(AbstractPlugin):
     def run(self, command: str, args: dict) -> PluginResult:
         pattern = args.get("pattern")
         if not pattern:
-            return PluginResult(
+            return PluginResult.new(
                 success=False,
                 error_message="请输入要搜索的文件名关键词"
             )
         
         try:
             result = self.search_files(pattern)
-            return PluginResult(success=True, result=result)
+            return PluginResult.new(success=True, result=result)
         except Exception as e:
-            return PluginResult(success=False, error_message=f"搜索失败: {str(e)}")
+            return PluginResult.new(success=False, error_message=f"搜索失败: {str(e)}")
 
     def cleanup(self):
         if self.indexer:

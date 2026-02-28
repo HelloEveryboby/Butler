@@ -2,7 +2,7 @@ import importlib
 import pkgutil
 import inspect
 from typing import Type, Optional, List, Dict
-from .abstract_plugin import AbstractPlugin, PluginResult
+from .plugin_interface import AbstractPlugin, PluginResult
 from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
@@ -15,23 +15,26 @@ class PluginManager:
         self.plugins: Dict[str, AbstractPlugin] = {}
         self.data_storage_manager = data_storage_manager
         
-        # 配置日志
+        # Configure logging
         self.logger = logger
         
         self.load_all_plugins()
         
     def load_all_plugins(self):
-        """加载所有可用插件"""
-        self.logger.info(f"开始加载插件包: {self.plugin_package}")
-        for importer, module_name, ispkg in pkgutil.walk_packages([self.plugin_package]):
+        """Loads all available plugins"""
+        self.logger.info(f"Starting to load plugins package: {self.plugin_package}")
+        # walk_packages needs a filesystem path, not a module name
+        import os
+        package_path = self.plugin_package.replace('.', os.path.sep)
+        for importer, module_name, ispkg in pkgutil.walk_packages([package_path]):
             if not ispkg:
                 full_module_name = f"{self.plugin_package}.{module_name}"
-                self.logger.info(f"扫描模块: {full_module_name}")
+                self.logger.info(f"Scanning module: {full_module_name}")
                 self._load_plugins_from_module(full_module_name)
-        self.logger.info(f"插件加载完成，共 {len(self.plugins)} 个插件")
+        self.logger.info(f"Plugin loading complete, total {len(self.plugins)} plugins")
     
     def _load_plugins_from_module(self, module_name: str):
-        """从模块中加载所有插件类"""
+        """Loads all plugin classes from a module"""
         try:
             module = importlib.import_module(module_name)
             for attribute_name in dir(module):
@@ -42,19 +45,10 @@ class PluginManager:
                     if attribute.__name__.endswith("Plugin"):
                         self.load_plugin(module_name, attribute.__name__)
         except Exception as e:
-            self.logger.error(f"加载模块 {module_name} 失败: {e}")
+            self.logger.error(f"Failed to load module {module_name}: {e}")
 
     def load_plugin(self, module_name: str, class_name: str) -> Optional[AbstractPlugin]:
-        """
-        从给定的模块和类名加载单个插件。
-
-        参数：
-            module_name: 插件所在模块的名称。
-            class_name: 插件类的名称。
-
-        返回：
-            如果加载成功，则返回插件实例，否则返回 None。
-        """
+        """Loads a single plugin from the given module and class name."""
         try:
             module = importlib.import_module(module_name)
             plugin_class: Type[AbstractPlugin] = getattr(module, class_name)
@@ -65,109 +59,96 @@ class PluginManager:
                 plugin_instance.set_data_storage(self.data_storage_manager)
                 plugin_name = plugin_instance.get_name()
                 
-                # 处理重复加载
+                # Handle duplicate loading
                 if plugin_name in self.plugins:
-                    self.logger.warning(f"插件 {plugin_name} 已存在，重新加载")
+                    self.logger.warning(f"Plugin {plugin_name} already exists, reloading")
                     self.unload_plugin(plugin_name)
                 
                 self.plugins[plugin_name] = plugin_instance
-                self.logger.info(f"成功加载插件: {plugin_name}")
+                plugin_instance.on_startup()
+                self.logger.info(f"Successfully loaded plugin: {plugin_name}")
                 return plugin_instance
             else:
-                self.logger.warning(f"插件 {class_name} 无效，跳过加载")
+                self.logger.warning(f"Plugin {class_name} is invalid, skipping load")
                 return None
         except (ModuleNotFoundError, AttributeError) as e:
-            self.logger.error(f"加载插件 {module_name}.{class_name} 失败: {e}")
+            self.logger.error(f"Failed to load plugin {module_name}.{class_name}: {e}")
             return None
 
     def unload_plugin(self, name: str) -> bool:
-        """
-        卸载插件并释放其资源。
-
-        参数：
-            name: 要卸载的插件名称。
-
-        返回：
-            如果插件成功卸载，则返回 True，否则返回 False。
-        """
+        """Unloads a plugin and releases its resources."""
         if name in self.plugins:
             plugin = self.plugins.pop(name)
             try:
+                plugin.on_shutdown()
                 plugin.cleanup()
-                self.logger.info(f"已卸载插件: {name}")
+                self.logger.info(f"Unloaded plugin: {name}")
                 return True
             except Exception as e:
-                self.logger.error(f"卸载插件 {name} 时出错: {e}")
+                self.logger.error(f"Error while unloading plugin {name}: {e}")
         return False
 
     def get_plugin(self, name: str) -> Optional[AbstractPlugin]:
-        """获取已加载的插件"""
+        """Get a loaded plugin"""
         return self.plugins.get(name)
 
     def get_all_plugins(self) -> List[AbstractPlugin]:
-        """获取所有已加载插件"""
+        """Get all loaded plugins"""
         return list(self.plugins.values())
 
     def run_plugin(self, name: str, command: str, args: dict) -> PluginResult:
-        """
-        使用给定的命令和参数运行插件。
-
-        参数：
-            name: 要运行的插件名称。
-            command: 要执行的命令。
-            args: 命令的参数。
-
-        返回：
-            包含执行结果的 PluginResult 对象。
-        """
+        """Runs a plugin with the given command and arguments."""
         plugin = self.get_plugin(name)
         if plugin:
-            self.logger.info(f"执行插件: {name}，命令: {command}")
+            self.logger.info(f"Running plugin: {name}, command: {command}")
             try:
                 result = plugin.run(command, args)
-                return PluginResult(success=True, result=result)
+                if not isinstance(result, PluginResult):
+                    # Handle legacy plugins that might return something else
+                    return PluginResult.new(result=result)
+                return result
             except Exception as e:
-                error_msg = f"插件 {name} 执行出错: {str(e)}"
+                error_msg = f"Error executing plugin {name}: {str(e)}"
                 self.logger.error(error_msg)
-                return PluginResult(success=False, result=None, error_message=error_msg)
-        return PluginResult(
+                return PluginResult.new(result=None, success=False, error_message=error_msg)
+        return PluginResult.new(
+            result=None,
             success=False, 
-            result=None, 
-            error_message=f"插件 {name} 未找到或未加载"
+            error_message=f"Plugin {name} not found or not loaded"
         )
     
     def stop_plugin(self, name: str) -> PluginResult:
-        """停止插件运行"""
+        """Stops plugin execution"""
         plugin = self.get_plugin(name)
         if plugin:
-            self.logger.info(f"停止插件: {name}")
+            self.logger.info(f"Stopping plugin: {name}")
             try:
                 result = plugin.stop()
-                return PluginResult(success=True, result=result)
+                return PluginResult.new(result=result)
             except Exception as e:
-                error_msg = f"停止插件 {name} 出错: {str(e)}"
+                error_msg = f"Error stopping plugin {name}: {str(e)}"
                 self.logger.error(error_msg)
-                return PluginResult(success=False, result=None, error_message=error_msg)
-        return PluginResult(
+                return PluginResult.new(result=None, success=False, error_message=error_msg)
+        return PluginResult.new(
+            result=None,
             success=False, 
-            result=None, 
-            error_message=f"插件 {name} 未找到或未加载"
+            error_message=f"Plugin {name} not found or not loaded"
         )
     
     def get_plugin_status(self, name: str) -> PluginResult:
-        """获取插件状态"""
+        """Gets plugin status"""
         plugin = self.get_plugin(name)
         if plugin:
-            self.logger.info(f"查询插件状态: {name}")
+            self.logger.info(f"Querying status for plugin: {name}")
             try:
                 status = plugin.status()
-                return PluginResult(success=True, result=status)
+                return PluginResult.new(result=status)
             except Exception as e:
-                error_msg = f"获取插件 {name} 状态出错: {str(e)}"
+                error_msg = f"Error getting status for plugin {name}: {str(e)}"
                 self.logger.error(error_msg)
-                return PluginResult(success=False, result=None, error_message=error_msg)
-        return PluginResult(
+                return PluginResult.new(result=None, success=False, error_message=error_msg)
+        return PluginResult.new(
+            result=None,
             success=False, 
-            result=None, 
-            error_message=f"插件 {name} 未找到或未加载"
+            error_message=f"Plugin {name} not found or not loaded"
         )

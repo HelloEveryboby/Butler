@@ -1,7 +1,7 @@
 import os
 import json
 from datetime import datetime
-from .abstract_plugin import AbstractPlugin, PluginResult
+from .plugin_interface import AbstractPlugin, PluginResult
 
 class MemoPlugin(AbstractPlugin):
     def __init__(self):
@@ -19,6 +19,25 @@ class MemoPlugin(AbstractPlugin):
 
     def get_name(self) -> str:
         return "MemoPlugin"
+
+    def get_chinese_name(self) -> str:
+        return "备忘录插件"
+
+    def get_description(self) -> str:
+        return "管理用户的个人备忘录"
+
+    def get_parameters(self) -> dict:
+        return {
+            "content": "备忘录内容",
+            "memo_id": "备忘录ID",
+            "show_all": "是否显示所有备忘录"
+        }
+
+    def on_startup(self):
+        self.logger.info("MemoPlugin 已启动")
+
+    def on_shutdown(self):
+        self.logger.info("MemoPlugin 已关闭")
 
     def load_memos(self):
         """从文件加载备忘录"""
@@ -92,39 +111,39 @@ class MemoPlugin(AbstractPlugin):
         if "添加备忘录" in command:
             if content:
                 result = self.add_memo(content)
-                return PluginResult(success=True, result=result)
-            return PluginResult(success=False, error_message="备忘录内容不能为空")
+                return PluginResult.new(success=True, result=result)
+            return PluginResult.new(success=False, error_message="备忘录内容不能为空")
         
         elif "列出备忘录" in command:
             result = self.list_memos(show_all)
-            return PluginResult(success=True, result=result)
+            return PluginResult.new(success=True, result=result)
         
         elif "完成备忘录" in command:
             try:
                 memo_id = int(memo_id)
                 result = self.complete_memo(memo_id)
-                return PluginResult(success=True, result=result)
+                return PluginResult.new(success=True, result=result)
             except (ValueError, TypeError):
-                return PluginResult(success=False, error_message="请输入有效的备忘录ID")
+                return PluginResult.new(success=False, error_message="请输入有效的备忘录ID")
         
         elif "删除备忘录" in command:
             try:
                 memo_id = int(memo_id)
                 result = self.delete_memo(memo_id)
-                return PluginResult(success=True, result=result)
+                return PluginResult.new(success=True, result=result)
             except (ValueError, TypeError):
-                return PluginResult(success=False, error_message="请输入有效的备忘录ID")
+                return PluginResult.new(success=False, error_message="请输入有效的备忘录ID")
         
-        return PluginResult(
+        return PluginResult.new(
             success=False,
             error_message="无法识别的备忘录命令，请使用添加备忘录/列出备忘录/完成备忘录/删除备忘录"
         )
 
     def stop(self):
-        return PluginResult(success=True, result="备忘录插件已停止")
+        return "备忘录插件已停止"
 
     def status(self):
-        return PluginResult(success=True, result=f"已保存 {len(self.memos)} 条备忘录")
+        return f"已保存 {len(self.memos)} 条备忘录"
 
     def cleanup(self):
         self.save_memos()
