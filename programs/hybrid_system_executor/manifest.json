@@ -1,0 +1,11 @@
+{
+    "name": "hybrid_system_executor",
+    "description": "高性能多线程系统执行、审计与分布式任务调度引擎",
+    "version": "1.2.0",
+    "language": "go",
+    "protocol": "bhl",
+    "build": "go build -o executor_service executor_service.go",
+    "source": ["executor_service.go"],
+    "executable": "executor_service",
+    "methods": ["audit", "log_scan", "remote_dispatch", "adb_audit", "discover_nodes", "get_stats"]
+}
