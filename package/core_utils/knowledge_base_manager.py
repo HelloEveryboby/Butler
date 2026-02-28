@@ -11,8 +11,11 @@ from typing import List, Dict, Any, Optional
 from package.core_utils.log_manager import LogManager
 from package.core_utils.embedding_utils import get_embedding
 
-# 动态添加 markitdown 源码路径
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'markitdown', 'src')))
+# Use consistent project root resolution
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+markitdown_src = os.path.join(project_root, 'markitdown', 'src')
+if markitdown_src not in sys.path:
+    sys.path.insert(0, markitdown_src)
 
 try:
     import numpy as np

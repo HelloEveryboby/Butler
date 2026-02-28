@@ -57,6 +57,7 @@ class HybridLinkClient:
     def stop(self):
         """Stops the external process."""
         if self.process:
+            self._running = False
             try:
                 # Try graceful exit if possible
                 try:
@@ -64,20 +65,27 @@ class HybridLinkClient:
                 except:
                     pass
 
-                self._running = False
                 time.sleep(0.1)
                 if self.process.stdin:
-                    self.process.stdin.close()
-                if self.process.stdout:
-                    self.process.stdout.close()
-                if self.process.stderr:
-                    self.process.stderr.close()
+                    try:
+                        self.process.stdin.close()
+                    except:
+                        pass
+
                 self.process.terminate()
-                self.process.wait(timeout=1)
-            except:
-                if self.process:
+                try:
+                    self.process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
                     self.process.kill()
-            self.process = None
+            except Exception as e:
+                self.logger.error(f"Error while stopping process: {e}")
+                if self.process:
+                    try:
+                        self.process.kill()
+                    except:
+                        pass
+            finally:
+                self.process = None
 
     def __enter__(self):
         self.start()
@@ -89,7 +97,12 @@ class HybridLinkClient:
     def _listen_stdout(self):
         """Reads responses from the module."""
         while self._running and self.process and self.process.stdout:
-            line = self.process.stdout.readline()
+            try:
+                line = self.process.stdout.readline()
+            except Exception as e:
+                if self._running:
+                    self.logger.error(f"Error reading from stdout: {e}")
+                break
             if not line:
                 break
             try:

@@ -4,6 +4,8 @@
     "description": "High-performance document analysis and conversion module using file-based input.",
     "executable": "processor",
     "language": "cpp",
+    "source": ["processor.cpp"],
+    "build": "g++ -O3 {source} -o {output}",
     "methods": [
         "analyze_file"
     ]

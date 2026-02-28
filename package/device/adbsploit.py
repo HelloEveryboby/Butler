@@ -1240,6 +1240,7 @@ def clear():
     if sys.platform.startswith('win32'):
         subprocess.run(['cls'], shell=True)
     elif sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
+        # Fix: use list for security and avoid shell=True
         subprocess.run(['clear'])
 
     f = Figlet()

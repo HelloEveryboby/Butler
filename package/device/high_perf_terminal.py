@@ -29,12 +29,12 @@ class TerminalBridge:
                 output = event.get("params")
                 self.window.evaluate_js(f"window.onTerminalOutput({json.dumps(output)})")
 
-        self.terminal_client.add_event_callback(on_event)
-        self.terminal_client.call("start_terminal")
+        self.terminal_client.register_event_callback(on_event)
+        self.terminal_client.call("start_terminal", {})
 
     def terminal_input(self, data):
         if self.terminal_client:
-            self.terminal_client.call("write_input", data)
+            self.terminal_client.call("write_input", {"data": data})
 
 def run():
     # This HTML is a minimal version of the terminal part

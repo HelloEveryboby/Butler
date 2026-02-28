@@ -48,10 +48,17 @@ class TestImport(unittest.TestCase):
             'PIL.ExifTags': MagicMock(),
             'tqdm': MagicMock(),
             'openai': MagicMock(),
+            'redis': MagicMock(),
+            'psutil': MagicMock(),
+            'redisvl': MagicMock(),
+            'redisvl.index': MagicMock(),
+            'redisvl.schema': MagicMock(),
+            'redisvl.query': MagicMock(),
+            'redisvl.query.filter': MagicMock(),
         }
         with patch.dict(sys.modules, MOCK_MODULES):
             try:
-                from butler import main
+                from butler.butler_app import main
                 print("Successfully imported butler.butler_app")
             except Exception as e:
                 traceback.print_exc()
