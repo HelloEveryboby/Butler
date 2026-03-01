@@ -18,6 +18,11 @@ class NLUService:
         """Augments the system prompt with the current user habit profile."""
         base_prompt = self.prompts.get(base_prompt_key, {}).get("prompt", "")
         habit_summary = habit_manager.get_profile_summary()
+
+        # Avoid adding conversational instructions for structured extraction tasks
+        if base_prompt_key == "nlu_intent_extraction":
+            return f"{base_prompt}\n\n{habit_summary}\n\n注意：请仅在匹配意图时参考上述习惯（例如确定常开的程序或常用的文件路径），并始终严格返回 JSON 格式。"
+
         return f"{base_prompt}\n\n{habit_summary}\n请根据以上用户画像和习惯，提供更个性化、更默契的回复和处理。"
 
     def extract_intent(self, text: str, history: List[Any] = None) -> Dict[str, Any]:

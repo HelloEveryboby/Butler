@@ -88,16 +88,28 @@ class DataStorageManager:
         """
         Deletes a value for a specific plugin.
         """
-        if not self.redis_client:
-            self._logger.error(f"Cannot delete data: No Redis connection.")
-            return
+        deleted = False
+        if self.redis_client:
+            try:
+                redis_key = self._get_plugin_key(plugin_name, key)
+                self.redis_client.delete(redis_key)
+                self._logger.info(f"Deleted data from Redis for plugin '{plugin_name}' with key '{key}'.")
+                deleted = True
+            except Exception as e:
+                self._logger.error(f"Failed to delete data from Redis for plugin '{plugin_name}' with key '{key}': {e}")
 
+        # Always try to delete local file as well
         try:
-            redis_key = self._get_plugin_key(plugin_name, key)
-            self.redis_client.delete(redis_key)
-            self._logger.info(f"Deleted data for plugin '{plugin_name}' with key '{key}'.")
+            local_path = self._get_local_path(plugin_name, key)
+            if os.path.exists(local_path):
+                os.remove(local_path)
+                self._logger.info(f"Deleted data from local file for plugin '{plugin_name}' with key '{key}'.")
+                deleted = True
         except Exception as e:
-            self._logger.error(f"Failed to delete data for plugin '{plugin_name}' with key '{key}': {e}")
+            self._logger.error(f"Failed to delete data locally for plugin '{plugin_name}' with key '{key}': {e}")
+
+        if not deleted and not self.redis_client:
+            self._logger.warning(f"No data found to delete for plugin '{plugin_name}' with key '{key}'.")
 
 # Global instance to be used across the application
 data_storage_manager = DataStorageManager()

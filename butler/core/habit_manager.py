@@ -1,4 +1,5 @@
 import json
+import time
 from typing import Dict, Any, List, Optional
 from butler.data_storage import data_storage_manager
 from package.core_utils.log_manager import LogManager
@@ -30,6 +31,18 @@ class HabitManager:
     def save_profile(self):
         """Saves the current profile to persistent storage."""
         data_storage_manager.save(self._plugin_name, self._profile_key, self._profile)
+
+    def reset_profile(self):
+        """Resets the user profile to default and deletes it from storage."""
+        self._profile = {
+            "preferences": {},
+            "common_tasks": [],
+            "preferred_tools": [],
+            "interaction_style": "default",
+            "last_updated": 0
+        }
+        data_storage_manager.delete(self._plugin_name, self._profile_key)
+        self._logger.info("User habit profile has been reset.")
 
     def update_preference(self, key: str, value: Any):
         """Updates a specific preference in the profile."""
@@ -83,13 +96,18 @@ class HabitManager:
             for task in insights["common_tasks"]:
                 if task not in self._profile["common_tasks"]:
                     self._profile["common_tasks"].append(task)
+            # Limit to last 20 tasks
+            if len(self._profile["common_tasks"]) > 20:
+                self._profile["common_tasks"] = self._profile["common_tasks"][-20:]
 
         if "preferred_tools" in insights:
             for tool in insights["preferred_tools"]:
                 if tool not in self._profile["preferred_tools"]:
                     self._profile["preferred_tools"].append(tool)
+            # Limit to last 20 tools
+            if len(self._profile["preferred_tools"]) > 20:
+                self._profile["preferred_tools"] = self._profile["preferred_tools"][-20:]
 
-        import time
         self._profile["last_updated"] = time.time()
         self.save_profile()
 

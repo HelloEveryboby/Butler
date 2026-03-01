@@ -79,6 +79,7 @@ class Jarvis:
 
         self.ui_suggested = False
         self.waiting_for_ui_confirm = False
+        self._interaction_count = 0
 
     def _load_config(self):
         config_path = os.path.join(project_root, "config", "system_config.json")
@@ -198,6 +199,11 @@ class Jarvis:
         elif cmd.startswith("/sh ") or cmd.startswith("/shell "):
             command = cmd.split(maxsplit=1)[1]
             self._execute_with_interpreter("shell", command)
+        elif cmd == "/profile":
+            self.ui_print(habit_manager.get_profile_summary(), tag='system_message')
+        elif cmd == "/profile-reset":
+            habit_manager.reset_profile()
+            self.ui_print("用户画像与习惯已重置。", tag='system_message')
         else:
             # Check if we should use Interpreter for general queries (Auto-detect)
             if self._should_use_interpreter(cmd):
@@ -206,8 +212,12 @@ class Jarvis:
                 # Default to legacy command handling (intent-based)
                 self._handle_legacy_command(cmd)
 
-        # Trigger reflection after each command to learn habits
-        threading.Thread(target=self._reflect_on_interaction, args=(cmd,), daemon=True).start()
+        # Trigger reflection every 3 interactions or if it's a complex tool interaction
+        # to save API costs and avoid over-reflection.
+        self._interaction_count += 1
+        is_complex = self._should_use_interpreter(cmd)
+        if self._interaction_count % 3 == 0 or is_complex:
+            threading.Thread(target=self._reflect_on_interaction, daemon=True).start()
 
     def _should_use_interpreter(self, command):
         # Basic heuristic: if command mentions files, calculations, or complex tasks
@@ -358,7 +368,7 @@ class Jarvis:
         else:
             self.speak("未指定程序名称")
 
-    def _reflect_on_interaction(self, last_command: str):
+    def _reflect_on_interaction(self):
         """
         Reflects on the recent interaction to extract user habits and preferences.
         Updates the HabitManager based on these insights.
@@ -379,17 +389,17 @@ class Jarvis:
 
             response = self.nlu_service.ask_llm(reflection_prompt, history, use_habit=False)
 
-            # Clean up response for JSON parsing
-            if response.strip().startswith("```json"):
-                response = response.strip()[7:-4].strip()
-
-            try:
-                insights = json.loads(response)
-                if insights:
-                    self.logger.info(f"Reflected on interaction and found insights: {insights}")
-                    habit_manager.update_from_reflection(insights)
-            except json.JSONDecodeError:
-                pass
+            # Use regex to find JSON block for better robustness
+            json_match = re.search(r"(\{.*\})", response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+                try:
+                    insights = json.loads(json_str)
+                    if insights:
+                        self.logger.info(f"Reflected on interaction and found insights: {insights}")
+                        habit_manager.update_from_reflection(insights)
+                except json.JSONDecodeError:
+                    self.logger.warning(f"Failed to parse reflected insights: {json_str}")
 
         except Exception as e:
             self.logger.error(f"Reflection process failed: {e}")
