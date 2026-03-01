@@ -29,25 +29,26 @@ class ExtensionManager:
         self._scan_packages()
 
     def _scan_packages(self):
-        """扫描包目录中带有 run() 函数的简单 Python 脚本。"""
+        """扫描包目录及其子目录中带有 run() 函数的简单 Python 脚本。"""
         if not os.path.exists(self.package_dir):
             logger.warning(f"Package directory '{self.package_dir}' not found.")
             return
 
-        for filename in os.listdir(self.package_dir):
-            if filename.endswith(".py") and filename != "__init__.py":
-                package_name = filename[:-3]
-                package_path = os.path.join(self.package_dir, filename)
+        for root, dirs, files in os.walk(self.package_dir):
+            for filename in files:
+                if filename.endswith(".py") and filename != "__init__.py":
+                    package_name = filename[:-3]
+                    package_path = os.path.join(root, filename)
 
-                try:
-                    spec = importlib.util.spec_from_file_location(package_name, package_path)
-                    module = importlib.util.module_from_spec(spec)
-                    sys.modules[package_name] = module
-                    spec.loader.exec_module(module)
+                    try:
+                        spec = importlib.util.spec_from_file_location(package_name, package_path)
+                        module = importlib.util.module_from_spec(spec)
+                        sys.modules[package_name] = module
+                        spec.loader.exec_module(module)
 
-                    if hasattr(module, "run"):
-                        self.packages[package_name] = module
-                        logger.info(f"Loaded package: {package_name}")
+                        if hasattr(module, "run"):
+                            self.packages[package_name] = module
+                            logger.info(f"Loaded package: {package_name}")
                 except Exception as e:
                     logger.error(f"Failed to load package {package_name}: {e}")
 
