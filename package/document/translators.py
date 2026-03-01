@@ -6,50 +6,53 @@ from dotenv import load_dotenv
 from package.core_utils.config_loader import config_loader
 
 def load_api_key():
-    return config_loader.get("api.azure.translate.key")
+    return config_loader.get("api.deepseek.key")
 
 def detect_language(text):
     api_key = load_api_key()
-    endpoint = config_loader.get("api.azure.translate.endpoint", "https://api.cognitive.microsofttranslator.com")
+    endpoint = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
     
-    path = '/detect'
-    constructed_url = endpoint + path
-
     headers = {
-        'Ocp-Apim-Subscription-Key': api_key,
-        'Content-Type': 'application/json',
-        'X-ClientTraceId': str(uuid.uuid4())
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
     }
-    body = [{ 'text': text }]
     
-    response = requests.post(constructed_url, headers=headers, json=body)
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": "You are a language detector. Respond only with the ISO 639-1 language code of the input text (e.g., 'en', 'fr', 'ja')."},
+            {"role": "user", "content": text}
+        ],
+        "temperature": 0
+    }
+
+    response = requests.post(endpoint, headers=headers, json=payload)
     response.raise_for_status()
     
-    language = response.json()[0]['language']
+    language = response.json()['choices'][0]['message']['content'].strip().lower()
     return language
 
 def translate_text(text):
     api_key = load_api_key()
-    endpoint = config_loader.get("api.azure.translate.endpoint", "https://api.cognitive.microsofttranslator.com")
-
-    detected_language = detect_language(text)
+    endpoint = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
 
     headers = {
-        "Ocp-Apim-Subscription-Key": api_key,
-        "Content-Type": "application/json",
-        "X-ClientTraceId": str(uuid.uuid4())
-    }
-    params = {
-        "api-version": "3.0",
-        "from": detected_language,
-        "to": 'zh'
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
     }
 
-    translate_url = f"{endpoint}/translate"
-    body = [{"text": text}]
-    response = requests.post(translate_url, headers=headers, params=params, json=body)
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": "You are a professional translator. Translate the following text to Simplified Chinese (zh-CN). Provide only the translated text without any explanations."},
+            {"role": "user", "content": text}
+        ],
+        "temperature": 1.1 # DeepSeek recommended for translation
+    }
+
+    response = requests.post(endpoint, headers=headers, json=payload)
     response.raise_for_status()
-    translated_text = response.json()[0]['translations'][0]['text']
+    translated_text = response.json()['choices'][0]['message']['content'].strip()
     
     return translated_text
 

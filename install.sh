@@ -85,18 +85,22 @@ fi
 echo "Please enter your DeepSeek API Key:"
 read -s DEEPSEEK_API_KEY
 
-echo "Please enter your Azure Speech API Key:"
-read -s AZURE_SPEECH_KEY
+echo "Please enter your Baidu App ID:"
+read BAIDU_APP_ID
 
-echo "Please enter your Azure Speech Service Region (e.g., chinaeast2):"
-read AZURE_SERVICE_REGION
+echo "Please enter your Baidu API Key:"
+read BAIDU_API_KEY
+
+echo "Please enter your Baidu Secret Key:"
+read -s BAIDU_SECRET_KEY
 
 # Create .env file
 echo "Creating .env file..."
 cat > .env << EOL
 DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}"
-AZURE_SPEECH_KEY="${AZURE_SPEECH_KEY}"
-AZURE_SERVICE_REGION="${AZURE_SERVICE_REGION}"
+BAIDU_APP_ID="${BAIDU_APP_ID}"
+BAIDU_API_KEY="${BAIDU_API_KEY}"
+BAIDU_SECRET_KEY="${BAIDU_SECRET_KEY}"
 EOL
 
 echo "✅ .env file created successfully."

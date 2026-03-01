@@ -34,7 +34,7 @@ setup(
         "pycryptodome",
         "schedule",
         "twisted>=24.7.0rc1",
-        "azure-cognitiveservices-speech",
+        "baidu-aip",
         "numpy",
         "scipy"
     ],

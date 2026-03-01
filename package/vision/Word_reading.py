@@ -1,30 +1,58 @@
-import azure.cognitiveservices.speech as speechsdk
+import os
 import requests
+import tempfile
+import time
 from bs4 import BeautifulSoup
+from package.core_utils.config_loader import config_loader
 
 def text_to_speech(text):
-    # 配置 Azure Speech 服务的 API Key 和区域
-    speech_key = "Your-Azure-Speech-API-Key"
-    service_region = "Your-Service-Region"  # 例如 "eastus"
+    # 配置 Baidu Speech 服务的 API Key 等
+    try:
+        from aip import AipSpeech
+    except ImportError:
+        print("错误：请安装 baidu-aip 库 (pip install baidu-aip)")
+        return
 
-    # 创建语音配置对象
-    speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
-    audio_config = speechsdk.AudioConfig(use_default_speaker=True)
-    
-    # 创建语音合成器
-    speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
+    app_id = config_loader.get("api.baidu.app_id")
+    api_key = config_loader.get("api.baidu.api_key")
+    secret_key = config_loader.get("api.baidu.secret_key")
 
-    # 合成语音并播放
-    result = speech_synthesizer.speak_text_async(text).get()
+    if not all([app_id, api_key, secret_key]):
+        print("错误：未在配置中找到完整的百度 API 信息。")
+        return
 
-    # 检查合成结果
-    if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-        print("语音合成成功！")
-    elif result.reason == speechsdk.ResultReason.Canceled:
-        cancellation_details = result.cancellation_details
-        print(f"语音合成被取消: {cancellation_details.reason}")
-        if cancellation_details.reason == speechsdk.CancellationReason.Error:
-            print(f"错误详情: {cancellation_details.error_details}")
+    client = AipSpeech(app_id, api_key, secret_key)
+
+    # 合成语音
+    result = client.synthesis(text, 'zh', 1, {
+        'vol': 5,
+        'per': 4, # 4 是常用女声
+    })
+
+    # 检查合成结果并播放
+    if not isinstance(result, dict):
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as f:
+            f.write(result)
+            temp_file = f.name
+
+        try:
+            import pygame
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+            pygame.mixer.music.load(temp_file)
+            pygame.mixer.music.play()
+            while pygame.mixer.music.get_busy():
+                time.sleep(0.1)
+            print("语音合成成功并播放完毕！")
+        except ImportError:
+            print(f"语音合成成功，已保存到 {temp_file} (未安装 pygame，无法直接播放)")
+        except Exception as e:
+            print(f"播放失败: {e}")
+        finally:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+    else:
+        print(f"语音合成失败: {result}")
 
 def extract_webpage_content(url):
     try:

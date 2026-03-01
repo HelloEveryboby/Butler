@@ -91,16 +91,19 @@ if exist ".env" (
 
 echo Please enter your DeepSeek API Key:
 set /p DEEPSEEK_API_KEY=
-echo Please enter your Azure Speech API Key:
-set /p AZURE_SPEECH_KEY=
-echo Please enter your Azure Speech Service Region (e.g., chinaeast2):
-set /p AZURE_SERVICE_REGION=
+echo Please enter your Baidu App ID:
+set /p BAIDU_APP_ID=
+echo Please enter your Baidu API Key:
+set /p BAIDU_API_KEY=
+echo Please enter your Baidu Secret Key:
+set /p BAIDU_SECRET_KEY=
 
 echo Creating .env file...
 (
     echo DEEPSEEK_API_KEY="%DEEPSEEK_API_KEY%"
-    echo AZURE_SPEECH_KEY="%AZURE_SPEECH_KEY%"
-    echo AZURE_SERVICE_REGION="%AZURE_SERVICE_REGION%"
+    echo BAIDU_APP_ID="%BAIDU_APP_ID%"
+    echo BAIDU_API_KEY="%BAIDU_API_KEY%"
+    echo BAIDU_SECRET_KEY="%BAIDU_SECRET_KEY%"
 ) > .env
 
 echo .env file created successfully.
