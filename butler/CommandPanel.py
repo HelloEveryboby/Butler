@@ -28,15 +28,15 @@ class CommandPanel(tk.Frame):
         self.programs = programs or {}
         self.all_program_names = sorted(list(self.programs.keys()))
 
-        # --- 主题和样式 ---
-        self.background_color = '#282c34'
-        self.foreground_color = '#abb2bf'
-        self.input_bg_color = '#21252b'
-        self.button_bg_color = '#3e4451'
-        self.button_fg_color = self.foreground_color
-        self.code_bg_color = '#21252b'
-        self.menu_bg_color = '#21252b'
-        self.menu_fg_color = self.foreground_color
+        # --- 主题和样式 (Admin/Power User Style) ---
+        self.background_color = '#1c1c1c' # Deeper black
+        self.foreground_color = '#00ff00' # Terminal green
+        self.input_bg_color = '#000000'
+        self.button_bg_color = '#333333'
+        self.button_fg_color = '#ffffff'
+        self.code_bg_color = '#000000'
+        self.menu_bg_color = '#121212'
+        self.menu_fg_color = '#00ff00'
 
         self.font_configs = {
             "small": {
@@ -359,10 +359,10 @@ class CommandPanel(tk.Frame):
 
     def _configure_styles_and_tags(self):
         """配置用于设置输出样式的文本标签。"""
-        self.output_text.tag_config('user_prompt', foreground='#61afef', font=("Consolas", 11, "bold"))
+        self.output_text.tag_config('user_prompt', foreground='#ff00ff', font=("Consolas", 11, "bold"))
         self.output_text.tag_config('ai_response', foreground=self.foreground_color)
-        self.output_text.tag_config('system_message', foreground='#e5c07b', font=("Consolas", 11, "italic"))
-        self.output_text.tag_config('error', foreground='#e06c75')
+        self.output_text.tag_config('system_message', foreground='#00ffff', font=("Consolas", 11, "italic"))
+        self.output_text.tag_config('error', foreground='#ff0000', font=("Consolas", 11, "bold"))
 
         # Configure Pygments syntax highlighting tags
         if PYGMENTS_INSTALLED:
