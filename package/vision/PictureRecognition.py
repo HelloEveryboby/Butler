@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 import os
 from package.core_utils.log_manager import LogManager
 from package.network.image_search_tool import ImageSearchTool
@@ -19,6 +19,10 @@ def run(*args, **kwargs):
     # 创建搜索按钮
     search_button = tk.Button(window, text="搜索", command=lambda: search_image(entry, result_label))
     search_button.pack()
+
+    # 创建本地文件夹搜索按钮
+    local_search_button = tk.Button(window, text="搜索文件夹", command=lambda: search_folder(entry, result_label))
+    local_search_button.pack()
 
     # 创建关闭按钮
     close_button = tk.Button(window, text="X", command=window.destroy)
@@ -55,6 +59,27 @@ def run(*args, **kwargs):
 
     # 运行窗口
     window.mainloop()
+
+def search_folder(entry, result_label):
+    """
+    搜索本地文件夹中的图片。
+    """
+    try:
+        folder_path = entry.get()
+        if not folder_path or not os.path.isdir(folder_path):
+            folder_path = filedialog.askdirectory()
+            entry.delete(0, tk.END)
+            entry.insert(0, folder_path)
+
+        if folder_path:
+            tool = ImageSearchTool()
+            found = tool.search_local_images(folder_path)
+            result_label.config(text=f"在文件夹中找到 {len(found)} 张图片:\n" + "\n".join([os.path.basename(f) for f in found[:10]]))
+        else:
+            messagebox.showwarning("Warning", "Please select a directory.")
+    except Exception as e:
+        logger.error(f"Error searching folder: {e}")
+        messagebox.showerror("Error", str(e))
 
 # 使用整合的图片搜索工具
 def search_image(entry, result_label):

@@ -50,18 +50,10 @@ class ImageSearchTool:
             logger.error(f"File not found: {image_path}")
             return None
 
-        # Bing's Visual Search usually requires a POST to a specific endpoint or a multi-part form.
-        # A simpler way for a tool is to provide the results page URL if possible,
-        # but let's try to extract some basic info.
-
-        # Note: True reverse search via scraping is complex due to CSRF and dynamic tokens.
-        # For this version, we will provide a link and attempt to find "best guess" text if possible.
-
         visual_search_url = "https://www.bing.com/images/searchbyimage"
         try:
             with open(image_path, "rb") as f:
                 files = {'image': (os.path.basename(image_path), f, 'image/jpeg')}
-                # This is a simplified attempt; Bing might require more params
                 response = requests.post(visual_search_url, files=files, headers=self.headers, allow_redirects=True)
 
             return {
@@ -72,16 +64,63 @@ class ImageSearchTool:
             logger.error(f"Error in reverse_search: {e}")
             return None
 
+    def search_local_images(self, directory, pattern=""):
+        """Search for image files in a local directory."""
+        logger.info(f"Searching local images in {directory} with pattern: {pattern}")
+        image_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+        found_images = []
+
+        if not os.path.isdir(directory):
+            logger.error(f"Not a directory: {directory}")
+            return []
+
+        for root, _, files in os.walk(directory):
+            for file in files:
+                if file.lower().endswith(image_extensions):
+                    if not pattern or pattern.lower() in file.lower():
+                        found_images.append(os.path.join(root, file))
+
+        return found_images
+
+    def batch_reverse_search(self, directory):
+        """Perform reverse searches for all images in a local directory."""
+        logger.info(f"Batch reverse search for images in: {directory}")
+        images = self.search_local_images(directory)
+        batch_results = {}
+
+        for img_path in images:
+            res = self.reverse_search(img_path)
+            if res:
+                batch_results[img_path] = res['results_url']
+
+        return batch_results
+
 def run(*args, **kwargs):
     tool = ImageSearchTool()
     query = kwargs.get('query') or kwargs.get('search_query')
-    image_path = kwargs.get('image_path')
+    path = kwargs.get('path') or kwargs.get('image_path')
 
-    if image_path:
-        result = tool.reverse_search(image_path)
-        if result:
-            print(f"Reverse search results: {result['results_url']}")
-            return result
+    if path:
+        if os.path.isdir(path):
+            # If a directory is provided, we can search local images or batch reverse search
+            mode = kwargs.get('mode', 'local') # 'local' or 'batch'
+            if mode == 'batch':
+                results = tool.batch_reverse_search(path)
+                print(f"Batch reverse search complete for {len(results)} images.")
+                for p, url in results.items():
+                    print(f"{os.path.basename(p)}: {url}")
+                return results
+            else:
+                found = tool.search_local_images(path, query or "")
+                print(f"Found {len(found)} local images in {path}:")
+                for p in found[:20]: # Show first 20
+                    print(p)
+                return found
+        elif os.path.isfile(path):
+            result = tool.reverse_search(path)
+            if result:
+                print(f"Reverse search results: {result['results_url']}")
+                return result
     elif query:
         images = tool.search_by_text(query)
         if images:
@@ -94,7 +133,11 @@ def run(*args, **kwargs):
     else:
         # Interactive mode
         print("--- 图片搜索工具 ---")
-        choice = input("1. 关键词搜图\n2. 以图搜图\n请选择 (1/2): ")
+        print("1. 互联网关键词搜图")
+        print("2. 互联网以图搜图")
+        print("3. 本地文件夹搜索图片")
+        print("4. 本地文件夹批量以图搜图")
+        choice = input("请选择 (1/2/3/4): ")
         if choice == '1':
             q = input("请输入搜索关键词: ")
             images = tool.search_by_text(q)
@@ -103,6 +146,16 @@ def run(*args, **kwargs):
             p = input("请输入本地图片路径: ")
             res = tool.reverse_search(p)
             if res: print(f"搜索结果页面: {res['results_url']}")
+        elif choice == '3':
+            d = input("请输入本地文件夹路径: ")
+            q = input("请输入文件名关键词 (可选): ")
+            found = tool.search_local_images(d, q)
+            for f in found: print(f)
+        elif choice == '4':
+            d = input("请输入本地文件夹路径: ")
+            results = tool.batch_reverse_search(d)
+            for p, url in results.items():
+                print(f"{os.path.basename(p)}: {url}")
 
 if __name__ == "__main__":
     run()

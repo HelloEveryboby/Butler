@@ -14,6 +14,8 @@
     "图片搜索": "package/network/image_search_tool.py",
     "搜图": "package/network/image_search_tool.py",
     "以图搜图": "package/network/image_search_tool.py",
+    "搜索本地图片": "package/network/image_search_tool.py",
+    "文件夹搜图": "package/network/image_search_tool.py",
     "物体识别": "package/vision/PictureRecognition.py",
     "日程管理": "package/core_utils/schedule_management.py",
     "二维码识别": "package/vision/QR-Code-Recognition.py",
