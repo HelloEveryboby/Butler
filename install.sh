@@ -85,18 +85,10 @@ fi
 echo "Please enter your DeepSeek API Key:"
 read -s DEEPSEEK_API_KEY
 
-echo "Please enter your Azure Speech API Key:"
-read -s AZURE_SPEECH_KEY
-
-echo "Please enter your Azure Speech Service Region (e.g., chinaeast2):"
-read AZURE_SERVICE_REGION
-
 # Create .env file
 echo "Creating .env file..."
 cat > .env << EOL
 DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}"
-AZURE_SPEECH_KEY="${AZURE_SPEECH_KEY}"
-AZURE_SERVICE_REGION="${AZURE_SERVICE_REGION}"
 EOL
 
 echo "✅ .env file created successfully."

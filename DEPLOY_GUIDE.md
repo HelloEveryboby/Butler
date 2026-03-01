@@ -7,7 +7,7 @@ This comprehensive guide provides all the necessary steps to set up, configure, 
 - **Purpose**: Butler is a Python-based personal assistant operated by voice or text. It can perform a wide range of tasks through an extensible plugin and program architecture.
 - **Core Technologies**:
     - **Backend**: Python 3.8+
-    - **Speech Recognition**: Azure Cognitive Services
+    - **Speech Recognition**: Baidu/Vosk/PocketSphinx
     - **Natural Language Processing**: DeepSeek API
     - **System Dependencies**: PortAudio, Redis
 
@@ -95,11 +95,8 @@ The application requires API keys for its core AI services.
     # DeepSeek API Key for Natural Language Processing
     DEEPSEEK_API_KEY=YOUR_DEEPSEEK_API_KEY_HERE
 
-    # Azure Cognitive Speech Services for Speech-to-Text
-    AZURE_SPEECH_KEY=YOUR_AZURE_SPEECH_KEY_HERE
-    AZURE_SERVICE_REGION=YOUR_AZURE_SERVICE_REGION
     ```
-    *Replace `YOUR_..._HERE` with your actual API keys. The `AZURE_SERVICE_REGION` should match the region of your Azure Speech resource (e.g., `eastus`, `chinaeast2`).*
+    *Replace `YOUR_..._HERE` with your actual API keys.*
 
 ---
 

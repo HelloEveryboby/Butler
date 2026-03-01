@@ -316,10 +316,10 @@ def handle_translate_document(jarvis_app, entities, **kwargs):
     def run_translate():
         try:
             from package.document import translators
-            jarvis_app.ui_print(f"正在翻译文档: {path}")
+            jarvis_app.ui_print(f"正在翻译文档: {path} (目标语言: {target_lang})")
             # 生成输出文件名
             output_file = os.path.splitext(path)[0] + f"_{target_lang}_translated.md"
-            res = translators.translate_file(path, output_file, skip_confirmation=True)
+            res = translators.translate_file(path, output_file, target_lang=target_lang, skip_confirmation=True)
 
             if res.get("status") == "success":
                 jarvis_app.ui_print(f"翻译结果已保存至: {output_file}")

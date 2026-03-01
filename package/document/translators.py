@@ -62,7 +62,7 @@ def detect_language(text):
         return "zh"
     return "en"
 
-def translate_file(input_file, output_file, skip_confirmation=True):
+def translate_file(input_file, output_file, target_lang='zh', skip_confirmation=True):
     """
     翻译文件。支持文本、PDF、Word、PPTX 等。
     如果 skip_confirmation=False, 则仅进行提取并返回元数据。
@@ -80,7 +80,7 @@ def translate_file(input_file, output_file, skip_confirmation=True):
 
         # 2. 翻译文本
         # 注意: 如果文件过大，可能需要分片翻译。目前先直接翻译。
-        translated_text = translate_text(content)
+        translated_text = translate_text(content, target_lang=target_lang)
 
         # 3. 保存翻译后的内容 (保存为文本或 Markdown)
         with open(output_file, 'w', encoding='utf-8') as file:
@@ -92,7 +92,7 @@ def translate_file(input_file, output_file, skip_confirmation=True):
         logger.error(f"文件翻译失败: {e}")
         return {"status": "error", "message": str(e)}
 
-def translate_website(url):
+def translate_website(url, target_lang='zh'):
     try:
         response = requests.get(url, timeout=15)
         response.raise_for_status()
@@ -111,9 +111,9 @@ def translate_website(url):
 
             original_text = element.strip()
             if original_text and len(original_text) > 2:
-                # 只有非中文才翻译 (简单过滤)
-                if detect_language(original_text) != 'zh':
-                    translated = translate_text(original_text)
+                # 只有非目标语言才翻译 (简单过滤)
+                if detect_language(original_text) != target_lang:
+                    translated = translate_text(original_text, target_lang=target_lang)
                     element.replace_with(translated)
 
         translated_html = soup.prettify()

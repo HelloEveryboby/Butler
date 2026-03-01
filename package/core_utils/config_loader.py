@@ -14,6 +14,19 @@ class ConfigLoader:
     _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     _config_path = os.path.join(_project_root, "config", "system_config.json")
 
+    # Mapping of logical config paths to common/legacy environment variable names
+    _legacy_env_map = {
+        "api.deepseek.key": "DEEPSEEK_API_KEY",
+        "api.baidu.app_id": "BAIDU_APP_ID",
+        "api.baidu.api_key": "BAIDU_API_KEY",
+        "api.baidu.secret_key": "BAIDU_SECRET_KEY",
+        "api.azure.speech.key": "AZURE_SPEECH_KEY",
+        "api.azure.speech.region": "AZURE_SERVICE_REGION",
+        "api.azure.translate.key": "AZURE_TRANSLATE_KEY",
+        "api.picovoice.access_key": "PICOVOICE_ACCESS_KEY",
+        "api.bing.search_key": "BING_SEARCH_API_KEY"
+    }
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(ConfigLoader, cls).__new__(cls)
@@ -48,9 +61,19 @@ class ConfigLoader:
                 break
 
         if value is not None:
-            return value
+            # Check if it's a placeholder (e.g., "YOUR_API_KEY_HERE")
+            if isinstance(value, str) and value.startswith("YOUR_") and value.endswith("_HERE"):
+                pass # Fall back to environment variables
+            else:
+                return value
 
-        # Fallback to Environment Variables (uppercase, dot replaced by underscore)
+        # 1. Fallback to specific legacy environment variable names
+        legacy_key = self._legacy_env_map.get(key_path)
+        if legacy_key:
+            env_val = os.getenv(legacy_key)
+            if env_val: return env_val
+
+        # 2. Fallback to standard hierarchical environment variable naming (API_DEEPSEEK_KEY)
         env_key = key_path.upper().replace('.', '_')
         env_value = os.getenv(env_key)
         if env_value is not None:
