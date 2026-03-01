@@ -424,7 +424,7 @@ class Jarvis:
 
         # Use a more direct extraction for manual learning
         extraction_prompt = (
-            "用户要求你记住一条特定的协作偏好或习惯。请将其转换为我们的习惯画像 JSON 格式。\n"
+            "用户要求你记住一条特定的协作偏好或习惯. 请将其转换为我们的习惯画像 JSON 格式。\n"
             "输入内容: " + content + "\n"
             "只返回包含 `preferences` 或 `common_tasks` 的 JSON。"
         )
@@ -531,33 +531,43 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--headless", action="store_true", help="以无头模式运行")
-    parser.add_argument("--modern", action="store_true", help="使用精致 Web UI 启动")
+    parser.add_argument("--modern", action="store_true", help="使用精致 Web UI 启动 (默认)")
+    parser.add_argument("--classic", "--admin", action="store_true", dest="classic", help="启动 Tkinter 经典/管理界面")
     args = parser.parse_args()
 
-    if args.modern:
-        from frontend.program import modern_app
-        modern_app.main()
-        return
-
+    # Initialize common components
     usb_screen = USBScreen(40, 8)
+
+    # Priority: Headless > Classic/Admin > Modern (Default)
     if args.headless:
         jarvis = Jarvis(None, usb_screen)
         jarvis.main()
         while jarvis.running: time.sleep(1)
-    else:
-        root = tk.Tk()
-        root.title("Jarvis 助手")
-        jarvis = Jarvis(root, usb_screen)
+        return
 
-        # Get tools for panel
-        all_tools = {t['name']: t.get('path', t.get('module')) for t in extension_manager.get_all_tools()}
+    if not args.classic:
+        try:
+            from frontend.program import modern_app
+            modern_app.main()
+            return
+        except Exception as e:
+            print(f"Failed to start Modern UI: {e}. Falling back to Classic UI...")
+            # Fall through to classic UI
 
-        panel = CommandPanel(root, program_mapping=jarvis.program_mapping,
-                             programs=all_tools, command_callback=jarvis.panel_command_handler)
-        panel.pack(fill=tk.BOTH, expand=True)
-        jarvis.set_panel(panel)
-        jarvis.main()
-        root.mainloop()
+    # Classic/Admin UI or Fallback
+    root = tk.Tk()
+    root.title("Jarvis 助手 [管理模式]")
+    jarvis = Jarvis(root, usb_screen)
+
+    # Get tools for panel
+    all_tools = {t['name']: t.get('path', t.get('module')) for t in extension_manager.get_all_tools()}
+
+    panel = CommandPanel(root, program_mapping=jarvis.program_mapping,
+                         programs=all_tools, command_callback=jarvis.panel_command_handler)
+    panel.pack(fill=tk.BOTH, expand=True)
+    jarvis.set_panel(panel)
+    jarvis.main()
+    root.mainloop()
 
 if __name__ == "__main__":
     main()
