@@ -26,6 +26,7 @@ from butler.data_storage import data_storage_manager
 from butler.core.extension_manager import extension_manager
 from butler.core.voice_service import VoiceService
 from butler.core.nlu_service import NLUService
+from butler.core.habit_manager import habit_manager
 from butler.usb_screen import USBScreen
 from butler.resource_manager import ResourceManager, PerformanceMode
 from plugin.long_memory.redis_long_memory import RedisLongMemory
@@ -205,6 +206,9 @@ class Jarvis:
                 # Default to legacy command handling (intent-based)
                 self._handle_legacy_command(cmd)
 
+        # Trigger reflection after each command to learn habits
+        threading.Thread(target=self._reflect_on_interaction, args=(cmd,), daemon=True).start()
+
     def _should_use_interpreter(self, command):
         # Basic heuristic: if command mentions files, calculations, or complex tasks
         keywords = ['文件', '计算', '报销', '总结', '文件夹', 'excel', 'word', 'pdf', '分析']
@@ -353,6 +357,42 @@ class Jarvis:
                 self.speak(f"无法打开程序 {program_name}: {e}")
         else:
             self.speak("未指定程序名称")
+
+    def _reflect_on_interaction(self, last_command: str):
+        """
+        Reflects on the recent interaction to extract user habits and preferences.
+        Updates the HabitManager based on these insights.
+        """
+        try:
+            # Get recent context from memory
+            history = self.long_memory.get_recent_history(4) # Last few turns are enough for reflection
+
+            reflection_prompt = (
+                "你是一个观察敏锐的助手。请分析以下用户和助手的对话历史，提取用户的习惯、偏好和交互风格。\n"
+                "请返回一个 JSON 格式的对象，包含以下可选键：\n"
+                "- `preferences`: 一个包含用户明确或隐含偏好的字典（例如：偏好编程语言、工作时间、文档格式等）。\n"
+                "- `interaction_style`: 用户的沟通风格（例如：简洁、详细、专业、幽默等）。\n"
+                "- `common_tasks`: 一个字符串列表，包含用户经常请求的任务类型。\n"
+                "- `preferred_tools`: 一个字符串列表，包含用户倾向于使用的工具或软件名称。\n\n"
+                "只返回 JSON，不要有其他解释。如果没有任何有价值的发现，请返回空对象 {}。"
+            )
+
+            response = self.nlu_service.ask_llm(reflection_prompt, history, use_habit=False)
+
+            # Clean up response for JSON parsing
+            if response.strip().startswith("```json"):
+                response = response.strip()[7:-4].strip()
+
+            try:
+                insights = json.loads(response)
+                if insights:
+                    self.logger.info(f"Reflected on interaction and found insights: {insights}")
+                    habit_manager.update_from_reflection(insights)
+            except json.JSONDecodeError:
+                pass
+
+        except Exception as e:
+            self.logger.error(f"Reflection process failed: {e}")
 
     def _handle_exit(self):
         self.logger.info("程序已退出")
