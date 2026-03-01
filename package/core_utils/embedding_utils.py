@@ -4,10 +4,11 @@ import numpy as np
 import hashlib
 from typing import Optional, List
 from package.core_utils.log_manager import LogManager
+from package.core_utils.config_loader import config_loader
 
 logger = LogManager.get_logger(__name__)
 
-DEEPSEEK_API_URL = "https://api.deepseek.com/v1/embeddings"
+DEEPSEEK_API_URL = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/embeddings"
 EMBEDDING_MODEL = "deepseek-coder"
 
 def get_embedding(text: str, api_key: str = None, offline: bool = False) -> Optional[np.ndarray]:

@@ -1,5 +1,6 @@
 import requests
 from package.core_utils.log_manager import LogManager
+from package.core_utils.config_loader import config_loader
 from plugin.plugin_interface import AbstractPlugin, PluginResult
 
 logging = LogManager.get_logger(__name__)
@@ -67,9 +68,9 @@ class BingSearchPlugin(AbstractPlugin):
                                     error_message="参数 'num' 必须在 1 到 10 之间")
 
         # 必应搜索 API 的 URL 和请求头
-        base_url = "https://api.bing.microsoft.com/v7.0/search"
+        base_url = config_loader.get("api.bing.endpoint", "https://api.bing.microsoft.com/v7.0/search")
         headers = {
-            "Ocp-Apim-Subscription-Key": system_config.BING_SEARCH_API_KEY
+            "Ocp-Apim-Subscription-Key": config_loader.get("api.bing.search_key")
         }
         params = {
             "q": query,

@@ -21,6 +21,7 @@ import tkinter as tk
 from dotenv import load_dotenv
 
 from package.core_utils.log_manager import LogManager
+from package.core_utils.config_loader import config_loader
 from butler.CommandPanel import CommandPanel
 from butler.data_storage import data_storage_manager
 from butler.core.extension_manager import extension_manager
@@ -52,14 +53,14 @@ class Jarvis:
         self.logger = LogManager.get_logger(__name__)
 
         # Load configurations
-        self.config = self._load_config()
+        self.config = config_loader._config # Backward compatibility with local self.config
         self.prompts = self._load_json_resource("prompts.json")
         self.program_mapping = self._load_json_resource("program_mapping.json")
 
         # Initialize services
         self._initialize_long_memory()
         
-        self.nlu_service = NLUService(os.getenv("DEEPSEEK_API_KEY"), self.prompts)
+        self.nlu_service = NLUService(config_loader.get("api.deepseek.key"), self.prompts)
         self.voice_service = VoiceService(self.handle_user_command, self.ui_print, self._on_voice_status_change)
         
         # Apply voice config
@@ -81,17 +82,6 @@ class Jarvis:
         self.waiting_for_ui_confirm = False
         self._interaction_count = 0
 
-    def _load_config(self):
-        config_path = os.path.join(project_root, "config", "system_config.json")
-        try:
-            if os.path.exists(config_path):
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            else:
-                return {}
-        except Exception as e:
-            print(f"Failed to load system_config.json: {e}")
-            return {}
 
     def _load_json_resource(self, filename):
         path = os.path.join(os.path.dirname(__file__), filename)
@@ -103,7 +93,7 @@ class Jarvis:
             return {}
 
     def _initialize_long_memory(self):
-        api_key = os.getenv("DEEPSEEK_API_KEY")
+        api_key = config_loader.get("api.deepseek.key")
         try:
             if api_key:
                 # 优先尝试使用 Redis (如果已配置且运行中)
