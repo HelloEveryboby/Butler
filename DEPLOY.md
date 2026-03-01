@@ -55,9 +55,10 @@
     # 用于 NLP 处理的 DeepSeek API 密钥
     DEEPSEEK_API_KEY=在此填写您的_DEEPSEEK_API_KEY
 
-    # 用于语音转文本的 Azure 认知语音服务
-    AZURE_SPEECH_KEY=在此填写您的_AZURE_SPEECH_KEY
-    AZURE_SERVICE_REGION=chinaeast2
+    # 用于语音合成的百度 AI 开放平台 API
+    BAIDU_APP_ID=在此填写您的_BAIDU_APP_ID
+    BAIDU_API_KEY=在此填写您的_BAIDU_API_KEY
+    BAIDU_SECRET_KEY=在此填写您的_BAIDU_SECRET_KEY
     ```
 
 ## 4. 数据文件
