@@ -26,6 +26,7 @@ from butler.data_storage import data_storage_manager
 from butler.core.extension_manager import extension_manager
 from butler.core.voice_service import VoiceService
 from butler.core.nlu_service import NLUService
+from butler.core.habit_manager import habit_manager
 from butler.usb_screen import USBScreen
 from butler.resource_manager import ResourceManager, PerformanceMode
 from plugin.long_memory.redis_long_memory import RedisLongMemory
@@ -78,6 +79,7 @@ class Jarvis:
 
         self.ui_suggested = False
         self.waiting_for_ui_confirm = False
+        self._interaction_count = 0
 
     def _load_config(self):
         config_path = os.path.join(project_root, "config", "system_config.json")
@@ -197,6 +199,13 @@ class Jarvis:
         elif cmd.startswith("/sh ") or cmd.startswith("/shell "):
             command = cmd.split(maxsplit=1)[1]
             self._execute_with_interpreter("shell", command)
+        elif cmd == "/profile":
+            self.ui_print(habit_manager.get_profile_summary(), tag='system_message')
+        elif cmd == "/profile-reset":
+            habit_manager.reset_profile()
+            self.ui_print("用户画像与习惯已重置。", tag='system_message')
+        elif cmd.startswith("记住这一点：") or cmd.startswith("记住：") or cmd.startswith("Remember this:"):
+            self._handle_manual_habit_learning(cmd)
         else:
             # Check if we should use Interpreter for general queries (Auto-detect)
             if self._should_use_interpreter(cmd):
@@ -204,6 +213,13 @@ class Jarvis:
             else:
                 # Default to legacy command handling (intent-based)
                 self._handle_legacy_command(cmd)
+
+        # Trigger reflection every 3 interactions or if it's a complex tool interaction
+        # to save API costs and avoid over-reflection.
+        self._interaction_count += 1
+        is_complex = self._should_use_interpreter(cmd)
+        if self._interaction_count % 3 == 0 or is_complex:
+            threading.Thread(target=self._reflect_on_interaction, daemon=True).start()
 
     def _should_use_interpreter(self, command):
         # Basic heuristic: if command mentions files, calculations, or complex tasks
@@ -353,6 +369,80 @@ class Jarvis:
                 self.speak(f"无法打开程序 {program_name}: {e}")
         else:
             self.speak("未指定程序名称")
+
+    def _reflect_on_interaction(self):
+        """
+        Reflects on the recent interaction to extract user habits and preferences.
+        Updates the HabitManager based on these insights.
+        """
+        try:
+            # Get recent context from memory
+            history = self.long_memory.get_recent_history(4) # Last few turns are enough for reflection
+
+            reflection_prompt = (
+                "你是一个观察敏锐且追求默契的助手。请深度分析以下对话，提取用户的'隐形习惯'与'协作默契点'。\n"
+                "特别关注以下细节：\n"
+                "1. **快捷需求**: 用户是否有特定的缩写、口头禅或模糊指令（例如'老样子'指代什么）？\n"
+                "2. **工具偏好**: 用户是否在处理某类任务时总是倾向于某个特定工具或参数？\n"
+                "3. **雷区与痛点**: 用户曾纠正过你什么？用户不喜欢什么样的反馈？\n"
+                "4. **工作流**: 用户的任务通常包含哪些固定的前后置步骤？\n\n"
+                "请返回一个 JSON 格式的对象，包含以下可选键：\n"
+                "- `preferences`: 字典。记录明确偏好（如：'preferred_language': 'Python'）和默契点（如：'auto_open_browser': true）。\n"
+                "- `interaction_style`: 字符串。用户的沟通风格及情感偏好。\n"
+                "- `common_tasks`: 列表。用户的高频任务描述。\n"
+                "- `preferred_tools`: 列表。用户偏好的工具名。\n\n"
+                "只返回 JSON，确保简洁精准。如果没有新发现，请返回空对象 {}。"
+            )
+
+            response = self.nlu_service.ask_llm(reflection_prompt, history, use_habit=False)
+
+            # Use regex to find JSON block for better robustness
+            json_match = re.search(r"(\{.*\})", response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+                try:
+                    insights = json.loads(json_str)
+                    if insights:
+                        self.logger.info(f"Reflected on interaction and found insights: {insights}")
+                        habit_manager.update_from_reflection(insights)
+                except json.JSONDecodeError:
+                    self.logger.warning(f"Failed to parse reflected insights: {json_str}")
+
+        except Exception as e:
+            self.logger.error(f"Reflection process failed: {e}")
+
+    def _handle_manual_habit_learning(self, command: str):
+        """Processes manual habit learning requests from the user."""
+        content = command.split('：', 1)[-1].split(':', 1)[-1].strip()
+        self.ui_print(f"正在将 '{content}' 存入核心记忆...", tag='system_message')
+
+        # We use the reflection mechanism but with high priority for this specific turn
+        history = [
+            {"role": "user", "content": command},
+            {"role": "assistant", "content": "好的，我已经将此条目加入我的核心协作协议。"}
+        ]
+
+        # Use a more direct extraction for manual learning
+        extraction_prompt = (
+            "用户要求你记住一条特定的协作偏好或习惯。请将其转换为我们的习惯画像 JSON 格式。\n"
+            "输入内容: " + content + "\n"
+            "只返回包含 `preferences` 或 `common_tasks` 的 JSON。"
+        )
+
+        try:
+            response = self.nlu_service.ask_llm(extraction_prompt, history, use_habit=False)
+            json_match = re.search(r"(\{.*\})", response, re.DOTALL)
+            if json_match:
+                insights = json.loads(json_match.group(1))
+                habit_manager.update_from_reflection(insights)
+                self.ui_print("核心记忆已更新。您可以输入 `/profile` 查看结果。", tag='system_message')
+            else:
+                # Fallback to simple preference
+                habit_manager.update_preference("custom_note", content)
+                self.ui_print("已将此条目作为自定义备注存入画像。", tag='system_message')
+        except Exception as e:
+            self.logger.error(f"Manual habit learning failed: {e}")
+            self.ui_print("手动记忆失败，请稍后再试。", tag='error')
 
     def _handle_exit(self):
         self.logger.info("程序已退出")
