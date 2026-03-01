@@ -1,15 +1,12 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
-import requests
-from bs4 import BeautifulSoup
-from PIL import Image
-import io
-import base64
+from tkinter import messagebox, filedialog
+import os
 from package.core_utils.log_manager import LogManager
+from package.network.image_search_tool import ImageSearchTool
 
 logger = LogManager.get_logger(__name__)
 
-def run():
+def run(*args, **kwargs):
     logger.info("PictureRecognition tool started")
     # 创建 Tkinter 窗口
     window = tk.Tk()
@@ -22,6 +19,10 @@ def run():
     # 创建搜索按钮
     search_button = tk.Button(window, text="搜索", command=lambda: search_image(entry, result_label))
     search_button.pack()
+
+    # 创建本地文件夹搜索按钮
+    local_search_button = tk.Button(window, text="搜索文件夹", command=lambda: search_folder(entry, result_label))
+    local_search_button.pack()
 
     # 创建关闭按钮
     close_button = tk.Button(window, text="X", command=window.destroy)
@@ -59,62 +60,52 @@ def run():
     # 运行窗口
     window.mainloop()
 
-# 使用 Bing 图片搜索 API
-def search_image(entry, result_label):
+def search_folder(entry, result_label):
     """
-    使用 Bing 图片搜索 API 搜索图片相关信息。
+    搜索本地文件夹中的图片。
     """
     try:
-        image_path = entry.get()  # 获取输入框中的图片路径
-        logger.info(f"Searching for image: {image_path}")
+        folder_path = entry.get()
+        if not folder_path or not os.path.isdir(folder_path):
+            folder_path = filedialog.askdirectory()
+            entry.delete(0, tk.END)
+            entry.insert(0, folder_path)
 
-        if image_path:
-            # 将图片转换为 Base64 编码
-            with open(image_path, "rb") as image_file:
-                image_data = image_file.read()
-            encoded_image = base64.b64encode(image_data).decode("utf-8")
+        if folder_path:
+            tool = ImageSearchTool()
+            found = tool.search_local_images(folder_path)
+            result_label.config(text=f"在文件夹中找到 {len(found)} 张图片:\n" + "\n".join([os.path.basename(f) for f in found[:10]]))
+        else:
+            messagebox.showwarning("Warning", "Please select a directory.")
+    except Exception as e:
+        logger.error(f"Error searching folder: {e}")
+        messagebox.showerror("Error", str(e))
 
-            # Bing 图片搜索 API 请求 URL
-            api_url = "https://www.bing.com/images/search"
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-                "Accept-Encoding": "gzip, deflate, br",
-                "DNT": "1",
-                "Connection": "keep-alive",
-                "Upgrade-Insecure-Requests": "1",
-                "Sec-Fetch-Dest": "document",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "none",
-                "Sec-Fetch-User": "?1",
-                "TE": "trailers",
-            }
-            data = {
-                "q": "imgurl:" + encoded_image,
-                "form": "HDRSC2",
-            }
+# 使用整合的图片搜索工具
+def search_image(entry, result_label):
+    """
+    使用 ImageSearchTool 搜索图片相关信息。
+    """
+    try:
+        input_val = entry.get()
+        logger.info(f"Searching for: {input_val}")
 
-            # 发送请求
-            response = requests.post(api_url, headers=headers, data=data)
-            response.raise_for_status()  # 检查请求是否成功
-            logger.info(f"Bing search returned status code: {response.status_code}")
-
-            # 解析搜索结果页面
-            soup = BeautifulSoup(response.content, "html.parser")
-
-            # 提取搜索结果信息
-            results = {
-                "url": response.url,
-                "title": soup.find("title").text if soup.find("title") else "No title",
-                "description": soup.find("meta", attrs={"name": "description"}).get("content") if soup.find("meta", attrs={"name": "description"}) else "No description",
-                "images": [img.get("src") for img in soup.find_all("img", attrs={"src": True})],
-            }
-            logger.info(f"Found {len(results['images'])} images.")
-
-            # 在GUI中显示搜索结果
-            result_label.config(text=f"URL: {results['url']}\nTitle: {results['title']}\nDescription: {results['description']}\nImages: {', '.join(results['images'])}")
-
+        if input_val:
+            tool = ImageSearchTool()
+            if os.path.exists(input_val):
+                # 以图搜图
+                res = tool.reverse_search(input_val)
+                if res:
+                    result_label.config(text=f"搜索结果页面: {res['results_url']}")
+                else:
+                    result_label.config(text="搜索失败")
+            else:
+                # 关键词搜图
+                images = tool.search_by_text(input_val)
+                if images:
+                    result_label.config(text=f"找到 {len(images)} 张图片:\n" + "\n".join(images[:5]))
+                else:
+                    result_label.config(text="未找到相关图片")
         else:
             logger.warning("No image file selected.")
             messagebox.showwarning("Warning", "Please select an image file.")
