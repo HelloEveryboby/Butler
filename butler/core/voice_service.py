@@ -6,6 +6,7 @@ import tempfile
 from typing import Optional, Callable
 from dotenv import load_dotenv
 from package.core_utils.log_manager import LogManager
+from package.core_utils.config_loader import config_loader
 from butler.core.asset_loader import asset_loader
 
 logger = LogManager.get_logger(__name__)
@@ -27,12 +28,14 @@ class VoiceService:
     def _init_baidu_client(self):
         try:
             from aip import AipSpeech
-            app_id = os.getenv("BAIDU_APP_ID")
-            api_key = os.getenv("BAIDU_API_KEY")
-            secret_key = os.getenv("BAIDU_SECRET_KEY")
+            # Using centralized config loader with .env fallbacks
+            app_id = config_loader.get("api.baidu.app_id")
+            api_key = config_loader.get("api.baidu.api_key")
+            secret_key = config_loader.get("api.baidu.secret_key")
+
             if app_id and api_key and secret_key:
                 self.client = AipSpeech(app_id, api_key, secret_key)
-                logger.info("Baidu AipSpeech client initialized.")
+                logger.info("Baidu AipSpeech client initialized via central config.")
             else:
                 logger.warning("Baidu API keys missing in .env")
         except ImportError:
@@ -120,7 +123,7 @@ class VoiceService:
         try:
             from pvrecorder import PvRecorder
             # Using PvRecorder as a simple audio capturer (no model involved)
-            access_key = os.getenv("PICOVOICE_ACCESS_KEY")
+            access_key = config_loader.get("api.picovoice.access_key")
             if access_key:
                 recorder = PvRecorder(access_key=access_key, device_index=-1, frame_length=512)
             else:

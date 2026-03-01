@@ -3,14 +3,14 @@ import requests
 import uuid
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from package.core_utils.config_loader import config_loader
 
 def load_api_key():
-    load_dotenv()
-    return os.getenv('AZURE_TRANSLATE_KEY')
+    return config_loader.get("api.azure.translate.key")
 
 def detect_language(text):
     api_key = load_api_key()
-    endpoint = "https://api.cognitive.microsofttranslator.com"
+    endpoint = config_loader.get("api.azure.translate.endpoint", "https://api.cognitive.microsofttranslator.com")
     
     path = '/detect'
     constructed_url = endpoint + path
@@ -30,7 +30,7 @@ def detect_language(text):
 
 def translate_text(text):
     api_key = load_api_key()
-    endpoint = "https://api.cognitive.microsofttranslator.com"
+    endpoint = config_loader.get("api.azure.translate.endpoint", "https://api.cognitive.microsofttranslator.com")
 
     detected_language = detect_language(text)
 

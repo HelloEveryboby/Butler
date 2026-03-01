@@ -47,25 +47,25 @@ except ImportError:
     BAIDU_OCR_AVAILABLE = False
 
 from package.core_utils.log_manager import LogManager
+from package.core_utils.config_loader import config_loader
 
-load_dotenv()
 logger = LogManager.get_logger(__name__)
 
 class MarkerTool:
     """
     一个轻量级的 Marker 实现，使用 DeepSeek API 进行后端增强。
     """
-    def __init__(self, api_key: Optional[str] = None, base_url: str = "https://api.deepseek.com"):
-        self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
-        self.base_url = base_url
+    def __init__(self, api_key: Optional[str] = None, base_url: str = None):
+        self.api_key = api_key or config_loader.get("api.deepseek.key")
+        self.base_url = base_url or config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com")
         self._init_baidu_ocr()
 
     def _init_baidu_ocr(self):
         self.baidu_ocr = None
         if BAIDU_OCR_AVAILABLE:
-            app_id = os.getenv("BAIDU_APP_ID")
-            api_key = os.getenv("BAIDU_API_KEY")
-            secret_key = os.getenv("BAIDU_SECRET_KEY")
+            app_id = config_loader.get("api.baidu.app_id")
+            api_key = config_loader.get("api.baidu.api_key")
+            secret_key = config_loader.get("api.baidu.secret_key")
             if app_id and api_key and secret_key:
                 try:
                     self.baidu_ocr = AipOcr(app_id, api_key, secret_key)
@@ -78,7 +78,7 @@ class MarkerTool:
 
     def _get_deepseek_response(self, prompt: str, system_prompt: str = "You are a professional document converter.", json_mode: bool = False) -> str:
         if not self.api_key:
-            return "Error: DEEPSEEK_API_KEY not found."
+            return "Error: DeepSeek API Key not found in config or env."
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",

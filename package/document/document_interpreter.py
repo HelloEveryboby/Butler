@@ -44,8 +44,7 @@ except ImportError:
         MARKITDOWN_AVAILABLE = False
 
 from package.core_utils.log_manager import LogManager
-
-load_dotenv()
+from package.core_utils.config_loader import config_loader
 
 logger = LogManager.get_logger(__name__)
 
@@ -54,13 +53,13 @@ class DocumentInterpreter:
     一个高级文档解释器，支持多种格式的读取、分析和AI辅助处理。
     """
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
+        self.api_key = api_key or config_loader.get("api.deepseek.key")
         try:
             self.mid = MarkItDown() if MARKITDOWN_AVAILABLE else None
         except Exception as e:
             logger.warning(f"Failed to initialize MarkItDown: {e}")
             self.mid = None
-        self.deepseek_url = "https://api.deepseek.com/v1/chat/completions"
+        self.deepseek_url = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
 
     def get_file_type(self, file_path: str) -> Optional[str]:
         _, ext = os.path.splitext(file_path)

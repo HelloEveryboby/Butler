@@ -10,6 +10,7 @@ import time
 from typing import List, Dict, Any, Optional
 from package.core_utils.log_manager import LogManager
 from package.core_utils.embedding_utils import get_embedding
+from package.core_utils.config_loader import config_loader
 
 # Use consistent project root resolution
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -24,7 +25,7 @@ except ImportError:
     pass
 
 logger = LogManager.get_logger(__name__)
-API_KEY = os.getenv("DEEPSEEK_API_KEY")
+API_KEY = config_loader.get("api.deepseek.key")
 
 class KnowledgeBase:
     """
