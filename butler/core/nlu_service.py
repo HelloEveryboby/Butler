@@ -4,15 +4,18 @@ import requests
 import logging
 from typing import Dict, Any, List, Optional
 from package.core_utils.log_manager import LogManager
+from package.core_utils.config_loader import config_loader
 from butler.core.habit_manager import habit_manager
 
 logger = LogManager.get_logger(__name__)
 
 class NLUService:
     def __init__(self, api_key: str, prompts: Dict[str, Any]):
-        self.api_key = api_key
+        # Prefer the provided api_key (from .env or direct call), or fall back to centralized config
+        self.api_key = api_key or config_loader.get("api.deepseek.key")
         self.prompts = prompts
-        self.url = "https://api.deepseek.com/v1/chat/completions"
+        # Centralized endpoint with fallback
+        self.url = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
 
     def _get_augmented_system_prompt(self, base_prompt_key: str) -> str:
         """Augments the system prompt with the current user habit profile."""

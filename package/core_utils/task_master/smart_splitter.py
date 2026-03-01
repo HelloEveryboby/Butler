@@ -1,7 +1,7 @@
 import os
 import json
 import requests
-from dotenv import load_dotenv
+from package.core_utils.config_loader import config_loader
 
 class SmartSplitter:
     """
@@ -11,10 +11,7 @@ class SmartSplitter:
         """
         初始化智能分解器，并加载API密钥。
         """
-        # 加载项目根目录的.env文件以获取API密钥
-        dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', '.env')
-        load_dotenv(dotenv_path=dotenv_path)
-        self.deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
+        self.deepseek_api_key = config_loader.get("api.deepseek.key")
 
         # 离线模式的简单规则模板
         self.offline_templates = {
@@ -44,9 +41,9 @@ class SmartSplitter:
         :return: 一个包含建议子任务字符串的列表，或在出错时返回包含错误信息的列表。
         """
         if not self.deepseek_api_key:
-            return ["错误：未找到 DeepSeek API 密钥。请检查您的 .env 文件。"]
+            return ["错误：未找到 DeepSeek API 密钥。请检查您的 .env 文件或 system_config.json。"]
 
-        url = "https://api.deepseek.com/v1/chat/completions"
+        url = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.deepseek_api_key}",
             "Content-Type": "application/json"

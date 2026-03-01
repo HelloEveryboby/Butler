@@ -275,8 +275,72 @@ def handle_manage_dependencies(jarvis_app, entities, **kwargs):
 
     threading.Thread(target=run_dep_mgr, daemon=True).start()
 
-# 用于存储待确认的转换任务
+# 用于存储待确认的任务
 pending_marker_tasks = {}
+pending_translation_tasks = {}
+
+@register_intent("translate_document")
+def handle_translate_document(jarvis_app, entities, **kwargs):
+    """翻译各种文档 (PDF, Word, PPTX等)。需要用户确认。"""
+    path = entities.get("path")
+    target_lang = entities.get("target_lang", "zh")
+    confirm_bypass = entities.get("confirm", False)
+
+    if not path:
+        jarvis_app.speak("请提供要翻译的文件路径。")
+        return
+
+    if not os.path.exists(path):
+        jarvis_app.speak(f"找不到文件: {path}")
+        return
+
+    if not confirm_bypass:
+        # 第一步：预提取并请求确认
+        try:
+            from package.document import translators
+            res = translators.translate_file(path, "", skip_confirmation=False)
+
+            char_count = res.get("char_count", 0)
+            task_id = str(datetime.datetime.now().timestamp())
+            pending_translation_tasks[task_id] = {"path": path, "target_lang": target_lang}
+
+            jarvis_app.ui_print(f"--- 翻译预解析 ---\n文件: {path}\n字数: {char_count}\n目标语言: {target_lang}")
+            jarvis_app.speak(f"已提取出约 {char_count} 个字符。由于大规模翻译会产生 API 消耗，请确认是否继续？如果是，请说“确认翻译”。")
+            jarvis_app._last_translate_task_id = task_id
+            return
+        except Exception as e:
+            jarvis_app.speak(f"解析失败: {e}")
+            return
+
+    # 如果已经确认，则直接运行
+    def run_translate():
+        try:
+            from package.document import translators
+            jarvis_app.ui_print(f"正在翻译文档: {path}")
+            # 生成输出文件名
+            output_file = os.path.splitext(path)[0] + f"_{target_lang}_translated.md"
+            res = translators.translate_file(path, output_file, skip_confirmation=True)
+
+            if res.get("status") == "success":
+                jarvis_app.ui_print(f"翻译结果已保存至: {output_file}")
+                jarvis_app.speak(f"翻译任务已完成，结果已保存为 {os.path.basename(output_file)}。")
+            else:
+                jarvis_app.speak(f"翻译失败: {res.get('message')}")
+        except Exception as e:
+            jarvis_app.speak(f"翻译过程中出错: {e}")
+
+    threading.Thread(target=run_translate, daemon=True).start()
+
+@register_intent("translate_approve", requires_entities=False)
+def handle_translate_approve(jarvis_app, **kwargs):
+    """确认执行待定的文档翻译任务。"""
+    task_id = getattr(jarvis_app, "_last_translate_task_id", None)
+    if not task_id or task_id not in pending_translation_tasks:
+        jarvis_app.speak("没有待确认的翻译任务。")
+        return
+
+    task = pending_translation_tasks.pop(task_id)
+    handle_translate_document(jarvis_app, entities={"path": task["path"], "target_lang": task["target_lang"], "confirm": True})
 
 @register_intent("marker_convert")
 def handle_marker_convert(jarvis_app, entities, **kwargs):

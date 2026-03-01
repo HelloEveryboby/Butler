@@ -1,4 +1,32 @@
 {
+    "api": {
+        "deepseek": {
+            "key": "YOUR_DEEPSEEK_API_KEY_HERE",
+            "endpoint": "https://api.deepseek.com/v1"
+        },
+        "baidu": {
+            "app_id": "YOUR_BAIDU_APP_ID_HERE",
+            "api_key": "YOUR_BAIDU_API_KEY_HERE",
+            "secret_key": "YOUR_BAIDU_SECRET_KEY_HERE"
+        },
+        "azure": {
+            "speech": {
+                "key": "YOUR_AZURE_SPEECH_KEY_HERE",
+                "region": "chinaeast2"
+            },
+            "translate": {
+                "key": "YOUR_AZURE_TRANSLATE_KEY_HERE",
+                "endpoint": "https://api.cognitive.microsofttranslator.com"
+            }
+        },
+        "picovoice": {
+            "access_key": "YOUR_PICOVOICE_ACCESS_KEY_HERE"
+        },
+        "bing": {
+            "search_key": "YOUR_BING_SEARCH_API_KEY_HERE",
+            "endpoint": "https://api.bing.microsoft.com/v7.0/search"
+        }
+    },
     "voice": {
         "mode": "offline",
         "vosk_model_path": "vosk-model-small-en-us-0.15",
