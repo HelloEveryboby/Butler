@@ -21,9 +21,16 @@ class NLUService:
 
         # Avoid adding conversational instructions for structured extraction tasks
         if base_prompt_key == "nlu_intent_extraction":
-            return f"{base_prompt}\n\n{habit_summary}\n\n注意：请仅在匹配意图时参考上述习惯（例如确定常开的程序或常用的文件路径），并始终严格返回 JSON 格式。"
+            return f"{base_prompt}\n\n{habit_summary}\n\n注意：请仅在匹配意图时参考上述习惯（例如通过历史确定常开的程序或模糊的文件路径），并始终严格返回 JSON 格式。"
 
-        return f"{base_prompt}\n\n{habit_summary}\n请根据以上用户画像和习惯，提供更个性化、更默契的回复和处理。"
+        personality_injection = (
+            f"\n\n--- 🤖 核心记忆与协同协议 ---\n"
+            f"以下是你通过长期交互学习到的用户偏好与默契，请将这些信息融入你的行为逻辑：\n"
+            f"{habit_summary}\n"
+            f"你要像一个多年老友一样，通过以上信息预判用户的需求，提供更默契、更个性化的响应。"
+        )
+
+        return f"{base_prompt}{personality_injection}"
 
     def extract_intent(self, text: str, history: List[Any] = None) -> Dict[str, Any]:
         """使用 DeepSeek API 从用户文本中提取意图和实体。"""

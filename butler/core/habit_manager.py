@@ -1,5 +1,6 @@
 import json
 import time
+import os
 from typing import Dict, Any, List, Optional
 from butler.data_storage import data_storage_manager
 from package.core_utils.log_manager import LogManager
@@ -12,7 +13,10 @@ class HabitManager:
         self._logger = LogManager.get_logger(__name__)
         self._plugin_name = "SystemHabitManager"
         self._profile_key = "user_habit_profile"
+        self._project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self._habits_md_path = os.path.join(self._project_root, "data", "HABITS.md")
         self._profile: Dict[str, Any] = self._load_profile()
+        self._sync_to_markdown()
 
     def _load_profile(self) -> Dict[str, Any]:
         """Loads the user profile from persistent storage."""
@@ -29,8 +33,47 @@ class HabitManager:
         return profile
 
     def save_profile(self):
-        """Saves the current profile to persistent storage."""
+        """Saves the current profile to persistent storage and syncs to Markdown."""
         data_storage_manager.save(self._plugin_name, self._profile_key, self._profile)
+        self._sync_to_markdown()
+
+    def _sync_to_markdown(self):
+        """Syncs the internal profile to a human-readable HABITS.md file."""
+        try:
+            os.makedirs(os.path.dirname(self._habits_md_path), exist_ok=True)
+            content = "# User Habits & Coordination Profile (HABITS.md)\n\n"
+            content += "> 这是 Jarvis 自动生成的记忆与偏好文件。它记录了您的使用习惯，帮助我们配合得更默契。\n\n"
+
+            content += "## 👤 个人偏好 (Preferences)\n"
+            if self._profile["preferences"]:
+                for k, v in self._profile["preferences"].items():
+                    content += f"- **{k}**: {v}\n"
+            else:
+                content += "- 暂无明确偏好\n"
+
+            content += "\n## ⚡ 交互风格 (Interaction Style)\n"
+            content += f"- 当前风格: {self._profile['interaction_style']}\n"
+
+            content += "\n## 🛠️ 常用工具 (Preferred Tools)\n"
+            if self._profile["preferred_tools"]:
+                for tool in self._profile["preferred_tools"]:
+                    content += f"- {tool}\n"
+            else:
+                content += "- 尚未识别常用工具\n"
+
+            content += "\n## 📝 高频任务 (Common Tasks)\n"
+            if self._profile["common_tasks"]:
+                for task in self._profile["common_tasks"]:
+                    content += f"- {task}\n"
+            else:
+                content += "- 尚未记录高频任务\n"
+
+            content += f"\n---\n*最后更新时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self._profile['last_updated'])) if self._profile['last_updated'] > 0 else '从未使用'}*"
+
+            with open(self._habits_md_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+        except Exception as e:
+            self._logger.error(f"Failed to sync habits to Markdown: {e}")
 
     def reset_profile(self):
         """Resets the user profile to default and deletes it from storage."""
