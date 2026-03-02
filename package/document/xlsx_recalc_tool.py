@@ -8,7 +8,7 @@ logger = LogManager.get_logger(__name__)
 
 def run(file_path: str, timeout: int = 60):
     """
-    Recalculates formulas in an Excel file using the relocated skill script.
+    Recalculates formulas in an Excel file using the relocated expert script.
 
     Args:
         file_path (str): Path to the Excel file.
@@ -22,7 +22,7 @@ def run(file_path: str, timeout: int = 60):
 
     # Resolve the path to the recalc.py script in its new location
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    recalc_script = os.path.join(project_root, "package", "document", "xlsx_skill", "scripts", "recalc.py")
+    recalc_script = os.path.join(project_root, "package", "document", "xlsx_expert", "scripts", "recalc.py")
 
     if not os.path.exists(recalc_script):
         return {"status": "error", "message": f"Recalculation script not found at {recalc_script}"}

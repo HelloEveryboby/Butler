@@ -17,6 +17,8 @@ openai
 opencv-python
 openpyxl
 pandas
+lxml
+defusedxml
 paramiko
 pdfplumber
 python-docx

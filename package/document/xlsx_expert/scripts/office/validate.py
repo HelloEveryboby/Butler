@@ -19,7 +19,10 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from validators import DOCXSchemaValidator, PPTXSchemaValidator, RedliningValidator
+try:
+    from .validators import DOCXSchemaValidator, PPTXSchemaValidator, RedliningValidator
+except ImportError:
+    from validators import DOCXSchemaValidator, PPTXSchemaValidator, RedliningValidator
 
 
 def main():
