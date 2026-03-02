@@ -52,5 +52,6 @@
     "NFC读取": "package/device/nfc_ir_manager.py",
     "NFC克隆": "package/device/nfc_ir_manager.py",
     "红外学习": "package/device/nfc_ir_manager.py",
-    "红外控制": "package/device/nfc_ir_manager.py"
+    "红外控制": "package/device/nfc_ir_manager.py",
+    "systematic_debugging": "package/document/systematic_debugging_tool.py"
 }
