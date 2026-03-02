@@ -5,6 +5,11 @@
       "source": "anthropics/knowledge-work-plugins",
       "sourceType": "github",
       "computedHash": "0733087f94a9756e8316e635709b154504c0c20d4dba0cf76f5a4eb7332882c1"
+    },
+    "systematic-debugging": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "path": "skills/systematic-debugging"
     }
   }
 }
