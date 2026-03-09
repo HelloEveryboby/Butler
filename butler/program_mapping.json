@@ -58,5 +58,7 @@
     "记忆读取": "package/document/memory_tools_bridge.py",
     "记录记忆": "package/document/memory_tools_bridge.py",
     "长期记忆": "package/document/memory_tools_bridge.py",
-    "每日日志": "package/document/memory_tools_bridge.py"
+    "每日日志": "package/document/memory_tools_bridge.py",
+    "原理分析": "package/document/working_principle_tool.py",
+    "工作原理提取": "package/document/working_principle_tool.py"
 }

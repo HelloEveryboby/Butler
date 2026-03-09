@@ -119,6 +119,82 @@ void handle_analyze_file(const std::string& line, const std::string& id) {
     std::cout << ss.str() << std::endl;
 }
 
+void handle_extract_key_sections(const std::string& line, const std::string& id) {
+    std::string file_path = get_json_value(line, "file_path");
+    if (file_path.empty()) {
+        std::cout << "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-1,\"message\":\"Missing file_path\"},\"id\":\"" << id << "\"}" << std::endl;
+        return;
+    }
+
+    std::ifstream file(file_path);
+    if (!file.is_open()) {
+        std::cout << "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-2,\"message\":\"Could not open file\"},\"id\":\"" << id << "\"}" << std::endl;
+        return;
+    }
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string text = buffer.str();
+    file.close();
+
+    std::vector<std::string> keywords = {
+        "principle", "mechanism", "workflow", "architecture", "system",
+        "原理", "机制", "流程", "架构", "系统", "逻辑"
+    };
+
+    std::stringstream result_ss;
+    result_ss << "{\"jsonrpc\":\"2.0\",\"result\":{\"sections\":[";
+
+    bool first = true;
+    size_t pos = 0;
+    int section_count = 0;
+    const int MAX_SECTIONS = 15;
+
+    while (pos < text.length() && section_count < MAX_SECTIONS) {
+        size_t found_pos = std::string::npos;
+        std::string found_keyword = "";
+
+        for (const auto& kw : keywords) {
+            size_t p = text.find(kw, pos);
+            if (p != std::string::npos && (found_pos == std::string::npos || p < found_pos)) {
+                found_pos = p;
+                found_keyword = kw;
+            }
+        }
+
+        if (found_pos != std::string::npos) {
+            // Extract a window around the keyword
+            size_t start = (found_pos > 200) ? found_pos - 200 : 0;
+            size_t end = std::min(text.length(), found_pos + 300);
+            std::string context = text.substr(start, end - start);
+
+            // Clean context for JSON
+            std::string clean_context = "";
+            for (char c : context) {
+                if (c == '\"') clean_context += "\\\"";
+                else if (c == '\\') clean_context += "\\\\";
+                else if (c == '\n') clean_context += "\\n";
+                else if (c == '\r') clean_context += "\\r";
+                else if (c == '\t') clean_context += "\\t";
+                else if (std::iscntrl((unsigned char)c)) continue;
+                else clean_context += c;
+            }
+
+            if (!first) result_ss << ",";
+            result_ss << "{\"keyword\":\"" << found_keyword << "\",\"content\":\"" << clean_context << "\"}";
+            first = false;
+            section_count++;
+
+            pos = end; // Use end of window to skip redundant overlapping matches for the same section
+        } else {
+            break;
+        }
+    }
+
+    result_ss << "]},\"id\":\"" << id << "\"}";
+    std::cout << result_ss.str() << std::endl;
+}
+
 int main() {
     std::string line;
     while (std::getline(std::cin, line)) {
@@ -129,6 +205,8 @@ int main() {
 
         if (method == "analyze_file") {
             handle_analyze_file(line, id);
+        } else if (method == "extract_key_sections") {
+            handle_extract_key_sections(line, id);
         } else if (method == "exit") {
             return 0;
         } else {
