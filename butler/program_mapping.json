@@ -52,5 +52,11 @@
     "NFC读取": "package/device/nfc_ir_manager.py",
     "NFC克隆": "package/device/nfc_ir_manager.py",
     "红外学习": "package/device/nfc_ir_manager.py",
-    "红外控制": "package/device/nfc_ir_manager.py"
+    "红外控制": "package/device/nfc_ir_manager.py",
+    "内存搜索": "package/document/memory_tools_bridge.py",
+    "记忆搜索": "package/document/memory_tools_bridge.py",
+    "记忆读取": "package/document/memory_tools_bridge.py",
+    "记录记忆": "package/document/memory_tools_bridge.py",
+    "长期记忆": "package/document/memory_tools_bridge.py",
+    "每日日志": "package/document/memory_tools_bridge.py"
 }
