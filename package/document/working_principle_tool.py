@@ -106,12 +106,69 @@ class WorkingPrincipleAnalyzer:
         print(report)
         print("="*50)
 
-        # 保存到文件
-        save_path = file_path + "_principles.md"
-        with open(save_path, 'w', encoding='utf-8') as f:
+        # 保存到文件 (Markdown)
+        save_path_md = file_path + "_principles.md"
+        with open(save_path_md, 'w', encoding='utf-8') as f:
             f.write(f"# 工作原理分析报告: {os.path.basename(file_path)}\n\n")
             f.write(report)
-        print(f"\n[+] 报告已保存至: {save_path}")
+        print(f"\n[+] Markdown 报告已保存至: {save_path_md}")
+
+        # 导出为 PDF
+        self._export_to_pdf(report, file_path + "_principles.pdf", os.path.basename(file_path))
+
+    def _export_to_pdf(self, content: str, output_path: str, source_name: str):
+        """将报告内容导出为 PDF。"""
+        try:
+            from fpdf import FPDF
+
+            # 创建 PDF 对象
+            pdf = FPDF()
+            pdf.add_page()
+
+            # 尝试使用系统中常见的的中文字体 (Linux/Debian 常用路径)
+            font_found = False
+            font_paths = [
+                "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+                "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+            ]
+
+            for fp in font_paths:
+                if os.path.exists(fp):
+                    pdf.add_font("Chinese", "", fp)
+                    pdf.set_font("Chinese", size=12)
+                    font_found = True
+                    break
+
+            if not font_found:
+                # 回退到标准字体 (可能不支持中文)
+                pdf.set_font("Helvetica", size=12)
+                logger.warning("未找到中文字体，PDF 导出可能出现乱码。")
+
+            # 标题
+            title_style = "B" if not font_found else "" # 中文字体通常不支持直接 set_font B
+            pdf.set_font(pdf.font_family, style=title_style, size=16)
+
+            title = f"工作原理分析报告: {source_name}"
+            if not font_found:
+                title = title.encode('ascii', 'ignore').decode('ascii')
+
+            pdf.cell(0, 10, title, ln=True, align='C')
+            pdf.ln(5)
+
+            # 内容 (简单处理换行)
+            pdf.set_font(pdf.font_family, size=12)
+            for line in content.split('\n'):
+                # 清除非 ASCII 字符如果未找到中文字体
+                if not font_found:
+                    line = line.encode('ascii', 'ignore').decode('ascii')
+                pdf.multi_cell(0, 10, line)
+
+            pdf.output(output_path)
+            print(f"[+] PDF 报告已保存至: {output_path}")
+        except Exception as e:
+            logger.error(f"导出 PDF 失败: {e}")
+            print(f"[-] 导出 PDF 失败: {e}")
 
 def run(file_path: Optional[str] = None):
     if not file_path:
