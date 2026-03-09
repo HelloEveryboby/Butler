@@ -6,10 +6,11 @@
 #include <map>
 #include <algorithm>
 #include <chrono>
+#include <cctype>
 
 /**
- * BHL V2.0 Protocol Implementation for Document Processing
- * Robust version using file-based input to avoid JSON escaping issues.
+ * 文档处理的 BHL V2.0 协议实现
+ * 使用基于输入文件的稳健版本，以避免 JSON 转义问题。
  */
 
 std::string get_json_value(const std::string& json, const std::string& key) {
@@ -23,7 +24,7 @@ std::string get_json_value(const std::string& json, const std::string& key) {
     if (after_key < json.length() && json[after_key] == '\"') {
         size_t start = after_key + 1;
         size_t end = json.find('\"', start);
-        while (end != std::string::npos && json[end-1] == '\\') { // Handle escaped quotes
+        while (end != std::string::npos && json[end-1] == '\\') { // 处理转义引号
             end = json.find('\"', end + 1);
         }
         if (end == std::string::npos) return "";
@@ -36,17 +37,17 @@ std::string get_json_value(const std::string& json, const std::string& key) {
     }
 }
 
-// Tokenizer that supports basic UTF-8 (treats non-ASCII as part of words)
+// 支持基本 UTF-8 的分词器（将非 ASCII 字符视为单词的一部分）
 std::vector<std::string> tokenize(const std::string& text) {
     std::vector<std::string> tokens;
     std::string current;
     for (size_t i = 0; i < text.length(); ++i) {
         unsigned char c = text[i];
-        // ASCII Alphanumeric
+        // ASCII 字母数字
         if (std::isalnum(c)) {
             current += std::tolower(c);
         }
-        // Simple UTF-8 start byte (0x80 and above)
+        // 简单的 UTF-8 起始字节（0x80 及以上）
         else if (c >= 128) {
             current += (char)c;
         }
@@ -102,7 +103,7 @@ void handle_analyze_file(const std::string& line, const std::string& id) {
     ss << "\"unique_words\":" << freq.size() << ",";
     ss << "\"top_keywords\":[";
     for (size_t i = 0; i < std::min(sorted_freq.size(), (size_t)10); ++i) {
-        // Basic JSON escaping for word
+        // 单词的基本 JSON 转义
         std::string word = sorted_freq[i].first;
         size_t q_pos = 0;
         while ((q_pos = word.find('\"', q_pos)) != std::string::npos) {
@@ -163,12 +164,12 @@ void handle_extract_key_sections(const std::string& line, const std::string& id)
         }
 
         if (found_pos != std::string::npos) {
-            // Extract a window around the keyword
+            // 在关键字周围提取一个窗口
             size_t start = (found_pos > 200) ? found_pos - 200 : 0;
             size_t end = std::min(text.length(), found_pos + 300);
             std::string context = text.substr(start, end - start);
 
-            // Clean context for JSON
+            // 为 JSON 清理上下文
             std::string clean_context = "";
             for (char c : context) {
                 if (c == '\"') clean_context += "\\\"";
@@ -185,7 +186,7 @@ void handle_extract_key_sections(const std::string& line, const std::string& id)
             first = false;
             section_count++;
 
-            pos = end; // Use end of window to skip redundant overlapping matches for the same section
+            pos = end; // 使用窗口末尾以跳过同一部分的多余重叠匹配
         } else {
             break;
         }
@@ -200,6 +201,7 @@ int main() {
     while (std::getline(std::cin, line)) {
         if (line.empty()) continue;
 
+        // 手动解析方法和 ID
         std::string method = get_json_value(line, "method");
         std::string id = get_json_value(line, "id");
 
