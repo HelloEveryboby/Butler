@@ -375,3 +375,40 @@ def handle_structured_extract(jarvis_app, entities, **kwargs):
             jarvis_app.speak(f"提取过程中出错: {e}")
 
     threading.Thread(target=run_extract, daemon=True).start()
+
+@register_intent("memory_search")
+def handle_memory_search(jarvis_app, entities, **kwargs):
+    """在长期记忆和每日日志中搜索信息。"""
+    query = entities.get("query")
+    if not query:
+        jarvis_app.speak("请提供您想搜索的内容。")
+        return
+    from package.document.memory_tools import memory_tools
+    result = memory_tools.memory_search(query)
+    jarvis_app.ui_print(result)
+    jarvis_app.speak(f"已为您搜索记忆，结果已显示在面板上。")
+
+@register_intent("memory_get")
+def handle_memory_get(jarvis_app, entities, **kwargs):
+    """从特定的记忆文件中获取详细内容。"""
+    path = entities.get("path")
+    line_start = int(entities.get("line_start", 1))
+    num_lines = int(entities.get("num_lines", -1))
+    if not path:
+        jarvis_app.speak("请提供记忆文件的路径。")
+        return
+    from package.document.memory_tools import memory_tools
+    result = memory_tools.memory_get(path, line_start, num_lines)
+    jarvis_app.ui_print(result)
+
+@register_intent("memory_record")
+def handle_memory_record(jarvis_app, entities, **kwargs):
+    """记录一条新的记忆。"""
+    content = entities.get("content")
+    mem_type = entities.get("type", "daily")
+    if not content:
+        jarvis_app.speak("请提供要记录的内容。")
+        return
+    from package.document.memory_tools import memory_tools
+    result = memory_tools.memory_record(content, mem_type)
+    jarvis_app.speak(result)

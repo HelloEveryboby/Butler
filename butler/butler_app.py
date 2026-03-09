@@ -148,11 +148,26 @@ class Jarvis:
         memory_item = LongMemoryItem.new(content=text, id=f"assistant_{time.time()}",
                                         metadata={"role": "assistant", "timestamp": time.time()})
         self.long_memory.save([memory_item])
+
+        # Also record in OpenClaw-style daily memory
+        try:
+            from package.core_utils.hybrid_memory_manager import hybrid_memory_manager
+            hybrid_memory_manager.add_daily_log(f"Assistant: {text}")
+        except Exception as e:
+            self.logger.error(f"Failed to add to hybrid memory: {e}")
+
         self.voice_service.speak(text)
 
     def handle_user_command(self, command, programs=None):
         if not command: return
         cmd = command.strip()
+
+        # Record User input in OpenClaw-style daily memory
+        try:
+            from package.core_utils.hybrid_memory_manager import hybrid_memory_manager
+            hybrid_memory_manager.add_daily_log(f"User: {cmd}")
+        except Exception as e:
+            self.logger.error(f"Failed to add User input to hybrid memory: {e}")
 
         # Handle UI confirmation prompt
         if self.waiting_for_ui_confirm:
