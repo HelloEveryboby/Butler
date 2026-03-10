@@ -65,6 +65,34 @@ class OfficeAutomator:
             return False
 
     @staticmethod
+    def create_pdf(content, output_path, title=None):
+        """Creates a simple PDF document with the given content."""
+        try:
+            from fpdf import FPDF
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Helvetica", size=12)
+
+            if title:
+                pdf.set_font("Helvetica", style="B", size=16)
+                pdf.cell(txt=title, align="C", center=True)
+                pdf.ln(10)
+                pdf.set_font("Helvetica", size=12)
+
+            if isinstance(content, list):
+                for item in content:
+                    pdf.write(h=10, txt=str(item) + "\n")
+            else:
+                pdf.write(h=10, txt=str(content))
+
+            pdf.output(output_path)
+            logger.info(f"PDF created at {output_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to create PDF: {e}")
+            return False
+
+    @staticmethod
     def fill_pdf_fields(input_pdf, output_pdf, field_data):
         """Fills fields in a PDF form."""
         # Note: filling PDF forms programmatically can be complex depending on the PDF structure.
