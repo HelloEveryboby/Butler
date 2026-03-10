@@ -58,5 +58,8 @@
     "记忆读取": "package/document/memory_tools_bridge.py",
     "记录记忆": "package/document/memory_tools_bridge.py",
     "长期记忆": "package/document/memory_tools_bridge.py",
-    "每日日志": "package/document/memory_tools_bridge.py"
+    "每日日志": "package/document/memory_tools_bridge.py",
+    "PDF助手": "pdf_assistant",
+    "PDF专家": "pdf_assistant",
+    "解析PDF": "pdf_assistant"
 }
