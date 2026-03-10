@@ -49,8 +49,8 @@ class ExtensionManager:
                         if hasattr(module, "run"):
                             self.packages[package_name] = module
                             logger.info(f"Loaded package: {package_name}")
-                except Exception as e:
-                    logger.error(f"Failed to load package {package_name}: {e}")
+                    except Exception as e:
+                        logger.error(f"Failed to load package {package_name}: {e}")
 
     def get_all_tools(self) -> List[Dict[str, Any]]:
         """

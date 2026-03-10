@@ -1,15 +1,5 @@
 import os
 import sys
-
-# Add project root and local lib to sys.path to support portable/local dependency installation
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-lib_path = os.path.join(project_root, "lib_external")
-if os.path.exists(lib_path) and lib_path not in sys.path:
-    sys.path.insert(0, lib_path)
-
 import time
 import datetime
 import json
@@ -18,10 +8,22 @@ import threading
 import tempfile
 import shutil
 import tkinter as tk
+from pathlib import Path
 from dotenv import load_dotenv
+
+# Add project root and local lib to sys.path to support portable/local dependency installation
+project_root = Path(__file__).resolve().parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+lib_path = project_root / "lib_external"
+if lib_path.exists():
+    import site
+    site.addsitedir(str(lib_path))
 
 from package.core_utils.log_manager import LogManager
 from package.core_utils.config_loader import config_loader
+from butler.core.event_bus import event_bus
 from butler.CommandPanel import CommandPanel
 from butler.data_storage import data_storage_manager
 from butler.core.extension_manager import extension_manager
@@ -41,19 +43,18 @@ from butler.core.hybrid_link import HybridLinkClient
 from package.device.standalone_manager import StandaloneManager
 
 class Jarvis:
-    def __init__(self, root, usb_screen=None):
-        self.root = root
+    def __init__(self, root=None, usb_screen=None):
+        self.root = root # Still needed for .after() if we don't have a better way, but we'll try to decouple
         self.usb_screen = usb_screen
         self.resource_manager = ResourceManager()
         self.display_mode = 'host'
         self.running = True
-        self.panel = None
 
         load_dotenv()
         self.logger = LogManager.get_logger(__name__)
 
         # Load configurations
-        self.config = config_loader._config # Backward compatibility with local self.config
+        self.config = config_loader._config
         self.prompts = self._load_json_resource("prompts.json")
         self.program_mapping = self._load_json_resource("program_mapping.json")
 
@@ -69,7 +70,7 @@ class Jarvis:
 
         # Initialize Hybrid Link for system utility
         self.sysutil = HybridLinkClient(
-            executable_path=os.path.join(project_root, "programs/hybrid_sysutil/sysutil"),
+            executable_path=str(project_root / "programs/hybrid_sysutil/sysutil"),
             fallback_enabled=True
         )
         self.sysutil.start()
@@ -82,11 +83,10 @@ class Jarvis:
         self.waiting_for_ui_confirm = False
         self._interaction_count = 0
 
-
     def _load_json_resource(self, filename):
-        path = os.path.join(os.path.dirname(__file__), filename)
+        path = Path(__file__).parent / filename
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with path.open('r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
             self.logger.error(f"Failed to load {filename}: {e}")
@@ -94,51 +94,60 @@ class Jarvis:
 
     def _initialize_long_memory(self):
         api_key = config_loader.get("api.deepseek.key")
+        old_memory_data = []
+
+        # 1. Try Redis
         try:
             if api_key:
-                # 优先尝试使用 Redis (如果已配置且运行中)
                 self.long_memory = RedisLongMemory(api_key=api_key)
                 self.long_memory.init(self.logger)
+                return
             else: raise ValueError("No API Key")
         except Exception as e:
-            self.logger.warning(f"无法初始化 RedisLongMemory: {e}。尝试使用轻量级 ZvecLongMemory...")
+            self.logger.warning(f"无法初始化 RedisLongMemory: {e}")
+            # speculatively try to export if it partially initialized, though risky.
+            # In a real fallback, we'd have a manager.
 
-            # 安全检查 zvec 是否可用且不会导致 Illegal Instruction
+        # 2. Try Zvec (with fallback migration)
+        zvec_safe = False
+        try:
+            import subprocess
+            res = subprocess.run([sys.executable, "-c", "import zvec"],
+                                    capture_output=True, timeout=2)
+            zvec_safe = (res.returncode == 0)
+        except Exception:
             zvec_safe = False
-            try:
-                import subprocess
-                res = subprocess.run([sys.executable, "-c", "import zvec"],
-                                     capture_output=True, timeout=2)
-                zvec_safe = (res.returncode == 0)
-            except Exception:
-                zvec_safe = False
 
-            try:
-                if api_key and zvec_safe:
-                    # 如果 Redis 不可用，则尝试使用 zvec (极速本地向量库)
-                    self.long_memory = ZvecLongMemory(api_key=api_key)
-                    self.long_memory.init(self.logger)
-                else:
-                    raise ValueError("No API Key for Zvec or zvec is incompatible with this CPU")
-            except Exception as e2:
-                self.logger.error(f"无法初始化 ZvecLongMemory: {e2}。降级到 SQLiteLongMemory...")
-                self.long_memory = SQLiteLongMemory()
-                self.long_memory.init()
+        try:
+            if api_key and zvec_safe:
+                self.long_memory = ZvecLongMemory(api_key=api_key)
+                self.long_memory.init(self.logger)
+                if old_memory_data:
+                    self.long_memory.import_data(old_memory_data)
+                return
+            else:
+                raise ValueError("No API Key for Zvec or zvec is incompatible")
+        except Exception as e2:
+            self.logger.error(f"无法初始化 ZvecLongMemory: {e2}. 降级到 SQLiteLongMemory...")
 
-    def set_panel(self, panel):
-        self.panel = panel
+            self.long_memory = SQLiteLongMemory()
+            self.long_memory.init()
+            if old_memory_data:
+                self.long_memory.import_data(old_memory_data)
 
     def _on_voice_status_change(self, is_listening):
-        if self.panel:
-            self.root.after(0, self.panel.update_listen_button_state, is_listening)
+        event_bus.emit("voice_status", is_listening)
 
     def ui_print(self, message, tag='ai_response', response_id=None):
         print(message)
-        if self.display_mode in ('host', 'both') and self.panel:
-            if tag == 'ai_response_start':
-                self.panel.append_to_history(message, 'ai_response', response_id=response_id)
-            else:
-                self.panel.append_to_history(message, tag)
+
+        # Restore tag mapping for legacy UI compatibility
+        if tag == 'ai_response_start':
+            tag = 'ai_response'
+
+        if self.display_mode in ('host', 'both'):
+            event_bus.emit("ui_output", message, tag, response_id)
+
         if self.display_mode in ('usb', 'both') and self.usb_screen:
             self.usb_screen.display(message, clear_screen=True)
 
@@ -240,7 +249,7 @@ class Jarvis:
         # or if we have a panel attached.
         is_modern = hasattr(self, 'ui_print') and 'onAIStreamChunk' in str(self.ui_print)
 
-        if is_modern or self.panel:
+        if is_modern or self.display_mode in ('host', 'both'):
              self.ui_print(json.dumps({
                  "type": "code_block",
                  "language": lang,
@@ -281,7 +290,7 @@ class Jarvis:
 
                 # Format for Modern UI
                 is_modern = hasattr(self, 'ui_print') and 'onAIStreamChunk' in str(self.ui_print)
-                if is_modern or self.panel:
+                if is_modern or self.display_mode in ('host', 'both'):
                      self.ui_print(json.dumps({
                          "type": "code_block",
                          "language": "python",
@@ -327,6 +336,10 @@ class Jarvis:
                 self.speak("抱歉，我不明白您的意思。")
 
     def panel_command_handler(self, command_type, payload):
+        # Move complex tasks to background threads to avoid UI freeze
+        threading.Thread(target=self._dispatch_command, args=(command_type, payload), daemon=True).start()
+
+    def _dispatch_command(self, command_type, payload):
         if command_type == "text":
             self.handle_user_command(payload)
         elif command_type == "execute_program":
@@ -349,7 +362,7 @@ class Jarvis:
             if action == "screenshot":
                 from package.device import os_utils
                 screenshot_b64 = os_utils.capture_screen()
-                self.panel.update_screenshot(screenshot_b64)
+                event_bus.emit("screenshot_update", screenshot_b64)
             elif action == "left_click":
                 coord = payload.get("coordinate")
                 if coord: pyautogui.click(coord[0], coord[1])
@@ -502,11 +515,11 @@ class Jarvis:
         """Regularly updates the UI state based on hardware status."""
         while self.running:
             try:
-                if self.standalone_manager and self.panel:
+                if self.standalone_manager:
                     status = self.standalone_manager.get_status()
                     connected = (status["connection"] == "Connected")
                     device = status["devices"][0] if status["devices"] else ""
-                    self.root.after(0, self.panel.update_link_status, connected, device)
+                    event_bus.emit("link_status", connected, device)
             except Exception:
                 pass
             time.sleep(5)
@@ -566,7 +579,7 @@ def main():
     panel = CommandPanel(root, program_mapping=jarvis.program_mapping,
                          programs=all_tools, command_callback=jarvis.panel_command_handler)
     panel.pack(fill=tk.BOTH, expand=True)
-    jarvis.set_panel(panel)
+
     jarvis.main()
     root.mainloop()
 

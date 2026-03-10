@@ -97,6 +97,76 @@ class SQLiteLongMemory(AbstractLongMemory):
             except Exception as e:
                 self._logger.error(f"保存项到 SQLiteLongMemory 失败: {e}")
 
+    def get_recent_history(self, n_results: int) -> List[LongMemoryItem]:
+        """Retrieves the most recent items from SQLite memory."""
+        if not self._conn:
+            return []
+        try:
+            cursor = self._conn.cursor()
+            query = f"""
+            SELECT id, content, metadata FROM {self._collection_name}
+            ORDER BY rowid DESC
+            LIMIT ?
+            """
+            cursor.execute(query, (n_results,))
+            rows = cursor.fetchall()
+            items = []
+            for row in rows:
+                metadata_str = row[2]
+                try:
+                    metadata = json.loads(metadata_str)
+                except json.JSONDecodeError:
+                    try:
+                        metadata = ast.literal_eval(metadata_str)
+                    except Exception:
+                        metadata = {}
+                items.append(LongMemoryItem.new(content=row[1], metadata=metadata, id=row[0]))
+            return items
+        except Exception as e:
+            self._logger.error(f"SQLiteLongMemory 获取历史记录失败: {e}")
+            return []
+
+    def export_data(self) -> List[dict]:
+        """Export all data from SQLite memory."""
+        if not self._conn:
+            return []
+        data = []
+        try:
+            cursor = self._conn.cursor()
+            query = f"SELECT id, content, metadata FROM {self._collection_name}"
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            for row in rows:
+                metadata_str = row[2]
+                try:
+                    metadata = json.loads(metadata_str)
+                except json.JSONDecodeError:
+                    try:
+                        metadata = ast.literal_eval(metadata_str)
+                    except Exception:
+                        metadata = {}
+                data.append({
+                    "id": row[0],
+                    "content": row[1],
+                    "metadata": metadata
+                })
+        except Exception as e:
+            self._logger.error(f"SQLiteLongMemory 导出数据失败: {e}")
+        return data
+
+    def import_data(self, data: List[dict]):
+        """Import data into SQLite memory."""
+        items = []
+        for d in data:
+            item = LongMemoryItem.new(
+                content=d["content"],
+                id=d["id"],
+                metadata=d["metadata"]
+            )
+            items.append(item)
+        if items:
+            self.save(items)
+
     def search(self, text: str, n_results: int, metadata_filter: Optional[Dict[str, str]] = None) -> List[LongMemoryItem]:
         cache_key = (text, n_results, frozenset(metadata_filter.items()) if metadata_filter else None)
 

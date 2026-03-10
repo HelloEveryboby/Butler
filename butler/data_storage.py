@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Any, Optional
+from pathlib import Path
 
 from butler.redis_client import redis_client
 from package.core_utils.log_manager import LogManager
@@ -13,9 +14,8 @@ class DataStorageManager:
     def __init__(self):
         self._logger = LogManager.get_logger(__name__)
         self.redis_client = redis_client
-        self.local_storage_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "local_storage")
-        if not os.path.exists(self.local_storage_path):
-            os.makedirs(self.local_storage_path, exist_ok=True)
+        self.local_storage_path = Path(__file__).resolve().parent.parent / "data" / "local_storage"
+        self.local_storage_path.mkdir(parents=True, exist_ok=True)
 
         if not self.redis_client:
             self._logger.warning("DataStorageManager initialized without a Redis connection. Falling back to local file storage.")
@@ -29,9 +29,9 @@ class DataStorageManager:
         """
         return f"plugin:{plugin_name}:data:{key}"
 
-    def _get_local_path(self, plugin_name: str, key: str) -> str:
+    def _get_local_path(self, plugin_name: str, key: str) -> Path:
         """Generates a local file path for storage."""
-        return os.path.join(self.local_storage_path, f"{plugin_name}_{key}.json")
+        return self.local_storage_path / f"{plugin_name}_{key}.json"
 
     def save(self, plugin_name: str, key: str, value: Any):
         """
@@ -51,7 +51,7 @@ class DataStorageManager:
         # Fallback to local file storage
         try:
             local_path = self._get_local_path(plugin_name, key)
-            with open(local_path, 'w', encoding='utf-8') as f:
+            with local_path.open('w', encoding='utf-8') as f:
                 f.write(serialized_value)
             self._logger.info(f"Saved data to local file for plugin '{plugin_name}' with key '{key}'.")
         except Exception as e:
@@ -74,8 +74,8 @@ class DataStorageManager:
         # Fallback to local file storage
         try:
             local_path = self._get_local_path(plugin_name, key)
-            if os.path.exists(local_path):
-                with open(local_path, 'r', encoding='utf-8') as f:
+            if local_path.exists():
+                with local_path.open('r', encoding='utf-8') as f:
                     serialized_value = f.read()
                 self._logger.info(f"Loaded data from local file for plugin '{plugin_name}' with key '{key}'.")
                 return json.loads(serialized_value)
@@ -101,8 +101,8 @@ class DataStorageManager:
         # Always try to delete local file as well
         try:
             local_path = self._get_local_path(plugin_name, key)
-            if os.path.exists(local_path):
-                os.remove(local_path)
+            if local_path.exists():
+                local_path.unlink()
                 self._logger.info(f"Deleted data from local file for plugin '{plugin_name}' with key '{key}'.")
                 deleted = True
         except Exception as e:

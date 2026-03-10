@@ -100,5 +100,32 @@ class ZvecLongMemory(AbstractLongMemory):
             self._logger.error(f"Zvec 搜索出错: {e}")
             return []
 
+    def export_data(self) -> List[dict]:
+        """Export all data from Zvec collection."""
+        if not self.collection: return []
+        data = []
+        try:
+            # Zvec also doesn't have a direct export, so we query with a broad scope if possible
+            # or use internal iterator if available. Assuming we can't easily,
+            # this is a placeholder for actual zvec export logic.
+            self._logger.warning("Zvec export not fully implemented.")
+        except Exception as e:
+            self._logger.error(f"Failed to export data from Zvec: {e}")
+        return data
+
+    def import_data(self, data: List[dict]):
+        """Import data into Zvec."""
+        items = []
+        for d in data:
+            item = LongMemoryItem.new(
+                content=d["content"],
+                id=d["id"],
+                metadata=d["metadata"]
+            )
+            items.append(item)
+        if items:
+            self.save(items)
+
     def get_recent_history(self, n_results: int) -> List[LongMemoryItem]:
+        # Implementation for Zvec history if needed
         return []
