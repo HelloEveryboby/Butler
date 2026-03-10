@@ -427,3 +427,213 @@ def handle_pdf_assistant(jarvis_app, entities, **kwargs):
         jarvis_app.ui_print(f"正在为您分析 PDF 文档: {path}")
         # 这里我们可以直接复用解释器逻辑，但可以在 prompt 中增强 PDF 助手的角色感
         jarvis_app._execute_with_llm_interpreter(f"请作为 PDF 助手，分析并处理以下文件：{path}。用户需求：{entities.get('operation', '解析该文档')}")
+
+@register_intent("crawl")
+def handle_crawl(jarvis_app, entities, **kwargs):
+    """网页爬虫意图处理。"""
+    url = entities.get("url")
+    query = entities.get("search_query")
+    res_type = entities.get("type", "image")
+
+    def run_crawl():
+        try:
+            from package.network.crawler import run as crawl_run
+            jarvis_app.ui_print(f"🚀 正在启动爬虫 (URL: {url or '搜索'}, 类型: {res_type})...")
+            crawl_run(url=url, search_query=query, type=res_type)
+            jarvis_app.speak("爬虫任务执行完毕。")
+        except Exception as e:
+            jarvis_app.speak(f"爬虫执行失败: {e}")
+
+    threading.Thread(target=run_crawl, daemon=True).start()
+
+@register_intent("email_op")
+def handle_email_op(jarvis_app, entities, **kwargs):
+    """邮件操作意图处理。"""
+    op = entities.get("operation", "receive")
+
+    def run_email():
+        try:
+            from package.network.e_mail import EmailAssistant
+            assistant = EmailAssistant()
+            if op == "send":
+                to = entities.get("to")
+                subject = entities.get("subject", "来自 Jarvis 的邮件")
+                body = entities.get("body", "")
+                if to and body:
+                    jarvis_app.ui_print(f"📧 正在发送邮件到 {to}...")
+                    # 注意：send_email 内部有 input() 确认，在某些 UI 下可能阻塞
+                    # 这里假设是简单的后端调用或 UI 已处理确认
+                    assistant.send_email(subject, body, to)
+                    jarvis_app.speak("邮件已发送。")
+                else:
+                    jarvis_app.speak("发送邮件需要收件人和正文。")
+            else:
+                jarvis_app.ui_print("📥 正在检查未读邮件...")
+                emails = assistant.fetch_unread_emails()
+                assistant.display_emails(emails)
+                jarvis_app.speak(f"已获取 {len(emails)} 封邮件，请在面板查看详情。")
+        except Exception as e:
+            jarvis_app.speak(f"邮件操作失败: {e}")
+
+    threading.Thread(target=run_email, daemon=True).start()
+
+@register_intent("image_search")
+def handle_image_search(jarvis_app, entities, **kwargs):
+    """图片搜索意图处理。"""
+    query = entities.get("query")
+    path = entities.get("path")
+    mode = entities.get("mode", "local")
+
+    def run_img_search():
+        try:
+            from package.network.image_search_tool import run as img_run
+            jarvis_app.ui_print(f"🔍 正在搜索图片: {query or path}...")
+            img_run(query=query, path=path, mode=mode)
+            jarvis_app.speak("图片搜索完成。")
+        except Exception as e:
+            jarvis_app.speak(f"图搜失败: {e}")
+
+    threading.Thread(target=run_img_search, daemon=True).start()
+
+@register_intent("crypto_op")
+def handle_crypto_op(jarvis_app, entities, **kwargs):
+    """加解密操作意图处理。"""
+    op = entities.get("operation", "encrypt")
+    path = entities.get("path")
+    algo = entities.get("algo", "AES")
+
+    if not path:
+        jarvis_app.speak("请提供文件路径。")
+        return
+
+    def run_crypto():
+        try:
+            from package.security.encrypt import EnhancedEncryptor
+            jarvis_app.ui_print(f"🔐 正在执行{algo}{'加密' if op=='encrypt' else '解密'}: {path}...")
+            # 同样注意：handle_file 内部有 getpass，可能在无交互 UI 下挂起
+            EnhancedEncryptor().handle_file(path, algo, op)
+            jarvis_app.speak(f"文件{'加密' if op=='encrypt' else '解密'}完成。")
+        except Exception as e:
+            jarvis_app.speak(f"加密操作失败: {e}")
+
+    threading.Thread(target=run_crypto, daemon=True).start()
+
+@register_intent("get_weather")
+def handle_get_weather(jarvis_app, entities, **kwargs):
+    """天气查询意图处理。"""
+    city = entities.get("city")
+    if not city:
+        jarvis_app.speak("请告诉我你想查询哪个城市的天气。")
+        return
+
+    def run_weather():
+        try:
+            from package.network.weather import get_weather_from_web
+            res = get_weather_from_web(city)
+            if res:
+                report = f"{city}的天气是：{res['description']}，温度{res['temperature']}，湿度{res['humidity']}。"
+                jarvis_app.speak(report)
+            else:
+                jarvis_app.speak(f"抱歉，我没能查到{city}的天气。")
+        except Exception as e:
+            jarvis_app.speak(f"天气查询出错: {e}")
+
+    threading.Thread(target=run_weather, daemon=True).start()
+
+@register_intent("manage_file")
+def handle_manage_file(jarvis_app, entities, **kwargs):
+    """基础文件操作意图处理。"""
+    op = entities.get("operation")
+    path = entities.get("file_path")
+    content = entities.get("content", "")
+
+    if not op or not path:
+        jarvis_app.speak("文件操作需要指定操作类型和路径。")
+        return
+
+    try:
+        from package.file_system.file_manager import FileManager
+        fm = FileManager()
+        if op == "create" or op == "write":
+            success, msg = fm.create_file(path, content)
+            jarvis_app.speak(msg)
+        elif op == "read":
+            success, res = fm.read_file(path)
+            if success:
+                jarvis_app.ui_print(f"📄 文件内容 ({path}):\n{res}")
+                jarvis_app.speak("文件读取完成，内容已显示在面板。")
+            else:
+                jarvis_app.speak(res)
+        elif op == "delete":
+            success, msg = fm.delete_file(path)
+            jarvis_app.speak(msg)
+    except Exception as e:
+        jarvis_app.speak(f"文件操作失败: {e}")
+
+@register_intent("convert_file")
+def handle_convert_file(jarvis_app, entities, **kwargs):
+    """文件转换意图处理。"""
+    input_p = entities.get("input_path")
+    output_p = entities.get("output_path")
+
+    if not input_p or not output_p:
+        jarvis_app.speak("请提供输入和输出文件路径。")
+        return
+
+    def run_convert():
+        try:
+            from package.document.file_converter import run as conv_run
+            jarvis_app.ui_print(f"🔄 正在转换文件: {input_p} -> {output_p}")
+            conv_run(input_file=input_p, output_file=output_p)
+            jarvis_app.speak("文件转换完成。")
+        except Exception as e:
+            jarvis_app.speak(f"转换失败: {e}")
+
+    threading.Thread(target=run_convert, daemon=True).start()
+
+@register_intent("translate_op")
+def handle_translate_op(jarvis_app, entities, **kwargs):
+    """翻译操作意图处理。"""
+    text = entities.get("text")
+    path = entities.get("path")
+    url = entities.get("url")
+
+    def run_trans():
+        try:
+            from package.document.translators import translate_text, translate_file, translate_website
+            if text:
+                res = translate_text(text)
+                jarvis_app.ui_print(f"🌐 翻译结果: {res}")
+                jarvis_app.speak("翻译完成。")
+            elif path:
+                out = path + ".translated.txt"
+                translate_file(path, out)
+                jarvis_app.speak(f"文件翻译完成，结果保存在 {out}")
+            elif url:
+                translate_website(url)
+                jarvis_app.speak("网页翻译已处理，请查看控制台输出。")
+        except Exception as e:
+            jarvis_app.speak(f"翻译失败: {e}")
+
+    threading.Thread(target=run_trans, daemon=True).start()
+
+@register_intent("system_monitor", requires_entities=False)
+def handle_system_monitor(jarvis_app, **kwargs):
+    """系统监控意图处理。"""
+    try:
+        from package.core_utils.health_monitor import run as monitor_run
+        monitor_run()
+        jarvis_app.speak("系统健康报告已生成。")
+    except Exception as e:
+        jarvis_app.speak(f"监控运行失败: {e}")
+
+@register_intent("system_audit")
+def handle_system_audit(jarvis_app, entities, **kwargs):
+    """系统审计意图处理。"""
+    directory = entities.get("directory")
+    try:
+        from package.core_utils.system_executor_tool import run as audit_run
+        audit_run(dir=directory)
+        jarvis_app.speak("高性能系统审计已完成。")
+    except Exception as e:
+        jarvis_app.speak(f"审计运行失败: {e}")
