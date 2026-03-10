@@ -254,19 +254,15 @@ class Jarvis:
         """Uses LLM to generate and run code (Open Interpreter style)."""
         self.ui_print("AI 正在思考并编写代码...", tag='system_message')
 
-        system_prompt = (
-            "You are a desktop agent that solves tasks by writing Python code. "
-            "You have access to the local file system and office software. "
-            "Available tools: \n"
-            "- package.document.office_automator: create_excel_report, create_word_document, fill_pdf_fields, open_in_native_app.\n"
-            "- package.document.expense_report_engine: expense_genius.process_receipts(data).\n"
-            "- package.document.cross_folder_analyzer: analyzer.analyze_folders(folders, query).\n"
-            "Libraries: pandas, python-docx, openpyxl, PIL. "
-            "When asked to edit Word/Excel, write code to modify them and then use "
-            "package.document.office_automator.open_in_native_app(path) to show the result. "
-            "ALWAYS output code in a block starting with ```python. "
-            "If the task is complete, end your message with 'The task is done.' or '任务已完成'。"
-        )
+        # Use integrated system prompt from prompts.json if available
+        system_prompt = self.prompts.get("interpreter_system_prompt", {}).get("prompt")
+        if not system_prompt:
+            system_prompt = (
+                "You are a desktop agent that solves tasks by writing Python code. "
+                "You have access to the local file system and office software. "
+                "ALWAYS output code in a block starting with ```python. "
+                "If the task is complete, end your message with '任务已完成'。"
+            )
 
         history = self.long_memory.get_recent_history(10)
         max_iterations = 5

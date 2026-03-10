@@ -412,3 +412,18 @@ def handle_memory_record(jarvis_app, entities, **kwargs):
     from package.document.memory_tools import memory_tools
     result = memory_tools.memory_record(content, mem_type)
     jarvis_app.speak(result)
+
+@register_intent("pdf_assistant")
+def handle_pdf_assistant(jarvis_app, entities, **kwargs):
+    """切换到 PDF 助手模式或处理 PDF 相关任务。"""
+    jarvis_app.ui_print("--- PDF 助手模式已激活 ---", tag='system_message')
+
+    # 如果用户没有提供具体 PDF 路径，先询问
+    path = entities.get("path")
+    if not path:
+        jarvis_app.speak("您好！我是您的 PDF 助手。请提供您需要处理的 PDF 文件路径，并告诉我您想进行的操作（如总结、提取表格或问答）。")
+    else:
+        # 如果提供了路径，直接触发解释器模式，并注入 PDF 助手上下文
+        jarvis_app.ui_print(f"正在为您分析 PDF 文档: {path}")
+        # 这里我们可以直接复用解释器逻辑，但可以在 prompt 中增强 PDF 助手的角色感
+        jarvis_app._execute_with_llm_interpreter(f"请作为 PDF 助手，分析并处理以下文件：{path}。用户需求：{entities.get('operation', '解析该文档')}")
