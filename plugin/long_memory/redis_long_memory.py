@@ -108,6 +108,42 @@ class RedisLongMemory(AbstractLongMemory):
 
         return long_memory_items
 
+    def export_data(self) -> List[dict]:
+        """Export all data from Redis index."""
+        data = []
+        try:
+            # RedisVL doesn't have a direct "export all", so we use scan
+            cursor = 0
+            prefix = f"{self._collection_name}:"
+            while True:
+                cursor, keys = self.redis_client.scan(cursor=cursor, match=f"{prefix}*", count=100)
+                for key in keys:
+                    if self.redis_client.type(key) == b'hash':
+                        hdata = self.redis_client.hgetall(key)
+                        data.append({
+                            "id": key.decode().replace(prefix, ""),
+                            "content": hdata.get(b"content", b"").decode(),
+                            "metadata": json.loads(hdata.get(b"metadata", b"{}").decode())
+                        })
+                if cursor == 0:
+                    break
+        except Exception as e:
+            self._logger.error(f"Failed to export data from Redis: {e}")
+        return data
+
+    def import_data(self, data: List[dict]):
+        """Import data into Redis."""
+        items = []
+        for d in data:
+            item = LongMemoryItem.new(
+                content=d["content"],
+                id=d["id"],
+                metadata=d["metadata"]
+            )
+            items.append(item)
+        if items:
+            self.save(items)
+
     def get_recent_history(self, n_results: int) -> List[LongMemoryItem]:
         """Retrieves the most recent items from memory."""
         recent_ids = self.redis_client.zrevrange(f"{self._collection_name}:history", 0, n_results - 1)

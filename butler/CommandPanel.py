@@ -6,6 +6,8 @@ import json
 import re
 from package.core_utils.log_manager import LogManager
 from butler.core.asset_loader import asset_loader
+from butler.core.event_bus import event_bus
+from queue import Queue
 
 # 用于语法高亮显示的 Pygments
 try:
@@ -24,6 +26,16 @@ class CommandPanel(tk.Frame):
         super().__init__(master, **kwargs)
         self.master = master
         self.command_callback = command_callback
+        self.msg_queue = Queue()
+
+        # Subscribe to events
+        event_bus.subscribe("ui_output", self._queue_ui_output)
+        event_bus.subscribe("voice_status", self._queue_voice_status)
+        event_bus.subscribe("link_status", self._queue_link_status)
+        event_bus.subscribe("screenshot_update", self._queue_screenshot_update)
+
+        # Start queue processing
+        self.master.after(100, self.process_queue)
         self.program_mapping = program_mapping or {}
         self.programs = programs or {}
         self.all_program_names = sorted(list(self.programs.keys()))
@@ -541,6 +553,36 @@ class CommandPanel(tk.Frame):
 
     def set_command_callback(self, callback):
         self.command_callback = callback
+
+    def _queue_ui_output(self, message, tag, response_id):
+        self.msg_queue.put(("ui_output", (message, tag, response_id)))
+
+    def _queue_voice_status(self, is_listening):
+        self.msg_queue.put(("voice_status", is_listening))
+
+    def _queue_link_status(self, connected, device):
+        self.msg_queue.put(("link_status", (connected, device)))
+
+    def _queue_screenshot_update(self, b64_data):
+        self.msg_queue.put(("screenshot_update", b64_data))
+
+    def process_queue(self):
+        """Processes messages from the background threads."""
+        try:
+            while not self.msg_queue.empty():
+                msg_type, payload = self.msg_queue.get_nowait()
+                if msg_type == "ui_output":
+                    message, tag, response_id = payload
+                    self.append_to_history(message, tag, response_id)
+                elif msg_type == "voice_status":
+                    self.update_listen_button_state(payload)
+                elif msg_type == "link_status":
+                    connected, device = payload
+                    self.update_link_status(connected, device)
+                elif msg_type == "screenshot_update":
+                    self.update_screenshot(payload)
+        finally:
+            self.master.after(100, self.process_queue)
 
     def send_text_command(self, event=None):
         command = self.input_entry.get().strip()

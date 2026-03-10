@@ -32,3 +32,17 @@ class AbstractLongMemory(metaclass=ABCMeta):
     @abstractmethod
     def search(self, text: str, n_results: int, metadata_filter: dict) -> [LongMemoryItem]:
         pass
+
+    @abstractmethod
+    def get_recent_history(self, n_results: int) -> [LongMemoryItem]:
+        pass
+
+    @abstractmethod
+    def export_data(self) -> [dict]:
+        """Export all data as a list of dictionaries for migration."""
+        pass
+
+    @abstractmethod
+    def import_data(self, data: [dict]):
+        """Import data from a list of dictionaries."""
+        pass

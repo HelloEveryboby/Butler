@@ -1,6 +1,8 @@
 import importlib
+import importlib.util
 import pkgutil
 import inspect
+import ast
 from typing import Type, Optional, List, Dict
 from .plugin_interface import AbstractPlugin, PluginResult
 from package.core_utils.log_manager import LogManager
@@ -33,9 +35,47 @@ class PluginManager:
                 self._load_plugins_from_module(full_module_name)
         self.logger.info(f"Plugin loading complete, total {len(self.plugins)} plugins")
     
+    def _is_plugin_safe(self, module_name: str) -> bool:
+        """Performs basic AST analysis to check for dangerous calls."""
+        try:
+            # Resolve module path
+            spec = importlib.util.find_spec(module_name)
+            if not spec or not spec.origin:
+                return False
+
+            with open(spec.origin, 'r', encoding='utf-8') as f:
+                tree = ast.parse(f.read())
+
+            forbidden_calls = {
+                'os.system', 'os.popen', 'subprocess.Popen', 'subprocess.call',
+                'subprocess.run', 'shutil.rmtree', 'eval', 'exec'
+            }
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    call_name = ""
+                    if isinstance(node.func, ast.Attribute):
+                        if hasattr(node.func.value, 'id'):
+                            call_name = f"{node.func.value.id}.{node.func.attr}"
+                    elif isinstance(node.func, ast.Name):
+                        call_name = node.func.id
+
+                    if call_name in forbidden_calls:
+                        self.logger.warning(f"Plugin {module_name} contains forbidden call: {call_name}")
+                        return False
+            return True
+        except Exception as e:
+            self.logger.error(f"Error analyzing plugin {module_name} safety: {e}")
+            return False
+
     def _load_plugins_from_module(self, module_name: str):
         """Loads all plugin classes from a module"""
         try:
+            # Perform safety check before importing
+            if not self._is_plugin_safe(module_name):
+                self.logger.error(f"Plugin {module_name} failed safety check, skipping.")
+                return
+
             module = importlib.import_module(module_name)
             for attribute_name in dir(module):
                 attribute = getattr(module, attribute_name)
