@@ -5,6 +5,7 @@ import inspect
 import ast
 from typing import Type, Optional, List, Dict
 from .plugin_interface import AbstractPlugin, PluginResult
+from butler.core.models import PluginTask, PluginResponse
 from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
@@ -136,24 +137,23 @@ class PluginManager:
         """Get all loaded plugins"""
         return list(self.plugins.values())
 
-    def run_plugin(self, name: str, command: str, args: dict) -> PluginResult:
+    def run_plugin(self, name: str, command: str, args: dict) -> PluginResponse:
         """Runs a plugin with the given command and arguments."""
         plugin = self.get_plugin(name)
         if plugin:
             self.logger.info(f"Running plugin: {name}, command: {command}")
             try:
-                result = plugin.run(command, args)
-                if not isinstance(result, PluginResult):
+                task = PluginTask(command=command, params=args)
+                result = plugin.execute_task(task)
+                if not isinstance(result, PluginResponse):
                     # Handle legacy plugins that might return something else
-                    return PluginResult.new(result=result)
+                    return PluginResponse.success_response(result=result)
                 return result
             except Exception as e:
                 error_msg = f"Error executing plugin {name}: {str(e)}"
                 self.logger.error(error_msg)
-                return PluginResult.new(result=None, success=False, error_message=error_msg)
-        return PluginResult.new(
-            result=None,
-            success=False, 
+                return PluginResponse.error_response(error_message=error_msg)
+        return PluginResponse.error_response(
             error_message=f"Plugin {name} not found or not loaded"
         )
     

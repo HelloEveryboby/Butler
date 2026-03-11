@@ -3,7 +3,6 @@ from collections import deque
 
 import cv2
 import numpy as np
-from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
@@ -513,26 +512,3 @@ def fibonacci(n):
     return F[0][0]
 
 
-# 7. Clustering Algorithm
-def k_means_clustering(data, n_clusters, random_state=None):
-    """
-    对数据集执行 K-Means 聚类。
-
-    参数:
-        data (array-like or sparse matrix, shape (n_samples, n_features)): 输入数据。
-        n_clusters (int): 要形成的簇数。
-        random_state (int, RandomState 实例或 None, optional): 确定质心初始化的随机数生成。使用整数可使随机性具有确定性。默认为 None。
-
-    返回:
-        tuple: 一个包含以下内容的元组：
-               - labels (numpy.ndarray): 每个样本所属的簇的索引。
-               - cluster_centers (numpy.ndarray): 簇中心的坐标。
-    """
-    if not isinstance(data, np.ndarray):
-        data = np.array(data)
-
-    # n_init='auto' is the future default, but 10 is the current default and setting it suppresses a warning.
-    kmeans = KMeans(n_clusters=n_clusters, random_state=random_state, n_init=10)
-    kmeans.fit(data)
-
-    return kmeans.labels_, kmeans.cluster_centers_

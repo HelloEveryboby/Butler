@@ -43,28 +43,26 @@ class ModernBridge:
         try:
             self.window.evaluate_js("window.onAIStreamStart()")
 
-            # We need to capture the output from Jarvis.
-            # Jarvis usually prints to its panel. We'll override its ui_print momentarily or pass a custom one.
+            # Override ui_print to send logs/blocks to Web UI during streaming
             original_ui_print = self.jarvis.ui_print
-
             def web_ui_print(message, tag='ai_response', response_id=None):
-                if tag == 'code_block':
-                    self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
-                elif tag == 'data_table':
-                    self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
-                elif tag == 'chart':
-                    self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
-                elif tag != 'ai_response_start':
-                    self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
+                payload = message
+                if tag in ['code_block', 'data_table', 'chart']:
+                    # Pass complex objects as JSON
+                    pass
+                self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(payload)})")
 
             self.jarvis.ui_print = web_ui_print
 
-            # Execute command
-            self.jarvis.handle_user_command(command)
+            # Execute command (which now returns a generator)
+            response_gen = self.jarvis.handle_user_command(command)
+
+            if response_gen:
+                for chunk in response_gen:
+                    self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(chunk)})")
 
             # Restore
             self.jarvis.ui_print = original_ui_print
-
             self.window.evaluate_js("window.onAIStreamEnd()")
         except Exception as e:
             self.logger.error(f"Error in ModernBridge: {e}")

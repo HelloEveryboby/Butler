@@ -30,6 +30,7 @@ from butler.core.extension_manager import extension_manager
 from butler.core.voice_service import VoiceService
 from butler.core.nlu_service import NLUService
 from butler.core.habit_manager import habit_manager
+from butler.core.hotkey_service import start_hotkey_service
 from butler.usb_screen import USBScreen
 from butler.resource_manager import ResourceManager, PerformanceMode
 from plugin.long_memory.redis_long_memory import RedisLongMemory
@@ -38,6 +39,7 @@ from plugin.long_memory.chroma_long_memory import SQLiteLongMemory
 from plugin.long_memory.long_memory_interface import LongMemoryItem
 from butler.core.intent_dispatcher import intent_registry
 from butler.core import legacy_commands # Ensure legacy intents are registered
+from butler.config_wizard import check_config_and_run_wizard
 from butler.interpreter import interpreter
 from butler.core.hybrid_link import HybridLinkClient
 from package.device.standalone_manager import StandaloneManager
@@ -78,6 +80,10 @@ class Jarvis:
         # Initialize Standalone Manager
         self.standalone_manager = StandaloneManager(self)
         self.standalone_manager.start()
+
+        # Start Global Hotkey Service
+        start_hotkey_service()
+        event_bus.subscribe("system_toggle_ui", self._on_toggle_ui_event)
 
         self.ui_suggested = False
         self.waiting_for_ui_confirm = False
@@ -168,6 +174,7 @@ class Jarvis:
         self.voice_service.speak(text)
 
     def handle_user_command(self, command, programs=None):
+        """Unified command handler that returns a generator for streaming responses."""
         if not command: return
         cmd = command.strip()
 
@@ -206,7 +213,7 @@ class Jarvis:
             except Exception as e:
                 self.ui_print(f"数据回收失败: {e}", tag='error')
         elif cmd.startswith("/legacy "):
-            self._handle_legacy_command(cmd[8:])
+            yield from self._handle_legacy_command_stream(cmd[8:])
         elif cmd.startswith("/py ") or cmd.startswith("/python "):
             code = cmd.split(maxsplit=1)[1]
             self._execute_with_interpreter("python", code)
@@ -223,17 +230,118 @@ class Jarvis:
         else:
             # Check if we should use Interpreter for general queries (Auto-detect)
             if self._should_use_interpreter(cmd):
-                self._execute_with_llm_interpreter(cmd)
+                yield from self._execute_with_llm_interpreter_stream(cmd)
             else:
                 # Default to legacy command handling (intent-based)
-                self._handle_legacy_command(cmd)
+                yield from self._handle_legacy_command_stream(cmd)
 
         # Trigger reflection every 3 interactions or if it's a complex tool interaction
-        # to save API costs and avoid over-reflection.
         self._interaction_count += 1
         is_complex = self._should_use_interpreter(cmd)
         if self._interaction_count % 3 == 0 or is_complex:
             threading.Thread(target=self._reflect_on_interaction, daemon=True).start()
+
+    def _handle_legacy_command_stream(self, legacy_command):
+        """Streaming version of legacy command handler."""
+        self.ui_print(f"正在处理: {legacy_command}")
+        matched_intent = intent_registry.match_intent_locally(legacy_command)
+
+        if matched_intent and not intent_registry.intent_requires_entities(matched_intent):
+            entities = {}
+        else:
+            # NLU intent extraction is not yet streaming-optimized as it's a structural task
+            nlu_result = self.nlu_service.extract_intent(legacy_command, self.long_memory.get_recent_history(10))
+            matched_intent = nlu_result.get("intent", "unknown")
+            entities = nlu_result.get("entities", {})
+
+        handler_args = {"jarvis_app": self, "entities": entities, "programs": extension_manager.packages}
+
+        # Mark thinking start
+        from butler.core.system_status import system_status
+        system_status.set_thinking(True)
+
+        try:
+            result = intent_registry.dispatch(matched_intent, **handler_args)
+            if result is None:
+                try:
+                    ext_result = extension_manager.execute(matched_intent, command=legacy_command, args=entities)
+                    if ext_result:
+                        yield str(ext_result)
+                        self.ui_print(str(ext_result))
+                        self.speak(str(ext_result))
+                except Exception:
+                    # Fallback to general LLM response for unknown intents
+                    response_gen = self.nlu_service.ask_llm(legacy_command, self.long_memory.get_recent_history(10), stream=True)
+                    full_response = ""
+                    for chunk in response_gen:
+                        full_response += chunk
+                        self.ui_print(chunk, response_id="streaming")
+                        yield chunk
+                    self.voice_service.speak(full_response)
+            else:
+                if result:
+                    yield str(result)
+                    self.ui_print(str(result))
+                    self.speak(str(result))
+        finally:
+            system_status.set_thinking(False)
+
+    def _execute_with_llm_interpreter_stream(self, command):
+        """Streaming version of LLM interpreter."""
+        self.ui_print("AI 正在思考并编写代码...", tag='system_message')
+        from butler.core.system_status import system_status
+        system_status.set_thinking(True)
+
+        try:
+            system_prompt = self.prompts.get("interpreter_system_prompt", {}).get("prompt")
+            if not system_prompt:
+                system_prompt = (
+                    "You are a desktop agent that solves tasks by writing Python code. "
+                    "You have access to the local file system and office software. "
+                    "ALWAYS output code in a block starting with ```python. "
+                    "If the task is complete, end your message with '任务已完成'。"
+                )
+
+            history = self.long_memory.get_recent_history(10)
+            max_iterations = 5
+            current_input = command
+
+            for i in range(max_iterations):
+                prompt = f"{system_prompt}\n\nUser Question: {current_input}"
+                response_gen = self.nlu_service.ask_llm(prompt, history, stream=True)
+
+                full_response = ""
+                for chunk in response_gen:
+                    full_response += chunk
+                    self.ui_print(chunk, response_id="streaming")
+                    yield chunk
+
+                # Extract code block
+                code_match = re.search(r"```python\n(.*?)```", full_response, re.DOTALL)
+                if code_match:
+                    code = code_match.group(1)
+                    self.ui_print(f"AI 正在执行第 {i+1} 步操作...", tag='system_message')
+                    success, output = interpreter.run("python", code)
+
+                    # Report code execution in UI
+                    execution_report = json.dumps({
+                        "type": "code_block",
+                        "language": "python",
+                        "code": code,
+                        "output": output
+                    })
+                    self.ui_print(execution_report, tag='code_block')
+                    yield f"\n[Execution Step {i+1} Done]\n"
+
+                    if "task is done" in full_response.lower() or "任务已完成" in full_response:
+                        break
+
+                    current_input = f"Execution Output from step {i+1}:\n{output}\n\nPlease proceed to the next step or fix any errors. If finished, say 'The task is done.'"
+                    history.append({"role": "assistant", "content": full_response})
+                else:
+                    break
+        finally:
+            system_status.set_thinking(False)
 
     def _should_use_interpreter(self, command):
         # Basic heuristic: if command mentions files, calculations, or complex tasks
@@ -341,7 +449,10 @@ class Jarvis:
 
     def _dispatch_command(self, command_type, payload):
         if command_type == "text":
-            self.handle_user_command(payload)
+            gen = self.handle_user_command(payload)
+            if gen:
+                for _ in gen:
+                    pass
         elif command_type == "execute_program":
             extension_manager.execute(payload)
         elif command_type == "display_mode_change":
@@ -465,6 +576,10 @@ class Jarvis:
         self.voice_service.stop_listening()
         if self.root: self.root.quit()
 
+    def _on_toggle_ui_event(self):
+        """Handle toggle UI event from hotkey (thread-safe)."""
+        event_bus.emit("ui_toggle_request")
+
     def main(self):
         self._cleanup_temp_files()
         self.voice_service.start_listening()
@@ -544,6 +659,9 @@ class Jarvis:
 def main():
     import argparse
     parser = argparse.ArgumentParser()
+
+    # Run configuration wizard if needed
+    check_config_and_run_wizard()
     parser.add_argument("--headless", action="store_true", help="以无头模式运行")
     parser.add_argument("--modern", action="store_true", help="使用精致 Web UI 启动 (默认)")
     parser.add_argument("--classic", "--admin", action="store_true", dest="classic", help="启动 Tkinter 经典/管理界面")

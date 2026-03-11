@@ -90,8 +90,8 @@ class NLUService:
             logger.error(f"General response generation failed: {e}")
             return "抱歉，我暂时无法回答这个问题。"
 
-    def ask_llm(self, prompt: str, history: List[Any] = None, use_habit: bool = True) -> str:
-        """通用 LLM 问答接口。"""
+    def ask_llm(self, prompt: str, history: List[Any] = None, use_habit: bool = True, stream: bool = False):
+        """通用 LLM 问答接口，支持流式输出。"""
         system_prompt = self._get_augmented_system_prompt("general_response") if use_habit else self.prompts.get("general_response", {}).get("prompt", "")
 
         messages = [{"role": "system", "content": system_prompt}]
@@ -107,14 +107,47 @@ class NLUService:
             "model": "deepseek-chat",
             "messages": messages,
             "max_tokens": 2048,
-            "temperature": 0.2
+            "temperature": 0.2,
+            "stream": stream
         }
 
         try:
             headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-            response = requests.post(self.url, headers=headers, json=payload)
-            response.raise_for_status()
-            return response.json()['choices'][0]['message']['content']
+            if stream:
+                return self._stream_request(payload, headers)
+            else:
+                response = requests.post(self.url, headers=headers, json=payload)
+                response.raise_for_status()
+                return response.json()['choices'][0]['message']['content']
         except Exception as e:
             logger.error(f"ask_llm failed: {e}")
+            if stream:
+                def error_gen(): yield f"Error: {e}"
+                return error_gen()
             return f"Error: {e}"
+
+    def _stream_request(self, payload, headers):
+        """处理 DeepSeek 的流式响应。"""
+        try:
+            response = requests.post(self.url, headers=headers, json=payload, stream=True)
+            response.raise_for_status()
+
+            for line in response.iter_lines():
+                if line:
+                    line_str = line.decode('utf-8')
+                    if line_str.startswith("data: "):
+                        data_content = line_str[6:]
+                        if data_content == "[DONE]":
+                            break
+
+                        try:
+                            chunk = json.loads(data_content)
+                            if 'choices' in chunk and len(chunk['choices']) > 0:
+                                delta = chunk['choices'][0].get('delta', {})
+                                if 'content' in delta:
+                                    yield delta['content']
+                        except json.JSONDecodeError:
+                            continue
+        except Exception as e:
+            logger.error(f"Streaming request failed: {e}")
+            yield f"\n[Streaming Error: {e}]"

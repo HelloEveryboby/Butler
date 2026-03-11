@@ -9,8 +9,6 @@ import seaborn as sns
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from scipy import stats
-from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
 
 def load_excel_files(directory):
     """加载目录中的所有Excel文件"""
@@ -82,20 +80,6 @@ def analyze_data(df):
     categorical_columns = df.select_dtypes(include=['object']).columns
     analysis['分类变量计数'] = {col: df[col].value_counts() for col in categorical_columns}
     
-    # 执行K-means聚类
-    if len(numeric_columns) >= 2:
-        kmeans = KMeans(n_clusters=3, random_state=42)
-        df['聚类'] = kmeans.fit_predict(df[numeric_columns])
-        analysis['K-means聚类'] = df['聚类'].value_counts()
-    
-    # 执行PCA
-    if len(numeric_columns) >= 2:
-        pca = PCA(n_components=2)
-        pca_result = pca.fit_transform(df[numeric_columns])
-        df['PCA1'] = pca_result[:, 0]
-        df['PCA2'] = pca_result[:, 1]
-        analysis['PCA解释方差比'] = pca.explained_variance_ratio_
-    
     return analysis, df
 
 def create_visualizations(df, analysis, output_dir):
@@ -138,21 +122,6 @@ def create_visualizations(df, analysis, output_dir):
         plt.savefig(os.path.join(output_dir, f"{column}_条形图.png"))
         plt.close()
     
-    # K-means聚类可视化
-    if '聚类' in df.columns and 'PCA1' in df.columns and 'PCA2' in df.columns:
-        plt.figure(figsize=(10, 8))
-        sns.scatterplot(data=df, x='PCA1', y='PCA2', hue='聚类', palette='deep')
-        plt.title('K-means聚类结果 (PCA)')
-        plt.savefig(os.path.join(output_dir, "K-means聚类.png"))
-        plt.close()
-    
-    # PCA可视化
-    if 'PCA1' in df.columns and 'PCA2' in df.columns:
-        plt.figure(figsize=(10, 8))
-        sns.scatterplot(data=df, x='PCA1', y='PCA2')
-        plt.title('PCA: 前两个主成分')
-        plt.savefig(os.path.join(output_dir, "PCA可视化.png"))
-        plt.close()
     
     # 散点图矩阵
     if len(numeric_columns) >= 2:
@@ -198,11 +167,6 @@ def export_to_excel(df, analysis, output_file):
         for col, counts in analysis['分类变量计数'].items():
             counts.to_excel(writer, sheet_name=f'{col[:31]}计数')
         
-        if 'K-means聚类' in analysis:
-            analysis['K-means聚类'].to_excel(writer, sheet_name='K-means聚类')
-        
-        if 'PCA解释方差比' in analysis:
-            pd.Series(analysis['PCA解释方差比']).to_excel(writer, sheet_name='PCA解释方差比')
         
         workbook = writer.book
         worksheet = workbook['处理后的数据']

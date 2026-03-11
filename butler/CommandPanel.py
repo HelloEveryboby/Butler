@@ -7,6 +7,7 @@ import re
 from package.core_utils.log_manager import LogManager
 from butler.core.asset_loader import asset_loader
 from butler.core.event_bus import event_bus
+from butler.core.system_status import system_status, ButlerState
 from queue import Queue
 
 # 用于语法高亮显示的 Pygments
@@ -33,6 +34,8 @@ class CommandPanel(tk.Frame):
         event_bus.subscribe("voice_status", self._queue_voice_status)
         event_bus.subscribe("link_status", self._queue_link_status)
         event_bus.subscribe("screenshot_update", self._queue_screenshot_update)
+        event_bus.subscribe("system_state_change", self._queue_system_state_change)
+        event_bus.subscribe("ui_toggle_request", self._queue_ui_toggle)
 
         # Start queue processing
         self.master.after(100, self.process_queue)
@@ -208,6 +211,10 @@ class CommandPanel(tk.Frame):
 
         self.link_text = tk.Label(self.link_status_frame, text="未连接", bg=self.background_color, fg=self.foreground_color, font=("Arial", 9))
         self.link_text.pack(side=tk.LEFT)
+
+        # --- 系统状态指示灯 ---
+        self.status_indicator = tk.Label(self.display_mode_frame, text="●", fg="#98c379", bg=self.background_color, font=("Arial", 14))
+        self.status_indicator.pack(side=tk.RIGHT, padx=10)
 
         # --- 主输出文本区域 ---
         self.output_text = scrolledtext.ScrolledText(
@@ -421,13 +428,13 @@ class CommandPanel(tk.Frame):
     def append_to_history(self, text, tag='ai_response', response_id=None):
         self.output_text.config(state='normal')
 
-        # In this enhanced version, we'll try to keep the text widget editable
-        # so the user can modify code blocks.
-
-        # If it's a streaming response, just insert the initial text.
-        if response_id:
-            block_tag = f"block_{response_id}"
-            self.output_text.insert(tk.END, text, (tag, block_tag))
+        # If it's a streaming response, just insert the chunk.
+        if response_id == "streaming":
+            self.output_text.insert(tk.END, text, (tag,))
+        elif response_id:
+             # Handle other specific response IDs
+             block_tag = f"block_{response_id}"
+             self.output_text.insert(tk.END, text, (tag, block_tag))
         else:
             # For non-streaming messages, parse for code blocks as before.
             code_block_pattern = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
@@ -450,7 +457,6 @@ class CommandPanel(tk.Frame):
             self.output_text.insert(tk.END, "\n\n")
 
         self.output_text.see(tk.END)
-        # self.output_text.config(state='disabled') # Keep it enabled for manual editing
 
     def append_to_response(self, text_chunk, response_id):
         """Appends a chunk of text to a response block identified by response_id."""
@@ -566,6 +572,12 @@ class CommandPanel(tk.Frame):
     def _queue_screenshot_update(self, b64_data):
         self.msg_queue.put(("screenshot_update", b64_data))
 
+    def _queue_system_state_change(self, state):
+        self.msg_queue.put(("system_state", state))
+
+    def _queue_ui_toggle(self):
+        self.msg_queue.put(("ui_toggle", None))
+
     def process_queue(self):
         """Processes messages from the background threads."""
         try:
@@ -581,6 +593,10 @@ class CommandPanel(tk.Frame):
                     self.update_link_status(connected, device)
                 elif msg_type == "screenshot_update":
                     self.update_screenshot(payload)
+                elif msg_type == "system_state":
+                    self.update_status_indicator(payload)
+                elif msg_type == "ui_toggle":
+                    self.toggle_visibility()
         finally:
             self.master.after(100, self.process_queue)
 
@@ -611,6 +627,17 @@ class CommandPanel(tk.Frame):
         else:
             self.link_indicator.config(fg="gray")
             self.link_text.config(text="未连接")
+
+    def update_status_indicator(self, state: ButlerState):
+        """根据系统状态更新状态灯颜色。"""
+        if state == ButlerState.IDLE:
+            self.status_indicator.config(fg="#98c379") # Green
+        elif state == ButlerState.THINKING:
+            self.status_indicator.config(fg="#61afef") # Blue
+        elif state == ButlerState.RECORDING:
+            self.status_indicator.config(fg="#e06c75") # Red
+        elif state == ButlerState.ERROR:
+            self.status_indicator.config(fg="#d19a66") # Orange/Yellow
 
     def set_input_text(self, text):
         self.input_entry.delete(0, tk.END)
@@ -675,3 +702,12 @@ class CommandPanel(tk.Frame):
         logger.info("Restarting application")
         python = sys.executable
         os.execl(python, python, *sys.argv)
+
+    def toggle_visibility(self):
+        """Toggle window visibility in a thread-safe way."""
+        state = self.master.state()
+        if state == 'withdrawn' or state == 'iconic':
+            self.master.deiconify()
+            self.master.focus_force()
+        else:
+            self.master.withdraw()

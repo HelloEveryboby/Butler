@@ -6,59 +6,21 @@ import os
 from butler.data_storage import DataStorageManager
 from package.core_utils.log_manager import LogManager
 from butler.core.hybrid_link import HybridLinkClient
+from butler.core.models import PluginTask, PluginResponse
 
-class PluginResult:
-    def __init__(self):
-        # Result content, mainly for AI reference
-        self.result = None
-        # Whether the brain (LLM) needs to be called again after execution
-        self.need_call_brain = False
-        # Error message, None if no error
-        self.error_message = None
-        # Execution status, True for success, False for failure
-        self.success = True
-        # Execution time in seconds (optional)
-        self.execution_time = None
-        # Plugin metadata (e.g., name, version)
-        self.metadata = {}
-        # Status string (optional)
-        self.status = None
-        # Additional data payload
-        self.additional_data = {}
-        # Timestamp of completion
-        self.timestamp = datetime.now()
-        
+# Keep legacy name for compatibility, but inherit from Pydantic model
+class PluginResult(PluginResponse):
     @staticmethod
     def new(result: Any, need_call_brain: bool = False, success: bool = True, error_message: str = None,
             execution_time: float = None, metadata: dict = None, status: str = None, additional_data: dict = None):
-        r = PluginResult()
-        r.result = result
-        r.need_call_brain = need_call_brain
-        r.success = success
-        r.error_message = error_message
-        r.execution_time = execution_time
-        r.metadata = metadata if metadata else {}
-        r.status = status
-        r.additional_data = additional_data if additional_data else {}
-        r.timestamp = datetime.now()
-        return r
-        
-    def is_success(self):
-        return self.success
-
-    def has_error(self):
-        return self.error_message is not None
-
-    def add_metadata(self, key: str, value):
-        self.metadata[key] = value
-
-    def get_metadata(self, key: str):
-        return self.metadata.get(key)
-
-    def __str__(self):
-        return (f"PluginResult(result={self.result}, need_call_brain={self.need_call_brain}, "
-                f"success={self.success}, error_message={self.error_message}, execution_time={self.execution_time}, "
-                f"metadata={self.metadata}, status={self.status}, additional_data={self.additional_data})")
+        return PluginResult(
+            result=result,
+            need_call_brain=need_call_brain,
+            success=success,
+            error_message=error_message,
+            metadata=metadata if metadata else {},
+            # execution_time and status are not in PluginResponse but can be put in metadata
+        )
 
 class AbstractPlugin(metaclass=ABCMeta):
     def __init__(self):
@@ -188,9 +150,13 @@ class AbstractPlugin(metaclass=ABCMeta):
         pass
         
     @abstractmethod
-    def run(self, command: str, args: dict) -> PluginResult:
+    def run(self, command: str, args: dict) -> PluginResponse:
         """Main execution entry point for the plugin."""
         pass
+
+    def execute_task(self, task: PluginTask) -> PluginResponse:
+        """New execution entry point using Pydantic models."""
+        return self.run(task.command, task.params)
 
     def stop(self) -> Any:
         """Stop the plugin execution if running."""

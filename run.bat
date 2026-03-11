@@ -23,6 +23,22 @@ if exist "runtime\python.exe" (
     set PYTHONPATH=%PYTHONPATH%;.
 )
 
+REM Check for dependency updates
+echo Checking for dependency updates...
+%PYTHON_CMD% -c "from package.core_utils.dependency_manager import check_dependencies_update; import sys; sys.exit(0 if not check_dependencies_update() else 1)"
+if %errorlevel% neq 0 (
+    echo.
+    echo *********************************************************
+    echo  Requirements.txt has been updated.
+    echo  Would you like to update your local dependencies now?
+    echo *********************************************************
+    set /p CHOICE="Enter Y to update, or any other key to skip: "
+    if /I "%CHOICE%"=="Y" (
+        echo Updating dependencies...
+        %PYTHON_CMD% -m package.dependency_manager install_all
+    )
+)
+
 REM Run the main application using the python module flag
 echo Launching main application...
 %PYTHON_CMD% -m butler.butler_app

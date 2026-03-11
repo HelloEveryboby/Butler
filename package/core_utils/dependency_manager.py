@@ -11,6 +11,8 @@ import zipfile
 import tarfile
 import platform
 import shutil
+import hashlib
+from pathlib import Path
 from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
@@ -73,15 +75,52 @@ def setup_runtime(target_dir):
         logger.error(f"设置运行环境时出错: {e}")
         return f"错误: {e}"
 
+def calculate_file_hash(filepath: Path) -> str:
+    """计算文件的 MD5 哈希值。"""
+    if not filepath.exists():
+        return ""
+    hasher = hashlib.md5()
+    with open(filepath, 'rb') as f:
+        buf = f.read(65536)
+        while len(buf) > 0:
+            hasher.update(buf)
+            buf = f.read(65536)
+    return hasher.hexdigest()
+
+def check_dependencies_update():
+    """检查 requirements.txt 是否有更新，如果有则提示或自动安装。"""
+    project_root = Path(__file__).resolve().parent.parent.parent
+    req_file = project_root / "requirements.txt"
+    hash_file = project_root / "data" / ".req_hash"
+
+    if not req_file.exists():
+        return
+
+    current_hash = calculate_file_hash(req_file)
+
+    # Ensure data dir exists
+    hash_file.parent.mkdir(parents=True, exist_ok=True)
+
+    last_hash = ""
+    if hash_file.exists():
+        last_hash = hash_file.read_text().strip()
+
+    if current_hash != last_hash:
+        logger.info("检测到 requirements.txt 已更新，建议重新安装依赖。")
+        # In a real run.bat scenario, we might want to trigger install_all
+        # For now we record the new hash if it's explicitly run
+        return True
+    return False
+
 def run(*args, **kwargs):
     """
     执行依赖管理操作。
     """
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    target_dir = os.path.join(project_root, "lib_external")
+    project_root = Path(__file__).resolve().parent.parent.parent
+    target_dir = project_root / "lib_external"
 
-    if not os.path.exists(target_dir):
-        os.makedirs(target_dir, exist_ok=True)
+    if not target_dir.exists():
+        target_dir.mkdir(parents=True, exist_ok=True)
 
     command = kwargs.get('command')
     if not command and args:
@@ -91,12 +130,26 @@ def run(*args, **kwargs):
         runtime_dir = os.path.join(project_root, "runtime")
         return setup_runtime(runtime_dir)
     elif command == "install_all":
-        req_file = os.path.join(project_root, "requirements.txt")
-        if not os.path.exists(req_file):
+        req_file = project_root / "requirements.txt"
+        if not req_file.exists():
             return "错误: 未找到 requirements.txt。"
 
-        cmd = [sys.executable, "-m", "pip", "install", "-t", target_dir, "-r", req_file, "--upgrade"]
+        cmd = [sys.executable, "-m", "pip", "install", "-t", str(target_dir), "-r", str(req_file), "--upgrade"]
         logger.info(f"正在安装所有依赖到 {target_dir}...")
+
+        # After successful install, update hash
+        success = False
+        try:
+            process = subprocess.run(cmd, capture_output=True, text=True)
+            if process.returncode == 0:
+                hash_file = project_root / "data" / ".req_hash"
+                hash_file.parent.mkdir(parents=True, exist_ok=True)
+                hash_file.write_text(calculate_file_hash(req_file))
+                return f"操作成功完成。目标: {target_dir}"
+            else:
+                return f"出错: {process.stderr}"
+        except Exception as e:
+            return f"异常: {str(e)}"
     elif command == "install":
         pkg_name = kwargs.get('package')
         if not pkg_name and len(args) > 1:
@@ -105,12 +158,16 @@ def run(*args, **kwargs):
         if not pkg_name:
             return "错误: 未指定包名。"
 
-        cmd = [sys.executable, "-m", "pip", "install", "-t", target_dir, pkg_name, "--upgrade"]
+        cmd = [sys.executable, "-m", "pip", "install", "-t", str(target_dir), pkg_name, "--upgrade"]
         logger.info(f"正在安装包 '{pkg_name}'...")
     else:
         return f"未知命令 '{command}'。"
 
     try:
+        # Avoid running again if handled in install_all
+        if command == "install_all":
+            return # Already handled above
+
         process = subprocess.run(cmd, capture_output=True, text=True)
         if process.returncode == 0:
             return f"操作成功完成。目标: {target_dir}"
