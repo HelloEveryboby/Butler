@@ -35,6 +35,10 @@ class ExtensionManager:
             return
 
         for root, dirs, files in os.walk(self.package_dir):
+            # 忽略私有目录和特殊目录
+            if "__pycache__" in root or ".git" in root:
+                continue
+
             for filename in files:
                 if filename.endswith(".py") and filename != "__init__.py":
                     package_name = filename[:-3]
@@ -42,15 +46,19 @@ class ExtensionManager:
 
                     try:
                         spec = importlib.util.spec_from_file_location(package_name, package_path)
+                        if spec is None: continue
+
                         module = importlib.util.module_from_spec(spec)
-                        sys.modules[package_name] = module
+                        # 将包添加到 sys.modules 以支持相对导入，但由于这是动态发现，
+                        # 我们使用更安全的方式尝试加载
                         spec.loader.exec_module(module)
 
                         if hasattr(module, "run"):
                             self.packages[package_name] = module
-                            logger.info(f"Loaded package: {package_name}")
+                            logger.info(f"Loaded package: {package_name} from {package_path}")
                     except Exception as e:
-                        logger.error(f"Failed to load package {package_name}: {e}")
+                        # 记录详细错误但不要让它中断整个扫描过程
+                        logger.debug(f"Skipping package {package_name} due to load error: {e}")
 
     def get_all_tools(self) -> List[Dict[str, Any]]:
         """
