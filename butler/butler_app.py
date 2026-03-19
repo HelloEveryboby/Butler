@@ -40,6 +40,7 @@ from butler.core.intent_dispatcher import intent_registry
 from butler.core import legacy_commands # Ensure legacy intents are registered
 from butler.interpreter import interpreter
 from butler.core.hybrid_link import HybridLinkClient
+from butler.core.runner_server import RunnerServer
 from package.device.standalone_manager import StandaloneManager
 
 class Jarvis:
@@ -79,6 +80,16 @@ class Jarvis:
         # Initialize Standalone Manager
         self.standalone_manager = StandaloneManager(self)
         self.standalone_manager.start()
+
+        # Initialize Runner Server
+        runner_config = self.config.get("runner_server", {})
+        self.runner_server = RunnerServer(
+            host=runner_config.get("host", "0.0.0.0"),
+            port=runner_config.get("port", 8000),
+            token=runner_config.get("token", "BUTLER_SECRET_2026")
+        )
+        self.runner_server.register_event_callback(self._on_runner_event)
+        self.runner_server.start()
 
         self.ui_suggested = False
         self.waiting_for_ui_confirm = False
@@ -138,6 +149,21 @@ class Jarvis:
 
     def _on_voice_status_change(self, is_listening):
         event_bus.emit("voice_status", is_listening)
+
+    def _on_runner_event(self, runner_id: str, data: Dict[str, Any]):
+        """Handles incoming messages from remote runners."""
+        msg_type = data.get("status")
+        if msg_type == "screenshot":
+            self.logger.info(f"Received screenshot from runner: {runner_id}")
+            # Emit to event bus for UI to display
+            event_bus.emit("screenshot_update", data.get("data"))
+            self.ui_print(f"收到来自运行节点 '{runner_id}' 的屏幕截图。", tag='system_message')
+        elif msg_type == "sys":
+            self.ui_print(f"运行节点 '{runner_id}' 系统信息: {data.get('data')}", tag='system_message')
+        elif msg_type == "ok":
+            self.ui_print(f"运行节点 '{runner_id}' 反馈: {data.get('data')}", tag='system_message')
+        elif msg_type == "fail":
+            self.ui_print(f"运行节点 '{runner_id}' 错误: {data.get('error')}", tag='error')
 
     def ui_print(self, message, tag='ai_response', response_id=None):
         print(message)
