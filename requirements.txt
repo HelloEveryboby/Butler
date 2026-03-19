@@ -53,3 +53,4 @@ tqdm
 twisted>=24.7.0rc1
 watchdog
 zvec
+websockets

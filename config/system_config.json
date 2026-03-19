@@ -34,5 +34,10 @@
     "interpreter": {
         "safety_mode": true,
         "max_iterations": 10
+    },
+    "runner_server": {
+        "host": "127.0.0.1",
+        "port": 8000,
+        "token": "YOUR_RUNNER_SERVER_TOKEN_HERE"
     }
 }

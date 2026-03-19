@@ -461,7 +461,7 @@ def handle_email_op(jarvis_app, entities, **kwargs):
                 body = entities.get("body", "")
                 if to and body:
                     jarvis_app.ui_print(f"📧 正在发送邮件到 {to}...")
-                    # 注意：send_email 内部有 input() 确认，在某些 UI 下可能阻塞
+                    # 注意：send_email 内部 plan_step_complete 有 input() 确认，在某些 UI 下可能阻塞
                     # 这里假设是简单的后端调用或 UI 已处理确认
                     assistant.send_email(subject, body, to)
                     jarvis_app.speak("邮件已发送。")
@@ -637,3 +637,36 @@ def handle_system_audit(jarvis_app, entities, **kwargs):
         jarvis_app.speak("高性能系统审计已完成。")
     except Exception as e:
         jarvis_app.speak(f"审计运行失败: {e}")
+
+@register_intent("remote_runner")
+def handle_remote_runner(jarvis_app, entities, **kwargs):
+    """处理远程运行节点指令。"""
+    operation = entities.get("operation")
+    runner_id = entities.get("runner_id")
+    payload = entities.get("payload", "")
+
+    if not operation:
+        jarvis_app.speak("未指定远程操作类型。")
+        return
+
+    # 获取当前连接的运行节点列表
+    runners = jarvis_app.runner_server.list_runners()
+    if not runners:
+        jarvis_app.speak("当前没有已连接的远程运行节点。")
+        return
+
+    if not runner_id:
+        if len(runners) == 1:
+            runner_id = runners[0]
+        else:
+            # 如果有多个且未指定，尝试模糊匹配或广播
+            jarvis_app.ui_print(f"当前可用节点: {', '.join(runners)}")
+            jarvis_app.speak(f"检测到多个运行节点，请指定其中一个。")
+            return
+
+    # 发送指令
+    success, msg = jarvis_app.runner_server.send_command(runner_id, operation, payload)
+    if success:
+        jarvis_app.ui_print(f"指令 '{operation}' 已发送至节点 '{runner_id}'。")
+    else:
+        jarvis_app.speak(f"发送指令失败: {msg}")
