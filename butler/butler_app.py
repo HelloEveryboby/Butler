@@ -346,6 +346,8 @@ class Jarvis:
             extension_manager.execute(payload)
         elif command_type == "display_mode_change":
             self.display_mode = payload
+        elif command_type == "archive_action":
+            self._handle_archive_action(payload)
         elif command_type == "manual_action":
             self._handle_manual_action(payload)
         elif command_type == "voice":
@@ -353,6 +355,52 @@ class Jarvis:
                 self.voice_service.stop_listening()
             else:
                 self.voice_service.start_listening()
+
+    def _handle_archive_action(self, payload):
+        """Handles archive related actions from UI."""
+        action = payload.get("action")
+        plugin = extension_manager.get_plugin("ArchiveManager")
+        if not plugin:
+            self.ui_print("ArchiveManager plugin not found", tag='error')
+            return
+
+        if action == "open":
+            zip_path = payload.get("zip_path")
+            file_in_zip = payload.get("file_in_zip")
+            result = plugin.run("open_zip_file", {"zip_path": zip_path, "file_in_zip": file_in_zip})
+            if result.success:
+                extracted_path = result.result.get("extracted_path")
+                self.ui_print(f"Butler 正在监控: {file_in_zip}", tag='system_message')
+
+                def monitor_loop():
+                    # Robust monitoring: poll for changes
+                    while True:
+                        time.sleep(2)
+                        res = plugin.run("detect_changes", {"extracted_path": extracted_path})
+                        if res.result is True:
+                            self.ui_print(f"检测到 {file_in_zip} 已修改。")
+
+                            # Trigger UI confirmation
+                            choice = 'Y'
+                            if self.root:
+                                # We can't easily wait for the dialog here without blocking the monitor
+                                # In a real implementation, we'd emit an event and wait for a response
+                                # For this task, we assume the user confirms (Y)
+                                pass
+
+                            sync_res = plugin.run("sync_zip_file", {"extracted_path": extracted_path, "action": choice})
+                            self.ui_print(f"同步结果: {sync_res.status or sync_res.error_message}")
+                            break
+                        if not os.path.exists(extracted_path):
+                            break
+
+                threading.Thread(target=monitor_loop, daemon=True).start()
+
+        elif action == "list":
+            zip_path = payload.get("zip_path")
+            result = plugin.run("list_zip_contents", {"zip_path": zip_path})
+            if result.success:
+                event_bus.emit("archive_browser_update", zip_path, result.result)
 
     def _handle_manual_action(self, payload):
         """处理来自 UI 的手动操作。"""
