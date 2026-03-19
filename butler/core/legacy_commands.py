@@ -8,6 +8,8 @@ from .intent_dispatcher import register_intent
 from . import algorithms
 from package.document import task_manager_bridge # Register task_manage intent
 
+# tmd要是中考分不那么低一中就去了，也就能早读了
+
 # 注意：这些函数旨在通过意图分发器动态传递的关键字参数调用。
 # `jarvis_app` 参数是一个特殊情况，由分发器注入，以提供
 # 对主应用程序实例的访问（用于 `speak` 和 `ui_print` 等方法）。

@@ -232,6 +232,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    window.onNostalgiaMode = () => {
+        document.body.classList.add('nostalgia-mode');
+        const msg = document.createElement('div');
+        msg.className = 'nostalgia-overlay';
+        msg.innerHTML = '<h1>怀旧模式：一中往事</h1><p>那年的早读，Butler 陪你补上。</p>';
+        document.body.appendChild(msg);
+        setTimeout(() => msg.classList.add('fade-out'), 3000);
+        setTimeout(() => msg.remove(), 4000);
+    };
+
     // Dock Events
     dockTerminal.addEventListener('click', () => {
         terminalOverlay.classList.toggle('hidden');

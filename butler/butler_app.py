@@ -5,12 +5,15 @@ import datetime
 import json
 import re
 import threading
+import time
+from typing import Dict, Any
 import tempfile
 import shutil
 import tkinter as tk
 from pathlib import Path
 from dotenv import load_dotenv
 
+# tmd要是中考分不那么低一中就去了，也就能早读了
 # Add project root and local lib to sys.path to support portable/local dependency installation
 project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
@@ -204,6 +207,11 @@ class Jarvis:
             hybrid_memory_manager.add_daily_log(f"User: {cmd}")
         except Exception as e:
             self.logger.error(f"Failed to add User input to hybrid memory: {e}")
+
+        # Easter Egg Detection
+        if "tmd要是中考分不那么低一中就去了" in cmd or ("一中" in cmd and "早读" in cmd):
+            self._trigger_no1_middle_school_easter_egg()
+            return
 
         # Handle UI confirmation prompt
         if self.waiting_for_ui_confirm:
@@ -538,6 +546,25 @@ class Jarvis:
 
         except Exception as e:
             self.logger.error(f"Reflection process failed: {e}")
+
+    def _trigger_no1_middle_school_easter_egg(self):
+        """Triggers the 'No. 1 Middle School' nostalgia easter egg."""
+        response = "那年的风很大，如果分数再高一点，也许真的能在一中的操场上开始早读。虽然 Butler 没法带你回到过去，但会陪你走向更好的未来。🌅"
+        self.ui_print(response, tag='system_message')
+
+        # Emit a special event for UI nostalgia mode
+        event_bus.emit("nostalgia_mode_activated")
+
+        # Special voice response
+        self.speak(response)
+
+        # Add to memory with high importance
+        try:
+             from plugin.long_memory.long_memory_interface import LongMemoryItem
+             item = LongMemoryItem.new(content=response, id=f"easter_egg_{time.time()}",
+                                      metadata={"type": "easter_egg", "key": "no1_middle_school"})
+             self.long_memory.save([item])
+        except Exception: pass
 
     def _handle_manual_habit_learning(self, command: str):
         """Processes manual habit learning requests from the user."""

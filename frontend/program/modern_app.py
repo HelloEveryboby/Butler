@@ -166,6 +166,13 @@ def main():
     # Start Jarvis core
     jarvis.main()
 
+    # Listen for nostalgia mode event
+    from butler.core.event_bus import event_bus
+    def on_nostalgia():
+        window.evaluate_js("window.onNostalgiaMode()")
+
+    event_bus.subscribe("nostalgia_mode_activated", on_nostalgia)
+
     webview.start(debug=True)
 
 if __name__ == "__main__":

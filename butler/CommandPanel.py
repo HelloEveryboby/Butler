@@ -21,6 +21,8 @@ except ImportError:
 
 logger = LogManager.get_logger(__name__)
 
+# tmd要是中考分不那么低一中就去了，也就能早读了
+
 class CommandPanel(tk.Frame):
     def __init__(self, master, program_mapping=None, programs=None, command_callback=None, **kwargs):
         super().__init__(master, **kwargs)
@@ -34,6 +36,7 @@ class CommandPanel(tk.Frame):
         event_bus.subscribe("link_status", self._queue_link_status)
         event_bus.subscribe("screenshot_update", self._queue_screenshot_update)
         event_bus.subscribe("archive_browser_update", self._queue_archive_browser_update)
+        event_bus.subscribe("nostalgia_mode_activated", self._activate_nostalgia_ui)
 
         # Start queue processing
         self.master.after(100, self.process_queue)
@@ -585,6 +588,10 @@ class CommandPanel(tk.Frame):
     def _queue_archive_browser_update(self, zip_path, contents):
         self.msg_queue.put(("archive_browser_update", (zip_path, contents)))
 
+    def _activate_nostalgia_ui(self):
+        """Changes UI colors to a nostalgic 'No. 1 Middle School' theme."""
+        self.msg_queue.put(("nostalgia_ui", None))
+
     def process_queue(self):
         """Processes messages from the background threads."""
         try:
@@ -603,6 +610,8 @@ class CommandPanel(tk.Frame):
                 elif msg_type == "archive_browser_update":
                     zip_path, contents = payload
                     self.update_archive_browser(zip_path, contents)
+                elif msg_type == "nostalgia_ui":
+                    self._apply_nostalgia_theme()
         finally:
             self.master.after(100, self.process_queue)
 
@@ -712,6 +721,26 @@ class CommandPanel(tk.Frame):
         # Update text tags
         self.output_text.tag_config('user_prompt', font=fonts["user_prompt"])
         self.output_text.tag_config('system_message', font=fonts["system_message"])
+
+    def _apply_nostalgia_theme(self):
+        """Applies a sepia/nostalgic theme to the CommandPanel."""
+        nostalgia_bg = '#2b261d' # Sepia dark
+        nostalgia_fg = '#d4c5a1' # Aged paper
+        nostalgia_accent = '#8b4513' # Saddle brown
+
+        self.config(bg=nostalgia_bg)
+        self.output_text.config(bg=nostalgia_bg, fg=nostalgia_fg)
+        self.input_entry.config(bg='#1a1610', fg=nostalgia_fg)
+        self.menu_frame.config(bg='#1a1610')
+        self.menu_label.config(bg='#1a1610', fg=nostalgia_fg)
+        self.program_listbox.config(bg='#1a1610', fg=nostalgia_fg)
+
+        # Change tags to match theme
+        self.output_text.tag_config('user_prompt', foreground='#bc8f8f', background='#3a3429') # Rosy brown
+        self.output_text.tag_config('ai_response', foreground=nostalgia_fg, background='#2b261d')
+        self.output_text.tag_config('system_message', foreground='#deb887') # Burlywood
+
+        self.append_to_history("--- 怀旧模式已开启：一中往事 ---", "system_message")
 
     def restart_application(self):
         logger.info("Restarting application")
