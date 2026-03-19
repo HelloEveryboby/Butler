@@ -9,8 +9,9 @@ from typing import Dict, Any, Optional, List, Callable
 class RunnerServer:
     """
     WebSocket server for managing remote Butler-Runner nodes.
+    By default, it binds to 127.0.0.1 for security.
     """
-    def __init__(self, host: str = "0.0.0.0", port: int = 8000, token: str = "BUTLER_SECRET_2026"):
+    def __init__(self, host: str = "127.0.0.1", port: int = 8000, token: str = None):
         self.host = host
         self.port = port
         self.token = token
@@ -19,6 +20,9 @@ class RunnerServer:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._server_thread: Optional[threading.Thread] = None
         self._event_callbacks: List[Callable[[str, Dict[str, Any]], None]] = []
+
+        if not self.token or self.token == "BUTLER_SECRET_2026":
+            self.logger.warning("⚠️ RunnerServer is using a default or missing token! This is insecure.")
 
     def register_event_callback(self, callback: Callable[[str, Dict[str, Any]], None]):
         """Registers a callback for messages from runners (e.g., screenshots)."""
@@ -38,9 +42,12 @@ class RunnerServer:
                 msg_token = data.get("token")
                 msg_runner_id = data.get("runner_id", "anonymous")
 
-                if msg_token != self.token:
+                # Validate token
+                if not self.token or msg_token != self.token:
+                    self.logger.warning(f"Unauthorized connection attempt from {websocket.remote_address}")
                     await websocket.send(json.dumps({"status": "error", "error": "Unauthorized"}))
-                    continue
+                    await websocket.close(1008, "Invalid Token")
+                    return
 
                 if msg_type == "register":
                     runner_id = msg_runner_id
@@ -49,7 +56,7 @@ class RunnerServer:
                     await websocket.send(json.dumps({"status": "ok", "data": f"Registered as {runner_id}"}))
                     continue
 
-                # Handle responses to pending requests
+                # Handle responses/events
                 for callback in self._event_callbacks:
                     try:
                         callback(runner_id, data)
@@ -64,6 +71,10 @@ class RunnerServer:
 
     def start(self):
         """Starts the server in a background thread."""
+        if not self.token:
+             self.logger.error("RunnerServer cannot start without a valid token.")
+             return
+
         self._server_thread = threading.Thread(target=self._run_server, daemon=True)
         self._server_thread.start()
         self.logger.info(f"RunnerServer starting on {self.host}:{self.port}")
@@ -74,7 +85,10 @@ class RunnerServer:
             async with websockets.serve(self._handler, self.host, self.port):
                 await asyncio.Future()  # run forever
 
-        asyncio.run(main())
+        try:
+            asyncio.run(main())
+        except Exception as e:
+            self.logger.error(f"RunnerServer loop crash: {e}")
 
     def send_command(self, runner_id: str, cmd_type: str, payload: str):
         """Sends a command to a specific runner."""
@@ -88,7 +102,6 @@ class RunnerServer:
             "token": self.token
         }
 
-        # We need to run this in the server's event loop
         future = asyncio.run_coroutine_threadsafe(websocket.send(json.dumps(msg)), self._loop)
         try:
             future.result(timeout=5)

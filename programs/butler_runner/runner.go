@@ -38,7 +38,7 @@ type Response struct {
 
 var (
 	serverURL = flag.String("server", "ws://localhost:8000/ws/butler", "Butler server WebSocket URL")
-	authToken = flag.String("token", "BUTLER_SECRET_2026", "Authentication token")
+	authToken = flag.String("token", "", "Authentication token (REQUIRED)")
 	runnerID  = flag.String("id", "default_runner", "Unique ID for this runner")
 	isSleeping = false
 	mu        sync.Mutex
@@ -46,6 +46,16 @@ var (
 
 func main() {
 	flag.Parse()
+
+	if *authToken == "" {
+		fmt.Println("❌ ERROR: Auth token is required. Use -token to specify it.")
+		os.Exit(1)
+	}
+
+	if *authToken == "BUTLER_SECRET_2026" {
+		fmt.Println("⚠️ WARNING: Using a default or insecure token. Please change it for production use.")
+	}
+
 	fmt.Printf("🚀 Butler-Runner Pro [%s] 启动中...\n", *runnerID)
 	fmt.Printf("🔗 连接至: %s\n", *serverURL)
 
