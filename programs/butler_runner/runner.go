@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -151,6 +152,25 @@ func normalizeType(t string) string {
 	}
 }
 
+func isSafePath(path string) bool {
+	if path == "" || path == "/" || path == "." || path == ".." {
+		return false
+	}
+	// Check for path traversal
+	if strings.Contains(path, "..") {
+		return false
+	}
+	// Check for absolute path in Unix or root in Windows
+	if filepath.IsAbs(path) {
+		// For simplicity, we only allow relative paths for file ops in this version
+		// Or we can restrict to specific root if configured, but let's at least block root
+		if path == "/" || (runtime.GOOS == "windows" && len(path) <= 3 && strings.HasSuffix(path, ":\\")) {
+			return false
+		}
+	}
+	return true
+}
+
 func handleTask(c *websocket.Conn, msg Message) {
 	msgType := normalizeType(msg.Type)
 	switch msgType {
@@ -288,6 +308,10 @@ func handleTask(c *websocket.Conn, msg Message) {
 			return
 		}
 		filename := parts[0]
+		if !isSafePath(filename) {
+			sendResp(c, "fail", nil, "Unsafe upload path: "+filename)
+			return
+		}
 		content, err := base64.StdEncoding.DecodeString(parts[1])
 		if err != nil {
 			sendResp(c, "fail", nil, "Base64 decode error: "+err.Error())
@@ -301,6 +325,10 @@ func handleTask(c *websocket.Conn, msg Message) {
 		}
 
 	case "file_delete":
+		if !isSafePath(msg.Payload) {
+			sendResp(c, "fail", nil, "Unsafe delete path: "+msg.Payload)
+			return
+		}
 		err := os.RemoveAll(msg.Payload)
 		if err != nil {
 			sendResp(c, "fail", nil, err.Error())
@@ -309,6 +337,7 @@ func handleTask(c *websocket.Conn, msg Message) {
 		}
 
 	case "shell":
+		fmt.Printf("⚠️  Executing Shell Command: %s\n", msg.Payload)
 		var cmd *exec.Cmd
 		if runtime.GOOS == "windows" {
 			cmd = exec.Command("cmd", "/C", msg.Payload)
@@ -323,6 +352,7 @@ func handleTask(c *websocket.Conn, msg Message) {
 		}
 
 	case "cd":
+		fmt.Printf("📂 Changing Directory to: %s\n", msg.Payload)
 		err := os.Chdir(msg.Payload)
 		if err != nil {
 			sendResp(c, "fail", nil, err.Error())
@@ -332,6 +362,10 @@ func handleTask(c *websocket.Conn, msg Message) {
 		}
 
 	case "file_mkdir":
+		if !isSafePath(msg.Payload) {
+			sendResp(c, "fail", nil, "Unsafe directory path: "+msg.Payload)
+			return
+		}
 		err := os.MkdirAll(msg.Payload, 0755)
 		if err != nil {
 			sendResp(c, "fail", nil, err.Error())
@@ -340,6 +374,10 @@ func handleTask(c *websocket.Conn, msg Message) {
 		}
 
 	case "file_read":
+		if !isSafePath(msg.Payload) {
+			sendResp(c, "fail", nil, "Unsafe read path: "+msg.Payload)
+			return
+		}
 		content, err := os.ReadFile(msg.Payload)
 		if err != nil {
 			sendResp(c, "fail", nil, err.Error())
