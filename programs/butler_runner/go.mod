@@ -3,14 +3,18 @@ module butler_runner
 go 1.24.3
 
 require (
+	github.com/go-vgo/robotgo v1.0.1
+	github.com/gorilla/websocket v1.5.3
+	github.com/vova616/screenshot v0.0.0-20220801010501-56c10359473c
+)
+
+require (
 	github.com/BurntSushi/xgb v0.0.0-20210121224620-deaf085860bc // indirect
 	github.com/dblohm7/wingoes v0.0.0-20250822163801-6d8e6105c62d // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/gen2brain/shm v0.1.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/go-vgo/robotgo v1.0.1 // indirect
 	github.com/godbus/dbus/v5 v5.2.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/jezek/xgb v1.2.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/otiai10/gosseract/v2 v2.4.1 // indirect
@@ -26,7 +30,6 @@ require (
 	github.com/vcaesar/keycode v0.10.1 // indirect
 	github.com/vcaesar/screenshot v0.11.1 // indirect
 	github.com/vcaesar/tt v0.20.1 // indirect
-	github.com/vova616/screenshot v0.0.0-20220801010501-56c10359473c // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/exp v0.0.0-20251125195548-87e1e737ad39 // indirect
 	golang.org/x/image v0.33.0 // indirect
