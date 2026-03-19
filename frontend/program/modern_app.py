@@ -48,7 +48,15 @@ class ModernBridge:
             original_ui_print = self.jarvis.ui_print
 
             def web_ui_print(message, tag='ai_response', response_id=None):
-                if tag == 'code_block':
+                if tag == 'status_update':
+                     # Handle progress bars for Modern UI
+                     try:
+                         data = json.loads(message)
+                         if data.get("type") == "progress":
+                             self.window.evaluate_js(f"window.onProgressUpdate({data['value']})")
+                     except:
+                         pass
+                elif tag == 'code_block':
                     self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
                 elif tag == 'data_table':
                     self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")

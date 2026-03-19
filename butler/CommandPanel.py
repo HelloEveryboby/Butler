@@ -33,6 +33,7 @@ class CommandPanel(tk.Frame):
         event_bus.subscribe("voice_status", self._queue_voice_status)
         event_bus.subscribe("link_status", self._queue_link_status)
         event_bus.subscribe("screenshot_update", self._queue_screenshot_update)
+        event_bus.subscribe("archive_browser_update", self._queue_archive_browser_update)
 
         # Start queue processing
         self.master.after(100, self.process_queue)
@@ -121,9 +122,24 @@ class CommandPanel(tk.Frame):
         for prog_name in self.all_program_names:
             self.program_listbox.insert(tk.END, prog_name)
 
+        # --- Archive Explorer (FileBrowser) ---
+        from tkinter import ttk
+        self.archive_label = tk.Label(self.menu_frame, text="压缩包浏览器", font=("Arial", 10, "bold"), bg=self.menu_bg_color, fg=self.menu_fg_color)
+        self.archive_label.grid(row=3, column=0, pady=(10, 5), padx=5, sticky="ew")
+
+        self.archive_tree = ttk.Treeview(self.menu_frame, selectmode='browse', show='tree')
+        self.archive_tree.grid(row=4, column=0, sticky="nsew", padx=(5, 0), pady=(0, 5))
+        self.archive_tree.bind("<Double-1>", self.on_archive_item_double_click)
+
+        # Style the Treeview to match the dark theme
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure("Treeview", background=self.menu_bg_color, foreground=self.menu_fg_color, fieldbackground=self.menu_bg_color, borderwidth=0)
+        style.map("Treeview", background=[('selected', '#4f5b70')], foreground=[('selected', self.menu_fg_color)])
+
         # --- 手动控制工具栏 ---
         self.manual_toolbar = tk.Frame(self.menu_frame, bg=self.menu_bg_color)
-        self.manual_toolbar.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        self.manual_toolbar.grid(row=5, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
         self.manual_toolbar.grid_columnconfigure((0, 1, 2), weight=1)
 
         btn_style = {
@@ -160,7 +176,7 @@ class CommandPanel(tk.Frame):
             highlightthickness=0,
             font=("Arial", 9)
         )
-        self.settings_button.grid(row=4, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        self.settings_button.grid(row=6, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
 
         # --- 右侧面板：内容与远程视图 ---
@@ -566,6 +582,9 @@ class CommandPanel(tk.Frame):
     def _queue_screenshot_update(self, b64_data):
         self.msg_queue.put(("screenshot_update", b64_data))
 
+    def _queue_archive_browser_update(self, zip_path, contents):
+        self.msg_queue.put(("archive_browser_update", (zip_path, contents)))
+
     def process_queue(self):
         """Processes messages from the background threads."""
         try:
@@ -581,6 +600,9 @@ class CommandPanel(tk.Frame):
                     self.update_link_status(connected, device)
                 elif msg_type == "screenshot_update":
                     self.update_screenshot(payload)
+                elif msg_type == "archive_browser_update":
+                    zip_path, contents = payload
+                    self.update_archive_browser(zip_path, contents)
         finally:
             self.master.after(100, self.process_queue)
 
@@ -596,6 +618,26 @@ class CommandPanel(tk.Frame):
         if self.command_callback:
             logger.info("Toggling voice command")
             self.command_callback("voice", None)
+
+    def on_archive_item_double_click(self, event):
+        item_id = self.archive_tree.selection()[0]
+        item_text = self.archive_tree.item(item_id, "text")
+        if self.command_callback and hasattr(self, 'current_zip_path'):
+            self.command_callback("archive_action", {"action": "open", "zip_path": self.current_zip_path, "file_in_zip": item_text})
+
+    def update_archive_browser(self, zip_path, contents):
+        self.current_zip_path = zip_path
+        self.archive_tree.delete(*self.archive_tree.get_children())
+        for content in contents:
+            self.archive_tree.insert('', 'end', text=content)
+        # Force switch menu label
+        self.archive_label.config(text=f"浏览: {os.path.basename(zip_path)}")
+
+    def show_update_dialog(self, filename):
+        """ModalDialog for update confirmation."""
+        from tkinter import messagebox
+        ans = messagebox.askyesnocancel("Butler 提醒", f"检测到 {filename} 已修改，是否同步回压缩包？", parent=self.master)
+        return ans
 
     def update_listen_button_state(self, is_listening):
         if is_listening:
