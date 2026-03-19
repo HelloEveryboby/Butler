@@ -387,8 +387,8 @@ class CommandPanel(tk.Frame):
 
     def _configure_styles_and_tags(self):
         """配置用于设置输出样式的文本标签。"""
-        self.output_text.tag_config('user_prompt', foreground='#ff00ff', font=("Consolas", 11, "bold"))
-        self.output_text.tag_config('ai_response', foreground=self.foreground_color)
+        self.output_text.tag_config('user_prompt', foreground='#ff00ff', font=("Consolas", 11, "bold"), background='#2d2d2d')
+        self.output_text.tag_config('ai_response', foreground=self.foreground_color, background='#121212')
         self.output_text.tag_config('system_message', foreground='#00ffff', font=("Consolas", 11, "italic"))
         self.output_text.tag_config('error', foreground='#ff0000', font=("Consolas", 11, "bold"))
 

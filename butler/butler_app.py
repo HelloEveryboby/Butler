@@ -49,6 +49,7 @@ class Jarvis:
         self.resource_manager = ResourceManager()
         self.display_mode = 'host'
         self.running = True
+        self.pending_dev_code = None
 
         load_dotenv()
         self.logger = LogManager.get_logger(__name__)
@@ -218,6 +219,23 @@ class Jarvis:
         elif cmd == "/profile-reset":
             habit_manager.reset_profile()
             self.ui_print("用户画像与习惯已重置。", tag='system_message')
+        elif cmd == "/approve" and self.pending_dev_code:
+            code = self.pending_dev_code
+            self.pending_dev_code = None
+            self.ui_print("已获得授权，正在执行代码...", tag='system_message')
+            success, output = interpreter.run("python", code)
+
+            # Format and print output
+            is_modern = hasattr(self, 'ui_print') and 'onAIStreamChunk' in str(self.ui_print)
+            if is_modern or self.display_mode in ('host', 'both'):
+                 self.ui_print(json.dumps({
+                     "type": "code_block",
+                     "language": "python",
+                     "code": code,
+                     "output": output
+                 }), tag='code_block')
+            else:
+                 self.ui_print(f"Output:\n{output}")
         elif cmd.startswith("记住这一点：") or cmd.startswith("记住：") or cmd.startswith("Remember this:"):
             self._handle_manual_habit_learning(cmd)
         else:
@@ -261,7 +279,7 @@ class Jarvis:
 
     def _execute_with_llm_interpreter(self, command):
         """Uses LLM to generate and run code (Open Interpreter style)."""
-        self.ui_print("AI 正在思考并编写代码...", tag='system_message')
+        self.ui_print("AI 正在思考并编写代码以开发解决方案...", tag='system_message')
 
         # Use integrated system prompt from prompts.json if available
         system_prompt = self.prompts.get("interpreter_system_prompt", {}).get("prompt")
@@ -269,9 +287,20 @@ class Jarvis:
             system_prompt = (
                 "You are a desktop agent that solves tasks by writing Python code. "
                 "You have access to the local file system and office software. "
+                "If existing tools don't meet the requirement, you should develop a new script. "
                 "ALWAYS output code in a block starting with ```python. "
                 "If the task is complete, end your message with '任务已完成'。"
             )
+
+        # Append additional development mindset instructions
+        dev_instruction = (
+            "\n\n**开发与持久化指南**:\n"
+            "1. **按需开发**: 如果用户请求的是一个通用的、可复用的功能（例如'写一个网页爬虫'、'开发一个文件分类器'），"
+            "请将代码保存到 `package/custom_tools/` 目录下，并以适当的名称命名（例如 `web_crawler.py`）。\n"
+            "2. **导入与注册**: 确保代码包含一个 `run(**kwargs)` 入口函数，以便系统后续可以通过 `extension_manager` 调用它。\n"
+            "3. **反馈进度**: 在编写和运行代码的过程中，清晰地告知用户你正在进行的操作。"
+        )
+        system_prompt += dev_instruction
 
         history = self.long_memory.get_recent_history(10)
         max_iterations = 5
@@ -285,28 +314,23 @@ class Jarvis:
             code_match = re.search(r"```python\n(.*?)```", response, re.DOTALL)
             if code_match:
                 code = code_match.group(1)
-                self.ui_print(f"AI 正在执行第 {i+1} 步操作...", tag='system_message')
-                success, output = interpreter.run("python", code)
 
-                # Format for Modern UI
+                # Show code to user and request approval
+                self.ui_print(f"AI 已生成代码 (第 {i+1} 步)。为了安全，请检查并在下方输入 `/approve` 以执行:", tag='system_message')
+
                 is_modern = hasattr(self, 'ui_print') and 'onAIStreamChunk' in str(self.ui_print)
                 if is_modern or self.display_mode in ('host', 'both'):
-                     self.ui_print(json.dumps({
-                         "type": "code_block",
-                         "language": "python",
-                         "code": code,
-                         "output": output
-                     }), tag='code_block')
+                    self.ui_print(json.dumps({
+                        "type": "code_block",
+                        "language": "python",
+                        "code": code,
+                        "output": "Waiting for /approve..."
+                    }), tag='code_block')
                 else:
-                     self.ui_print(f"Output:\n{output}")
+                    self.ui_print(f"Proposed Code:\n```python\n{code}\n```")
 
-                if "task is done" in response.lower() or "任务已完成" in response:
-                    break
-
-                # Feedback loop: feed output back to AI
-                current_input = f"Execution Output from step {i+1}:\n{output}\n\nPlease proceed to the next step or fix any errors. If finished, say 'The task is done.'"
-                # We update history to keep the context
-                history.append({"role": "assistant", "content": response})
+                self.pending_dev_code = code
+                break
             else:
                 self.ui_print(response) # Just a text response
                 break
@@ -325,15 +349,31 @@ class Jarvis:
 
         # 通过调度程序或扩展管理器执行
         handler_args = {"jarvis_app": self, "entities": entities, "programs": extension_manager.packages}
-        result = intent_registry.dispatch(matched_intent, **handler_args)
 
-        if result is None:
-            # 尝试扩展
-            try:
-                ext_result = extension_manager.execute(matched_intent, command=legacy_command, args=entities)
-                if ext_result: self.speak(str(ext_result))
-            except Exception:
-                self.speak("抱歉，我不明白您的意思。")
+        # 1. 优先尝试已注册的意图
+        if matched_intent in intent_registry._intents:
+            result = intent_registry.dispatch(matched_intent, **handler_args)
+            if result is not None:
+                if isinstance(result, str): self.speak(result)
+                return
+
+        # 2. 尝试扩展（插件、包、外部程序）
+        try:
+            ext_result = extension_manager.execute(matched_intent, command=legacy_command, args=entities)
+            # 扩展执行成功（无论返回值是什么），则认为任务已处理
+            if ext_result is not None:
+                self.speak(str(ext_result))
+            return
+        except ValueError:
+            # Extension not found, proceed to fallback
+            pass
+        except Exception as e:
+            self.logger.error(f"Error executing extension {matched_intent}: {e}")
+            pass
+
+        # 3. 如果无法通过现有功能解决，进入自动开发模式
+        self.ui_print(f"未找到针对 '{legacy_command}' 的现有功能，正在尝试自动开发解决方案...", tag='system_message')
+        self._execute_with_llm_interpreter(legacy_command)
 
     def panel_command_handler(self, command_type, payload):
         # Move complex tasks to background threads to avoid UI freeze
