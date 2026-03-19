@@ -427,3 +427,50 @@ footer {
     border-radius: 8px;
     cursor: pointer;
 }
+
+/* Nostalgia Mode Styles */
+.nostalgia-mode {
+    --glass-bg: rgba(43, 38, 29, 0.9);
+    --accent-color: #8b4513;
+    --bg-light: #d4c5a1;
+}
+
+.nostalgia-mode .interaction-line.ai-output-line {
+    background: rgba(43, 38, 29, 0.8);
+    color: #d4c5a1;
+}
+
+.nostalgia-mode .interaction-line.user-input-line {
+    background: rgba(139, 69, 19, 0.3);
+    color: #d4c5a1;
+}
+
+.nostalgia-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 1s;
+}
+
+.nostalgia-overlay.fade-out {
+    opacity: 0;
+}
+
+.nostalgia-overlay h1 {
+    font-size: 3rem;
+    color: #d4c5a1;
+    margin-bottom: 20px;
+}
+
+.nostalgia-overlay p {
+    font-size: 1.5rem;
+    color: #a1a1aa;
+}

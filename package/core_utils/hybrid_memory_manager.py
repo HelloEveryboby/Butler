@@ -7,13 +7,13 @@ from package.core_utils.log_manager import LogManager
 
 class HybridMemoryManager:
     """
-    Manages the OpenClaw-style memory system using a Go-based BHL backend for search.
+    Manages the memory system using a Go-based BHL backend for search.
     """
     def __init__(self, memory_root: str = None):
         self._logger = LogManager.get_logger(__name__)
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         if memory_root is None:
-            self.memory_root = os.path.join(project_root, "data", "openclaw_memory")
+            self.memory_root = os.path.join(project_root, "data", "butler_memory")
         else:
             self.memory_root = memory_root
 
