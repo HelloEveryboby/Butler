@@ -33,6 +33,7 @@ from butler.core.extension_manager import extension_manager
 from butler.core.voice_service import VoiceService
 from butler.core.nlu_service import NLUService
 from butler.core.habit_manager import habit_manager
+from butler.core.skill_manager import SkillManager
 from butler.usb_screen import USBScreen
 from butler.resource_manager import ResourceManager, PerformanceMode
 from plugin.long_memory.redis_long_memory import RedisLongMemory
@@ -68,6 +69,8 @@ class Jarvis:
         
         self.nlu_service = NLUService(config_loader.get("api.deepseek.key"), self.prompts)
         self.voice_service = VoiceService(self.handle_user_command, self.ui_print, self._on_voice_status_change)
+        self.skill_manager = SkillManager()
+        self.skill_manager.load_skills()
         
         # Apply voice config
         voice_mode = self.config.get("voice", {}).get("mode", "offline")
@@ -188,7 +191,7 @@ class Jarvis:
                                         metadata={"role": "assistant", "timestamp": time.time()})
         self.long_memory.save([memory_item])
 
-        # Also record in OpenClaw-style daily memory
+        # Record in daily memory
         try:
             from package.core_utils.hybrid_memory_manager import hybrid_memory_manager
             hybrid_memory_manager.add_daily_log(f"Assistant: {text}")
@@ -201,7 +204,7 @@ class Jarvis:
         if not command: return
         cmd = command.strip()
 
-        # Record User input in OpenClaw-style daily memory
+        # Record User input in daily memory
         try:
             from package.core_utils.hybrid_memory_manager import hybrid_memory_manager
             hybrid_memory_manager.add_daily_log(f"User: {cmd}")
@@ -372,6 +375,18 @@ class Jarvis:
     def _handle_legacy_command(self, legacy_command):
         """以旧版模式处理命令。"""
         self.ui_print(f"正在处理: {legacy_command}")
+
+        # Try to match a Skill first
+        skill_id = self.skill_manager.match_skill(legacy_command)
+        if skill_id:
+            self.ui_print(f"检测到技能: {skill_id}", tag='system_message')
+            nlu_result = self.nlu_service.extract_intent(legacy_command, self.long_memory.get_recent_history(10))
+            entities = nlu_result.get("entities", {})
+            action = entities.get("operation")
+            result = self.skill_manager.execute(skill_id, action, entities=entities, jarvis_app=self)
+            self.speak(str(result))
+            return
+
         matched_intent = intent_registry.match_intent_locally(legacy_command)
 
         if matched_intent and not intent_registry.intent_requires_entities(matched_intent):

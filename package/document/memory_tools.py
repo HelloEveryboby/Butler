@@ -5,8 +5,7 @@ from package.core_utils.log_manager import LogManager
 
 class MemoryTools:
     """
-    Implements memory search and retrieval tools for the AI agent,
-    following the OpenClaw specification.
+    Implements memory search and retrieval tools for the AI agent.
     """
     def __init__(self):
         self._logger = LogManager.get_logger(__name__)
