@@ -27,7 +27,8 @@ class Interpreter:
                 # However, for a simple implementation, we can just execute it.
                 exec(code, globals())
                 success = True
-            except Exception:
+            except Exception as e:
+                logger.error(f"Error executing Python code: {e}")
                 print(traceback.format_exc())
                 success = False
 

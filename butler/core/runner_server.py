@@ -71,8 +71,8 @@ class RunnerServer:
 
     def start(self):
         """Starts the server in a background thread."""
-        if not self.token:
-             self.logger.error("RunnerServer cannot start without a valid token.")
+        if not self.token or self.token == "BUTLER_SECRET_2026":
+             self.logger.error("RunnerServer cannot start with a default or missing token. Please configure a secure token.")
              return
 
         self._server_thread = threading.Thread(target=self._run_server, daemon=True)

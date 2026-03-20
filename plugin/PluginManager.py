@@ -48,10 +48,21 @@ class PluginManager:
 
             forbidden_calls = {
                 'os.system', 'os.popen', 'subprocess.Popen', 'subprocess.call',
-                'subprocess.run', 'shutil.rmtree', 'eval', 'exec'
+                'subprocess.run', 'shutil.rmtree', 'eval', 'exec', 'getattr', 'setattr'
+            }
+
+            forbidden_modules = {
+                'os', 'sys', 'subprocess', 'requests', 'socket', 'shutil'
             }
 
             for node in ast.walk(tree):
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    for alias in node.names:
+                        module_name = node.module if isinstance(node, ast.ImportFrom) else alias.name
+                        if module_name in forbidden_modules:
+                             self.logger.warning(f"Plugin {module_name} tries to import forbidden module: {module_name}")
+                             return False
+
                 if isinstance(node, ast.Call):
                     call_name = ""
                     if isinstance(node.func, ast.Attribute):

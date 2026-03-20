@@ -172,7 +172,7 @@ class Jarvis:
             self.ui_print(f"运行节点 '{runner_id}' 错误: {data.get('error')}", tag='error')
 
     def ui_print(self, message, tag='ai_response', response_id=None):
-        print(message)
+        self.logger.info(f"UI_OUTPUT[{tag}]: {message}")
 
         # Restore tag mapping for legacy UI compatibility
         if tag == 'ai_response_start':
@@ -579,7 +579,8 @@ class Jarvis:
              item = LongMemoryItem.new(content=response, id=f"easter_egg_{time.time()}",
                                       metadata={"type": "easter_egg", "key": "no1_middle_school"})
              self.long_memory.save([item])
-        except Exception: pass
+        except Exception as e:
+            self.logger.error(f"Failed to save easter egg memory: {e}")
 
     def _handle_manual_habit_learning(self, command: str):
         """Processes manual habit learning requests from the user."""
@@ -676,8 +677,8 @@ class Jarvis:
                     connected = (status["connection"] == "Connected")
                     device = status["devices"][0] if status["devices"] else ""
                     event_bus.emit("link_status", connected, device)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug(f"UI update loop error (expected if headless): {e}")
             time.sleep(5)
 
     def _cleanup_temp_files(self):
@@ -688,7 +689,8 @@ class Jarvis:
                     path = os.path.join(temp_dir, f)
                     if os.path.isfile(path): os.remove(path)
                     else: shutil.rmtree(path)
-                except Exception: pass
+                except Exception as e:
+                    self.logger.warning(f"Failed to cleanup temp file {f}: {e}")
 
         # Integrated Data Recycler
         try:
