@@ -1,6 +1,7 @@
 # Tasks
 
 ## Active
+- [ ] **Test skill integration**
 
 ## Waiting On
 

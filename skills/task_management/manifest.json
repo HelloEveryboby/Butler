@@ -1,0 +1,7 @@
+{
+  "skill_id": "task_management",
+  "name": "任务管理",
+  "description": "处理系统内部任务的增删改查 (TASKS.md)",
+  "actions": ["add", "view", "complete", "waiting"],
+  "keywords": ["任务", "待办", "TASKS", "代办"]
+}
