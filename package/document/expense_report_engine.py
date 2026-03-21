@@ -1,6 +1,4 @@
 import os
-import json
-import pandas as pd
 from package.document.office_automator import automator, open_in_native_app
 from package.core_utils.log_manager import LogManager
 

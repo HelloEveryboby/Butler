@@ -43,6 +43,6 @@ def run(jarvis_app, entities, **kwargs):
 
     findings = analyzer.analyze_folders(folders, query)
     if findings:
-        summary = f"在以下文件中发现了模式：\n" + "\n".join([f"- {f['file']} ({f['path']})" for f in findings])
+        summary = "在以下文件中发现了模式：\n" + "\n".join([f"- {f['file']} ({f['path']})" for f in findings])
         return summary
     return "未发现匹配模式。"

@@ -328,7 +328,7 @@ def handle_marker_convert(jarvis_app, entities, **kwargs):
             jarvis_app.ui_print(f"正在进行精准解析: {path}")
             result = marker_tool.MarkerTool().convert(file_path=path, output_format=output_format, skip_confirmation=True)
             jarvis_app.ui_print(result)
-            jarvis_app.speak(f"文档转换完成。")
+            jarvis_app.speak("文档转换完成。")
         except Exception as e:
             jarvis_app.speak(f"解析过程中出错: {e}")
 
@@ -388,7 +388,7 @@ def handle_memory_search(jarvis_app, entities, **kwargs):
     from package.document.memory_tools import memory_tools
     result = memory_tools.memory_search(query)
     jarvis_app.ui_print(result)
-    jarvis_app.speak(f"已为您搜索记忆，结果已显示在面板上。")
+    jarvis_app.speak("已为您搜索记忆，结果已显示在面板上。")
 
 @register_intent("memory_get")
 def handle_memory_get(jarvis_app, entities, **kwargs):
@@ -663,7 +663,7 @@ def handle_remote_runner(jarvis_app, entities, **kwargs):
         else:
             # 如果有多个且未指定，尝试模糊匹配或广播
             jarvis_app.ui_print(f"当前可用节点: {', '.join(runners)}")
-            jarvis_app.speak(f"检测到多个运行节点，请指定其中一个。")
+            jarvis_app.speak("检测到多个运行节点，请指定其中一个。")
             return
 
     # 发送指令
