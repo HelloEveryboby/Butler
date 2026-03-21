@@ -7,7 +7,6 @@
 import sqlite3
 import pyautogui
 import time
-import sys
 import os
 import re
 import csv
@@ -288,9 +287,9 @@ class AccountManager:
         acc_id, cat, web, note = row
         print(f"\n当前信息 - 分类: {cat}, 网站: {web}, 备注: {note}")
         
-        new_cat = input(f"新分类 (直接回车保持不变): ") or cat
-        new_web = input(f"新网站 (直接回车保持不变): ") or web
-        new_note = input(f"新备注 (直接回车保持不变): ") or note
+        new_cat = input("新分类 (直接回车保持不变): ") or cat
+        new_web = input("新网站 (直接回车保持不变): ") or web
+        new_note = input("新备注 (直接回车保持不变): ") or note
         
         if input("是否需要更改密码? (y/n): ").lower() == 'y':
             new_pwd = getpass("输入新密码: ")

@@ -8,7 +8,7 @@ Butler Go 高性能网络工具集
 import os
 import sys
 import argparse
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 # 确保项目根目录在导入路径中
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

@@ -2,9 +2,7 @@ import os
 import sys
 import threading
 import time
-import json
-import logging
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 # Add project root to path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

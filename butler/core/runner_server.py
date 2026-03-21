@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import threading
-import uuid
 import websockets
 from typing import Dict, Any, Optional, List, Callable
 

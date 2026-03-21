@@ -1,6 +1,4 @@
 import json
-import numpy as np
-import redis
 from typing import List, Dict, Optional
 
 from butler.redis_client import redis_client

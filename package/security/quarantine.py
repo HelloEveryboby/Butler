@@ -1,17 +1,9 @@
 import ast
-import sys
-import types
-import inspect
-import builtins
-import functools
 import opcode
 import dis
 import threading
-import time
 import gc
-import collections
 from collections.abc import Mapping
-from types import CodeType, FunctionType
 
 class SandboxError(Exception):
     """沙盒执行错误基类"""
