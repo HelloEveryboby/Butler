@@ -2,15 +2,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const interactionFlow = document.getElementById('interaction-flow');
     const terminalOverlay = document.getElementById('terminal-overlay');
     const closeTerminalBtn = document.getElementById('close-terminal');
-    const statusBar = document.getElementById('status-bar');
+    const statusBar = { innerText: "" }; // Replaced by header or nav bar feedback
 
-    // Dock Items
-    const dockTerminal = document.getElementById('dock-terminal');
-    const dockVoice = document.getElementById('dock-voice');
-    const dockPause = document.getElementById('dock-pause');
-    const dockRetry = document.getElementById('dock-retry');
-    const dockHome = document.getElementById('dock-home');
-    const dockEditor = document.getElementById('dock-editor');
+    // Nav Bar Items
+    const navHome = document.getElementById('nav-home');
+    const navTerminal = document.getElementById('nav-terminal');
+    const navVoice = document.getElementById('nav-voice');
+    const navEditor = document.getElementById('nav-editor');
+    const navSettings = document.getElementById('nav-settings');
 
     // Editor Components
     const editorOverlay = document.getElementById('editor-overlay');
@@ -107,6 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Bridge Functions
     window.onAIStreamStart = () => {
         isStreaming = true;
+        const thinkingStatus = document.getElementById('thinking-status');
+        if (thinkingStatus) thinkingStatus.classList.add('active');
+
         currentAILine = document.createElement('div');
         currentAILine.className = 'interaction-line ai-output-line';
         interactionFlow.appendChild(currentAILine);
@@ -214,6 +216,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.onAIStreamEnd = () => {
         isStreaming = false;
+        const thinkingStatus = document.getElementById('thinking-status');
+        if (thinkingStatus) thinkingStatus.classList.remove('active');
+
         statusBar.innerText = "Ready";
         createUserInputLine();
     };
@@ -222,13 +227,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.onVoiceStatusChange = (isListening) => {
         const dot = document.getElementById('voice-status');
-        const voiceIcon = dockVoice.querySelector('i');
+        const voiceIcon = navVoice.querySelector('i');
         if (isListening) {
-            dot.classList.add('listening');
-            voiceIcon.style.color = '#ff3b30';
+            dot.classList.add('active');
+            voiceIcon.style.color = '#f44336';
         } else {
-            dot.classList.remove('listening');
-            voiceIcon.style.color = 'white';
+            dot.classList.remove('active');
+            voiceIcon.style.color = 'inherit';
         }
     };
 
@@ -242,8 +247,14 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => msg.remove(), 4000);
     };
 
-    // Dock Events
-    dockTerminal.addEventListener('click', () => {
+    // Nav Events
+    function setActiveNav(item) {
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+    }
+
+    navTerminal.addEventListener('click', () => {
+        setActiveNav(navTerminal);
         terminalOverlay.classList.toggle('hidden');
         if (!terminalOverlay.classList.contains('hidden')) {
             fitAddon.fit();
@@ -253,39 +264,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    dockVoice.addEventListener('click', () => {
+    navVoice.addEventListener('click', () => {
+        setActiveNav(navVoice);
         if (window.pywebview && window.pywebview.api) {
-            // Assume bridge has a way to toggle voice
-            // For now we use the existing mechanism if available via jarvis panel command
-            // or we might need to expose it to bridge
             window.pywebview.api.handle_command("/voice-toggle");
         }
     });
 
-    dockPause.addEventListener('click', () => {
-        if (window.pywebview && window.pywebview.api) {
-            window.pywebview.api.pause_output();
-        }
-    });
-
-    dockRetry.addEventListener('click', () => {
-        if (!isStreaming && lastUserCommand) {
-            if (currentAILine) currentAILine.remove();
-            const activeInput = document.querySelector('.active-input');
-            if (activeInput) activeInput.parentElement.remove();
-
-            const line = document.createElement('div');
-            line.className = 'interaction-line user-input-line';
-            const span = document.createElement('span');
-            span.innerText = lastUserCommand;
-            line.appendChild(span);
-            interactionFlow.appendChild(line);
-
-            executeCommand(lastUserCommand, span);
-        }
-    });
-
-    dockHome.addEventListener('click', () => {
+    navHome.addEventListener('click', () => {
+        setActiveNav(navHome);
         // Clear history and show welcome
         while (interactionFlow.firstChild) {
             interactionFlow.removeChild(interactionFlow.firstChild);
@@ -302,8 +289,16 @@ document.addEventListener('DOMContentLoaded', () => {
         createUserInputLine();
     });
 
-    dockEditor.addEventListener('click', () => {
+    navEditor.addEventListener('click', () => {
+        setActiveNav(navEditor);
         editorOverlay.classList.toggle('active');
+    });
+
+    navSettings.addEventListener('click', () => {
+        setActiveNav(navSettings);
+        if (window.pywebview && window.pywebview.api) {
+            window.pywebview.api.handle_command("/profile");
+        }
     });
 
     closeEditorBtn.addEventListener('click', () => {

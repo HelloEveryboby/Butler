@@ -3,8 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Butler Modern UI</title>
+    <title>Butler Modern UI - Material 3</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts for Material Look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Xterm.js for terminal -->
@@ -13,58 +17,94 @@
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"></script>
 </head>
 <body>
-    <div class="background-animation"></div>
     <div class="glass-container">
+        <!-- M3 Top App Bar -->
         <header>
-            <div class="window-controls">
-                <span class="control-dot close"></span>
-                <span class="control-dot minimize"></span>
-                <span class="control-dot maximize"></span>
-            </div>
-            <div class="logo">
-                <i class="fas fa-robot"></i>
-                <span>BUTLER</span>
+            <div class="top-app-bar-start">
+                <div class="back-button"><i class="fas fa-arrow-left"></i></div>
+                <div class="logo">Butler</div>
             </div>
             <div class="status-indicators">
-                <span id="voice-status" class="status-dot"></span>
-                <span id="connection-status" class="status-dot connected"></span>
+                <div class="status-indicator-item" title="系统连接">
+                    <span id="connection-status" class="status-dot green active"></span>
+                </div>
+                <div class="status-indicator-item" title="正在思考">
+                    <span id="thinking-status" class="status-dot blue"></span>
+                </div>
+                <div class="status-indicator-item" title="语音状态">
+                    <span id="voice-status" class="status-dot red"></span>
+                </div>
+                <div class="back-button"><i class="fas fa-ellipsis-vertical"></i></div>
             </div>
         </header>
 
+        <!-- Tabs like in screenshot -->
+        <div class="tabs-container">
+            <div class="tab active" id="tab-recommended">推荐</div>
+            <div class="tab" id="tab-all-services">所有服务</div>
+        </div>
+
         <main id="interaction-flow">
-            <!-- Content will be dynamically added here -->
+            <!-- Welcome message with M3 Card style -->
             <div class="welcome-message">
                 <h1>欢迎使用 Butler</h1>
                 <p>直接开始输入您的指令...</p>
             </div>
+
+            <!-- Example M3 Card (will be hidden or replaced by dynamic content) -->
+            <div class="m3-card" id="storage-card">
+                <div class="m3-card-title">
+                    <i class="fas fa-cloud"></i>
+                    <span>Butler 存储状态</span>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 45%;"></div>
+                </div>
+                <div class="m3-card-content">
+                    已使用 4.5 GB，共 10 GB (占 45%)<br>
+                    系统运行状态良好
+                </div>
+                <div class="m3-card-actions">
+                    <div class="text-button">管理存储</div>
+                </div>
+            </div>
         </main>
 
-        <footer>
-            <div id="status-bar">就绪</div>
-        </footer>
-
-        <!-- Apple Style Dock -->
-        <div class="dock-container">
-            <div class="dock">
-                <div class="dock-item" id="dock-home" title="首页"><i class="fas fa-home"></i></div>
-                <div class="dock-item" id="dock-terminal" title="终端"><i class="fas fa-terminal"></i></div>
-                <div class="dock-item" id="dock-voice" title="语音控制"><i class="fas fa-microphone"></i></div>
-                <div class="dock-item" id="dock-pause" title="暂停"><i class="fas fa-pause"></i></div>
-                <div class="dock-item" id="dock-retry" title="重试"><i class="fas fa-redo"></i></div>
-                <div class="dock-item" id="dock-editor" title="编辑器"><i class="fas fa-file-alt"></i></div>
-                <div class="dock-separator"></div>
-                <div class="dock-item" id="dock-settings" title="设置"><i class="fas fa-cog"></i></div>
+        <!-- M3 Navigation Bar (Replacement for Dock) -->
+        <nav class="nav-bar">
+            <div class="nav-item active" id="nav-home">
+                <div class="nav-icon-wrapper"><i class="fas fa-home"></i></div>
+                <div class="nav-label">首页</div>
             </div>
-        </div>
+            <div class="nav-item" id="nav-terminal">
+                <div class="nav-icon-wrapper"><i class="fas fa-terminal"></i></div>
+                <div class="nav-label">终端</div>
+            </div>
+            <div class="nav-item" id="nav-voice">
+                <div class="nav-icon-wrapper"><i class="fas fa-microphone"></i></div>
+                <div class="nav-label">语音</div>
+            </div>
+            <div class="nav-item" id="nav-editor">
+                <div class="nav-icon-wrapper"><i class="fas fa-file-alt"></i></div>
+                <div class="nav-label">编辑器</div>
+            </div>
+            <div class="nav-item" id="nav-settings">
+                <div class="nav-icon-wrapper"><i class="fas fa-cog"></i></div>
+                <div class="nav-label">设置</div>
+            </div>
+        </nav>
     </div>
 
+    <!-- Editor Overlay (Full screen M3) -->
     <div id="editor-overlay">
         <div class="editor-header">
-            <span id="editor-filename">未命名文档</span>
-            <div style="display: flex; gap: 10px;">
-                <button class="secondary-btn" id="open-in-office">在 Office 中打开</button>
+            <div class="top-app-bar-start">
+                <div class="back-button" id="close-editor"><i class="fas fa-xmark"></i></div>
+                <span id="editor-filename">未命名文档</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="secondary-btn" id="open-in-office">Office</button>
                 <button class="action-btn" id="save-editor">保存</button>
-                <button class="secondary-btn" id="close-editor"><i class="fas fa-times"></i></button>
             </div>
         </div>
         <div class="editor-toolbar">
@@ -76,11 +116,12 @@
         <textarea id="markdown-editor" placeholder="在此开始撰写您的文档..."></textarea>
     </div>
 
+    <!-- Terminal Overlay -->
     <div id="terminal-overlay" class="hidden">
         <div class="terminal-window">
             <div class="terminal-header">
                 <span>独立终端</span>
-                <button id="close-terminal"><i class="fas fa-times"></i></button>
+                <div class="back-button" id="close-terminal"><i class="fas fa-xmark"></i></div>
             </div>
             <div id="terminal-container"></div>
         </div>
