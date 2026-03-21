@@ -3,45 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Butler Modern UI</title>
+    <title>Butler AI - Modern UI</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Font Awesome for icons -->
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Xterm.js for terminal -->
+    <!-- Xterm.js -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"></script>
 </head>
-<body>
-    <div class="background-animation"></div>
+<body class="theme-google">
     <div class="glass-container">
+        <!-- Shared Header -->
         <header>
+            <!-- Apple Window Controls -->
             <div class="window-controls">
                 <span class="control-dot close"></span>
                 <span class="control-dot minimize"></span>
                 <span class="control-dot maximize"></span>
             </div>
+
+            <!-- Google Top Bar -->
+            <div class="top-app-bar-start">
+                <div class="back-button" id="header-back"><i class="fas fa-arrow-left"></i></div>
+                <div class="logo">Butler</div>
+            </div>
+
             <div class="logo">
                 <i class="fas fa-robot"></i>
                 <span>BUTLER</span>
             </div>
+
             <div class="status-indicators">
-                <span id="voice-status" class="status-dot"></span>
-                <span id="connection-status" class="status-dot connected"></span>
+                <div class="status-indicator-item" title="更换背景">
+                    <div class="theme-toggle" id="bg-upload-btn" title="上传背景图片"><i class="fas fa-image"></i></div>
+                    <input type="file" id="bg-upload" accept="image/*" style="display: none;">
+                </div>
+                <div class="status-indicator-item" title="主题切换">
+                    <div class="theme-toggle" id="theme-toggle" title="切换风格"><i class="fas fa-palette"></i></div>
+                </div>
+                <div class="status-indicator-item" title="系统连接">
+                    <span id="connection-status" class="status-dot green active"></span>
+                </div>
+                <div class="status-indicator-item" title="正在思考">
+                    <span id="thinking-status" class="status-dot blue"></span>
+                </div>
+                <div class="status-indicator-item" title="语音状态">
+                    <span id="voice-status" class="status-dot red"></span>
+                </div>
+                <div class="back-button" id="header-menu"><i class="fas fa-ellipsis-vertical"></i></div>
             </div>
         </header>
 
+        <!-- Google Tabs -->
+        <div class="tabs-container">
+            <div class="tab active" id="tab-recommended">推荐</div>
+            <div class="tab" id="tab-all-services">所有服务</div>
+        </div>
+
         <main id="interaction-flow">
-            <!-- Content will be dynamically added here -->
             <div class="welcome-message">
                 <h1>欢迎使用 Butler</h1>
                 <p>直接开始输入您的指令...</p>
             </div>
         </main>
 
-        <footer>
-            <div id="status-bar">就绪</div>
-        </footer>
+        <!-- Google Bottom Nav -->
+        <nav class="nav-bar">
+            <div class="nav-item active" id="nav-home">
+                <div class="nav-icon-wrapper"><i class="fas fa-home"></i></div>
+                <div class="nav-label">首页</div>
+            </div>
+            <div class="nav-item" id="nav-terminal">
+                <div class="nav-icon-wrapper"><i class="fas fa-terminal"></i></div>
+                <div class="nav-label">终端</div>
+            </div>
+            <div class="nav-item" id="nav-voice">
+                <div class="nav-icon-wrapper"><i class="fas fa-microphone"></i></div>
+                <div class="nav-label">语音</div>
+            </div>
+            <div class="nav-item" id="nav-editor">
+                <div class="nav-icon-wrapper"><i class="fas fa-file-alt"></i></div>
+                <div class="nav-label">编辑器</div>
+            </div>
+            <div class="nav-item" id="nav-settings">
+                <div class="nav-icon-wrapper"><i class="fas fa-cog"></i></div>
+                <div class="nav-label">设置</div>
+            </div>
+        </nav>
 
         <!-- Apple Style Dock -->
         <div class="dock-container">
@@ -52,26 +104,22 @@
                 <div class="dock-item" id="dock-pause" title="暂停"><i class="fas fa-pause"></i></div>
                 <div class="dock-item" id="dock-retry" title="重试"><i class="fas fa-redo"></i></div>
                 <div class="dock-item" id="dock-editor" title="编辑器"><i class="fas fa-file-alt"></i></div>
-                <div class="dock-separator"></div>
                 <div class="dock-item" id="dock-settings" title="设置"><i class="fas fa-cog"></i></div>
             </div>
         </div>
     </div>
 
+    <!-- Overlays -->
     <div id="editor-overlay">
         <div class="editor-header">
-            <span id="editor-filename">未命名文档</span>
-            <div style="display: flex; gap: 10px;">
-                <button class="secondary-btn" id="open-in-office">在 Office 中打开</button>
-                <button class="action-btn" id="save-editor">保存</button>
-                <button class="secondary-btn" id="close-editor"><i class="fas fa-times"></i></button>
+            <div class="top-app-bar-start">
+                <div class="back-button" id="close-editor"><i class="fas fa-xmark"></i></div>
+                <span id="editor-filename">未命名文档</span>
             </div>
-        </div>
-        <div class="editor-toolbar">
-            <div class="toolbar-btn" title="粗体"><i class="fas fa-bold"></i></div>
-            <div class="toolbar-btn" title="斜体"><i class="fas fa-italic"></i></div>
-            <div class="toolbar-btn" title="插入图片"><i class="fas fa-image"></i></div>
-            <div class="toolbar-btn" title="插入表格"><i class="fas fa-table"></i></div>
+            <div style="display: flex; gap: 8px;">
+                <button class="secondary-btn" id="open-in-office">Office</button>
+                <button class="action-btn" id="save-editor">保存</button>
+            </div>
         </div>
         <textarea id="markdown-editor" placeholder="在此开始撰写您的文档..."></textarea>
     </div>
@@ -80,9 +128,27 @@
         <div class="terminal-window">
             <div class="terminal-header">
                 <span>独立终端</span>
-                <button id="close-terminal"><i class="fas fa-times"></i></button>
+                <div class="back-button" id="close-terminal"><i class="fas fa-xmark"></i></div>
             </div>
             <div id="terminal-container"></div>
+        </div>
+    </div>
+
+    <!-- Media Player Overlay -->
+    <div id="media-overlay" class="hidden">
+        <div class="media-window">
+            <div class="media-header">
+                <span id="media-title">媒体播放器</span>
+                <div class="back-button" id="close-media"><i class="fas fa-xmark"></i></div>
+            </div>
+            <div id="media-content">
+                <!-- Video, Image, or Audio will be inserted here -->
+            </div>
+            <div class="media-controls">
+                <button id="media-prev" class="icon-btn"><i class="fas fa-step-backward"></i></button>
+                <button id="media-play-pause" class="icon-btn main-btn"><i class="fas fa-play"></i></button>
+                <button id="media-next" class="icon-btn"><i class="fas fa-step-forward"></i></button>
+            </div>
         </div>
     </div>
 
