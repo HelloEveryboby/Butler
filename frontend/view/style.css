@@ -48,7 +48,24 @@
 body {
     height: 100vh;
     overflow: hidden;
-    transition: background-color var(--transition-speed);
+    transition: background var(--transition-speed);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+}
+
+body::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0); /* Dynamic overlay */
+    z-index: -1;
+    transition: background 0.3s;
+}
+
+body.has-custom-bg::before {
+    background: rgba(0, 0, 0, 0.3); /* Darken slightly for readability */
 }
 
 body.theme-google {

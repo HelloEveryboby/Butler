@@ -20,8 +20,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const dockPause = document.getElementById('dock-pause');
     const dockRetry = document.getElementById('dock-retry');
 
-    // Theme Toggle
+    // Theme & Background Toggle
     const themeToggle = document.getElementById('theme-toggle');
+    const bgUploadBtn = document.getElementById('bg-upload-btn');
+    const bgUploadInput = document.getElementById('bg-upload');
 
     // Editor Components
     const editorOverlay = document.getElementById('editor-overlay');
@@ -154,6 +156,36 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.classList.add('theme-google');
         }
     });
+
+    // Background Logic
+    bgUploadBtn.addEventListener('click', () => bgUploadInput.click());
+
+    bgUploadInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const dataUrl = event.target.result;
+                applyBackground(dataUrl);
+                localStorage.setItem('butler-custom-bg', dataUrl);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    function applyBackground(dataUrl) {
+        if (dataUrl) {
+            document.body.style.backgroundImage = `url(${dataUrl})`;
+            document.body.classList.add('has-custom-bg');
+        } else {
+            document.body.style.backgroundImage = '';
+            document.body.classList.remove('has-custom-bg');
+        }
+    }
+
+    // Load saved background on startup
+    const savedBg = localStorage.getItem('butler-custom-bg');
+    if (savedBg) applyBackground(savedBg);
 
     // Navigation Events (Shared functions)
     const actions = {
