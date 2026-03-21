@@ -25,6 +25,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const bgUploadBtn = document.getElementById('bg-upload-btn');
     const bgUploadInput = document.getElementById('bg-upload');
 
+    // Media Player Components
+    const mediaOverlay = document.getElementById('media-overlay');
+    const closeMediaBtn = document.getElementById('close-media');
+    const mediaContent = document.getElementById('media-content');
+    const mediaTitle = document.getElementById('media-title');
+    const mediaPlayPauseBtn = document.getElementById('media-play-pause');
+
     // Editor Components
     const editorOverlay = document.getElementById('editor-overlay');
     const closeEditorBtn = document.getElementById('close-editor');
@@ -117,10 +124,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.onAIStreamChunk = (chunk) => {
         if (currentAILine) {
+            // Check for media chunks (e.g., {"type": "media", "media_type": "image", "url": "..."})
+            try {
+                const data = JSON.parse(chunk);
+                if (data.type === 'media') {
+                    renderMediaInChat(data);
+                    return;
+                }
+            } catch (e) {}
+
             currentAILine.innerText += chunk;
             interactionFlow.scrollTop = interactionFlow.scrollHeight;
         }
     };
+
+    function renderMediaInChat(data) {
+        const container = document.createElement('div');
+        container.className = 'chat-media';
+
+        if (data.media_type === 'image') {
+            const img = document.createElement('img');
+            img.src = data.url;
+            img.style.width = '100%';
+            container.appendChild(img);
+        } else if (data.media_type === 'video') {
+            const video = document.createElement('video');
+            video.src = data.url;
+            video.style.width = '100%';
+            container.appendChild(video);
+            const playIcon = document.createElement('i');
+            playIcon.className = 'fas fa-play-circle';
+            container.appendChild(playIcon);
+        } else if (data.media_type === 'audio') {
+            const audioDiv = document.createElement('div');
+            audioDiv.className = 'm3-card';
+            audioDiv.innerHTML = `<i class="fas fa-music"></i> <span>${data.title || '音频文件'}</span>`;
+            container.appendChild(audioDiv);
+        }
+
+        container.addEventListener('click', () => openMediaPlayer(data));
+        currentAILine.appendChild(container);
+    }
+
+    function openMediaPlayer(data) {
+        mediaContent.innerHTML = '';
+        mediaTitle.innerText = data.title || (data.media_type === 'image' ? '照片' : '视频/音乐');
+
+        if (data.media_type === 'image') {
+            const img = document.createElement('img');
+            img.src = data.url;
+            mediaContent.appendChild(img);
+        } else if (data.media_type === 'video') {
+            const video = document.createElement('video');
+            video.src = data.url;
+            video.controls = true;
+            video.autoplay = true;
+            mediaContent.appendChild(video);
+        } else if (data.media_type === 'audio') {
+            const audio = document.createElement('audio');
+            audio.src = data.url;
+            audio.controls = true;
+            audio.autoplay = true;
+            mediaContent.appendChild(audio);
+            // Add a visual for audio
+            const visual = document.createElement('div');
+            visual.innerHTML = '<i class="fas fa-music" style="font-size: 5rem; color: #fff;"></i>';
+            mediaContent.appendChild(visual);
+        }
+
+        mediaOverlay.classList.remove('hidden');
+    }
 
     window.onAIStreamEnd = () => {
         isStreaming = false;
@@ -241,6 +314,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     closeEditorBtn.addEventListener('click', () => editorOverlay.classList.remove('active'));
     closeTerminalBtn.addEventListener('click', () => terminalOverlay.classList.add('hidden'));
+    closeMediaBtn.addEventListener('click', () => {
+        mediaOverlay.classList.add('hidden');
+        mediaContent.innerHTML = ''; // Stop playback
+    });
 
     // Start
     setTimeout(createUserInputLine, 1000);
