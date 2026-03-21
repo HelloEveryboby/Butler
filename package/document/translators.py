@@ -4,11 +4,15 @@ import uuid
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from package.core_utils.config_loader import config_loader
+from package.core_utils.quota_manager import quota_manager
 
 def load_api_key():
     return config_loader.get("api.deepseek.key")
 
 def detect_language(text):
+    if not quota_manager.check_quota():
+        return "quota_exceeded"
+
     api_key = load_api_key()
     endpoint = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
     
@@ -28,11 +32,21 @@ def detect_language(text):
 
     response = requests.post(endpoint, headers=headers, json=payload)
     response.raise_for_status()
+    resp_json = response.json()
     
-    language = response.json()['choices'][0]['message']['content'].strip().lower()
+    # Update quota
+    usage = resp_json.get('usage', {})
+    total_tokens = usage.get('total_tokens', 0)
+    if total_tokens > 0:
+        quota_manager.update_usage(total_tokens)
+
+    language = resp_json['choices'][0]['message']['content'].strip().lower()
     return language
 
 def translate_text(text):
+    if not quota_manager.check_quota():
+        return "Error: API 额度已用尽。"
+
     api_key = load_api_key()
     endpoint = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
 
@@ -52,7 +66,15 @@ def translate_text(text):
 
     response = requests.post(endpoint, headers=headers, json=payload)
     response.raise_for_status()
-    translated_text = response.json()['choices'][0]['message']['content'].strip()
+    resp_json = response.json()
+
+    # Update quota
+    usage = resp_json.get('usage', {})
+    total_tokens = usage.get('total_tokens', 0)
+    if total_tokens > 0:
+        quota_manager.update_usage(total_tokens)
+
+    translated_text = resp_json['choices'][0]['message']['content'].strip()
     
     return translated_text
 

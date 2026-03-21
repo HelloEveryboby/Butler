@@ -45,6 +45,7 @@ except ImportError:
 
 from package.core_utils.log_manager import LogManager
 from package.core_utils.config_loader import config_loader
+from package.core_utils.quota_manager import quota_manager
 
 logger = LogManager.get_logger(__name__)
 
@@ -190,6 +191,9 @@ class DocumentInterpreter:
         if not self.api_key:
             return "DeepSeek API key not found. Cannot summarize."
 
+        if not quota_manager.check_quota():
+            return "API 额度已用尽。请充值或提高限额。"
+
         logger.info("Generating summary via DeepSeek")
         payload = {
             "model": "deepseek-chat",
@@ -203,7 +207,15 @@ class DocumentInterpreter:
             headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
             response = requests.post(self.deepseek_url, headers=headers, json=payload, timeout=30)
             response.raise_for_status()
-            return response.json()['choices'][0]['message']['content']
+            resp_json = response.json()
+
+            # Update quota
+            usage = resp_json.get('usage', {})
+            total_tokens = usage.get('total_tokens', 0)
+            if total_tokens > 0:
+                quota_manager.update_usage(total_tokens)
+
+            return resp_json['choices'][0]['message']['content']
         except Exception as e:
             logger.error(f"Summarization failed: {e}")
             return f"Summarization failed: {e}"
@@ -219,6 +231,9 @@ class DocumentInterpreter:
         if not self.api_key:
             return "DeepSeek API key not found."
 
+        if not quota_manager.check_quota():
+            return "API 额度已用尽。"
+
         payload = {
             "model": "deepseek-chat",
             "messages": [
@@ -230,7 +245,15 @@ class DocumentInterpreter:
             headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
             response = requests.post(self.deepseek_url, headers=headers, json=payload, timeout=60)
             response.raise_for_status()
-            return response.json()['choices'][0]['message']['content']
+            resp_json = response.json()
+
+            # Update quota
+            usage = resp_json.get('usage', {})
+            total_tokens = usage.get('total_tokens', 0)
+            if total_tokens > 0:
+                quota_manager.update_usage(total_tokens)
+
+            return resp_json['choices'][0]['message']['content']
         except Exception as e:
             return f"Failed to answer question: {e}"
 

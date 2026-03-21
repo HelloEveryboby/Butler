@@ -26,6 +26,7 @@ if lib_path.exists():
 
 from package.core_utils.log_manager import LogManager
 from package.core_utils.config_loader import config_loader
+from package.core_utils.quota_manager import quota_manager
 from butler.core.event_bus import event_bus
 from butler.CommandPanel import CommandPanel
 from butler.data_storage import data_storage_manager
@@ -203,6 +204,14 @@ class Jarvis:
     def handle_user_command(self, command, programs=None):
         if not command: return
         cmd = command.strip()
+
+        # Quota Check (Global Halt)
+        if quota_manager.halt_system and not quota_manager.check_quota():
+            report = quota_manager.get_usage_report()
+            msg = f"⚠️ 系统已锁定: API 额度已耗尽 ({report['consumed']}/{report['limit']} {report['unit']})。请增加限额或重置消耗。"
+            self.ui_print(msg, tag='error')
+            self.voice_service.speak("系统额度已耗尽，已停止所有操作。")
+            return
 
         # Record User input in daily memory
         try:
