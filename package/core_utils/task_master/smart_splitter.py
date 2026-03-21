@@ -2,6 +2,7 @@ import os
 import json
 import requests
 from package.core_utils.config_loader import config_loader
+from package.core_utils.quota_manager import quota_manager
 
 class SmartSplitter:
     """
@@ -43,6 +44,9 @@ class SmartSplitter:
         if not self.deepseek_api_key:
             return ["错误：未找到 DeepSeek API 密钥。请检查您的 .env 文件或 system_config.json。"]
 
+        if not quota_manager.check_quota():
+            return ["错误：API 额度已用尽。"]
+
         url = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.deepseek_api_key}",
@@ -65,9 +69,16 @@ class SmartSplitter:
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=20)
             response.raise_for_status()
+            resp_json = response.json()
+
+            # Update quota
+            usage = resp_json.get('usage', {})
+            total_tokens = usage.get('total_tokens', 0)
+            if total_tokens > 0:
+                quota_manager.update_usage(total_tokens)
 
             # 尝试解析JSON响应
-            result_json = response.json()
+            result_json = json.loads(resp_json['choices'][0]['message']['content'])
             # AI模型可能会将列表包装在一个键中，例如 {"subtasks": [...]}
             # 我们需要智能地找到这个列表
             if isinstance(result_json, dict):

@@ -1,20 +1,8 @@
 {
     "api": {
-        "deepseek": {
-            "key": "YOUR_DEEPSEEK_API_KEY_HERE",
-            "endpoint": "https://api.deepseek.com/v1"
-        },
-        "baidu": {
-            "app_id": "YOUR_BAIDU_APP_ID_HERE",
-            "api_key": "YOUR_BAIDU_API_KEY_HERE",
-            "secret_key": "YOUR_BAIDU_SECRET_KEY_HERE"
-        },
-        "picovoice": {
-            "access_key": "YOUR_PICOVOICE_ACCESS_KEY_HERE"
-        },
-        "bing": {
-            "search_key": "YOUR_BING_SEARCH_API_KEY_HERE",
-            "endpoint": "https://api.bing.microsoft.com/v7.0/search"
+        "quota": {
+            "consumed": 0.0,
+            "limit": 100.0
         }
     },
     "voice": {

@@ -5,6 +5,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from package.core_utils.log_manager import LogManager
 from package.core_utils.config_loader import config_loader
+from package.core_utils.quota_manager import quota_manager
 from butler.core.habit_manager import habit_manager
 
 logger = LogManager.get_logger(__name__)
@@ -37,6 +38,10 @@ class NLUService:
 
     def extract_intent(self, text: str, history: List[Any] = None) -> Dict[str, Any]:
         """使用 DeepSeek API 从用户文本中提取意图和实体。"""
+        if not quota_manager.check_quota():
+            logger.error("API 额度已用尽，提取意图停止。")
+            return {"intent": "quota_exceeded", "entities": {}}
+
         system_prompt = self._get_augmented_system_prompt("nlu_intent_extraction")
 
         messages = [{"role": "system", "content": system_prompt}]
@@ -59,7 +64,15 @@ class NLUService:
             headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
             response = requests.post(self.url, headers=headers, json=payload)
             response.raise_for_status()
-            result_text = response.json()['choices'][0]['message']['content']
+            resp_json = response.json()
+
+            # Update quota based on tokens consumed
+            usage = resp_json.get('usage', {})
+            total_tokens = usage.get('total_tokens', 0)
+            if total_tokens > 0:
+                quota_manager.update_usage(total_tokens)
+
+            result_text = resp_json['choices'][0]['message']['content']
 
             if result_text.strip().startswith("```json"):
                 result_text = result_text.strip()[7:-4].strip()
@@ -71,6 +84,9 @@ class NLUService:
 
     def generate_general_response(self, text: str) -> str:
         """生成简单的聊天响应。"""
+        if not quota_manager.check_quota():
+            return "对不起，API 额度已用尽。请联系管理员充值或提高限额。"
+
         system_prompt = self._get_augmented_system_prompt("general_response")
         payload = {
             "model": "deepseek-chat",
@@ -85,13 +101,24 @@ class NLUService:
             headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
             response = requests.post(self.url, headers=headers, json=payload)
             response.raise_for_status()
-            return response.json()['choices'][0]['message']['content']
+            resp_json = response.json()
+
+            # Update quota
+            usage = resp_json.get('usage', {})
+            total_tokens = usage.get('total_tokens', 0)
+            if total_tokens > 0:
+                quota_manager.update_usage(total_tokens)
+
+            return resp_json['choices'][0]['message']['content']
         except Exception as e:
             logger.error(f"General response generation failed: {e}")
             return "抱歉，我暂时无法回答这个问题。"
 
     def ask_llm(self, prompt: str, history: List[Any] = None, use_habit: bool = True) -> str:
         """通用 LLM 问答接口。"""
+        if not quota_manager.check_quota():
+            return "Error: API 额度已用尽。"
+
         system_prompt = self._get_augmented_system_prompt("general_response") if use_habit else self.prompts.get("general_response", {}).get("prompt", "")
 
         messages = [{"role": "system", "content": system_prompt}]
@@ -114,7 +141,15 @@ class NLUService:
             headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
             response = requests.post(self.url, headers=headers, json=payload)
             response.raise_for_status()
-            return response.json()['choices'][0]['message']['content']
+            resp_json = response.json()
+
+            # Update quota
+            usage = resp_json.get('usage', {})
+            total_tokens = usage.get('total_tokens', 0)
+            if total_tokens > 0:
+                quota_manager.update_usage(total_tokens)
+
+            return resp_json['choices'][0]['message']['content']
         except Exception as e:
             logger.error(f"ask_llm failed: {e}")
             return f"Error: {e}"
