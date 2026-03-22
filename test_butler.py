@@ -1,9 +1,5 @@
-import os
-import shutil
-import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
-import sys
 
 
 from butler.butler_app import Jarvis

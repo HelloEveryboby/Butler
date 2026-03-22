@@ -1,4 +1,3 @@
-import os
 import json
 import requests
 from package.core_utils.config_loader import config_loader

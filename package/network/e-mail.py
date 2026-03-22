@@ -13,7 +13,6 @@ import os
 import json
 import imaplib
 import email
-import time
 import datetime
 import re
 from dateutil import parser
@@ -558,7 +557,7 @@ def view_unread_emails(assistant):
                         sender = assistant.get_sender(emails[index])
                         email_address = assistant.extract_email_address(sender)
                         
-                        print(f"\n确定将以下发件人加入黑名单吗?")
+                        print("\n确定将以下发件人加入黑名单吗?")
                         print(f"发件人: {sender}")
                         print(f"邮箱地址: {email_address}")
                         

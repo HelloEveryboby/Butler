@@ -1,5 +1,4 @@
-import os
-import time
+import datetime
 from package.core_utils.log_manager import LogManager
 from plugin.plugin_interface import AbstractPlugin, PluginResult
 
@@ -46,6 +45,6 @@ class TimePlugin(AbstractPlugin):
         return ["时间", "几点了"]
 
     def run(self, takecommand: str, args: dict) -> PluginResult:
-        now = datetime.now()
+        now = datetime.datetime.now()
         current_time = now.strftime("%H:%M:%S")
         return PluginResult.new(f"现在是北京时间{current_time}", False)

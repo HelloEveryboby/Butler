@@ -1,8 +1,5 @@
 import os
-import sys
-import json
 import time
-import subprocess
 import logging
 from typing import Dict, List, Any
 
@@ -133,13 +130,13 @@ class HealthMonitor:
         # 1. 物理磁盘占用
         project_size = self.get_directory_size(PROJECT_ROOT)
         programs_size = self.get_directory_size(PROGRAMS_DIR)
-        print(f"\n[1] 磁盘空间统计:")
+        print("\n[1] 磁盘空间统计:")
         print(f"- 项目总路径: {PROJECT_ROOT}")
         print(f"- 项目总大小: {self.format_size(project_size)}")
         print(f"- 混合编程源码目录 (programs/): {self.format_size(programs_size)}")
 
         # 2. BHL 模块清单
-        print(f"\n[2] 混合编程模块 (BHL) 状态:")
+        print("\n[2] 混合编程模块 (BHL) 状态:")
         bhl_status = self.check_bhl_status()
         print(f"{'模块名称':<20} | {'语言':<6} | {'状态':<15} | {'体积'}")
         print("-" * 60)
@@ -147,7 +144,7 @@ class HealthMonitor:
             print(f"{s['module']:<20} | {s['language']:<6} | {s['status']:<15} | {s['size']}")
 
         # 3. 运行内存占用
-        print(f"\n[3] 实时运行内存统计:")
+        print("\n[3] 实时运行内存统计:")
         resources = self.get_system_resources()
         print(f"- 系统 CPU 使用率: {resources['cpu_percent']}%")
         print(f"- 系统内存占用: {resources['memory_used']} / {resources['memory_total']} ({resources['memory_percent']}%)")

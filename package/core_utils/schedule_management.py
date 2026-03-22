@@ -1,10 +1,8 @@
 import json
 import os
-import pyttsx3
 import datetime
 import schedule
 import time
-import threading
 
 class ScheduleManager:
     def __init__(self, jarvis, filename='schedule.json'):

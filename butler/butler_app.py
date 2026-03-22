@@ -1,11 +1,9 @@
 import os
 import sys
 import time
-import datetime
 import json
 import re
 import threading
-import time
 from typing import Dict, Any
 import tempfile
 import shutil
@@ -29,14 +27,13 @@ from package.core_utils.config_loader import config_loader
 from package.core_utils.quota_manager import quota_manager
 from butler.core.event_bus import event_bus
 from butler.CommandPanel import CommandPanel
-from butler.data_storage import data_storage_manager
 from butler.core.extension_manager import extension_manager
 from butler.core.voice_service import VoiceService
 from butler.core.nlu_service import NLUService
 from butler.core.habit_manager import habit_manager
 from butler.core.skill_manager import SkillManager
 from butler.usb_screen import USBScreen
-from butler.resource_manager import ResourceManager, PerformanceMode
+from butler.resource_manager import ResourceManager
 from plugin.long_memory.redis_long_memory import RedisLongMemory
 from plugin.long_memory.zvec_long_memory import ZvecLongMemory
 from plugin.long_memory.chroma_long_memory import SQLiteLongMemory
@@ -174,6 +171,7 @@ class Jarvis:
 
     def ui_print(self, message, tag='ai_response', response_id=None):
         print(message)
+        self.logger.info(f"UI Output: {message}")
 
         # Restore tag mapping for legacy UI compatibility
         if tag == 'ai_response_start':
