@@ -1,5 +1,4 @@
 import json
-import os
 from typing import Any, Optional
 from pathlib import Path
 

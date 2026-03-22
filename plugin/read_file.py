@@ -1,6 +1,4 @@
 from package.core_utils.log_manager import LogManager
-from abc import ABCMeta, abstractmethod
-from datetime import datetime
 from plugin.plugin_interface import AbstractPlugin, PluginResult
 import chardet
 

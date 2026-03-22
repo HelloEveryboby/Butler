@@ -5,10 +5,7 @@
 """
 
 import os
-import sys
-import json
-import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 from butler.core.hybrid_link import HybridLinkClient
 from package.core_utils.log_manager import LogManager
 
@@ -103,7 +100,7 @@ def run(*args, **kwargs):
                 print("❌ 无法生成密钥")
                 return
 
-            print(f"🔑 自动生成密钥:")
+            print("🔑 自动生成密钥:")
             print(f"Key:   {key_pair['key']}")
             print(f"Nonce: {key_pair['nonce']}")
             print("⚠️ 请务必妥善保存上述密钥，否则无法解密！")

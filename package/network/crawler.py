@@ -7,9 +7,7 @@ import os
 import concurrent.futures
 import argparse
 from package.core_utils.log_manager import LogManager
-from urllib.parse import urlparse, urljoin
-from scrapy.crawler import CrawlerProcess
-from scrapy.utils.project import get_project_settings
+from urllib.parse import urlparse
 import scrapy
 
 # 设置日志配置
