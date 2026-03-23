@@ -1,20 +1,19 @@
 import os
 import sys
-
-# Add project root and local lib to sys.path
-project_root = os.path.dirname(os.path.abspath(__file__))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-lib_path = os.path.join(project_root, "lib_external")
-if os.path.exists(lib_path) and lib_path not in sys.path:
-    sys.path.insert(0, lib_path)
-
 import time
 import datetime
 import subprocess
-import shutil
 import shlex
+from pathlib import Path
+
+# Add project root and local lib to sys.path
+project_root = Path(__file__).resolve().parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+lib_path = project_root / "lib_external"
+if lib_path.exists() and str(lib_path) not in sys.path:
+    sys.path.insert(0, str(lib_path))
 
 class ScheduledTask:
     def __init__(self, task_name, task_command, schedule_type, schedule_value, data_file_path="task_log.txt", task_function=None):
@@ -36,22 +35,22 @@ class ScheduledTask:
         self.schedule_value = schedule_value
         self.last_run_time = None
         self.data_file_path = data_file_path
-        self.temp_data_dir = "temp"  # 临时数据文件夹
-        self.temp_data_file = os.path.join(self.temp_data_dir, f"{self.task_name}_temp_data.txt")
+        self.temp_data_dir = Path("temp")  # 临时数据文件夹
+        self.temp_data_file = self.temp_data_dir / f"{self.task_name}_temp_data.txt"
         
     def _load_last_run_time(self):
         """从文件加载上次运行时间"""
+        path = Path(f"{self.task_name}_last_run.txt")
         try:
-            with open(f"{self.task_name}_last_run.txt", "r") as f:
-                last_run_str = f.read().strip()
-                return datetime.datetime.strptime(last_run_str, "%Y-%m-%d %H:%M:%S.%f")
+            last_run_str = path.read_text().strip()
+            return datetime.datetime.strptime(last_run_str, "%Y-%m-%d %H:%M:%S.%f")
         except FileNotFoundError:
             return None
 
     def _save_last_run_time(self):
         """将上次运行时间保存到文件"""
-        with open(f"{self.task_name}_last_run.txt", "w") as f:
-            f.write(self.last_run_time.strftime("%Y-%m-%d %H:%M:%S.%f"))
+        path = Path(f"{self.task_name}_last_run.txt")
+        path.write_text(self.last_run_time.strftime("%Y-%m-%d %H:%M:%S.%f"))
         
     def get_next_run_time(self):
         """计算下次运行时间"""
@@ -83,15 +82,15 @@ class ScheduledTask:
     def run(self):
         """执行任务"""
         try:
-            if not os.path.exists(self.temp_data_dir):
-                os.makedirs(self.temp_data_dir)
+            if not self.temp_data_dir.exists():
+                self.temp_data_dir.mkdir(parents=True)
 
             cmd = self.task_command
             if isinstance(cmd, str):
                 cmd = shlex.split(cmd)
 
             with open(self.temp_data_file, "w") as f:
-                process = subprocess.run(cmd, check=True, capture_output=True, text=True, stdout=f)
+                subprocess.run(cmd, check=True, capture_output=True, text=True, stdout=f)
 
             self.last_run_time = datetime.datetime.now()
             self._save_last_run_time()
@@ -110,12 +109,13 @@ class ScheduledTask:
             with open(self.data_file_path, "a") as f:
                 f.write(f"{datetime.datetime.now()} - 任务 {self.task_name} 执行失败：{e}\n")
         finally:
-            if os.path.exists(self.temp_data_file):
-                os.remove(self.temp_data_file)
+            if self.temp_data_file.exists():
+                self.temp_data_file.unlink()
 
     def _write_log(self, message):
         """写入日志文件"""
-        with open("scheduled_tasks.log", "a") as f:
+        path = Path("scheduled_tasks.log")
+        with open(path, "a") as f:
             f.write(f"{datetime.datetime.now()} - {message}\n")
 
 def main():

@@ -1,8 +1,7 @@
 import os
-import sys
 import importlib.util
-import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
+from pathlib import Path
 from plugin.PluginManager import PluginManager
 from butler.code_execution_manager import CodeExecutionManager
 from butler.data_storage import data_storage_manager
@@ -17,7 +16,7 @@ class ExtensionManager:
     def __init__(self, plugin_dir="plugin", package_dir="package", programs_dir="programs"):
         self.plugin_manager = PluginManager(plugin_dir, data_storage_manager)
         self.code_execution_manager = CodeExecutionManager(programs_dir)
-        self.package_dir = package_dir
+        self.package_dir = Path(package_dir)
         self.packages: Dict[str, Any] = {}
 
         self.scan_all()
@@ -30,7 +29,7 @@ class ExtensionManager:
 
     def _scan_packages(self):
         """扫描包目录及其子目录中带有 run() 函数的简单 Python 脚本。"""
-        if not os.path.exists(self.package_dir):
+        if not self.package_dir.exists():
             logger.warning(f"Package directory '{self.package_dir}' not found.")
             return
 
@@ -42,11 +41,12 @@ class ExtensionManager:
             for filename in files:
                 if filename.endswith(".py") and filename != "__init__.py":
                     package_name = filename[:-3]
-                    package_path = os.path.join(root, filename)
+                    package_path = Path(root) / filename
 
                     try:
                         spec = importlib.util.spec_from_file_location(package_name, package_path)
-                        if spec is None: continue
+                        if spec is None:
+                            continue
 
                         module = importlib.util.module_from_spec(spec)
                         # 将包添加到 sys.modules 以支持相对导入，但由于这是动态发现，

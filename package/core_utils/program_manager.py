@@ -1,5 +1,4 @@
 import os
-import platform
 import shutil
 import subprocess
 import tkinter as tk
