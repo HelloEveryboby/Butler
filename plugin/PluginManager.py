@@ -4,6 +4,7 @@ import pkgutil
 import inspect
 import ast
 from typing import Type, Optional, List, Dict
+from pathlib import Path
 from .plugin_interface import AbstractPlugin, PluginResult
 from package.core_utils.log_manager import LogManager
 
@@ -43,7 +44,8 @@ class PluginManager:
             if not spec or not spec.origin:
                 return False
 
-            with open(spec.origin, 'r', encoding='utf-8') as f:
+            origin_path = Path(spec.origin)
+            with origin_path.open('r', encoding='utf-8') as f:
                 tree = ast.parse(f.read())
 
             forbidden_calls = {

@@ -9,8 +9,6 @@ Butler 专业级多线程系统审计与任务调度工具 (V1.1)
 
 import os
 import sys
-import time
-import json
 from typing import Dict, Any
 
 # 确保项目根目录在导入路径中
@@ -73,7 +71,7 @@ def run(*args, **kwargs):
             print(f"\n🚀 正在执行并行正则表达式扫描: {log_dir} (匹配模式: '{regex_pattern}')")
             scan_results = client.call("log_scan", {"dir": log_dir, "regex": regex_pattern}, timeout=15)
 
-            if isinstance(scan_results, dict) and not "error" in scan_results:
+            if isinstance(scan_results, dict) and "error" not in scan_results:
                 match_count = sum(len(matches) for matches in scan_results.values())
                 print(f"   ✅ 扫描完成! 在 {len(scan_results)} 个文件中发现 {match_count} 处匹配。")
                 for file, matches in list(scan_results.items())[:3]:

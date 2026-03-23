@@ -6,31 +6,28 @@ import os
 import sys
 import shutil
 import re
-import csv
-import json
 import argparse
+from pathlib import Path
 from collections import Counter
-from typing import Optional, Dict, List, Any
+from typing import Optional, List, Any
 
 # Third-party imports
 import docx
 from pypdf import PdfReader, PdfWriter
 import pdfplumber
 import pandas as pd
-from openpyxl import load_workbook, Workbook
 from pptx import Presentation
 import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup
 import requests
-from dotenv import load_dotenv
 
 # Local imports
 # Use consistent project root resolution
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-markitdown_src = os.path.join(project_root, 'markitdown', 'src')
-if markitdown_src not in sys.path:
-    sys.path.insert(0, markitdown_src)
+project_root = Path(__file__).resolve().parent.parent.parent
+markitdown_src = project_root / 'markitdown' / 'src'
+if str(markitdown_src) not in sys.path:
+    sys.path.insert(0, str(markitdown_src))
 
 try:
     from markitdown import MarkItDown
@@ -63,12 +60,10 @@ class DocumentInterpreter:
         self.deepseek_url = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
 
     def get_file_type(self, file_path: str) -> Optional[str]:
-        _, ext = os.path.splitext(file_path)
-        return ext.lower()
+        return Path(file_path).suffix.lower()
 
     def read_text(self, file_path: str) -> str:
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            return f.read()
+        return Path(file_path).read_text(encoding='utf-8', errors='ignore')
 
     def read_pdf(self, file_path: str, extract_tables: bool = False) -> str:
         text = ""
@@ -309,7 +304,6 @@ class DocumentInterpreter:
 
 def run(*args, **kwargs):
     """Entry point for ExtensionManager."""
-    interpreter = DocumentInterpreter()
     main()
 
 def main():
@@ -326,7 +320,7 @@ def main():
     else:
         file_path = input("请输入文件路径: ").strip('"').strip("'")
 
-    if not os.path.exists(file_path):
+    if not Path(file_path).exists():
         print(f"文件不存在: {file_path}")
         return
 

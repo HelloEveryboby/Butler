@@ -5,9 +5,8 @@
 
 import os
 import sys
-import json
 import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from package.core_utils.log_manager import LogManager
 from package.core_utils.embedding_utils import get_embedding
 from package.core_utils.config_loader import config_loader
