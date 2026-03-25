@@ -1,5 +1,4 @@
 import os
-import time
 import requests
 from uuid import uuid4
 from plugin.plugin_interface import AbstractPlugin, PluginResult

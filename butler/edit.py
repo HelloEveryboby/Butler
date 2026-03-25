@@ -42,7 +42,7 @@ class EditTool(BaseTool):
         **kwargs,
     ):
         # 执行命令前请求用户许可
-        print(f"是否要执行以下命令？")
+        print("是否要执行以下命令？")
         print(f"命令: {command}")
         print(f"路径: {path}")
         if file_text:

@@ -1,8 +1,6 @@
 import os
-import sys
 import importlib.util
-import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from plugin.PluginManager import PluginManager
 from butler.code_execution_manager import CodeExecutionManager
 from butler.data_storage import data_storage_manager

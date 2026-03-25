@@ -2,9 +2,8 @@ import os
 import shutil
 import zipfile
 import hashlib
-import time
 import json
-from typing import Dict, List, Optional
+from typing import Dict, List
 from plugin.plugin_interface import AbstractPlugin, PluginResult
 from butler.core.event_bus import event_bus
 

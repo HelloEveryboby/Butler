@@ -1,3 +1,4 @@
+import sys
 import requests
 import time
 import random
@@ -7,7 +8,7 @@ import os
 import concurrent.futures
 import argparse
 from package.core_utils.log_manager import LogManager
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse
 from scrapy.crawler import CrawlerProcess
 from scrapy.utils.project import get_project_settings
 import scrapy
@@ -142,9 +143,15 @@ def crawl_website(start_url, max_depth):
 
 def controlled_crawl(urls, delay):
     for url in urls:
-        response = requests.get(url, headers=get_headers())
+        requests.get(url, headers=get_headers())
         # 处理响应
         time.sleep(delay)    
+
+def run_scrapy_crawler(search_query):
+    """Helper to run Scrapy spider."""
+    process = CrawlerProcess(get_project_settings())
+    process.crawl(MyScrapySpider, search_query=search_query)
+    process.start()
 
 class MyScrapySpider(scrapy.Spider):
     name = "my_scrapy_spider"
@@ -187,16 +194,17 @@ def crawler():
     if not search_query:
         search_query = input('搜索内容: ')
     
+    input_str = search_query # Fallback if not url
     if urlparse(input_str).scheme:  # 如果输入的是网址
         success = crawl_website(input_str, max_depth)
         if not success:
-            logger.info("切换到Scrapy爬虫")
+            logging.info("切换到Scrapy爬虫")
             run_scrapy_crawler(search_query)        
             
     else:  # 如果输入不是网址，作为搜索查询
         success = search_and_crawl_files(search_query, file_type)
         if not success:
-            logger.info("切换到Scrapy爬虫")
+            logging.info("切换到Scrapy爬虫")
             run_scrapy_crawler(search_query)
     logging.info('爬虫结束！')
     

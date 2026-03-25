@@ -1,16 +1,17 @@
 import os
 import sys
 import threading
-import queue
 import time
 import json
 import re
+from package.core_utils.log_manager import LogManager
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from tkinterdnd2 import DND_FILES, TkinterDnD
 
 # Use consistent project root resolution
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -31,6 +32,7 @@ except ImportError:
 
 class MarkItDownGUI:
     def __init__(self, root):
+        self.logger = LogManager.get_logger(__name__)
         self.root = root
         self.root.title("MarkItDown 极致转换 - 批量 Markdown 工具")
         self.root.geometry("1000x700")
@@ -121,7 +123,7 @@ class MarkItDownGUI:
                         if key in settings:
                             var.set(settings[key])
             except Exception as e:
-                print(f"加载设置失败: {e}")
+                self.logger.error(f"加载设置失败: {e}")
 
     def save_settings(self):
         settings = {
@@ -137,7 +139,7 @@ class MarkItDownGUI:
             with open(self.settings_file, 'w', encoding='utf-8') as f:
                 json.dump(settings, f, ensure_ascii=False, indent=4)
         except Exception as e:
-            print(f"保存设置失败: {e}")
+            self.logger.error(f"保存设置失败: {e}")
 
     def setup_styles(self):
         self.style = ttk.Style()
@@ -286,7 +288,8 @@ class MarkItDownGUI:
         paned.add(left_frame, weight=1)
 
         theme = self.theme_mode.get()
-        if theme == "system": theme = "light"
+        if theme == "system":
+            theme = "light"
         colors = self.colors[theme]
 
         self.res_list = tk.Listbox(left_frame, font=("Arial", 10),
@@ -339,7 +342,8 @@ class MarkItDownGUI:
             self.add_files_to_list(files)
 
     def remove_selected_from_queue(self):
-        if self.is_running: return
+        if self.is_running:
+            return
         selected = self.queue_tree.selection()
         for item in selected:
             self.queue_tree.delete(item)
@@ -359,7 +363,8 @@ class MarkItDownGUI:
                     self.queue_tree.insert("", tk.END, values=(name, f, size, "等待中"))
 
     def clear_queue(self):
-        if self.is_running: return
+        if self.is_running:
+            return
         for item in self.queue_tree.get_children():
             self.queue_tree.delete(item)
         self.results.clear()
@@ -374,7 +379,8 @@ class MarkItDownGUI:
         if not os.path.exists(self.output_dir.get()):
             try:
                 os.makedirs(self.output_dir.get())
-            except:
+            except Exception as e:
+                self.logger.error(f"无法创建输出目录: {e}")
                 messagebox.showerror("错误", "无法创建输出目录。")
                 return
 
@@ -415,7 +421,8 @@ class MarkItDownGUI:
             batch = items[i:i+batch_size]
             threads = []
             for item_id in batch:
-                if self.stop_requested: break
+                if self.stop_requested:
+                    break
                 t = threading.Thread(target=self.convert_task, args=(item_id,))
                 t.start()
                 threads.append(t)
@@ -451,7 +458,8 @@ class MarkItDownGUI:
                 with open(out_path, 'w', encoding='utf-8') as f:
                     f.write(content)
         except Exception as e:
-            self.root.after(0, lambda: self.queue_tree.set(item_id, "status", f"失败: {str(e)[:20]}"))
+            error_msg = str(e)[:20]
+            self.root.after(0, lambda: self.queue_tree.set(item_id, "status", f"失败: {error_msg}"))
 
     def post_process_markdown(self, content):
         # Implement header style change
@@ -525,10 +533,11 @@ class MarkItDownGUI:
 
     def on_result_select(self, event):
         selection = self.res_list.curselection()
-        if not selection: return
+        if not selection:
+            return
 
         idx = selection[0]
-        name = self.res_list.get(idx)
+        # self.res_list.get(idx)
 
         # Find path by name. To be safer, we use the results keys order
         # which matches the insertion order in res_list.
@@ -546,7 +555,8 @@ class MarkItDownGUI:
 
         # Determine theme-based colors
         theme = self.theme_mode.get()
-        if theme == "system": theme = "light"
+        if theme == "system":
+            theme = "light"
         colors = self.colors[theme]
         code_bg = "#3a3a3c" if theme == "dark" else "#f0f0f0"
         link_fg = "#0a84ff" if theme == "dark" else "#0071e3"
@@ -588,7 +598,8 @@ class MarkItDownGUI:
                 # Regex for [text](url)
                 parts = re.split(r'(\*\*.*?\*\*|\*.*?\*|`.*?`|\[.*?\]\(.*?\))', line)
                 for part in parts:
-                    if not part: continue
+                    if not part:
+                        continue
                     if part.startswith('**') and part.endswith('**'):
                         self.render_text.insert(tk.END, part[2:-2], "bold")
                     elif part.startswith('*') and part.endswith('*'):
@@ -685,7 +696,8 @@ class MarkItDownGUI:
         self.setup_styles()
 
         theme = self.theme_mode.get()
-        if theme == "system": theme = "light"
+        if theme == "system":
+            theme = "light"
         colors = self.colors[theme]
 
         # Manually update non-ttk widgets
