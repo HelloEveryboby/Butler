@@ -1,8 +1,6 @@
-import os
 import json
 import requests
-import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from package.core_utils.log_manager import LogManager
 from package.core_utils.config_loader import config_loader
 from package.core_utils.quota_manager import quota_manager

@@ -3,7 +3,6 @@
 支持 RSA 加密/解密、签名/验证，以及 ECC 签名/验证。
 """
 import os
-import sys
 from package.security.crypto_core import AsymmetricCrypto
 
 class AsymmetricTool:
