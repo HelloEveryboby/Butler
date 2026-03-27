@@ -1,10 +1,13 @@
 import asyncio
 import os
 from typing import ClassVar, Literal
+from package.core_utils.log_manager import LogManager
 
 from anthropic.types.beta import BetaToolBash20241022Param
 
 from .base import BaseAnthropicTool, CLIResult, ToolError, ToolResult
+
+logger = LogManager.get_logger(__name__)
 
 
 class _BashSession:

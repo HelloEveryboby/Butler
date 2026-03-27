@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import scrolledtext
 import sys
 import os
-import json
 import re
 from package.core_utils.log_manager import LogManager
 from butler.core.asset_loader import asset_loader

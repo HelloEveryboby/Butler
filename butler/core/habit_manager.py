@@ -1,7 +1,7 @@
 import json
 import time
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from butler.data_storage import data_storage_manager
 from package.core_utils.log_manager import LogManager
 

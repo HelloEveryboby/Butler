@@ -1,5 +1,8 @@
 import redis
 import os
+from package.core_utils.log_manager import LogManager
+
+logger = LogManager.get_logger(__name__)
 
 def get_redis_client():
     """
@@ -14,7 +17,7 @@ def get_redis_client():
         client.ping() # 检查连接是否可用
         return client
     except redis.exceptions.ConnectionError as e:
-        print(f"无法连接到 Redis: {e}")
+        logger.error(f"无法连接到 Redis: {e}")
         return None
 
 # 用于整个应用程序的全局客户端实例。

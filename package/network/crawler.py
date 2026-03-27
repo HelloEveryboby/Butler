@@ -1,5 +1,6 @@
 import requests
 import time
+import sys
 import random
 import redis
 from bs4 import BeautifulSoup
@@ -7,9 +8,7 @@ import os
 import concurrent.futures
 import argparse
 from package.core_utils.log_manager import LogManager
-from urllib.parse import urlparse, urljoin
-from scrapy.crawler import CrawlerProcess
-from scrapy.utils.project import get_project_settings
+from urllib.parse import urlparse
 import scrapy
 
 # 设置日志配置
@@ -187,17 +186,18 @@ def crawler():
     if not search_query:
         search_query = input('搜索内容: ')
     
+    input_str = search_query
     if urlparse(input_str).scheme:  # 如果输入的是网址
         success = crawl_website(input_str, max_depth)
-        if not success:
-            logger.info("切换到Scrapy爬虫")
-            run_scrapy_crawler(search_query)        
+        # if not success:
+        #     logging.info("切换到Scrapy爬虫")
+        #     run_scrapy_crawler(search_query)
             
     else:  # 如果输入不是网址，作为搜索查询
         success = search_and_crawl_files(search_query, file_type)
-        if not success:
-            logger.info("切换到Scrapy爬虫")
-            run_scrapy_crawler(search_query)
+        # if not success:
+        #     logging.info("切换到Scrapy爬虫")
+        #     run_scrapy_crawler(search_query)
     logging.info('爬虫结束！')
     
 if __name__ == '__main__':

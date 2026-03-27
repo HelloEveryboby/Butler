@@ -17,7 +17,13 @@ try:
     from butler.core.hybrid_link import HybridLinkClient
 except ImportError as e:
     print(f"[-] 导入依赖失败: {e}")
-    sys.exit(1)
+    # In some contexts, we may want to skip this package if dependencies are missing
+    # rather than exiting the whole process (e.g., during ExtensionManager scan).
+    # However, if this is run as a standalone script, we want to know it failed.
+    if __name__ == "__main__":
+        sys.exit(1)
+    else:
+        raise
 
 def run(file_path: Optional[str] = None):
     """

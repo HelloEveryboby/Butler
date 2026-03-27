@@ -85,7 +85,7 @@ class TerminalTab(tk.Frame):
                 except IndexError:
                     self.output_area.insert(tk.END, "cd: missing operand\n")
                 except FileNotFoundError:
-                    self.output_area.insert(tk.END, f"cd: no such file or directory\n")
+                    self.output_area.insert(tk.END, "cd: no such file or directory\n")
             elif command_parts[0] == "ls":
                 try:
                     files = os.listdir(self.current_directory)

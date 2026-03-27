@@ -1,8 +1,5 @@
-import os
 import requests
-import uuid
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
 from package.core_utils.config_loader import config_loader
 from package.core_utils.quota_manager import quota_manager
 
