@@ -2,8 +2,11 @@ import shlex
 from collections import defaultdict
 from pathlib import Path
 from typing import Literal, get_args
+from package.core_utils.log_manager import LogManager
 
 from .base import BaseTool, CLIResult, ToolError, ToolResult
+
+logger = LogManager.get_logger(__name__)
 from .run import maybe_truncate, run
 
 Command = Literal[
@@ -42,7 +45,7 @@ class EditTool(BaseTool):
         **kwargs,
     ):
         # 执行命令前请求用户许可
-        print(f"是否要执行以下命令？")
+        print("是否要执行以下命令？")
         print(f"命令: {command}")
         print(f"路径: {path}")
         if file_text:

@@ -55,7 +55,7 @@ class TestImport(unittest.TestCase):
         }
         with patch.dict(sys.modules, MOCK_MODULES):
             try:
-                from butler.butler_app import main
+                from butler.butler_app import main # noqa: F401
                 print("Successfully imported butler.butler_app")
             except Exception as e:
                 traceback.print_exc()

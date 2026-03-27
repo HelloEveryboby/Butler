@@ -1,9 +1,5 @@
-import os
-import shutil
-import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
-import sys
 
 
 from butler.butler_app import Jarvis
@@ -32,7 +28,7 @@ class TestButler(unittest.TestCase):
         with patch.object(data_storage_manager, 'save', side_effect=mock_save), \
              patch.object(data_storage_manager, 'load', side_effect=mock_load):
 
-            jarvis1 = Jarvis(self.mock_root)
+            Jarvis(self.mock_root)
             user_profile_plugin1 = extension_manager.plugin_manager.get_plugin("UserProfilePlugin")
             self.assertIsNotNone(user_profile_plugin1, "UserProfilePlugin should be loaded")
 
@@ -45,7 +41,7 @@ class TestButler(unittest.TestCase):
             self.assertIn(f"Okay, I've remembered your name is {user_name}", save_result.result)
 
             # 3. Create a new Jarvis instance to simulate a restart
-            jarvis2 = Jarvis(self.mock_root)
+            Jarvis(self.mock_root)
             user_profile_plugin2 = extension_manager.plugin_manager.get_plugin("UserProfilePlugin")
             self.assertIsNotNone(user_profile_plugin2, "UserProfilePlugin should be loaded in the new instance")
 

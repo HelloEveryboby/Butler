@@ -1,6 +1,5 @@
-import os
-import time
 from package.core_utils.log_manager import LogManager
+from datetime import datetime
 from plugin.plugin_interface import AbstractPlugin, PluginResult
 
 logging = LogManager.get_logger(__name__)
