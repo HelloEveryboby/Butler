@@ -1,11 +1,9 @@
-import os
 import base64
 from Crypto.Cipher import AES, DES, PKCS1_OAEP
 from Crypto.PublicKey import RSA, ECC
 from Crypto.Signature import pkcs1_15, DSS
 from Crypto.Hash import SHA256
 from Crypto.Util.Padding import pad, unpad
-from Crypto.Random import get_random_bytes
 from Crypto.Protocol.KDF import PBKDF2
 
 class SymmetricCrypto:

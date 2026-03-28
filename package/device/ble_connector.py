@@ -5,9 +5,8 @@ This maintains the connection state within the Python process.
 """
 import ctypes
 import os
-import json
 import logging
-from typing import List, Dict
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 

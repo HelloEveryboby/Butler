@@ -1,4 +1,3 @@
-import os
 import requests
 import numpy as np
 from typing import List, Dict, Optional

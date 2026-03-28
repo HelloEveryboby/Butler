@@ -47,7 +47,7 @@ def handle_request(action, **kwargs):
             return f"✅ Excel 重计算成功！详情: {output_json.get('message', '完成')}"
         except json.JSONDecodeError:
             if result.returncode == 0:
-                return f"✅ Excel 重计算成功！"
+                return "✅ Excel 重计算成功！"
             else:
                 return f"❌ 重计算失败：{result.stderr or result.stdout}"
 

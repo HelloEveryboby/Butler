@@ -10,7 +10,6 @@ Butler 混合系统协调器 (Enhanced V2.0)
 
 import os
 import sys
-import time
 import traceback
 from typing import Dict, Any
 
@@ -71,8 +70,10 @@ def run(*args, **kwargs):
     # 使用上下文管理器确保进程生命周期自动关闭
     try:
         # 定义辅助函数获取路径和工作目录
-        get_path = lambda info: info['path'] if info else "MISSING"
-        get_cwd = lambda info: os.path.dirname(info['path']) if info else None
+        def get_path(info):
+            return info['path'] if info else "MISSING"
+        def get_cwd(info):
+            return os.path.dirname(info['path']) if info else None
 
         with HybridLinkClient(get_path(compute_info), cwd=get_cwd(compute_info)) as compute_client, \
              HybridLinkClient(get_path(net_info), cwd=get_cwd(net_info)) as net_client, \
