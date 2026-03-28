@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import scrolledtext
 import sys
 import os
-import json
 import re
 from package.core_utils.log_manager import LogManager
 from butler.core.asset_loader import asset_loader
@@ -508,8 +507,10 @@ class CommandPanel(tk.Frame):
             canvas_width = self.screenshot_canvas.winfo_width()
             canvas_height = self.screenshot_canvas.winfo_height()
 
-            if canvas_width < 10: canvas_width = 400
-            if canvas_height < 10: canvas_height = 300
+            if canvas_width < 10:
+                canvas_width = 400
+            if canvas_height < 10:
+                canvas_height = 300
 
             img.thumbnail((canvas_width, canvas_height), Image.Resampling.LANCZOS)
             self.last_screenshot_tk = ImageTk.PhotoImage(img)
@@ -726,7 +727,6 @@ class CommandPanel(tk.Frame):
         """Applies a sepia/nostalgic theme to the CommandPanel."""
         nostalgia_bg = '#2b261d' # Sepia dark
         nostalgia_fg = '#d4c5a1' # Aged paper
-        nostalgia_accent = '#8b4513' # Saddle brown
 
         self.config(bg=nostalgia_bg)
         self.output_text.config(bg=nostalgia_bg, fg=nostalgia_fg)

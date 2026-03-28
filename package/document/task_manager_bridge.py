@@ -53,7 +53,6 @@ def handle_task_manage(jarvis_app, entities, **kwargs):
         # Find ## Active and insert below
         lines = content.splitlines()
         new_lines = []
-        found_active = False
         inserted = False
 
         for line in lines:

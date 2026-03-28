@@ -14,12 +14,10 @@ Butler 自动交换机 (Autonomous Switchboard V2.0 - 完整版)
 """
 
 import os
-import sys
 import time
 import threading
 import psutil
 from collections import defaultdict
-from pathlib import Path
 from package.core_utils.log_manager import LogManager
 from package.core_utils.health_monitor import HealthMonitor
 

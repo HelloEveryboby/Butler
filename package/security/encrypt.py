@@ -5,7 +5,6 @@
 import os
 import time
 import sys
-import base64
 import getpass
 import hashlib
 from package.security.crypto_core import SymmetricCrypto

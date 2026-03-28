@@ -121,7 +121,8 @@ class Jarvis:
                 self.long_memory = RedisLongMemory(api_key=api_key)
                 self.long_memory.init(self.logger)
                 return
-            else: raise ValueError("No API Key")
+            else:
+                raise ValueError("No API Key")
         except Exception as e:
             self.logger.warning(f"无法初始化 RedisLongMemory: {e}")
             # speculatively try to export if it partially initialized, though risky.
@@ -202,7 +203,8 @@ class Jarvis:
         self.voice_service.speak(text)
 
     def handle_user_command(self, command, programs=None):
-        if not command: return
+        if not command:
+            return
         cmd = command.strip()
 
         # Quota Check (Global Halt)
@@ -412,7 +414,8 @@ class Jarvis:
         if matched_intent in intent_registry._intents:
             result = intent_registry.dispatch(matched_intent, **handler_args)
             if result is not None:
-                if isinstance(result, str): self.speak(result)
+                if isinstance(result, str):
+                    self.speak(result)
                 return
 
         # 2. 尝试扩展（插件、包、外部程序）
@@ -511,11 +514,14 @@ class Jarvis:
                 event_bus.emit("screenshot_update", screenshot_b64)
             elif action == "left_click":
                 coord = payload.get("coordinate")
-                if coord: pyautogui.click(coord[0], coord[1])
-                else: pyautogui.click()
+                if coord:
+                    pyautogui.click(coord[0], coord[1])
+                else:
+                    pyautogui.click()
             elif action == "type":
                 text = payload.get("text")
-                if text: pyautogui.write(text)
+                if text:
+                    pyautogui.write(text)
 
         except Exception as e:
             self.logger.error(f"Manual action error: {e}")
@@ -584,11 +590,12 @@ class Jarvis:
 
         # Add to memory with high importance
         try:
-             from plugin.long_memory.long_memory_interface import LongMemoryItem
-             item = LongMemoryItem.new(content=response, id=f"easter_egg_{time.time()}",
-                                      metadata={"type": "easter_egg", "key": "no1_middle_school"})
-             self.long_memory.save([item])
-        except Exception: pass
+            from plugin.long_memory.long_memory_interface import LongMemoryItem
+            item = LongMemoryItem.new(content=response, id=f"easter_egg_{time.time()}",
+                                     metadata={"type": "easter_egg", "key": "no1_middle_school"})
+            self.long_memory.save([item])
+        except Exception:
+            pass
 
     def _handle_manual_habit_learning(self, command: str):
         """Processes manual habit learning requests from the user."""
@@ -628,7 +635,8 @@ class Jarvis:
         self.speak("再见")
         self.running = False
         self.voice_service.stop_listening()
-        if self.root: self.root.quit()
+        if self.root:
+            self.root.quit()
 
     def main(self):
         self._cleanup_temp_files()
@@ -695,9 +703,12 @@ class Jarvis:
             if f.startswith("jarvis_temp_"):
                 try:
                     path = os.path.join(temp_dir, f)
-                    if os.path.isfile(path): os.remove(path)
-                    else: shutil.rmtree(path)
-                except Exception: pass
+                    if os.path.isfile(path):
+                        os.remove(path)
+                    else:
+                        shutil.rmtree(path)
+                except Exception:
+                    pass
 
         # Integrated Data Recycler
         try:
@@ -721,7 +732,8 @@ def main():
     if args.headless:
         jarvis = Jarvis(None, usb_screen)
         jarvis.main()
-        while jarvis.running: time.sleep(1)
+        while jarvis.running:
+            time.sleep(1)
         return
 
     if not args.classic:

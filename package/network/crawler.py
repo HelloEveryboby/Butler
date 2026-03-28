@@ -7,9 +7,7 @@ import os
 import concurrent.futures
 import argparse
 from package.core_utils.log_manager import LogManager
-from urllib.parse import urlparse, urljoin
-from scrapy.crawler import CrawlerProcess
-from scrapy.utils.project import get_project_settings
+from urllib.parse import urlparse
 import scrapy
 
 # 设置日志配置
@@ -142,7 +140,7 @@ def crawl_website(start_url, max_depth):
 
 def controlled_crawl(urls, delay):
     for url in urls:
-        response = requests.get(url, headers=get_headers())
+        requests.get(url, headers=get_headers())
         # 处理响应
         time.sleep(delay)    
 

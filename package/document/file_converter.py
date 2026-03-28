@@ -56,7 +56,8 @@ def process_pdf(input_file_path, output_file_path, output_folder):
             xObject = page['/Resources']['/XObject'].get_object()
             for obj in xObject:
                 if xObject[obj]['/Subtype'] == '/Image':
-                    size = (xObject[obj]['/Width'], xObject[obj]['/Height'])
+                    # Get image dimensions (not used but might be needed for debugging)
+                    # size = (xObject[obj]['/Width'], xObject[obj]['/Height'])
                     data = xObject[obj]._data
 
                     image = Image.open(BytesIO(data))

@@ -8,7 +8,7 @@ import shutil
 import datetime
 import traceback
 import json
-from typing import Dict, Any, Optional, Callable
+from typing import Any, Optional, Callable
 
 class LogManager:
     """

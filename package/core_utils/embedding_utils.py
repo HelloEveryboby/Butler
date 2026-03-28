@@ -1,8 +1,7 @@
-import os
 import requests
 import numpy as np
 import hashlib
-from typing import Optional, List
+from typing import Optional
 from package.core_utils.log_manager import LogManager
 from package.core_utils.config_loader import config_loader
 
