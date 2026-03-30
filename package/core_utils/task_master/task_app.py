@@ -3,6 +3,7 @@ from .gui import TaskMasterGUI
 # 用于保存GUI窗口的引用，以防止打开多个实例
 _task_master_window = None
 
+
 def run():
     """
     Task Master 模块的入口点。

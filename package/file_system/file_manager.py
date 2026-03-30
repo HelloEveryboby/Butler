@@ -1,8 +1,8 @@
 import os
-import shutil
 from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
+
 
 class FileManager:
     def create_file(self, file_path, content=""):
@@ -13,7 +13,7 @@ class FileManager:
         try:
             # Ensure the directory exists
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
             logger.info(f"Successfully created file: {file_path}")
             return True, f"文件 '{file_path}' 已成功创建。"
@@ -26,7 +26,7 @@ class FileManager:
         Writes or overwrites content to a specified file.
         """
         try:
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
             logger.info(f"Successfully wrote to file: {file_path}")
             return True, f"内容已成功写入 '{file_path}'。"
@@ -39,7 +39,7 @@ class FileManager:
         Reads the content of a specified file.
         """
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
             logger.info(f"Successfully read file: {file_path}")
             return True, content
@@ -80,10 +80,13 @@ class FileManager:
             logger.error(f"Error listing directory {dir_path}: {e}")
             return False, f"列出目录 '{dir_path}' 内容时出错: {e}"
 
+
 def run():
     """
     Placeholder run function to make the module executable by the system.
     This could be enhanced to provide a command-line interface for file management.
     """
-    print("File Manager module loaded. This module is intended to be used programmatically.")
+    print(
+        "File Manager module loaded. This module is intended to be used programmatically."
+    )
     logger.info("File Manager module run function executed.")

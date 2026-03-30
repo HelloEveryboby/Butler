@@ -1,10 +1,10 @@
-import os
 import random
 import time
 from package.core_utils.log_manager import LogManager
 from plugin.plugin_interface import AbstractPlugin, PluginResult
 
 logging = LogManager.get_logger(__name__)
+
 
 class JokePlugin(AbstractPlugin):
     def __init__(self):
@@ -57,9 +57,14 @@ class JokePlugin(AbstractPlugin):
 
     def run(self, takecommand: str, args: dict) -> PluginResult:
         from butler.butler_app import Jarvis
+
         # 随机选择一个笑话
         joke_question, joke_answer = random.choice(self.jokes)
         Jarvis(None).speak(joke_question)
         time.sleep(3)  # 停顿3秒（可以根据需要调整）
         Jarvis(None).speak(joke_answer)
-        return PluginResult.new(result=joke_question + " " + joke_answer, need_call_brain=False, success=True)
+        return PluginResult.new(
+            result=joke_question + " " + joke_answer,
+            need_call_brain=False,
+            success=True,
+        )

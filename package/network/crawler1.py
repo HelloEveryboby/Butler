@@ -7,6 +7,7 @@ from urllib.parse import urljoin, urlparse
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class AutoCrawler:
     def __init__(self, start_url="https://www.bing.com", max_depth=2):
         self.start_url = start_url
@@ -28,13 +29,16 @@ class AutoCrawler:
         """从页面提取所有有效链接"""
         try:
             response = requests.get(url, timeout=5)
-            soup = BeautifulSoup(response.text, 'html.parser')
+            soup = BeautifulSoup(response.text, "html.parser")
             links = set()
-            for a_tag in soup.find_all('a', href=True):
-                href = a_tag['href']
+            for a_tag in soup.find_all("a", href=True):
+                href = a_tag["href"]
                 full_url = urljoin(url, href)  # 处理相对路径
                 if self.is_valid_url(full_url):
-                    if not self.domain_restriction or self.get_domain(full_url) == self.domain_restriction:
+                    if (
+                        not self.domain_restriction
+                        or self.get_domain(full_url) == self.domain_restriction
+                    ):
                         links.add(full_url)
             return links
         except Exception as e:
@@ -64,6 +68,7 @@ class AutoCrawler:
 
         logger.info(f"爬取完成！总计访问 {len(self.visited_urls)} 个页面。")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     crawler = AutoCrawler(start_url="https://www.bing.com", max_depth=1)
     crawler.crawl()

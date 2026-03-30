@@ -1,10 +1,12 @@
 from typing import Any
 from .plugin_interface import AbstractPlugin, PluginResult
 
+
 class UserProfilePlugin(AbstractPlugin):
     """
     A plugin to manage user profile information.
     """
+
     def get_name(self) -> str:
         return "UserProfilePlugin"
 
@@ -15,9 +17,7 @@ class UserProfilePlugin(AbstractPlugin):
         return "管理并记忆用户的个人偏好和基本信息"
 
     def get_parameters(self) -> dict:
-        return {
-            "name": "用户姓名"
-        }
+        return {"name": "用户姓名"}
 
     def on_startup(self):
         self.logger.info("UserProfilePlugin 已启动")
@@ -39,22 +39,30 @@ class UserProfilePlugin(AbstractPlugin):
         - "what is my name": Retrieves the user's name.
         """
         if not self.data_storage:
-            return PluginResult.new(success=False, error_message="Data storage not available.")
+            return PluginResult.new(
+                success=False, error_message="Data storage not available."
+            )
 
         if "remember my name is" in command:
             name = args.get("name")
             if name:
                 self.data_storage.save(self.get_name(), "user_name", name)
-                return PluginResult.new(success=True, result=f"Okay, I've remembered your name is {name}.")
+                return PluginResult.new(
+                    success=True, result=f"Okay, I've remembered your name is {name}."
+                )
             else:
-                return PluginResult.new(success=False, error_message="No name provided.")
+                return PluginResult.new(
+                    success=False, error_message="No name provided."
+                )
 
         elif "what is my name" in command:
             name = self.data_storage.load(self.get_name(), "user_name")
             if name:
                 return PluginResult.new(success=True, result=f"Your name is {name}.")
             else:
-                return PluginResult.new(success=True, result="I don't know your name yet.")
+                return PluginResult.new(
+                    success=True, result="I don't know your name yet."
+                )
 
         return PluginResult.new(success=False, error_message="Unknown command.")
 

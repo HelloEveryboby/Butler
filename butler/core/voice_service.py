@@ -1,6 +1,5 @@
 import os
 import time
-import json
 import threading
 import tempfile
 from typing import Optional, Callable
@@ -11,13 +10,19 @@ from butler.core.asset_loader import asset_loader
 
 logger = LogManager.get_logger(__name__)
 
+
 class VoiceService:
-    def __init__(self, on_command_received: Callable[[str], None], ui_print_func: Callable, on_status_change: Optional[Callable[[bool], None]] = None):
+    def __init__(
+        self,
+        on_command_received: Callable[[str], None],
+        ui_print_func: Callable,
+        on_status_change: Optional[Callable[[bool], None]] = None,
+    ):
         self.on_command_received = on_command_received
         self.ui_print = ui_print_func
         self.on_status_change = on_status_change
         self.is_listening = False
-        self.voice_mode = 'online'  # Default to online since offline is removed
+        self.voice_mode = "online"  # Default to online since offline is removed
         self.client = None
 
         load_dotenv()
@@ -28,6 +33,7 @@ class VoiceService:
     def _init_baidu_client(self):
         try:
             from aip import AipSpeech
+
             # Using centralized config loader with .env fallbacks
             app_id = config_loader.get("api.baidu.app_id")
             api_key = config_loader.get("api.baidu.api_key")
@@ -48,13 +54,18 @@ class VoiceService:
             return
 
         try:
-            result = self.client.synthesis(text, 'zh', 1, {
-                'vol': 5,
-                'per': 4, # 4 is a common female voice
-            })
+            result = self.client.synthesis(
+                text,
+                "zh",
+                1,
+                {
+                    "vol": 5,
+                    "per": 4,  # 4 is a common female voice
+                },
+            )
 
             if not isinstance(result, dict):
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as f:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
                     f.write(result)
                     temp_file = f.name
 
@@ -70,6 +81,7 @@ class VoiceService:
     def _offline_fallback_speak(self, text: str):
         try:
             import pyttsx3
+
             engine = pyttsx3.init()
             engine.say(text)
             engine.runAndWait()
@@ -79,6 +91,7 @@ class VoiceService:
     def _play_audio(self, file_path: str):
         try:
             import pygame
+
             if not pygame.mixer.get_init():
                 pygame.mixer.init()
             pygame.mixer.music.load(file_path)
@@ -111,48 +124,54 @@ class VoiceService:
 
     def set_voice_mode(self, mode: str):
         # Only 'online' (Baidu) is supported now for Chinese
-        self.voice_mode = 'online'
+        self.voice_mode = "online"
         return True
 
     def _baidu_listen_loop(self):
         if not self.client:
-            self.ui_print("Baidu 语音服务未配置，请检查 .env 文件。", tag='error')
+            self.ui_print("Baidu 语音服务未配置，请检查 .env 文件。", tag="error")
             self.is_listening = False
             return
 
         try:
             from pvrecorder import PvRecorder
+
             # Using PvRecorder as a simple audio capturer (no model involved)
             access_key = config_loader.get("api.picovoice.access_key")
             if access_key:
-                recorder = PvRecorder(access_key=access_key, device_index=-1, frame_length=512)
+                recorder = PvRecorder(
+                    access_key=access_key, device_index=-1, frame_length=512
+                )
             else:
                 recorder = PvRecorder(device_index=-1, frame_length=512)
 
-            self.ui_print("正在录音...", tag='system_message')
+            self.ui_print("正在录音...", tag="system_message")
             self.play_activation_sound()
 
             recorder.start()
             audio_data = []
 
-            silence_threshold = 500 # Adjust based on environment
+            silence_threshold = 500  # Adjust based on environment
             max_silence_frames = 40
             silence_frames = 0
-            max_record_frames = 300 # ~10 seconds
+            max_record_frames = 300  # ~10 seconds
 
             for _ in range(max_record_frames):
-                if not self.is_listening: break
+                if not self.is_listening:
+                    break
                 frame = recorder.read()
                 audio_data.extend(frame)
 
                 # Simple VAD (Voice Activity Detection)
-                rms = (sum(f**2 for f in frame) / len(frame))**0.5
+                rms = (sum(f**2 for f in frame) / len(frame)) ** 0.5
                 if rms < silence_threshold:
                     silence_frames += 1
                 else:
                     silence_frames = 0
 
-                if silence_frames > max_silence_frames and len(audio_data) > 16000: # at least 1s
+                if (
+                    silence_frames > max_silence_frames and len(audio_data) > 16000
+                ):  # at least 1s
                     break
 
             recorder.stop()
@@ -165,28 +184,30 @@ class VoiceService:
                 import io
 
                 buffer = io.BytesIO()
-                with wave.open(buffer, 'wb') as wf:
+                with wave.open(buffer, "wb") as wf:
                     wf.setnchannels(1)
                     wf.setsampwidth(2)
                     wf.setframerate(16000)
-                    wf.writeframes(struct.pack('<' + ('h' * len(audio_data)), *audio_data))
+                    wf.writeframes(
+                        struct.pack("<" + ("h" * len(audio_data)), *audio_data)
+                    )
 
                 wav_data = buffer.getvalue()
 
-                self.ui_print("正在识别...", tag='system_message')
-                res = self.client.asr(wav_data, 'wav', 16000, {'dev_pid': 1537})
+                self.ui_print("正在识别...", tag="system_message")
+                res = self.client.asr(wav_data, "wav", 16000, {"dev_pid": 1537})
 
-                if res.get('err_no') == 0:
-                    result_text = res.get('result', [""])[0]
+                if res.get("err_no") == 0:
+                    result_text = res.get("result", [""])[0]
                     if result_text:
-                        self.ui_print(f"识别到指令: {result_text}", tag='user_input')
+                        self.ui_print(f"识别到指令: {result_text}", tag="user_input")
                         self.on_command_received(result_text)
                 else:
                     logger.error(f"Baidu ASR error: {res}")
-                    self.ui_print(f"识别失败: {res.get('err_msg')}", tag='error')
+                    self.ui_print(f"识别失败: {res.get('err_msg')}", tag="error")
 
         except Exception as e:
-            self.ui_print(f"语音识别错误: {e}", tag='error')
+            self.ui_print(f"语音识别错误: {e}", tag="error")
             logger.exception("Baidu listen loop error")
         finally:
             self.is_listening = False

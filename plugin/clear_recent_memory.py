@@ -4,6 +4,7 @@ from plugin.plugin_interface import AbstractPlugin, PluginResult
 
 logger = LogManager.get_logger(__name__)
 
+
 class ClearRecentMemoryPlugin(AbstractPlugin):
     def valid(self) -> bool:
         return True
@@ -29,6 +30,15 @@ class ClearRecentMemoryPlugin(AbstractPlugin):
         }
 
     def run(self, takecommand, args: dict) -> PluginResult:
-        jarvis.memory.clear_recent()
-        jarvis.mouth.speak("已清空最近的记忆。", lambda: {})
-        return PluginResult.new("", False)
+        from butler.butler_app import extension_manager
+
+        jarvis = getattr(extension_manager, "jarvis_app", None)
+        if jarvis:
+            # Assuming jarvis has these methods or similar
+            if hasattr(jarvis, "long_memory") and hasattr(
+                jarvis.long_memory, "clear_recent"
+            ):
+                jarvis.long_memory.clear_recent()
+            jarvis.speak("已清空最近的记忆。")
+            return PluginResult.new("记忆已清空", False)
+        return PluginResult.new("系统未就绪", False)

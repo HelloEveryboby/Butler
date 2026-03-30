@@ -14,6 +14,7 @@ from .converters.excel_converter import convert_excel
 from .converters.image_converter import convert_image
 from .converters.epub_converter import convert_epub
 
+
 def convert(file_path: str) -> str:
     """
     Converts a file to Markdown.
@@ -21,30 +22,30 @@ def convert(file_path: str) -> str:
     _, extension = os.path.splitext(file_path)
     ext = extension.lower()
 
-    if ext == '.txt':
+    if ext == ".txt":
         return convert_txt(file_path)
-    elif ext in ['.json', '.xml']:
+    elif ext in [".json", ".xml"]:
         return convert_text(file_path)
-    elif ext == '.csv':
+    elif ext == ".csv":
         return convert_csv(file_path)
-    elif ext in ['.html', '.htm']:
+    elif ext in [".html", ".htm"]:
         return convert_html(file_path)
-    elif ext == '.rtf':
+    elif ext == ".rtf":
         return convert_rtf(file_path)
-    elif ext == '.docx':
+    elif ext == ".docx":
         return convert_docx(file_path)
-    elif ext == '.pptx':
+    elif ext == ".pptx":
         return convert_pptx(file_path)
-    elif ext == '.pdf':
+    elif ext == ".pdf":
         return convert_pdf(file_path)
-    elif ext == '.xlsx':
+    elif ext == ".xlsx":
         return convert_excel(file_path)
-    elif ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']:
+    elif ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp"]:
         return convert_image(file_path)
-    elif ext == '.zip':
+    elif ext == ".zip":
         temp_dir = tempfile.mkdtemp()
         try:
-            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+            with zipfile.ZipFile(file_path, "r") as zip_ref:
                 zip_ref.extractall(temp_dir)
 
             markdown_parts = []
@@ -55,20 +56,25 @@ def convert(file_path: str) -> str:
                     markdown_parts.append(convert(extracted_file_path))
                     markdown_parts.append(f"\n--- END OF {name} ---\n")
 
-            return '\n'.join(markdown_parts)
+            return "\n".join(markdown_parts)
         finally:
             shutil.rmtree(temp_dir)
-    elif ext == '.epub':
+    elif ext == ".epub":
         return convert_epub(file_path)
     else:
         return f"File type '{ext}' not supported yet."
 
+
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Convert various file formats to Markdown.")
+    parser = argparse.ArgumentParser(
+        description="Convert various file formats to Markdown."
+    )
     parser.add_argument("file_path", help="The path to the file to convert.")
-    parser.add_argument("-o", "--output", help="The path to save the output Markdown file.")
+    parser.add_argument(
+        "-o", "--output", help="The path to save the output Markdown file."
+    )
 
     args = parser.parse_args()
 
@@ -78,7 +84,7 @@ if __name__ == "__main__":
         markdown_content = convert(args.file_path)
         if args.output:
             try:
-                with open(args.output, 'w', encoding='utf-8') as f:
+                with open(args.output, "w", encoding="utf-8") as f:
                     f.write(markdown_content)
                 print(f"Markdown content saved to '{args.output}'")
             except Exception as e:

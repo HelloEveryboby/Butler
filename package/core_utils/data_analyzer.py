@@ -1,10 +1,10 @@
 import pandas as pd
-import numpy as np
 from package.core_utils.log_manager import LogManager
 from tqdm import tqdm
 import os
 
 logger = LogManager.get_logger(__name__)
+
 
 class DataAnalyzer:
     def _load_data(self, file_path, chunk_size=10000, progress_threshold_mb=10):
@@ -13,7 +13,7 @@ class DataAnalyzer:
         Currently supports CSV files.
         Shows a progress bar for files larger than progress_threshold_mb.
         """
-        if not file_path.endswith('.csv'):
+        if not file_path.endswith(".csv"):
             return None, "目前仅支持分析CSV文件。"
 
         try:
@@ -21,12 +21,18 @@ class DataAnalyzer:
 
             if file_size_mb > progress_threshold_mb:
                 # Get total number of lines for tqdm
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                     total_lines = sum(1 for line in f)
 
                 chunks = []
-                with tqdm(total=total_lines, desc=f"Loading {os.path.basename(file_path)}", unit='lines') as pbar:
-                    for chunk in pd.read_csv(file_path, chunksize=chunk_size, low_memory=False):
+                with tqdm(
+                    total=total_lines,
+                    desc=f"Loading {os.path.basename(file_path)}",
+                    unit="lines",
+                ) as pbar:
+                    for chunk in pd.read_csv(
+                        file_path, chunksize=chunk_size, low_memory=False
+                    ):
                         chunks.append(chunk)
                         pbar.update(chunk_size)
 
@@ -82,9 +88,12 @@ class DataAnalyzer:
             logger.error(f"Error describing data for {file_path}: {e}")
             return False, f"生成描述性统计时出错: {e}"
 
+
 def run():
     """
     Placeholder run function.
     """
-    print("Data Analyzer module loaded. This module is intended to be used programmatically.")
+    print(
+        "Data Analyzer module loaded. This module is intended to be used programmatically."
+    )
     logger.info("Data Analyzer module run function executed.")

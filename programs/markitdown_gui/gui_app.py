@@ -1,7 +1,6 @@
 import os
 import sys
 import threading
-import queue
 import time
 import json
 import re
@@ -10,7 +9,9 @@ from tkinter import ttk, filedialog, messagebox
 from tkinterdnd2 import DND_FILES, TkinterDnD
 
 # Use consistent project root resolution
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -29,6 +30,7 @@ except ImportError:
     sys.path.insert(0, os.path.join(project_root, "markitdown/src/markitdown"))
     from main import convert
 
+
 class MarkItDownGUI:
     def __init__(self, root):
         self.root = root
@@ -46,21 +48,21 @@ class MarkItDownGUI:
                 "fg": "#1d1d1f",
                 "accent": "#0071e3",
                 "secondary_bg": "#ffffff",
-                "border": "#d2d2d7"
+                "border": "#d2d2d7",
             },
             "dark": {
                 "bg": "#1c1c1e",
                 "fg": "#f5f5f7",
                 "accent": "#0a84ff",
                 "secondary_bg": "#2c2c2e",
-                "border": "#3a3a3c"
-            }
+                "border": "#3a3a3c",
+            },
         }
 
         self.setup_styles()
 
         # State variables
-        self.results = {} # path -> processed_markdown
+        self.results = {}  # path -> processed_markdown
         self.is_running = False
         self.is_paused = False
         self.stop_requested = False
@@ -95,19 +97,22 @@ class MarkItDownGUI:
                 self.root.after(500, self.start_conversion)
 
     def setup_variables(self):
-        self.output_dir = tk.StringVar(value=os.path.join(os.path.expanduser("~"), "MarkItDown_Output"))
+        self.output_dir = tk.StringVar(
+            value=os.path.join(os.path.expanduser("~"), "MarkItDown_Output")
+        )
         self.batch_size = tk.IntVar(value=4)
-        self.header_style = tk.StringVar(value="atx") # atx or setext
-        self.table_style = tk.StringVar(value="pipe") # pipe, grid, simple
-        self.theme_mode = tk.StringVar(value="system") # light, dark, system
-        self.save_mode = tk.StringVar(value="separate") # separate or merged
+        self.header_style = tk.StringVar(value="atx")  # atx or setext
+        self.table_style = tk.StringVar(value="pipe")  # pipe, grid, simple
+        self.theme_mode = tk.StringVar(value="system")  # light, dark, system
+        self.save_mode = tk.StringVar(value="separate")  # separate or merged
         self.auto_open_results = tk.BooleanVar(value=True)
 
     def load_settings(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
         self.settings_file = os.path.join(current_dir, "settings.json")
         if os.path.exists(self.settings_file):
             try:
-                with open(self.settings_file, 'r', encoding='utf-8') as f:
+                with open(self.settings_file, "r", encoding="utf-8") as f:
                     settings = json.load(f)
                     for key, var in [
                         ("output_dir", self.output_dir),
@@ -116,7 +121,7 @@ class MarkItDownGUI:
                         ("table_style", self.table_style),
                         ("theme_mode", self.theme_mode),
                         ("save_mode", self.save_mode),
-                        ("auto_open_results", self.auto_open_results)
+                        ("auto_open_results", self.auto_open_results),
                     ]:
                         if key in settings:
                             var.set(settings[key])
@@ -131,10 +136,10 @@ class MarkItDownGUI:
             "table_style": self.table_style.get(),
             "theme_mode": self.theme_mode.get(),
             "save_mode": self.save_mode.get(),
-            "auto_open_results": self.auto_open_results.get()
+            "auto_open_results": self.auto_open_results.get(),
         }
         try:
-            with open(self.settings_file, 'w', encoding='utf-8') as f:
+            with open(self.settings_file, "w", encoding="utf-8") as f:
                 json.dump(settings, f, ensure_ascii=False, indent=4)
         except Exception as e:
             print(f"保存设置失败: {e}")
@@ -152,27 +157,45 @@ class MarkItDownGUI:
         self.style.configure("TFrame", background=colors["bg"])
         self.style.configure("TLabel", background=colors["bg"], foreground=colors["fg"])
         self.style.configure("TButton", padding=5)
-        self.style.configure("TLabelframe", background=colors["bg"], foreground=colors["fg"])
-        self.style.configure("TLabelframe.Label", background=colors["bg"], foreground=colors["fg"])
+        self.style.configure(
+            "TLabelframe", background=colors["bg"], foreground=colors["fg"]
+        )
+        self.style.configure(
+            "TLabelframe.Label", background=colors["bg"], foreground=colors["fg"]
+        )
 
-        self.style.configure("Header.TLabel", font=("Arial", 16, "bold"), foreground=colors["accent"])
-        self.style.configure("Card.TFrame", background=colors["secondary_bg"], relief="flat")
+        self.style.configure(
+            "Header.TLabel", font=("Arial", 16, "bold"), foreground=colors["accent"]
+        )
+        self.style.configure(
+            "Card.TFrame", background=colors["secondary_bg"], relief="flat"
+        )
 
         # Treeview styling
-        self.style.configure("Treeview",
+        self.style.configure(
+            "Treeview",
             background=colors["secondary_bg"],
             foreground=colors["fg"],
             fieldbackground=colors["secondary_bg"],
             rowheight=35,
-            font=("Arial", 10)
+            font=("Arial", 10),
         )
         self.style.configure("Treeview.Heading", font=("Arial", 10, "bold"))
         self.style.map("Treeview", background=[("selected", colors["accent"])])
 
         # Notebook styling
         self.style.configure("TNotebook", background=colors["bg"])
-        self.style.configure("TNotebook.Tab", background=colors["secondary_bg"], foreground=colors["fg"], padding=[10, 5])
-        self.style.map("TNotebook.Tab", background=[("selected", colors["accent"])], foreground=[("selected", "#ffffff")])
+        self.style.configure(
+            "TNotebook.Tab",
+            background=colors["secondary_bg"],
+            foreground=colors["fg"],
+            padding=[10, 5],
+        )
+        self.style.map(
+            "TNotebook.Tab",
+            background=[("selected", colors["accent"])],
+            foreground=[("selected", "#ffffff")],
+        )
 
     def setup_views(self):
         # Queue View
@@ -207,8 +230,12 @@ class MarkItDownGUI:
         toolbar = ttk.Frame(view)
         toolbar.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Button(toolbar, text="+ 添加文件", command=self.add_files).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(toolbar, text="🗑 清空队列", command=self.clear_queue).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(toolbar, text="+ 添加文件", command=self.add_files).pack(
+            side=tk.LEFT, padx=(0, 5)
+        )
+        ttk.Button(toolbar, text="🗑 清空队列", command=self.clear_queue).pack(
+            side=tk.LEFT, padx=(0, 5)
+        )
 
         # Queue Table
         table_frame = ttk.Frame(view)
@@ -228,41 +255,57 @@ class MarkItDownGUI:
 
         self.queue_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        sb = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.queue_tree.yview)
+        sb = ttk.Scrollbar(
+            table_frame, orient=tk.VERTICAL, command=self.queue_tree.yview
+        )
         sb.pack(side=tk.RIGHT, fill=tk.Y)
         self.queue_tree.configure(yscrollcommand=sb.set)
 
         # Drag and Drop support
         self.root.drop_target_register(DND_FILES)
-        self.root.dnd_bind('<<Drop>>', self.handle_drop)
+        self.root.dnd_bind("<<Drop>>", self.handle_drop)
 
         # Bottom controls
         bottom = ttk.Frame(view)
         bottom.pack(fill=tk.X, pady=(20, 0))
 
         self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(bottom, variable=self.progress_var, maximum=100)
+        self.progress_bar = ttk.Progressbar(
+            bottom, variable=self.progress_var, maximum=100
+        )
         self.progress_bar.pack(fill=tk.X, pady=(0, 10))
 
         self.status_label = ttk.Label(bottom, text="准备就绪")
         self.status_label.pack(side=tk.LEFT)
 
-        self.btn_start = ttk.Button(bottom, text="🚀 开始转换", command=self.start_conversion)
+        self.btn_start = ttk.Button(
+            bottom, text="🚀 开始转换", command=self.start_conversion
+        )
         self.btn_start.pack(side=tk.RIGHT, padx=5)
 
-        self.btn_pause = ttk.Button(bottom, text="⏸ 暂停", command=self.pause_conversion, state=tk.DISABLED)
+        self.btn_pause = ttk.Button(
+            bottom, text="⏸ 暂停", command=self.pause_conversion, state=tk.DISABLED
+        )
         self.btn_pause.pack(side=tk.RIGHT, padx=5)
 
-        self.btn_stop = ttk.Button(bottom, text="⏹ 取消", command=self.stop_conversion, state=tk.DISABLED)
+        self.btn_stop = ttk.Button(
+            bottom, text="⏹ 取消", command=self.stop_conversion, state=tk.DISABLED
+        )
         self.btn_stop.pack(side=tk.RIGHT, padx=5)
 
         # Footer
         footer = ttk.Frame(view)
         footer.pack(fill=tk.X, pady=(10, 0))
 
-        ttk.Button(footer, text="❓ 快捷键", command=self.show_help).pack(side=tk.LEFT, padx=5)
-        ttk.Button(footer, text="ℹ 关于", command=self.show_about).pack(side=tk.LEFT, padx=5)
-        ttk.Button(footer, text="🔄 检查更新", command=self.check_updates).pack(side=tk.RIGHT)
+        ttk.Button(footer, text="❓ 快捷键", command=self.show_help).pack(
+            side=tk.LEFT, padx=5
+        )
+        ttk.Button(footer, text="ℹ 关于", command=self.show_about).pack(
+            side=tk.LEFT, padx=5
+        )
+        ttk.Button(footer, text="🔄 检查更新", command=self.check_updates).pack(
+            side=tk.RIGHT
+        )
 
         return view
 
@@ -275,7 +318,9 @@ class MarkItDownGUI:
 
         ttk.Label(header, text="转换结果", style="Header.TLabel").pack(side=tk.LEFT)
 
-        ttk.Button(header, text="⬅ 返回队列", command=lambda: self.show_view("queue")).pack(side=tk.RIGHT)
+        ttk.Button(
+            header, text="⬅ 返回队列", command=lambda: self.show_view("queue")
+        ).pack(side=tk.RIGHT)
 
         # Main Content - Paned Window
         paned = ttk.PanedWindow(view, orient=tk.HORIZONTAL)
@@ -286,16 +331,24 @@ class MarkItDownGUI:
         paned.add(left_frame, weight=1)
 
         theme = self.theme_mode.get()
-        if theme == "system": theme = "light"
+        if theme == "system":
+            theme = "light"
         colors = self.colors[theme]
 
-        self.res_list = tk.Listbox(left_frame, font=("Arial", 10),
-                                   bg=colors["secondary_bg"], fg=colors["fg"],
-                                   highlightthickness=0, borderwidth=0)
+        self.res_list = tk.Listbox(
+            left_frame,
+            font=("Arial", 10),
+            bg=colors["secondary_bg"],
+            fg=colors["fg"],
+            highlightthickness=0,
+            borderwidth=0,
+        )
         self.res_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.res_list.bind("<<ListboxSelect>>", self.on_result_select)
 
-        res_sb = ttk.Scrollbar(left_frame, orient=tk.VERTICAL, command=self.res_list.yview)
+        res_sb = ttk.Scrollbar(
+            left_frame, orient=tk.VERTICAL, command=self.res_list.yview
+        )
         res_sb.pack(side=tk.RIGHT, fill=tk.Y)
         self.res_list.configure(yscrollcommand=res_sb.set)
 
@@ -308,22 +361,39 @@ class MarkItDownGUI:
         self.preview_nb.pack(fill=tk.BOTH, expand=True)
 
         # Rendered View
-        self.render_text = tk.Text(self.preview_nb, wrap=tk.WORD, state=tk.DISABLED,
-                                   font=("Arial", 11), bg=colors["secondary_bg"], fg=colors["fg"])
+        self.render_text = tk.Text(
+            self.preview_nb,
+            wrap=tk.WORD,
+            state=tk.DISABLED,
+            font=("Arial", 11),
+            bg=colors["secondary_bg"],
+            fg=colors["fg"],
+        )
         self.preview_nb.add(self.render_text, text="渲染视图")
 
         # Raw View
-        self.raw_text = tk.Text(self.preview_nb, wrap=tk.WORD, font=("Consolas", 10),
-                                bg=colors["secondary_bg"], fg=colors["fg"])
+        self.raw_text = tk.Text(
+            self.preview_nb,
+            wrap=tk.WORD,
+            font=("Consolas", 10),
+            bg=colors["secondary_bg"],
+            fg=colors["fg"],
+        )
         self.preview_nb.add(self.raw_text, text="原始 Markdown")
 
         # Quick Actions
         actions = ttk.Frame(view)
         actions.pack(fill=tk.X, pady=(20, 0))
 
-        ttk.Button(actions, text="📋 复制 Markdown", command=self.copy_current_result).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions, text="💾 保存输出", command=self.save_current_result).pack(side=tk.LEFT, padx=5)
-        ttk.Button(actions, text="🔄 重新开始", command=self.restart_all).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(
+            actions, text="📋 复制 Markdown", command=self.copy_current_result
+        ).pack(side=tk.LEFT, padx=5)
+        ttk.Button(actions, text="💾 保存输出", command=self.save_current_result).pack(
+            side=tk.LEFT, padx=5
+        )
+        ttk.Button(actions, text="🔄 重新开始", command=self.restart_all).pack(
+            side=tk.RIGHT, padx=5
+        )
 
         return view
 
@@ -339,7 +409,8 @@ class MarkItDownGUI:
             self.add_files_to_list(files)
 
     def remove_selected_from_queue(self):
-        if self.is_running: return
+        if self.is_running:
+            return
         selected = self.queue_tree.selection()
         for item in selected:
             self.queue_tree.delete(item)
@@ -359,7 +430,8 @@ class MarkItDownGUI:
                     self.queue_tree.insert("", tk.END, values=(name, f, size, "等待中"))
 
     def clear_queue(self):
-        if self.is_running: return
+        if self.is_running:
+            return
         for item in self.queue_tree.get_children():
             self.queue_tree.delete(item)
         self.results.clear()
@@ -374,7 +446,7 @@ class MarkItDownGUI:
         if not os.path.exists(self.output_dir.get()):
             try:
                 os.makedirs(self.output_dir.get())
-            except:
+            except Exception:
                 messagebox.showerror("错误", "无法创建输出目录。")
                 return
 
@@ -388,7 +460,9 @@ class MarkItDownGUI:
         self.btn_pause.configure(state=tk.NORMAL, text="⏸ 暂停")
         self.btn_stop.configure(state=tk.NORMAL)
 
-        self.worker_thread = threading.Thread(target=self.process_queue_thread, daemon=True)
+        self.worker_thread = threading.Thread(
+            target=self.process_queue_thread, daemon=True
+        )
         self.worker_thread.start()
 
     def pause_conversion(self):
@@ -412,10 +486,11 @@ class MarkItDownGUI:
                 time.sleep(0.5)
                 continue
 
-            batch = items[i:i+batch_size]
+            batch = items[i : i + batch_size]
             threads = []
             for item_id in batch:
-                if self.stop_requested: break
+                if self.stop_requested:
+                    break
                 t = threading.Thread(target=self.convert_task, args=(item_id,))
                 t.start()
                 threads.append(t)
@@ -447,11 +522,18 @@ class MarkItDownGUI:
             self.root.after(0, lambda: self.queue_tree.set(item_id, "status", "已完成"))
 
             if self.save_mode.get() == "separate":
-                out_path = os.path.join(self.output_dir.get(), os.path.splitext(name)[0] + ".md")
-                with open(out_path, 'w', encoding='utf-8') as f:
+                out_path = os.path.join(
+                    self.output_dir.get(), os.path.splitext(name)[0] + ".md"
+                )
+                with open(out_path, "w", encoding="utf-8") as f:
                     f.write(content)
         except Exception as e:
-            self.root.after(0, lambda: self.queue_tree.set(item_id, "status", f"失败: {str(e)[:20]}"))
+            self.root.after(
+                0,
+                lambda e=e: self.queue_tree.set(
+                    item_id, "status", f"失败: {str(e)[:20]}"
+                ),
+            )
 
     def post_process_markdown(self, content):
         # Implement header style change
@@ -466,22 +548,22 @@ class MarkItDownGUI:
         return content
 
     def atx_to_setext(self, content):
-        lines = content.split('\n')
+        lines = content.split("\n")
         new_lines = []
         for line in lines:
-            m1 = re.match(r'^#\s+(.+)$', line)
-            m2 = re.match(r'^##\s+(.+)$', line)
+            m1 = re.match(r"^#\s+(.+)$", line)
+            m2 = re.match(r"^##\s+(.+)$", line)
             if m1:
                 title = m1.group(1)
                 new_lines.append(title)
-                new_lines.append('=' * len(title))
+                new_lines.append("=" * len(title))
             elif m2:
                 title = m2.group(1)
                 new_lines.append(title)
-                new_lines.append('-' * len(title))
+                new_lines.append("-" * len(title))
             else:
                 new_lines.append(line)
-        return '\n'.join(new_lines)
+        return "\n".join(new_lines)
 
     def update_overall_progress(self, current, total):
         pct = (current / total) * 100
@@ -510,7 +592,7 @@ class MarkItDownGUI:
     def save_merged_result(self):
         out_path = os.path.join(self.output_dir.get(), "merged_results.md")
         try:
-            with open(out_path, 'w', encoding='utf-8') as f:
+            with open(out_path, "w", encoding="utf-8") as f:
                 for path, content in self.results.items():
                     title = f"Source: {os.path.basename(path)}"
                     if self.header_style.get() == "atx":
@@ -525,7 +607,8 @@ class MarkItDownGUI:
 
     def on_result_select(self, event):
         selection = self.res_list.curselection()
-        if not selection: return
+        if not selection:
+            return
 
         idx = selection[0]
         name = self.res_list.get(idx)
@@ -546,26 +629,39 @@ class MarkItDownGUI:
 
         # Determine theme-based colors
         theme = self.theme_mode.get()
-        if theme == "system": theme = "light"
+        if theme == "system":
+            theme = "light"
         colors = self.colors[theme]
         code_bg = "#3a3a3c" if theme == "dark" else "#f0f0f0"
         link_fg = "#0a84ff" if theme == "dark" else "#0071e3"
 
         # Tags for rendering
-        self.render_text.tag_configure("h1", font=("Arial", 20, "bold"), spacing1=20, spacing3=12)
-        self.render_text.tag_configure("h2", font=("Arial", 18, "bold"), spacing1=15, spacing3=10)
-        self.render_text.tag_configure("h3", font=("Arial", 16, "bold"), spacing1=12, spacing3=8)
+        self.render_text.tag_configure(
+            "h1", font=("Arial", 20, "bold"), spacing1=20, spacing3=12
+        )
+        self.render_text.tag_configure(
+            "h2", font=("Arial", 18, "bold"), spacing1=15, spacing3=10
+        )
+        self.render_text.tag_configure(
+            "h3", font=("Arial", 16, "bold"), spacing1=12, spacing3=8
+        )
         self.render_text.tag_configure("bold", font=("Arial", 11, "bold"))
         self.render_text.tag_configure("italic", font=("Arial", 11, "italic"))
-        self.render_text.tag_configure("code", font=("Consolas", 10), background=code_bg)
+        self.render_text.tag_configure(
+            "code", font=("Consolas", 10), background=code_bg
+        )
         self.render_text.tag_configure("link", foreground=link_fg, underline=True)
-        self.render_text.tag_configure("quote", background=code_bg, lmargin1=20, lmargin2=20)
-        self.render_text.tag_configure("hr", background=colors["border"], font=("Arial", 1))
+        self.render_text.tag_configure(
+            "quote", background=code_bg, lmargin1=20, lmargin2=20
+        )
+        self.render_text.tag_configure(
+            "hr", background=colors["border"], font=("Arial", 1)
+        )
 
         in_code_block = False
-        lines = content.split('\n')
+        lines = content.split("\n")
         for line in lines:
-            if line.startswith('```'):
+            if line.startswith("```"):
                 in_code_block = not in_code_block
                 continue
 
@@ -573,30 +669,31 @@ class MarkItDownGUI:
                 self.render_text.insert(tk.END, line + "\n", "code")
                 continue
 
-            if line.startswith('# '):
+            if line.startswith("# "):
                 self.render_text.insert(tk.END, line[2:] + "\n", "h1")
-            elif line.startswith('## '):
+            elif line.startswith("## "):
                 self.render_text.insert(tk.END, line[3:] + "\n", "h2")
-            elif line.startswith('### '):
+            elif line.startswith("### "):
                 self.render_text.insert(tk.END, line[4:] + "\n", "h3")
-            elif line.startswith('> '):
+            elif line.startswith("> "):
                 self.render_text.insert(tk.END, line[2:] + "\n", "quote")
-            elif line.strip() == '---' or line.strip() == '***':
+            elif line.strip() == "---" or line.strip() == "***":
                 self.render_text.insert(tk.END, "\n" + " " * 100 + "\n", "hr")
             else:
                 # Basic inline parsing: bold, italic, code, links
                 # Regex for [text](url)
-                parts = re.split(r'(\*\*.*?\*\*|\*.*?\*|`.*?`|\[.*?\]\(.*?\))', line)
+                parts = re.split(r"(\*\*.*?\*\*|\*.*?\*|`.*?`|\[.*?\]\(.*?\))", line)
                 for part in parts:
-                    if not part: continue
-                    if part.startswith('**') and part.endswith('**'):
+                    if not part:
+                        continue
+                    if part.startswith("**") and part.endswith("**"):
                         self.render_text.insert(tk.END, part[2:-2], "bold")
-                    elif part.startswith('*') and part.endswith('*'):
+                    elif part.startswith("*") and part.endswith("*"):
                         self.render_text.insert(tk.END, part[1:-1], "italic")
-                    elif part.startswith('`') and part.endswith('`'):
+                    elif part.startswith("`") and part.endswith("`"):
                         self.render_text.insert(tk.END, part[1:-1], "code")
-                    elif part.startswith('[') and '](' in part and part.endswith(')'):
-                        link_text = part[1:part.find(']')]
+                    elif part.startswith("[") and "](" in part and part.endswith(")"):
+                        link_text = part[1 : part.find("]")]
                         self.render_text.insert(tk.END, link_text, "link")
                     else:
                         self.render_text.insert(tk.END, part)
@@ -612,7 +709,9 @@ class MarkItDownGUI:
 
     def save_current_result(self):
         content = self.raw_text.get(1.0, tk.END)
-        f = filedialog.asksaveasfile(defaultextension=".md", filetypes=[("Markdown", "*.md")])
+        f = filedialog.asksaveasfile(
+            defaultextension=".md", filetypes=[("Markdown", "*.md")]
+        )
         if f:
             f.write(content)
             f.close()
@@ -645,8 +744,16 @@ class MarkItDownGUI:
         ttk.Label(f1, text="输出目录:").pack(anchor=tk.W)
         row = ttk.Frame(f1)
         row.pack(fill=tk.X)
-        ttk.Entry(row, textvariable=self.output_dir).pack(side=tk.LEFT, fill=tk.X, expand=True)
-        ttk.Button(row, text="浏览", command=lambda: self.output_dir.set(filedialog.askdirectory() or self.output_dir.get())).pack(side=tk.RIGHT)
+        ttk.Entry(row, textvariable=self.output_dir).pack(
+            side=tk.LEFT, fill=tk.X, expand=True
+        )
+        ttk.Button(
+            row,
+            text="浏览",
+            command=lambda: self.output_dir.set(
+                filedialog.askdirectory() or self.output_dir.get()
+            ),
+        ).pack(side=tk.RIGHT)
 
         # Conversion Settings
         f2 = ttk.LabelFrame(dialog, text="转换设置", padding=10)
@@ -655,13 +762,19 @@ class MarkItDownGUI:
         row1 = ttk.Frame(f2)
         row1.pack(fill=tk.X, pady=5)
         ttk.Label(row1, text="批次大小:").pack(side=tk.LEFT)
-        ttk.Spinbox(row1, from_=1, to=10, textvariable=self.batch_size, width=5).pack(side=tk.LEFT, padx=10)
+        ttk.Spinbox(row1, from_=1, to=10, textvariable=self.batch_size, width=5).pack(
+            side=tk.LEFT, padx=10
+        )
 
         row2 = ttk.Frame(f2)
         row2.pack(fill=tk.X, pady=5)
         ttk.Label(row2, text="标题样式:").pack(side=tk.LEFT)
-        ttk.Radiobutton(row2, text="ATX (#)", variable=self.header_style, value="atx").pack(side=tk.LEFT, padx=5)
-        ttk.Radiobutton(row2, text="Setext (===)", variable=self.header_style, value="setext").pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(
+            row2, text="ATX (#)", variable=self.header_style, value="atx"
+        ).pack(side=tk.LEFT, padx=5)
+        ttk.Radiobutton(
+            row2, text="Setext (===)", variable=self.header_style, value="setext"
+        ).pack(side=tk.LEFT, padx=5)
 
         # Appearance
         f3 = ttk.LabelFrame(dialog, text="外观与行为", padding=10)
@@ -671,21 +784,32 @@ class MarkItDownGUI:
         row3 = ttk.Frame(f3)
         row3.pack(fill=tk.X, pady=5)
         for t in [("明亮", "light"), ("深色", "dark"), ("系统", "system")]:
-            ttk.Radiobutton(row3, text=t[0], variable=self.theme_mode, value=t[1], command=self.apply_theme_change).pack(side=tk.LEFT, padx=5)
+            ttk.Radiobutton(
+                row3,
+                text=t[0],
+                variable=self.theme_mode,
+                value=t[1],
+                command=self.apply_theme_change,
+            ).pack(side=tk.LEFT, padx=5)
 
-        ttk.Checkbutton(f3, text="完成后自动打开结果视图", variable=self.auto_open_results).pack(anchor=tk.W, pady=5)
+        ttk.Checkbutton(
+            f3, text="完成后自动打开结果视图", variable=self.auto_open_results
+        ).pack(anchor=tk.W, pady=5)
 
         # Buttons
         btns = ttk.Frame(dialog)
         btns.pack(fill=tk.X, side=tk.BOTTOM, pady=20)
-        ttk.Button(btns, text="保存", command=lambda: [self.save_settings(), dialog.destroy()]).pack(side=tk.RIGHT, padx=10)
+        ttk.Button(
+            btns, text="保存", command=lambda: [self.save_settings(), dialog.destroy()]
+        ).pack(side=tk.RIGHT, padx=10)
         ttk.Button(btns, text="取消", command=dialog.destroy).pack(side=tk.RIGHT)
 
     def apply_theme_change(self):
         self.setup_styles()
 
         theme = self.theme_mode.get()
-        if theme == "system": theme = "light"
+        if theme == "system":
+            theme = "light"
         colors = self.colors[theme]
 
         # Manually update non-ttk widgets
@@ -702,15 +826,23 @@ class MarkItDownGUI:
         messagebox.showinfo("快捷键", help_text)
 
     def show_about(self):
-        messagebox.showinfo("关于", "MarkItDown GUI v1.1\n\n一款极致的批量 Markdown 转换工具。\n基于 Microsoft MarkItDown。\n\n作者: Butler AI Agent")
+        messagebox.showinfo(
+            "关于",
+            "MarkItDown GUI v1.1\n\n一款极致的批量 Markdown 转换工具。\n基于 Microsoft MarkItDown。\n\n作者: Butler AI Agent",
+        )
 
     def check_updates(self):
         self.status_label.configure(text="正在检查更新...")
+
         def task():
             time.sleep(1.5)
-            self.root.after(0, lambda: messagebox.showinfo("更新", "您使用的是最新版本 v1.1.0"))
+            self.root.after(
+                0, lambda: messagebox.showinfo("更新", "您使用的是最新版本 v1.1.0")
+            )
             self.root.after(0, lambda: self.status_label.configure(text="就绪"))
+
         threading.Thread(target=task, daemon=True).start()
+
 
 if __name__ == "__main__":
     root = TkinterDnD.Tk()

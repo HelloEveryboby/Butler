@@ -5,6 +5,7 @@ from PIL import Image
 from PIL.ExifTags import TAGS
 import pytesseract
 
+
 def convert_image(file_path: str) -> str:
     """
     Converts an image file to Markdown.
@@ -25,12 +26,14 @@ def convert_image(file_path: str) -> str:
         # Create an in-memory buffer
         buffered = io.BytesIO()
         # Save image to buffer, preserving original format if possible
-        img_format = img.format or 'PNG'  # Default to PNG if format is not detected
+        img_format = img.format or "PNG"  # Default to PNG if format is not detected
         img.save(buffered, format=img_format)
         # Encode to base64
         b64_string = base64.b64encode(buffered.getvalue()).decode()
         # Create the data URI
-        markdown_parts.append(f"![Image](data:image/{img_format.lower()};base64,{b64_string})\n")
+        markdown_parts.append(
+            f"![Image](data:image/{img_format.lower()};base64,{b64_string})\n"
+        )
 
         # --- EXIF Metadata ---
         exif_data = img._getexif()
@@ -53,6 +56,6 @@ def convert_image(file_path: str) -> str:
         markdown_parts.append(ocr_text)
         markdown_parts.append("```")
 
-        return '\n'.join(markdown_parts)
+        return "\n".join(markdown_parts)
     except Exception as e:
         return f"Error converting image file: {e}"

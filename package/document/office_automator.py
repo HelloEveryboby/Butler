@@ -8,6 +8,7 @@ import subprocess
 
 logger = LogManager.get_logger(__name__)
 
+
 def open_in_native_app(file_path):
     """Opens a file in its default application."""
     if not os.path.exists(file_path):
@@ -15,16 +16,17 @@ def open_in_native_app(file_path):
         return False
 
     try:
-        if platform.system() == 'Windows':
+        if platform.system() == "Windows":
             os.startfile(file_path)
-        elif platform.system() == 'Darwin':
-            subprocess.run(['open', file_path], shell=False)
+        elif platform.system() == "Darwin":
+            subprocess.run(["open", file_path], shell=False)
         else:
-            subprocess.run(['xdg-open', file_path], shell=False)
+            subprocess.run(["xdg-open", file_path], shell=False)
         return True
     except Exception as e:
         logger.error(f"Error opening file {file_path}: {e}")
         return False
+
 
 class OfficeAutomator:
     @staticmethod
@@ -69,6 +71,7 @@ class OfficeAutomator:
         """Creates a simple PDF document with the given content."""
         try:
             from fpdf import FPDF
+
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Helvetica", size=12)
@@ -114,5 +117,6 @@ class OfficeAutomator:
         except Exception as e:
             logger.error(f"Failed to fill PDF: {e}")
             return False
+
 
 automator = OfficeAutomator()

@@ -1,10 +1,12 @@
 import uuid
 from datetime import datetime
 
+
 class Task:
     """
     表示一个任务或子任务的数据类。
     """
+
     def __init__(self, title, description="", status="todo", parent_id=None):
         """
         初始化一个新任务。
@@ -39,7 +41,7 @@ class Task:
             "status": self.status,
             "parent_id": self.parent_id,
             "created_at": self.created_at,
-            "subtasks": [subtask.to_dict() for subtask in self.subtasks]
+            "subtasks": [subtask.to_dict() for subtask in self.subtasks],
         }
 
     @staticmethod
@@ -49,9 +51,11 @@ class Task:
             title=data.get("title"),
             description=data.get("description"),
             status=data.get("status"),
-            parent_id=data.get("parent_id")
+            parent_id=data.get("parent_id"),
         )
         task.id = data.get("id")
         task.created_at = data.get("created_at")
-        task.subtasks = [Task.from_dict(sub_data) for sub_data in data.get("subtasks", [])]
+        task.subtasks = [
+            Task.from_dict(sub_data) for sub_data in data.get("subtasks", [])
+        ]
         return task

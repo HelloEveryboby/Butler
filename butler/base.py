@@ -2,6 +2,7 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, fields, replace
 from typing import Any
 
+
 class BaseTool(metaclass=ABCMeta):
     """工具的基类。"""
 
@@ -10,15 +11,16 @@ class BaseTool(metaclass=ABCMeta):
         """使用给定参数执行工具。"""
         ...
 
+
 class BaseAnthropicTool(BaseTool, metaclass=ABCMeta):
     @abstractmethod
-    def to_params(self) -> Any:
-        ...
+    def to_params(self) -> Any: ...
+
 
 class BaseDeepSeekTool(BaseTool, metaclass=ABCMeta):
     @abstractmethod
-    def to_params(self) -> Any:
-        ...
+    def to_params(self) -> Any: ...
+
 
 @dataclass(kw_only=True, frozen=True)
 class ToolResult:

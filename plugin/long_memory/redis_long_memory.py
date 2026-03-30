@@ -1,6 +1,4 @@
 import json
-import numpy as np
-import redis
 from typing import List, Dict, Optional
 
 from butler.redis_client import redis_client
@@ -9,6 +7,7 @@ from package.core_utils.log_manager import LogManager
 from redisvl.index import SearchIndex
 from redisvl.query import VectorQuery
 from package.core_utils.embedding_utils import get_embedding
+
 
 class RedisLongMemory(AbstractLongMemory):
     def __init__(self, api_key: str, collection_name: str = "long_memory_collection"):
@@ -37,9 +36,9 @@ class RedisLongMemory(AbstractLongMemory):
                         "dims": 1024,
                         "distance_metric": "cosine",
                         "algorithm": "flat",
-                    }
-                }
-            ]
+                    },
+                },
+            ],
         }
         self.index = SearchIndex.from_dict(schema)
         self.index.set_client(self.redis_client)
@@ -67,21 +66,29 @@ class RedisLongMemory(AbstractLongMemory):
                     "id": item.id,
                     "content": item.content,
                     "metadata": json.dumps(item.metadata),
-                    "embedding": embedding.tobytes()
+                    "embedding": embedding.tobytes(),
                 }
                 records.append(record)
             else:
-                self._logger.warning(f"Failed to save item {item.id} due to embedding failure.")
+                self._logger.warning(
+                    f"Failed to save item {item.id} due to embedding failure."
+                )
 
         if records:
             self.index.load(records)
             for record in records:
-                timestamp = json.loads(record['metadata']).get('timestamp', 0)
-                self.redis_client.zadd(f"{self._collection_name}:history", {record['id']: timestamp})
+                timestamp = json.loads(record["metadata"]).get("timestamp", 0)
+                self.redis_client.zadd(
+                    f"{self._collection_name}:history", {record["id"]: timestamp}
+                )
             self._logger.info(f"Saved {len(records)} items to RedisLongMemory.")
 
-
-    def search(self, text: str, n_results: int, metadata_filter: Optional[Dict[str, str]] = None) -> List[LongMemoryItem]:
+    def search(
+        self,
+        text: str,
+        n_results: int,
+        metadata_filter: Optional[Dict[str, str]] = None,
+    ) -> List[LongMemoryItem]:
         """Searches for items in Redis based on semantic similarity."""
         query_embedding = get_embedding(text, self._api_key)
         if query_embedding is None:
@@ -102,7 +109,7 @@ class RedisLongMemory(AbstractLongMemory):
                 id=doc["id"],
                 content=doc["content"],
                 metadata=json.loads(doc["metadata"]),
-                distance=float(doc["vector_distance"])
+                distance=float(doc["vector_distance"]),
             )
             long_memory_items.append(item)
 
@@ -116,15 +123,21 @@ class RedisLongMemory(AbstractLongMemory):
             cursor = 0
             prefix = f"{self._collection_name}:"
             while True:
-                cursor, keys = self.redis_client.scan(cursor=cursor, match=f"{prefix}*", count=100)
+                cursor, keys = self.redis_client.scan(
+                    cursor=cursor, match=f"{prefix}*", count=100
+                )
                 for key in keys:
-                    if self.redis_client.type(key) == b'hash':
+                    if self.redis_client.type(key) == b"hash":
                         hdata = self.redis_client.hgetall(key)
-                        data.append({
-                            "id": key.decode().replace(prefix, ""),
-                            "content": hdata.get(b"content", b"").decode(),
-                            "metadata": json.loads(hdata.get(b"metadata", b"{}").decode())
-                        })
+                        data.append(
+                            {
+                                "id": key.decode().replace(prefix, ""),
+                                "content": hdata.get(b"content", b"").decode(),
+                                "metadata": json.loads(
+                                    hdata.get(b"metadata", b"{}").decode()
+                                ),
+                            }
+                        )
                 if cursor == 0:
                     break
         except Exception as e:
@@ -136,9 +149,7 @@ class RedisLongMemory(AbstractLongMemory):
         items = []
         for d in data:
             item = LongMemoryItem.new(
-                content=d["content"],
-                id=d["id"],
-                metadata=d["metadata"]
+                content=d["content"], id=d["id"], metadata=d["metadata"]
             )
             items.append(item)
         if items:
@@ -146,7 +157,9 @@ class RedisLongMemory(AbstractLongMemory):
 
     def get_recent_history(self, n_results: int) -> List[LongMemoryItem]:
         """Retrieves the most recent items from memory."""
-        recent_ids = self.redis_client.zrevrange(f"{self._collection_name}:history", 0, n_results - 1)
+        recent_ids = self.redis_client.zrevrange(
+            f"{self._collection_name}:history", 0, n_results - 1
+        )
 
         long_memory_items = []
         for item_id in recent_ids:
@@ -157,7 +170,7 @@ class RedisLongMemory(AbstractLongMemory):
                     id=item_id,
                     content=item_data["content"],
                     metadata=json.loads(item_data["metadata"]),
-                    distance=0
+                    distance=0,
                 )
                 long_memory_items.append(item)
 

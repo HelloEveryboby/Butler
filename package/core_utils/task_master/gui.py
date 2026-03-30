@@ -5,10 +5,12 @@ from .task import Task
 from .task_manager import TaskManager
 from .smart_splitter import SmartSplitter
 
+
 class TaskMasterGUI(tk.Toplevel):
     """
     为任务大师模块提供一个完整的图形用户界面。
     """
+
     def __init__(self, master):
         super().__init__(master)
         self.title("Task Master - 任务大师")
@@ -34,7 +36,9 @@ class TaskMasterGUI(tk.Toplevel):
         left_pane.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
 
         # 任务树视图
-        self.task_tree = ttk.Treeview(left_pane, columns=("status",), show="tree headings")
+        self.task_tree = ttk.Treeview(
+            left_pane, columns=("status",), show="tree headings"
+        )
         self.task_tree.heading("#0", text="任务标题")
         self.task_tree.heading("status", text="状态")
         self.task_tree.column("#0", width=300)
@@ -45,10 +49,20 @@ class TaskMasterGUI(tk.Toplevel):
         # 任务操作按钮
         button_frame = ttk.Frame(left_pane)
         button_frame.pack(fill=tk.X, pady=(10, 0))
-        ttk.Button(button_frame, text="添加主任务", command=self.add_task).pack(side=tk.LEFT, expand=True, fill=tk.X)
-        ttk.Button(button_frame, text="添加子任务", command=lambda: self.add_task(is_subtask=True)).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-        ttk.Button(button_frame, text="编辑任务", command=self.edit_task).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-        ttk.Button(button_frame, text="删除任务", command=self.delete_task).pack(side=tk.LEFT, expand=True, fill=tk.X)
+        ttk.Button(button_frame, text="添加主任务", command=self.add_task).pack(
+            side=tk.LEFT, expand=True, fill=tk.X
+        )
+        ttk.Button(
+            button_frame,
+            text="添加子任务",
+            command=lambda: self.add_task(is_subtask=True),
+        ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
+        ttk.Button(button_frame, text="编辑任务", command=self.edit_task).pack(
+            side=tk.LEFT, expand=True, fill=tk.X, padx=5
+        )
+        ttk.Button(button_frame, text="删除任务", command=self.delete_task).pack(
+            side=tk.LEFT, expand=True, fill=tk.X
+        )
 
         # --- 右侧：详情、状态和智能分解 ---
         right_pane = ttk.Frame(main_frame)
@@ -57,9 +71,13 @@ class TaskMasterGUI(tk.Toplevel):
         # 任务详情区域
         details_frame = ttk.LabelFrame(right_pane, text="任务详情", padding="10")
         details_frame.pack(fill=tk.BOTH, expand=True)
-        self.task_details_text = tk.Text(details_frame, wrap=tk.WORD, height=10, state=tk.DISABLED)
+        self.task_details_text = tk.Text(
+            details_frame, wrap=tk.WORD, height=10, state=tk.DISABLED
+        )
         self.task_details_text.pack(fill=tk.BOTH, expand=True)
-        ttk.Button(details_frame, text="保存描述", command=self.save_task_description).pack(fill=tk.X, pady=(5, 0))
+        ttk.Button(
+            details_frame, text="保存描述", command=self.save_task_description
+        ).pack(fill=tk.X, pady=(5, 0))
 
         # 状态更新区域
         status_frame = ttk.LabelFrame(right_pane, text="更新状态", padding="10")
@@ -67,7 +85,13 @@ class TaskMasterGUI(tk.Toplevel):
         self.status_var = tk.StringVar()
         status_options = ["todo", "in_progress", "done"]
         for status in status_options:
-            ttk.Radiobutton(status_frame, text=status, variable=self.status_var, value=status, command=self.update_task_status).pack(side=tk.LEFT, expand=True)
+            ttk.Radiobutton(
+                status_frame,
+                text=status,
+                variable=self.status_var,
+                value=status,
+                command=self.update_task_status,
+            ).pack(side=tk.LEFT, expand=True)
 
         # 智能分解区域
         splitter_frame = ttk.LabelFrame(right_pane, text="智能分解任务", padding="10")
@@ -80,10 +104,19 @@ class TaskMasterGUI(tk.Toplevel):
         self.splitter_mode = tk.StringVar(value="online")
         mode_frame = ttk.Frame(splitter_frame)
         mode_frame.pack(fill=tk.X, pady=(0, 5))
-        ttk.Radiobutton(mode_frame, text="在线模式 (AI)", variable=self.splitter_mode, value="online").pack(side=tk.LEFT)
-        ttk.Radiobutton(mode_frame, text="离线模式", variable=self.splitter_mode, value="offline").pack(side=tk.LEFT, padx=10)
+        ttk.Radiobutton(
+            mode_frame,
+            text="在线模式 (AI)",
+            variable=self.splitter_mode,
+            value="online",
+        ).pack(side=tk.LEFT)
+        ttk.Radiobutton(
+            mode_frame, text="离线模式", variable=self.splitter_mode, value="offline"
+        ).pack(side=tk.LEFT, padx=10)
 
-        ttk.Button(splitter_frame, text="开始分解", command=self.run_smart_split).pack(fill=tk.X)
+        ttk.Button(splitter_frame, text="开始分解", command=self.run_smart_split).pack(
+            fill=tk.X
+        )
 
     def populate_task_tree(self, tasks=None, parent_item=""):
         """递归地将任务数据填充到树状视图中。"""
@@ -94,7 +127,14 @@ class TaskMasterGUI(tk.Toplevel):
             tasks = self.task_manager.get_all_tasks()
 
         for task in tasks:
-            item = self.task_tree.insert(parent_item, tk.END, text=task.title, values=(task.status,), iid=task.id, open=True)
+            item = self.task_tree.insert(
+                parent_item,
+                tk.END,
+                text=task.title,
+                values=(task.status,),
+                iid=task.id,
+                open=True,
+            )
             if task.subtasks:
                 self.populate_task_tree(task.subtasks, parent_item=item)
 
@@ -122,7 +162,9 @@ class TaskMasterGUI(tk.Toplevel):
             return
 
         task = self.task_manager.find_task(task_id)
-        new_title = simpledialog.askstring("编辑", "请输入新的任务标题：", initialvalue=task.title, parent=self)
+        new_title = simpledialog.askstring(
+            "编辑", "请输入新的任务标题：", initialvalue=task.title, parent=self
+        )
         if new_title:
             self.task_manager.update_task(task_id, title=new_title)
             self.populate_task_tree()
@@ -141,7 +183,6 @@ class TaskMasterGUI(tk.Toplevel):
             self.task_details_text.delete(1.0, tk.END)
             self.task_details_text.config(state=tk.DISABLED)
 
-
     def show_task_details(self, event=None):
         """当用户在树中选择一个任务时，显示其详细信息。"""
         task_id = self.get_selected_item()
@@ -153,7 +194,7 @@ class TaskMasterGUI(tk.Toplevel):
             self.task_details_text.config(state=tk.NORMAL)
             self.task_details_text.delete(1.0, tk.END)
             self.task_details_text.insert(tk.END, task.description)
-            self.task_details_text.config(state=tk.NORMAL) # 允许编辑
+            self.task_details_text.config(state=tk.NORMAL)  # 允许编辑
             self.status_var.set(task.status)
 
     def save_task_description(self):
@@ -202,7 +243,7 @@ class TaskMasterGUI(tk.Toplevel):
 
         self.task_manager.add_task(main_task)
         self.populate_task_tree()
-        self.splitter_input.delete(0, tk.END) # 清空输入框
+        self.splitter_input.delete(0, tk.END)  # 清空输入框
 
     def get_selected_item(self):
         """获取当前在树状视图中选中的项的ID。"""

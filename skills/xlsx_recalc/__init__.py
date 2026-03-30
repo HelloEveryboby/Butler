@@ -6,6 +6,7 @@ from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
 
+
 def handle_request(action, **kwargs):
     """
     Recalculates formulas in an Excel file using the relocated expert script.
@@ -23,7 +24,9 @@ def handle_request(action, **kwargs):
     # Resolve the path to the recalc.py script in its new location
     # Since skills/ is in root, project_root is '.'
     project_root = os.getcwd()
-    recalc_script = os.path.join(project_root, "package", "document", "xlsx_expert", "scripts", "recalc.py")
+    recalc_script = os.path.join(
+        project_root, "package", "document", "xlsx_expert", "scripts", "recalc.py"
+    )
 
     if not os.path.exists(recalc_script):
         return f"错误：未在 {recalc_script} 找到重计算脚本"
@@ -36,7 +39,7 @@ def handle_request(action, **kwargs):
             [sys.executable, recalc_script, file_path, str(timeout)],
             capture_output=True,
             text=True,
-            cwd=os.path.dirname(recalc_script)
+            cwd=os.path.dirname(recalc_script),
         )
 
         # The script is expected to output JSON
@@ -47,7 +50,7 @@ def handle_request(action, **kwargs):
             return f"✅ Excel 重计算成功！详情: {output_json.get('message', '完成')}"
         except json.JSONDecodeError:
             if result.returncode == 0:
-                return f"✅ Excel 重计算成功！"
+                return "✅ Excel 重计算成功！"
             else:
                 return f"❌ 重计算失败：{result.stderr or result.stdout}"
 

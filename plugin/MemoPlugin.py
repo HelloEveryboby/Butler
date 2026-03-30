@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from .plugin_interface import AbstractPlugin, PluginResult
 
+
 class MemoPlugin(AbstractPlugin):
     def __init__(self):
         super().__init__()
@@ -30,7 +31,7 @@ class MemoPlugin(AbstractPlugin):
         return {
             "content": "备忘录内容",
             "memo_id": "备忘录ID",
-            "show_all": "是否显示所有备忘录"
+            "show_all": "是否显示所有备忘录",
         }
 
     def on_startup(self):
@@ -43,7 +44,7 @@ class MemoPlugin(AbstractPlugin):
         """从文件加载备忘录"""
         if os.path.exists(self.memo_file):
             try:
-                with open(self.memo_file, 'r', encoding='utf-8') as f:
+                with open(self.memo_file, "r", encoding="utf-8") as f:
                     self.memos = json.load(f)
             except Exception as e:
                 self.logger.error(f"加载备忘录失败: {e}")
@@ -52,7 +53,7 @@ class MemoPlugin(AbstractPlugin):
     def save_memos(self):
         """保存备忘录到文件"""
         try:
-            with open(self.memo_file, 'w', encoding='utf-8') as f:
+            with open(self.memo_file, "w", encoding="utf-8") as f:
                 json.dump(self.memos, f, ensure_ascii=False, indent=2)
         except Exception as e:
             self.logger.error(f"保存备忘录失败: {e}")
@@ -60,12 +61,14 @@ class MemoPlugin(AbstractPlugin):
     def add_memo(self, content: str):
         """添加新备忘录"""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.memos.append({
-            "id": len(self.memos) + 1,
-            "content": content,
-            "timestamp": timestamp,
-            "completed": False
-        })
+        self.memos.append(
+            {
+                "id": len(self.memos) + 1,
+                "content": content,
+                "timestamp": timestamp,
+                "completed": False,
+            }
+        )
         self.save_memos()
         return f"已添加备忘录: {content}"
 
@@ -73,7 +76,7 @@ class MemoPlugin(AbstractPlugin):
         """列出备忘录"""
         if not self.memos:
             return "当前没有备忘录"
-        
+
         result = "备忘录列表:\n"
         for memo in self.memos:
             if show_all or not memo["completed"]:
@@ -113,30 +116,34 @@ class MemoPlugin(AbstractPlugin):
                 result = self.add_memo(content)
                 return PluginResult.new(success=True, result=result)
             return PluginResult.new(success=False, error_message="备忘录内容不能为空")
-        
+
         elif "列出备忘录" in command:
             result = self.list_memos(show_all)
             return PluginResult.new(success=True, result=result)
-        
+
         elif "完成备忘录" in command:
             try:
                 memo_id = int(memo_id)
                 result = self.complete_memo(memo_id)
                 return PluginResult.new(success=True, result=result)
             except (ValueError, TypeError):
-                return PluginResult.new(success=False, error_message="请输入有效的备忘录ID")
-        
+                return PluginResult.new(
+                    success=False, error_message="请输入有效的备忘录ID"
+                )
+
         elif "删除备忘录" in command:
             try:
                 memo_id = int(memo_id)
                 result = self.delete_memo(memo_id)
                 return PluginResult.new(success=True, result=result)
             except (ValueError, TypeError):
-                return PluginResult.new(success=False, error_message="请输入有效的备忘录ID")
-        
+                return PluginResult.new(
+                    success=False, error_message="请输入有效的备忘录ID"
+                )
+
         return PluginResult.new(
             success=False,
-            error_message="无法识别的备忘录命令，请使用添加备忘录/列出备忘录/完成备忘录/删除备忘录"
+            error_message="无法识别的备忘录命令，请使用添加备忘录/列出备忘录/完成备忘录/删除备忘录",
         )
 
     def stop(self):

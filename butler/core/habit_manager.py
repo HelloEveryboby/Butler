@@ -1,19 +1,23 @@
 import json
 import time
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from butler.data_storage import data_storage_manager
 from package.core_utils.log_manager import LogManager
+
 
 class HabitManager:
     """
     Manages user habits, preferences, and long-term context to improve interaction over time.
     """
+
     def __init__(self):
         self._logger = LogManager.get_logger(__name__)
         self._plugin_name = "SystemHabitManager"
         self._profile_key = "user_habit_profile"
-        self._project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self._project_root = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        )
         self._habits_md_path = os.path.join(self._project_root, "data", "HABITS.md")
         self._profile: Dict[str, Any] = self._load_profile()
         self._sync_to_markdown()
@@ -28,7 +32,7 @@ class HabitManager:
                 "common_tasks": [],
                 "preferred_tools": [],
                 "interaction_style": "default",
-                "last_updated": 0
+                "last_updated": 0,
             }
         return profile
 
@@ -70,7 +74,7 @@ class HabitManager:
 
             content += f"\n---\n*最后更新时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self._profile['last_updated'])) if self._profile['last_updated'] > 0 else '从未使用'}*"
 
-            with open(self._habits_md_path, 'w', encoding='utf-8') as f:
+            with open(self._habits_md_path, "w", encoding="utf-8") as f:
                 f.write(content)
         except Exception as e:
             self._logger.error(f"Failed to sync habits to Markdown: {e}")
@@ -82,7 +86,7 @@ class HabitManager:
             "common_tasks": [],
             "preferred_tools": [],
             "interaction_style": "default",
-            "last_updated": 0
+            "last_updated": 0,
         }
         data_storage_manager.delete(self._plugin_name, self._profile_key)
         self._logger.info("User habit profile has been reset.")
@@ -112,18 +116,26 @@ class HabitManager:
 
         # Preferences
         if self._profile["preferences"]:
-            summary += "- 用户偏好: " + json.dumps(self._profile["preferences"], ensure_ascii=False) + "\n"
+            summary += (
+                "- 用户偏好: "
+                + json.dumps(self._profile["preferences"], ensure_ascii=False)
+                + "\n"
+            )
 
         # Interaction Style
         summary += f"- 交互风格: {self._profile['interaction_style']}\n"
 
         # Common Tasks
         if self._profile["common_tasks"]:
-            summary += "- 高频任务: " + ", ".join(self._profile["common_tasks"][-5:]) + "\n"
+            summary += (
+                "- 高频任务: " + ", ".join(self._profile["common_tasks"][-5:]) + "\n"
+            )
 
         # Preferred Tools
         if self._profile["preferred_tools"]:
-            summary += "- 常用工具: " + ", ".join(self._profile["preferred_tools"]) + "\n"
+            summary += (
+                "- 常用工具: " + ", ".join(self._profile["preferred_tools"]) + "\n"
+            )
 
         return summary
 
@@ -149,10 +161,13 @@ class HabitManager:
                     self._profile["preferred_tools"].append(tool)
             # Limit to last 20 tools
             if len(self._profile["preferred_tools"]) > 20:
-                self._profile["preferred_tools"] = self._profile["preferred_tools"][-20:]
+                self._profile["preferred_tools"] = self._profile["preferred_tools"][
+                    -20:
+                ]
 
         self._profile["last_updated"] = time.time()
         self.save_profile()
+
 
 # Global instance
 habit_manager = HabitManager()

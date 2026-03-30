@@ -1,12 +1,12 @@
-import os
-import json
 from package.core_utils.hybrid_memory_manager import hybrid_memory_manager
 from package.core_utils.log_manager import LogManager
+
 
 class MemoryTools:
     """
     Implements memory search and retrieval tools for the AI agent.
     """
+
     def __init__(self):
         self._logger = LogManager.get_logger(__name__)
 
@@ -20,7 +20,7 @@ class MemoryTools:
 
         output = f"Memory Search Results for '{query}':\n\n"
         for i, res in enumerate(results):
-            output += f"--- Result {i+1} ---\n"
+            output += f"--- Result {i + 1} ---\n"
             output += f"Path: {res['path']}\n"
             output += f"Lines: {res['line_start']} - {res['line_end']}\n"
             output += f"Snippet: {res['content'][:500]}...\n\n"
@@ -51,6 +51,7 @@ class MemoryTools:
         else:
             hybrid_memory_manager.add_daily_log(content)
             return "Recorded in daily log (memory/YYYY-MM-DD.md)."
+
 
 # Global instance for tool registration
 memory_tools = MemoryTools()

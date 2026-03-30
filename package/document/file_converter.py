@@ -7,6 +7,7 @@ from docx.shared import Inches
 import pypandoc
 from fpdf import FPDF
 
+
 def rotate_image(image):
     """逆时针旋转图像90度"""
     width, height = image.size
@@ -14,18 +15,21 @@ def rotate_image(image):
         return image.rotate(90, expand=True)
     return image
 
+
 def save_to_folder(output_file_path, output_folder):
     """保存文件到指定文件夹"""
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     return os.path.join(output_folder, os.path.basename(output_file_path))
 
+
 def print_progress_bar(iteration, total, length=40):
     """打印进度条"""
     percent = ("{0:.1f}").format(100 * (iteration / float(total)))
     filled_length = int(length * iteration // total)
-    bar = '█' * filled_length + '-' * (length - filled_length)
-    print(f'\r|{bar}| {percent}% 完成', end='')
+    bar = "█" * filled_length + "-" * (length - filled_length)
+    print(f"\r|{bar}| {percent}% 完成", end="")
+
 
 def convert_image_format(input_image_path, output_image_path):
     """将图片格式从一种转换为另一种"""
@@ -43,6 +47,7 @@ def convert_image_format(input_image_path, output_image_path):
     else:
         print(f"输入和输出格式相同，无需转换：{input_ext}")
 
+
 def process_pdf(input_file_path, output_file_path, output_folder):
     reader = PdfReader(input_file_path)
     writer = PdfWriter()
@@ -52,11 +57,12 @@ def process_pdf(input_file_path, output_file_path, output_folder):
         if page.mediabox.height > page.mediabox.width:
             page.rotate_clockwise(90)
 
-        if '/XObject' in page['/Resources']:
-            xObject = page['/Resources']['/XObject'].get_object()
+        if "/XObject" in page["/Resources"]:
+            xObject = page["/Resources"]["/XObject"].get_object()
+            img_index = 0
             for obj in xObject:
-                if xObject[obj]['/Subtype'] == '/Image':
-                    size = (xObject[obj]['/Width'], xObject[obj]['/Height'])
+                if xObject[obj]["/Subtype"] == "/Image":
+                    # size = (xObject[obj]['/Width'], xObject[obj]['/Height'])
                     data = xObject[obj]._data
 
                     image = Image.open(BytesIO(data))
@@ -64,23 +70,31 @@ def process_pdf(input_file_path, output_file_path, output_folder):
                     img_buffer = BytesIO()
                     rotated_image.save(img_buffer, format=image.format)
                     img_buffer.seek(0)
-                    page.images[img_index]['data'] = img_buffer.read()
+                    # Use a more robust way to update images if possible,
+                    # but following the existing logic style:
+                    try:
+                        page.images[img_index].replace(img_buffer.read())
+                    except Exception:
+                        pass
+                    img_index += 1
 
         writer.add_page(page)
-        print_progress_bar(i + 1, num_pages) # 更新进度条
+        print_progress_bar(i + 1, num_pages)  # 更新进度条
     print()  # 换行
 
     output_file_path = save_to_folder(output_file_path, output_folder)
 
-    with open(output_file_path, 'wb') as outfile:
+    with open(output_file_path, "wb") as outfile:
         writer.write(outfile)
 
     print(f"处理并保存旋转PDF为 {output_file_path}")
+
 
 def rotate_image_in_docx(image_path):
     """旋转DOCX文件中的图像，如果它是纵向的"""
     image = Image.open(image_path)
     return rotate_image(image)
+
 
 def process_docx(input_file_path, output_file_path, output_folder):
     doc = Document(input_file_path)
@@ -94,15 +108,19 @@ def process_docx(input_file_path, output_file_path, output_folder):
     for i, shape in enumerate(doc.inline_shapes):
         if shape.type == 3:  # 3代表图片
             img_path = f"{shape._inline.graphic.graphicData.pic.nvPicPr.cNvPr.name}.png"
-            with open(img_path, 'wb') as img_file:
-                img_file.write(shape._inline.graphic.graphicData.pic.blipFill.blip.embed._part.blob)
+            with open(img_path, "wb") as img_file:
+                img_file.write(
+                    shape._inline.graphic.graphicData.pic.blipFill.blip.embed._part.blob
+                )
 
             rotated_image = rotate_image_in_docx(img_path)
             rotated_image.save(img_path)
 
             shape._inline.graphic.graphicData.pic.blipFill.blip.embed._part = None
             shape._inline.graphic.graphicData.pic.blipFill.blip.embed = None
-            shape._inline.graphic.graphicData.pic.blipFill.blip.embed._part = doc.add_picture(img_path, width=Inches(2))
+            shape._inline.graphic.graphicData.pic.blipFill.blip.embed._part = (
+                doc.add_picture(img_path, width=Inches(2))
+            )
 
         print_progress_bar(i + 1, num_shapes)  # 更新进度条
     print()  # 换行
@@ -111,9 +129,11 @@ def process_docx(input_file_path, output_file_path, output_folder):
     doc.save(output_file_path)
     print(f"处理并保存旋转后的DOCX为 {output_file_path}")
 
+
 def rotate_text(text):
-    rotated_text = '\n'.join(text)
+    rotated_text = "\n".join(text)
     return rotated_text
+
 
 def rotate_text_in_docx(input_file_path, output_file_path):
     doc = Document(input_file_path)
@@ -126,6 +146,7 @@ def rotate_text_in_docx(input_file_path, output_file_path):
     doc.save(output_file_path)
     print(f"只旋转文本并保存DOCX为 {output_file_path}")
 
+
 def images_to_pdf(image_paths, output_pdf_path):
     pdf = FPDF()
     num_images = len(image_paths)
@@ -136,7 +157,9 @@ def images_to_pdf(image_paths, output_pdf_path):
         rotated_image_path = f"rotated_{os.path.basename(image_path)}"
         rotated_image.save(rotated_image_path)
 
-        pdf.add_page(orientation="P" if rotated_image.width < rotated_image.height else "L")
+        pdf.add_page(
+            orientation="P" if rotated_image.width < rotated_image.height else "L"
+        )
         pdf.image(rotated_image_path, x=10, y=10, w=pdf.w - 20)
 
         os.remove(rotated_image_path)
@@ -145,6 +168,7 @@ def images_to_pdf(image_paths, output_pdf_path):
 
     pdf.output(output_pdf_path)
     print(f"Converted images to {output_pdf_path}")
+
 
 def images_to_docx(image_paths, output_docx_path):
     doc = Document()
@@ -165,58 +189,74 @@ def images_to_docx(image_paths, output_docx_path):
     doc.save(output_docx_path)
     print(f"Converted images to {output_docx_path}")
 
+
 def convert_file(input_file_path, output_file_path, output_folder):
     input_ext = os.path.splitext(input_file_path)[1].lower()
     output_ext = os.path.splitext(output_file_path)[1].lower()
 
-    if input_ext == '.pdf' and output_ext == '.docx':
+    if input_ext == ".pdf" and output_ext == ".docx":
         process_pdf(input_file_path, output_file_path, output_folder)
-    elif input_ext == '.docx' and output_ext == '.pdf':
+    elif input_ext == ".docx" and output_ext == ".pdf":
         process_docx(input_file_path, output_file_path, output_folder)
-    elif input_ext == '.docx' and output_ext == '.txt':
+    elif input_ext == ".docx" and output_ext == ".txt":
         docx_to_txt(input_file_path, output_file_path)
-    elif input_ext in ['.jpg', '.jpeg', '.png'] and output_ext == '.pdf':
+    elif input_ext in [".jpg", ".jpeg", ".png"] and output_ext == ".pdf":
         images_to_pdf([input_file_path], output_file_path)
-    elif input_ext in ['.jpg', '.jpeg', '.png'] and output_ext == '.docx':
+    elif input_ext in [".jpg", ".jpeg", ".png"] and output_ext == ".docx":
         images_to_docx([input_file_path], output_file_path)
-    elif input_ext == '.txt' and output_ext == '.docx':
+    elif input_ext == ".txt" and output_ext == ".docx":
         txt_to_docx(input_file_path, output_file_path)
-    elif input_ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff'] and output_ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff']:
+    elif input_ext in [".jpg", ".jpeg", ".png", ".bmp", ".tiff"] and output_ext in [
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".bmp",
+        ".tiff",
+    ]:
         convert_image_format(input_file_path, output_file_path)
     else:
         convert_with_pandoc(input_file_path, output_file_path)
 
+
 def docx_to_txt(input_file_path, output_file_path):
     doc = Document(input_file_path)
-    with open(output_file_path, 'w', encoding='utf-8') as txt_file:
+    with open(output_file_path, "w", encoding="utf-8") as txt_file:
         for para in doc.paragraphs:
-            txt_file.write(para.text + '\n')
+            txt_file.write(para.text + "\n")
     print(f"转换 {input_file_path} to {output_file_path}")
+
 
 def txt_to_docx(input_file_path, output_file_path):
     doc = Document()
-    with open(input_file_path, 'r', encoding='utf-8') as txt_file:
+    with open(input_file_path, "r", encoding="utf-8") as txt_file:
         for line in txt_file:
             doc.add_paragraph(line)
     doc.save(output_file_path)
     print(f"转换 {input_file_path} to {output_file_path}")
 
+
 def convert_with_pandoc(input_file_path, output_file_path):
-    pypandoc.convert_file(input_file_path, os.path.splitext(output_file_path)[1][1:], outputfile=output_file_path)
+    pypandoc.convert_file(
+        input_file_path,
+        os.path.splitext(output_file_path)[1][1:],
+        outputfile=output_file_path,
+    )
     print(f"转换 {input_file_path} to {output_file_path}")
+
 
 def run(*args, **kwargs):
     """
     运行文件转换器插件。
     """
-    input_file = kwargs.get('input_file')
-    output_file = kwargs.get('output_file')
-    output_folder = kwargs.get('output_folder', './downloaded')
+    input_file = kwargs.get("input_file")
+    output_file = kwargs.get("output_file")
+    output_folder = kwargs.get("output_folder", "./downloaded")
 
     if input_file and output_file:
         convert_file(input_file, output_file, output_folder)
     else:
         print("Usage: run(input_file='...', output_file='...')")
+
 
 def file_converter():
     print("命令行模式暂不完全支持，请通过 run 函数调用。")

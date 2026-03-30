@@ -1,11 +1,9 @@
 import os
 import sys
 import time
-import datetime
 import json
 import re
 import threading
-import time
 from typing import Dict, Any
 import tempfile
 import shutil
@@ -22,6 +20,7 @@ if str(project_root) not in sys.path:
 lib_path = project_root / "lib_external"
 if lib_path.exists():
     import site
+
     site.addsitedir(str(lib_path))
 
 from package.core_utils.log_manager import LogManager
@@ -29,31 +28,31 @@ from package.core_utils.config_loader import config_loader
 from package.core_utils.quota_manager import quota_manager
 from butler.core.event_bus import event_bus
 from butler.CommandPanel import CommandPanel
-from butler.data_storage import data_storage_manager
 from butler.core.extension_manager import extension_manager
 from butler.core.voice_service import VoiceService
 from butler.core.nlu_service import NLUService
 from butler.core.habit_manager import habit_manager
 from butler.core.skill_manager import SkillManager
 from butler.usb_screen import USBScreen
-from butler.resource_manager import ResourceManager, PerformanceMode
+from butler.resource_manager import ResourceManager
 from plugin.long_memory.redis_long_memory import RedisLongMemory
 from plugin.long_memory.zvec_long_memory import ZvecLongMemory
 from plugin.long_memory.chroma_long_memory import SQLiteLongMemory
 from plugin.long_memory.long_memory_interface import LongMemoryItem
 from butler.core.intent_dispatcher import intent_registry
-from butler.core import legacy_commands # Ensure legacy intents are registered
+from butler.core import legacy_commands  # Ensure legacy intents are registered
 from butler.interpreter import interpreter
 from butler.core.hybrid_link import HybridLinkClient
 from butler.core.runner_server import RunnerServer
 from package.device.standalone_manager import StandaloneManager
 
+
 class Jarvis:
     def __init__(self, root=None, usb_screen=None):
-        self.root = root # Still needed for .after() if we don't have a better way, but we'll try to decouple
+        self.root = root  # Still needed for .after() if we don't have a better way, but we'll try to decouple
         self.usb_screen = usb_screen
         self.resource_manager = ResourceManager()
-        self.display_mode = 'host'
+        self.display_mode = "host"
         self.running = True
         self.pending_dev_code = None
 
@@ -67,12 +66,16 @@ class Jarvis:
 
         # Initialize services
         self._initialize_long_memory()
-        
-        self.nlu_service = NLUService(config_loader.get("api.deepseek.key"), self.prompts)
-        self.voice_service = VoiceService(self.handle_user_command, self.ui_print, self._on_voice_status_change)
+
+        self.nlu_service = NLUService(
+            config_loader.get("api.deepseek.key"), self.prompts
+        )
+        self.voice_service = VoiceService(
+            self.handle_user_command, self.ui_print, self._on_voice_status_change
+        )
         self.skill_manager = SkillManager()
         self.skill_manager.load_skills()
-        
+
         # Apply voice config
         voice_mode = self.config.get("voice", {}).get("mode", "offline")
         self.voice_service.set_voice_mode(voice_mode)
@@ -80,7 +83,7 @@ class Jarvis:
         # Initialize Hybrid Link for system utility
         self.sysutil = HybridLinkClient(
             executable_path=str(project_root / "programs/hybrid_sysutil/sysutil"),
-            fallback_enabled=True
+            fallback_enabled=True,
         )
         self.sysutil.start()
 
@@ -93,7 +96,7 @@ class Jarvis:
         self.runner_server = RunnerServer(
             host=runner_config.get("host", "0.0.0.0"),
             port=runner_config.get("port", 8000),
-            token=runner_config.get("token", "BUTLER_SECRET_2026")
+            token=runner_config.get("token", "BUTLER_SECRET_2026"),
         )
         self.runner_server.register_event_callback(self._on_runner_event)
         self.runner_server.start()
@@ -105,7 +108,7 @@ class Jarvis:
     def _load_json_resource(self, filename):
         path = Path(__file__).parent / filename
         try:
-            with path.open('r', encoding='utf-8') as f:
+            with path.open("r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             self.logger.error(f"Failed to load {filename}: {e}")
@@ -121,7 +124,8 @@ class Jarvis:
                 self.long_memory = RedisLongMemory(api_key=api_key)
                 self.long_memory.init(self.logger)
                 return
-            else: raise ValueError("No API Key")
+            else:
+                raise ValueError("No API Key")
         except Exception as e:
             self.logger.warning(f"无法初始化 RedisLongMemory: {e}")
             # speculatively try to export if it partially initialized, though risky.
@@ -131,9 +135,11 @@ class Jarvis:
         zvec_safe = False
         try:
             import subprocess
-            res = subprocess.run([sys.executable, "-c", "import zvec"],
-                                    capture_output=True, timeout=2)
-            zvec_safe = (res.returncode == 0)
+
+            res = subprocess.run(
+                [sys.executable, "-c", "import zvec"], capture_output=True, timeout=2
+            )
+            zvec_safe = res.returncode == 0
         except Exception:
             zvec_safe = False
 
@@ -147,7 +153,9 @@ class Jarvis:
             else:
                 raise ValueError("No API Key for Zvec or zvec is incompatible")
         except Exception as e2:
-            self.logger.error(f"无法初始化 ZvecLongMemory: {e2}. 降级到 SQLiteLongMemory...")
+            self.logger.error(
+                f"无法初始化 ZvecLongMemory: {e2}. 降级到 SQLiteLongMemory..."
+            )
 
             self.long_memory = SQLiteLongMemory()
             self.long_memory.init()
@@ -164,37 +172,50 @@ class Jarvis:
             self.logger.info(f"Received screenshot from runner: {runner_id}")
             # Emit to event bus for UI to display
             event_bus.emit("screenshot_update", data.get("data"))
-            self.ui_print(f"收到来自运行节点 '{runner_id}' 的屏幕截图。", tag='system_message')
+            self.ui_print(
+                f"收到来自运行节点 '{runner_id}' 的屏幕截图。", tag="system_message"
+            )
         elif msg_type == "sys":
-            self.ui_print(f"运行节点 '{runner_id}' 系统信息: {data.get('data')}", tag='system_message')
+            self.ui_print(
+                f"运行节点 '{runner_id}' 系统信息: {data.get('data')}",
+                tag="system_message",
+            )
         elif msg_type == "ok":
-            self.ui_print(f"运行节点 '{runner_id}' 反馈: {data.get('data')}", tag='system_message')
+            self.ui_print(
+                f"运行节点 '{runner_id}' 反馈: {data.get('data')}", tag="system_message"
+            )
         elif msg_type == "fail":
-            self.ui_print(f"运行节点 '{runner_id}' 错误: {data.get('error')}", tag='error')
+            self.ui_print(
+                f"运行节点 '{runner_id}' 错误: {data.get('error')}", tag="error"
+            )
 
-    def ui_print(self, message, tag='ai_response', response_id=None):
+    def ui_print(self, message, tag="ai_response", response_id=None):
         print(message)
 
         # Restore tag mapping for legacy UI compatibility
-        if tag == 'ai_response_start':
-            tag = 'ai_response'
+        if tag == "ai_response_start":
+            tag = "ai_response"
 
-        if self.display_mode in ('host', 'both'):
+        if self.display_mode in ("host", "both"):
             event_bus.emit("ui_output", message, tag, response_id)
 
-        if self.display_mode in ('usb', 'both') and self.usb_screen:
+        if self.display_mode in ("usb", "both") and self.usb_screen:
             self.usb_screen.display(message, clear_screen=True)
 
     def speak(self, text):
         """朗读给定的文本并在 UI 中打印。"""
-        self.ui_print(text, tag='ai_response')
-        memory_item = LongMemoryItem.new(content=text, id=f"assistant_{time.time()}",
-                                        metadata={"role": "assistant", "timestamp": time.time()})
+        self.ui_print(text, tag="ai_response")
+        memory_item = LongMemoryItem.new(
+            content=text,
+            id=f"assistant_{time.time()}",
+            metadata={"role": "assistant", "timestamp": time.time()},
+        )
         self.long_memory.save([memory_item])
 
         # Record in daily memory
         try:
             from package.core_utils.hybrid_memory_manager import hybrid_memory_manager
+
             hybrid_memory_manager.add_daily_log(f"Assistant: {text}")
         except Exception as e:
             self.logger.error(f"Failed to add to hybrid memory: {e}")
@@ -202,37 +223,46 @@ class Jarvis:
         self.voice_service.speak(text)
 
     def handle_user_command(self, command, programs=None):
-        if not command: return
+        if not command:
+            return
         cmd = command.strip()
 
         # Quota Check (Global Halt)
         if quota_manager.halt_system and not quota_manager.check_quota():
             report = quota_manager.get_usage_report()
             msg = f"⚠️ 系统已锁定: API 额度已耗尽 ({report['consumed']}/{report['limit']} {report['unit']})。请增加限额或重置消耗。"
-            self.ui_print(msg, tag='error')
+            self.ui_print(msg, tag="error")
             self.voice_service.speak("系统额度已耗尽，已停止所有操作。")
             return
 
         # Record User input in daily memory
         try:
             from package.core_utils.hybrid_memory_manager import hybrid_memory_manager
+
             hybrid_memory_manager.add_daily_log(f"User: {cmd}")
         except Exception as e:
             self.logger.error(f"Failed to add User input to hybrid memory: {e}")
 
         # Easter Egg Detection
-        if "tmd要是中考分不那么低一中就去了" in cmd or ("一中" in cmd and "早读" in cmd):
+        if "tmd要是中考分不那么低一中就去了" in cmd or (
+            "一中" in cmd and "早读" in cmd
+        ):
             self._trigger_no1_middle_school_easter_egg()
             return
 
         # Handle UI confirmation prompt
         if self.waiting_for_ui_confirm:
-            if any(word in cmd.lower() for word in ['是', '好', '打开', '需要', 'yes', 'ok', 'open']):
+            if any(
+                word in cmd.lower()
+                for word in ["是", "好", "打开", "需要", "yes", "ok", "open"]
+            ):
                 self.waiting_for_ui_confirm = False
                 self.ui_print("正在为您打开 UI 界面...")
                 self._activate_full_ui()
                 return
-            elif any(word in cmd.lower() for word in ['不', '否', '取消', 'no', 'cancel']):
+            elif any(
+                word in cmd.lower() for word in ["不", "否", "取消", "no", "cancel"]
+            ):
                 self.waiting_for_ui_confirm = False
                 self.ui_print("已取消 UI 启动。")
                 return
@@ -243,15 +273,16 @@ class Jarvis:
             if self.voice_service.set_voice_mode(mode):
                 self.ui_print(f"语音模式切换到: {mode}")
             else:
-                self.ui_print("无效模式", tag='error')
+                self.ui_print("无效模式", tag="error")
         elif cmd == "/cleanup":
             self.ui_print("正在执行系统数据回收...")
             try:
                 from package import data_recycler
+
                 summary = data_recycler.run()
                 self.ui_print(summary)
             except Exception as e:
-                self.ui_print(f"数据回收失败: {e}", tag='error')
+                self.ui_print(f"数据回收失败: {e}", tag="error")
         elif cmd.startswith("/legacy "):
             self._handle_legacy_command(cmd[8:])
         elif cmd.startswith("/py ") or cmd.startswith("/python "):
@@ -261,28 +292,39 @@ class Jarvis:
             command = cmd.split(maxsplit=1)[1]
             self._execute_with_interpreter("shell", command)
         elif cmd == "/profile":
-            self.ui_print(habit_manager.get_profile_summary(), tag='system_message')
+            self.ui_print(habit_manager.get_profile_summary(), tag="system_message")
         elif cmd == "/profile-reset":
             habit_manager.reset_profile()
-            self.ui_print("用户画像与习惯已重置。", tag='system_message')
+            self.ui_print("用户画像与习惯已重置。", tag="system_message")
         elif cmd == "/approve" and self.pending_dev_code:
             code = self.pending_dev_code
             self.pending_dev_code = None
-            self.ui_print("已获得授权，正在执行代码...", tag='system_message')
+            self.ui_print("已获得授权，正在执行代码...", tag="system_message")
             success, output = interpreter.run("python", code)
 
             # Format and print output
-            is_modern = hasattr(self, 'ui_print') and 'onAIStreamChunk' in str(self.ui_print)
-            if is_modern or self.display_mode in ('host', 'both'):
-                 self.ui_print(json.dumps({
-                     "type": "code_block",
-                     "language": "python",
-                     "code": code,
-                     "output": output
-                 }), tag='code_block')
+            is_modern = hasattr(self, "ui_print") and "onAIStreamChunk" in str(
+                self.ui_print
+            )
+            if is_modern or self.display_mode in ("host", "both"):
+                self.ui_print(
+                    json.dumps(
+                        {
+                            "type": "code_block",
+                            "language": "python",
+                            "code": code,
+                            "output": output,
+                        }
+                    ),
+                    tag="code_block",
+                )
             else:
-                 self.ui_print(f"Output:\n{output}")
-        elif cmd.startswith("记住这一点：") or cmd.startswith("记住：") or cmd.startswith("Remember this:"):
+                self.ui_print(f"Output:\n{output}")
+        elif (
+            cmd.startswith("记住这一点：")
+            or cmd.startswith("记住：")
+            or cmd.startswith("Remember this:")
+        ):
             self._handle_manual_habit_learning(cmd)
         else:
             # Check if we should use Interpreter for general queries (Auto-detect)
@@ -301,31 +343,48 @@ class Jarvis:
 
     def _should_use_interpreter(self, command):
         # Basic heuristic: if command mentions files, calculations, or complex tasks
-        keywords = ['文件', '计算', '报销', '总结', '文件夹', 'excel', 'word', 'pdf', '分析']
+        keywords = [
+            "文件",
+            "计算",
+            "报销",
+            "总结",
+            "文件夹",
+            "excel",
+            "word",
+            "pdf",
+            "分析",
+        ]
         return any(k in command.lower() for k in keywords)
 
     def _execute_with_interpreter(self, lang, code):
-        self.ui_print(f"Executing {lang} code...", tag='system_message')
+        self.ui_print(f"Executing {lang} code...", tag="system_message")
         success, output = interpreter.run(lang, code)
 
         # Format for Modern UI
         # Check if we are running under Modern UI (where ui_print is overridden)
         # or if we have a panel attached.
-        is_modern = hasattr(self, 'ui_print') and 'onAIStreamChunk' in str(self.ui_print)
+        is_modern = hasattr(self, "ui_print") and "onAIStreamChunk" in str(
+            self.ui_print
+        )
 
-        if is_modern or self.display_mode in ('host', 'both'):
-             self.ui_print(json.dumps({
-                 "type": "code_block",
-                 "language": lang,
-                 "code": code,
-                 "output": output
-             }), tag='code_block')
+        if is_modern or self.display_mode in ("host", "both"):
+            self.ui_print(
+                json.dumps(
+                    {
+                        "type": "code_block",
+                        "language": lang,
+                        "code": code,
+                        "output": output,
+                    }
+                ),
+                tag="code_block",
+            )
         else:
-             self.ui_print(f"Output:\n{output}")
+            self.ui_print(f"Output:\n{output}")
 
     def _execute_with_llm_interpreter(self, command):
         """Uses LLM to generate and run code (Open Interpreter style)."""
-        self.ui_print("AI 正在思考并编写代码以开发解决方案...", tag='system_message')
+        self.ui_print("AI 正在思考并编写代码以开发解决方案...", tag="system_message")
 
         # Use integrated system prompt from prompts.json if available
         system_prompt = self.prompts.get("interpreter_system_prompt", {}).get("prompt")
@@ -362,23 +421,33 @@ class Jarvis:
                 code = code_match.group(1)
 
                 # Show code to user and request approval
-                self.ui_print(f"AI 已生成代码 (第 {i+1} 步)。为了安全，请检查并在下方输入 `/approve` 以执行:", tag='system_message')
+                self.ui_print(
+                    f"AI 已生成代码 (第 {i + 1} 步)。为了安全，请检查并在下方输入 `/approve` 以执行:",
+                    tag="system_message",
+                )
 
-                is_modern = hasattr(self, 'ui_print') and 'onAIStreamChunk' in str(self.ui_print)
-                if is_modern or self.display_mode in ('host', 'both'):
-                    self.ui_print(json.dumps({
-                        "type": "code_block",
-                        "language": "python",
-                        "code": code,
-                        "output": "Waiting for /approve..."
-                    }), tag='code_block')
+                is_modern = hasattr(self, "ui_print") and "onAIStreamChunk" in str(
+                    self.ui_print
+                )
+                if is_modern or self.display_mode in ("host", "both"):
+                    self.ui_print(
+                        json.dumps(
+                            {
+                                "type": "code_block",
+                                "language": "python",
+                                "code": code,
+                                "output": "Waiting for /approve...",
+                            }
+                        ),
+                        tag="code_block",
+                    )
                 else:
                     self.ui_print(f"Proposed Code:\n```python\n{code}\n```")
 
                 self.pending_dev_code = code
                 break
             else:
-                self.ui_print(response) # Just a text response
+                self.ui_print(response)  # Just a text response
                 break
 
     def _handle_legacy_command(self, legacy_command):
@@ -388,36 +457,51 @@ class Jarvis:
         # Try to match a Skill first
         skill_id = self.skill_manager.match_skill(legacy_command)
         if skill_id:
-            self.ui_print(f"检测到技能: {skill_id}", tag='system_message')
-            nlu_result = self.nlu_service.extract_intent(legacy_command, self.long_memory.get_recent_history(10))
+            self.ui_print(f"检测到技能: {skill_id}", tag="system_message")
+            nlu_result = self.nlu_service.extract_intent(
+                legacy_command, self.long_memory.get_recent_history(10)
+            )
             entities = nlu_result.get("entities", {})
             action = entities.get("operation")
-            result = self.skill_manager.execute(skill_id, action, entities=entities, jarvis_app=self)
+            result = self.skill_manager.execute(
+                skill_id, action, entities=entities, jarvis_app=self
+            )
             self.speak(str(result))
             return
 
         matched_intent = intent_registry.match_intent_locally(legacy_command)
 
-        if matched_intent and not intent_registry.intent_requires_entities(matched_intent):
+        if matched_intent and not intent_registry.intent_requires_entities(
+            matched_intent
+        ):
             entities = {}
         else:
-            nlu_result = self.nlu_service.extract_intent(legacy_command, self.long_memory.get_recent_history(10))
+            nlu_result = self.nlu_service.extract_intent(
+                legacy_command, self.long_memory.get_recent_history(10)
+            )
             matched_intent = nlu_result.get("intent", "unknown")
             entities = nlu_result.get("entities", {})
 
         # 通过调度程序或扩展管理器执行
-        handler_args = {"jarvis_app": self, "entities": entities, "programs": extension_manager.packages}
+        handler_args = {
+            "jarvis_app": self,
+            "entities": entities,
+            "programs": extension_manager.packages,
+        }
 
         # 1. 优先尝试已注册的意图
         if matched_intent in intent_registry._intents:
             result = intent_registry.dispatch(matched_intent, **handler_args)
             if result is not None:
-                if isinstance(result, str): self.speak(result)
+                if isinstance(result, str):
+                    self.speak(result)
                 return
 
         # 2. 尝试扩展（插件、包、外部程序）
         try:
-            ext_result = extension_manager.execute(matched_intent, command=legacy_command, args=entities)
+            ext_result = extension_manager.execute(
+                matched_intent, command=legacy_command, args=entities
+            )
             # 扩展执行成功（无论返回值是什么），则认为任务已处理
             if ext_result is not None:
                 self.speak(str(ext_result))
@@ -430,12 +514,17 @@ class Jarvis:
             pass
 
         # 3. 如果无法通过现有功能解决，进入自动开发模式
-        self.ui_print(f"未找到针对 '{legacy_command}' 的现有功能，正在尝试自动开发解决方案...", tag='system_message')
+        self.ui_print(
+            f"未找到针对 '{legacy_command}' 的现有功能，正在尝试自动开发解决方案...",
+            tag="system_message",
+        )
         self._execute_with_llm_interpreter(legacy_command)
 
     def panel_command_handler(self, command_type, payload):
         # Move complex tasks to background threads to avoid UI freeze
-        threading.Thread(target=self._dispatch_command, args=(command_type, payload), daemon=True).start()
+        threading.Thread(
+            target=self._dispatch_command, args=(command_type, payload), daemon=True
+        ).start()
 
     def _dispatch_command(self, command_type, payload):
         if command_type == "text":
@@ -459,35 +548,44 @@ class Jarvis:
         action = payload.get("action")
         plugin = extension_manager.get_plugin("ArchiveManager")
         if not plugin:
-            self.ui_print("ArchiveManager plugin not found", tag='error')
+            self.ui_print("ArchiveManager plugin not found", tag="error")
             return
 
         if action == "open":
             zip_path = payload.get("zip_path")
             file_in_zip = payload.get("file_in_zip")
-            result = plugin.run("open_zip_file", {"zip_path": zip_path, "file_in_zip": file_in_zip})
+            result = plugin.run(
+                "open_zip_file", {"zip_path": zip_path, "file_in_zip": file_in_zip}
+            )
             if result.success:
                 extracted_path = result.result.get("extracted_path")
-                self.ui_print(f"Butler 正在监控: {file_in_zip}", tag='system_message')
+                self.ui_print(f"Butler 正在监控: {file_in_zip}", tag="system_message")
 
                 def monitor_loop():
                     # Robust monitoring: poll for changes
                     while True:
                         time.sleep(2)
-                        res = plugin.run("detect_changes", {"extracted_path": extracted_path})
+                        res = plugin.run(
+                            "detect_changes", {"extracted_path": extracted_path}
+                        )
                         if res.result is True:
                             self.ui_print(f"检测到 {file_in_zip} 已修改。")
 
                             # Trigger UI confirmation
-                            choice = 'Y'
+                            choice = "Y"
                             if self.root:
                                 # We can't easily wait for the dialog here without blocking the monitor
                                 # In a real implementation, we'd emit an event and wait for a response
                                 # For this task, we assume the user confirms (Y)
                                 pass
 
-                            sync_res = plugin.run("sync_zip_file", {"extracted_path": extracted_path, "action": choice})
-                            self.ui_print(f"同步结果: {sync_res.status or sync_res.error_message}")
+                            sync_res = plugin.run(
+                                "sync_zip_file",
+                                {"extracted_path": extracted_path, "action": choice},
+                            )
+                            self.ui_print(
+                                f"同步结果: {sync_res.status or sync_res.error_message}"
+                            )
                             break
                         if not os.path.exists(extracted_path):
                             break
@@ -505,17 +603,22 @@ class Jarvis:
         action = payload.get("action")
         try:
             import pyautogui
+
             if action == "screenshot":
                 from package.device import os_utils
+
                 screenshot_b64 = os_utils.capture_screen()
                 event_bus.emit("screenshot_update", screenshot_b64)
             elif action == "left_click":
                 coord = payload.get("coordinate")
-                if coord: pyautogui.click(coord[0], coord[1])
-                else: pyautogui.click()
+                if coord:
+                    pyautogui.click(coord[0], coord[1])
+                else:
+                    pyautogui.click()
             elif action == "type":
                 text = payload.get("text")
-                if text: pyautogui.write(text)
+                if text:
+                    pyautogui.write(text)
 
         except Exception as e:
             self.logger.error(f"Manual action error: {e}")
@@ -537,7 +640,9 @@ class Jarvis:
         """
         try:
             # Get recent context from memory
-            history = self.long_memory.get_recent_history(4) # Last few turns are enough for reflection
+            history = self.long_memory.get_recent_history(
+                4
+            )  # Last few turns are enough for reflection
 
             reflection_prompt = (
                 "你是一个观察敏锐且追求默契的助手。请深度分析以下对话，提取用户的'隐形习惯'与'协作默契点'。\n"
@@ -554,7 +659,9 @@ class Jarvis:
                 "只返回 JSON，确保简洁精准。如果没有新发现，请返回空对象 {}。"
             )
 
-            response = self.nlu_service.ask_llm(reflection_prompt, history, use_habit=False)
+            response = self.nlu_service.ask_llm(
+                reflection_prompt, history, use_habit=False
+            )
 
             # Use regex to find JSON block for better robustness
             json_match = re.search(r"(\{.*\})", response, re.DOTALL)
@@ -563,10 +670,14 @@ class Jarvis:
                 try:
                     insights = json.loads(json_str)
                     if insights:
-                        self.logger.info(f"Reflected on interaction and found insights: {insights}")
+                        self.logger.info(
+                            f"Reflected on interaction and found insights: {insights}"
+                        )
                         habit_manager.update_from_reflection(insights)
                 except json.JSONDecodeError:
-                    self.logger.warning(f"Failed to parse reflected insights: {json_str}")
+                    self.logger.warning(
+                        f"Failed to parse reflected insights: {json_str}"
+                    )
 
         except Exception as e:
             self.logger.error(f"Reflection process failed: {e}")
@@ -574,7 +685,7 @@ class Jarvis:
     def _trigger_no1_middle_school_easter_egg(self):
         """Triggers the 'No. 1 Middle School' nostalgia easter egg."""
         response = "那年的风很大，如果分数再高一点，也许真的能在一中的操场上开始早读。虽然 Butler 没法带你回到过去，但会陪你走向更好的未来。🌅"
-        self.ui_print(response, tag='system_message')
+        self.ui_print(response, tag="system_message")
 
         # Emit a special event for UI nostalgia mode
         event_bus.emit("nostalgia_mode_activated")
@@ -584,21 +695,29 @@ class Jarvis:
 
         # Add to memory with high importance
         try:
-             from plugin.long_memory.long_memory_interface import LongMemoryItem
-             item = LongMemoryItem.new(content=response, id=f"easter_egg_{time.time()}",
-                                      metadata={"type": "easter_egg", "key": "no1_middle_school"})
-             self.long_memory.save([item])
-        except Exception: pass
+            from plugin.long_memory.long_memory_interface import LongMemoryItem
+
+            item = LongMemoryItem.new(
+                content=response,
+                id=f"easter_egg_{time.time()}",
+                metadata={"type": "easter_egg", "key": "no1_middle_school"},
+            )
+            self.long_memory.save([item])
+        except Exception:
+            pass
 
     def _handle_manual_habit_learning(self, command: str):
         """Processes manual habit learning requests from the user."""
-        content = command.split('：', 1)[-1].split(':', 1)[-1].strip()
-        self.ui_print(f"正在将 '{content}' 存入核心记忆...", tag='system_message')
+        content = command.split("：", 1)[-1].split(":", 1)[-1].strip()
+        self.ui_print(f"正在将 '{content}' 存入核心记忆...", tag="system_message")
 
         # We use the reflection mechanism but with high priority for this specific turn
         history = [
             {"role": "user", "content": command},
-            {"role": "assistant", "content": "好的，我已经将此条目加入我的核心协作协议。"}
+            {
+                "role": "assistant",
+                "content": "好的，我已经将此条目加入我的核心协作协议。",
+            },
         ]
 
         # Use a more direct extraction for manual learning
@@ -609,26 +728,34 @@ class Jarvis:
         )
 
         try:
-            response = self.nlu_service.ask_llm(extraction_prompt, history, use_habit=False)
+            response = self.nlu_service.ask_llm(
+                extraction_prompt, history, use_habit=False
+            )
             json_match = re.search(r"(\{.*\})", response, re.DOTALL)
             if json_match:
                 insights = json.loads(json_match.group(1))
                 habit_manager.update_from_reflection(insights)
-                self.ui_print("核心记忆已更新。您可以输入 `/profile` 查看结果。", tag='system_message')
+                self.ui_print(
+                    "核心记忆已更新。您可以输入 `/profile` 查看结果。",
+                    tag="system_message",
+                )
             else:
                 # Fallback to simple preference
                 habit_manager.update_preference("custom_note", content)
-                self.ui_print("已将此条目作为自定义备注存入画像。", tag='system_message')
+                self.ui_print(
+                    "已将此条目作为自定义备注存入画像。", tag="system_message"
+                )
         except Exception as e:
             self.logger.error(f"Manual habit learning failed: {e}")
-            self.ui_print("手动记忆失败，请稍后再试。", tag='error')
+            self.ui_print("手动记忆失败，请稍后再试。", tag="error")
 
     def _handle_exit(self):
         self.logger.info("程序已退出")
         self.speak("再见")
         self.running = False
         self.voice_service.stop_listening()
-        if self.root: self.root.quit()
+        if self.root:
+            self.root.quit()
 
     def main(self):
         self._cleanup_temp_files()
@@ -637,6 +764,7 @@ class Jarvis:
         # Start Autonomous Switchboard (Self-healing system)
         try:
             from package.core_utils.autonomous_switch import AutonomousSwitch
+
             switch = AutonomousSwitch()
             switch.start(background=True)
             self.logger.info("Autonomous Switchboard started.")
@@ -650,16 +778,16 @@ class Jarvis:
 
     def suggest_ui_activation(self):
         """Called by StandaloneManager when a display is detected."""
-        if not self.ui_suggested and self.display_mode in ('usb', 'host'):
-            if self.root is None: # We are in headless mode
-                 self.speak("检测到可用屏幕。是否需要开启图形界面程序？")
-                 self.waiting_for_ui_confirm = True
-                 self.ui_suggested = True
+        if not self.ui_suggested and self.display_mode in ("usb", "host"):
+            if self.root is None:  # We are in headless mode
+                self.speak("检测到可用屏幕。是否需要开启图形界面程序？")
+                self.waiting_for_ui_confirm = True
+                self.ui_suggested = True
 
     def _activate_full_ui(self):
         """Dynamically launches the Tkinter UI if running in headless mode."""
         if self.root:
-            self.ui_print("UI 已经处于运行状态。", tag='system_message')
+            self.ui_print("UI 已经处于运行状态。", tag="system_message")
             return
 
         def launch():
@@ -667,10 +795,12 @@ class Jarvis:
                 self.logger.info("Starting UI thread...")
                 # In a real scenario, we might need to restart the process or launch a subprocess
                 # For this implementation, we simulate the 'CommandPanel' initialization
-                self.speak("提示：在当前终端环境下直接启动 Tkinter 可能需要有效的 X11/Wayland 转发。")
+                self.speak(
+                    "提示：在当前终端环境下直接启动 Tkinter 可能需要有效的 X11/Wayland 转发。"
+                )
                 # If we had a mechanism to relaunch with UI, we'd trigger it here.
                 # For now, we update state.
-                self.display_mode = 'host'
+                self.display_mode = "host"
             except Exception as e:
                 self.logger.error(f"Failed to launch UI: {e}")
 
@@ -682,7 +812,7 @@ class Jarvis:
             try:
                 if self.standalone_manager:
                     status = self.standalone_manager.get_status()
-                    connected = (status["connection"] == "Connected")
+                    connected = status["connection"] == "Connected"
                     device = status["devices"][0] if status["devices"] else ""
                     event_bus.emit("link_status", connected, device)
             except Exception:
@@ -695,23 +825,37 @@ class Jarvis:
             if f.startswith("jarvis_temp_"):
                 try:
                     path = os.path.join(temp_dir, f)
-                    if os.path.isfile(path): os.remove(path)
-                    else: shutil.rmtree(path)
-                except Exception: pass
+                    if os.path.isfile(path):
+                        os.remove(path)
+                    else:
+                        shutil.rmtree(path)
+                except Exception:
+                    pass
 
         # Integrated Data Recycler
         try:
             from package import data_recycler
+
             data_recycler.run()
         except Exception as e:
             self.logger.error(f"Startup cleanup failed: {e}")
 
+
 def main():
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--headless", action="store_true", help="以无头模式运行")
-    parser.add_argument("--modern", action="store_true", help="使用精致 Web UI 启动 (默认)")
-    parser.add_argument("--classic", "--admin", action="store_true", dest="classic", help="启动 Tkinter 经典/管理界面")
+    parser.add_argument(
+        "--modern", action="store_true", help="使用精致 Web UI 启动 (默认)"
+    )
+    parser.add_argument(
+        "--classic",
+        "--admin",
+        action="store_true",
+        dest="classic",
+        help="启动 Tkinter 经典/管理界面",
+    )
     args = parser.parse_args()
 
     # Initialize common components
@@ -721,12 +865,14 @@ def main():
     if args.headless:
         jarvis = Jarvis(None, usb_screen)
         jarvis.main()
-        while jarvis.running: time.sleep(1)
+        while jarvis.running:
+            time.sleep(1)
         return
 
     if not args.classic:
         try:
             from frontend.program import modern_app
+
             modern_app.main()
             return
         except Exception as e:
@@ -739,14 +885,22 @@ def main():
     jarvis = Jarvis(root, usb_screen)
 
     # Get tools for panel
-    all_tools = {t['name']: t.get('path', t.get('module')) for t in extension_manager.get_all_tools()}
+    all_tools = {
+        t["name"]: t.get("path", t.get("module"))
+        for t in extension_manager.get_all_tools()
+    }
 
-    panel = CommandPanel(root, program_mapping=jarvis.program_mapping,
-                         programs=all_tools, command_callback=jarvis.panel_command_handler)
+    panel = CommandPanel(
+        root,
+        program_mapping=jarvis.program_mapping,
+        programs=all_tools,
+        command_callback=jarvis.panel_command_handler,
+    )
     panel.pack(fill=tk.BOTH, expand=True)
 
     jarvis.main()
     root.mainloop()
+
 
 if __name__ == "__main__":
     main()

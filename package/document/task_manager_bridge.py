@@ -14,6 +14,7 @@ TASKS_TEMPLATE = """# Tasks
 ## Done
 """
 
+
 def ensure_tasks_file():
     if not os.path.exists(TASKS_FILE):
         with open(TASKS_FILE, "w", encoding="utf-8") as f:
@@ -21,14 +22,17 @@ def ensure_tasks_file():
         return True
     return False
 
+
 def read_tasks():
     ensure_tasks_file()
     with open(TASKS_FILE, "r", encoding="utf-8") as f:
         return f.read()
 
+
 def write_tasks(content):
     with open(TASKS_FILE, "w", encoding="utf-8") as f:
         f.write(content)
+
 
 @register_intent("task_manage")
 def handle_task_manage(jarvis_app, entities, **kwargs):
@@ -62,7 +66,7 @@ def handle_task_manage(jarvis_app, entities, **kwargs):
                 new_lines.append(f"- [ ] **{task_details}**")
                 inserted = True
 
-        if not inserted: # Fallback if header not found
+        if not inserted:  # Fallback if header not found
             new_lines.append("## Active")
             new_lines.append(f"- [ ] **{task_details}**")
 

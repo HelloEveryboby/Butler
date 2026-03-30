@@ -1,6 +1,5 @@
 import os
 import subprocess
-import sys
 import traceback
 import io
 from contextlib import redirect_stdout, redirect_stderr
@@ -8,11 +7,13 @@ from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
 
+
 class Interpreter:
     """
     A code interpreter core that can execute Python and Shell code.
     Inspired by Open Interpreter.
     """
+
     def __init__(self, working_dir=None):
         self.working_dir = working_dir or os.getcwd()
         self.output_buffer = []
@@ -39,8 +40,25 @@ class Interpreter:
         logger.info(f"Executing Shell command: {command}")
         try:
             import shlex
+
             # Try to run without shell if possible (no pipes, redirects, etc.)
-            shell_chars = {'|', '&', ';', '<', '>', '$', '*', '?', '(', ')', '[', ']', '!', '#', '~'}
+            shell_chars = {
+                "|",
+                "&",
+                ";",
+                "<",
+                ">",
+                "$",
+                "*",
+                "?",
+                "(",
+                ")",
+                "[",
+                "]",
+                "!",
+                "#",
+                "~",
+            }
             use_shell = any(char in command for char in shell_chars)
 
             if not use_shell:
@@ -51,7 +69,7 @@ class Interpreter:
                     cwd=self.working_dir,
                     capture_output=True,
                     text=True,
-                    timeout=300
+                    timeout=300,
                 )
             else:
                 result = subprocess.run(
@@ -60,10 +78,10 @@ class Interpreter:
                     cwd=self.working_dir,
                     capture_output=True,
                     text=True,
-                    timeout=300 # 5 minute timeout
+                    timeout=300,  # 5 minute timeout
                 )
             output = result.stdout + result.stderr
-            success = (result.returncode == 0)
+            success = result.returncode == 0
             return success, output
         except subprocess.TimeoutExpired:
             return False, "Error: Command timed out after 300 seconds."
@@ -72,12 +90,13 @@ class Interpreter:
 
     def run(self, language, code):
         """Entry point for running code of a specific language."""
-        if language.lower() == 'python':
+        if language.lower() == "python":
             return self.execute_python(code)
-        elif language.lower() in ['shell', 'sh', 'bash', 'cmd', 'powershell']:
+        elif language.lower() in ["shell", "sh", "bash", "cmd", "powershell"]:
             return self.execute_shell(code)
         else:
             return False, f"Unsupported language: {language}"
+
 
 # Global instance for easy access
 interpreter = Interpreter()
