@@ -2,15 +2,16 @@ import asyncio
 import json
 import logging
 import threading
-import uuid
 import websockets
 from typing import Dict, Any, Optional, List, Callable
+
 
 class RunnerServer:
     """
     WebSocket server for managing remote Butler-Runner nodes.
     By default, it binds to 127.0.0.1 for security.
     """
+
     def __init__(self, host: str = "127.0.0.1", port: int = 8000, token: str = None):
         self.host = host
         self.port = port
@@ -22,7 +23,9 @@ class RunnerServer:
         self._event_callbacks: List[Callable[[str, Dict[str, Any]], None]] = []
 
         if not self.token or self.token == "BUTLER_SECRET_2026":
-            self.logger.warning("⚠️ RunnerServer is using a default or missing token! This is insecure.")
+            self.logger.warning(
+                "⚠️ RunnerServer is using a default or missing token! This is insecure."
+            )
 
     def register_event_callback(self, callback: Callable[[str, Dict[str, Any]], None]):
         """Registers a callback for messages from runners (e.g., screenshots)."""
@@ -44,16 +47,26 @@ class RunnerServer:
 
                 # Validate token
                 if not self.token or msg_token != self.token:
-                    self.logger.warning(f"Unauthorized connection attempt from {websocket.remote_address}")
-                    await websocket.send(json.dumps({"status": "error", "error": "Unauthorized"}))
+                    self.logger.warning(
+                        f"Unauthorized connection attempt from {websocket.remote_address}"
+                    )
+                    await websocket.send(
+                        json.dumps({"status": "error", "error": "Unauthorized"})
+                    )
                     await websocket.close(1008, "Invalid Token")
                     return
 
                 if msg_type == "register":
                     runner_id = msg_runner_id
                     self.runners[runner_id] = websocket
-                    self.logger.info(f"Runner registered: {runner_id} from {websocket.remote_address}")
-                    await websocket.send(json.dumps({"status": "ok", "data": f"Registered as {runner_id}"}))
+                    self.logger.info(
+                        f"Runner registered: {runner_id} from {websocket.remote_address}"
+                    )
+                    await websocket.send(
+                        json.dumps(
+                            {"status": "ok", "data": f"Registered as {runner_id}"}
+                        )
+                    )
                     continue
 
                 # Handle responses/events
@@ -72,8 +85,8 @@ class RunnerServer:
     def start(self):
         """Starts the server in a background thread."""
         if not self.token:
-             self.logger.error("RunnerServer cannot start without a valid token.")
-             return
+            self.logger.error("RunnerServer cannot start without a valid token.")
+            return
 
         self._server_thread = threading.Thread(target=self._run_server, daemon=True)
         self._server_thread.start()
@@ -96,13 +109,11 @@ class RunnerServer:
             return False, f"Runner {runner_id} not connected"
 
         websocket = self.runners[runner_id]
-        msg = {
-            "type": cmd_type,
-            "payload": payload,
-            "token": self.token
-        }
+        msg = {"type": cmd_type, "payload": payload, "token": self.token}
 
-        future = asyncio.run_coroutine_threadsafe(websocket.send(json.dumps(msg)), self._loop)
+        future = asyncio.run_coroutine_threadsafe(
+            websocket.send(json.dumps(msg)), self._loop
+        )
         try:
             future.result(timeout=5)
             return True, "Command sent"
@@ -119,6 +130,7 @@ class RunnerServer:
 
     def list_runners(self) -> List[str]:
         return list(self.runners.keys())
+
 
 # Global instance
 runner_server = RunnerServer()

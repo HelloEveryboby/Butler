@@ -1,4 +1,3 @@
-import os
 import requests
 import numpy as np
 from typing import List, Dict, Optional
@@ -6,6 +5,7 @@ from ..long_memory.long_memory_interface import AbstractLongMemory, LongMemoryIt
 from package.core_utils.log_manager import LogManager
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/embeddings"
+
 
 class DeepSeekLongMemory(AbstractLongMemory):
     def __init__(self, api_key: str, collection_name: str = "long_memory_collection"):
@@ -15,7 +15,7 @@ class DeepSeekLongMemory(AbstractLongMemory):
         self._api_key = api_key
         self._headers = {
             "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
         self._collection_name = collection_name
         self._memory: Dict[str, LongMemoryItem] = {}
@@ -26,7 +26,11 @@ class DeepSeekLongMemory(AbstractLongMemory):
         self._logger = logger
         try:
             # Perform a test request to check API key and connectivity
-            response = requests.post(DEEPSEEK_API_URL, headers=self._headers, json={"input": "test", "model": "deepseek-coder"})
+            response = requests.post(
+                DEEPSEEK_API_URL,
+                headers=self._headers,
+                json={"input": "test", "model": "deepseek-coder"},
+            )
             response.raise_for_status()
             self._logger.info("DeepSeek API health check successful.")
         except requests.exceptions.RequestException as e:
@@ -39,10 +43,10 @@ class DeepSeekLongMemory(AbstractLongMemory):
             response = requests.post(
                 DEEPSEEK_API_URL,
                 headers=self._headers,
-                json={"input": text, "model": "deepseek-coder"}
+                json={"input": text, "model": "deepseek-coder"},
             )
             response.raise_for_status()
-            embedding_data = response.json()['data'][0]['embedding']
+            embedding_data = response.json()["data"][0]["embedding"]
             return np.array(embedding_data)
         except requests.exceptions.RequestException as e:
             self._logger.error(f"Failed to get embedding from DeepSeek API: {e}")
@@ -59,9 +63,16 @@ class DeepSeekLongMemory(AbstractLongMemory):
                 self._embeddings[item.id] = embedding
                 self._logger.info(f"Saved item {item.id} to DeepSeekLongMemory.")
             else:
-                self._logger.warning(f"Failed to save item {item.id} due to embedding failure.")
+                self._logger.warning(
+                    f"Failed to save item {item.id} due to embedding failure."
+                )
 
-    def search(self, text: str, n_results: int, metadata_filter: Optional[Dict[str, str]] = None) -> List[LongMemoryItem]:
+    def search(
+        self,
+        text: str,
+        n_results: int,
+        metadata_filter: Optional[Dict[str, str]] = None,
+    ) -> List[LongMemoryItem]:
         """Searches for items in memory based on semantic similarity."""
         query_embedding = self._get_embedding(text)
         if query_embedding is None:
@@ -71,8 +82,12 @@ class DeepSeekLongMemory(AbstractLongMemory):
         candidate_ids = list(self._memory.keys())
         if metadata_filter:
             candidate_ids = [
-                id for id in candidate_ids
-                if all(self._memory[id].metadata.get(k) == v for k, v in metadata_filter.items())
+                id
+                for id in candidate_ids
+                if all(
+                    self._memory[id].metadata.get(k) == v
+                    for k, v in metadata_filter.items()
+                )
             ]
 
         if not candidate_ids:
@@ -81,7 +96,8 @@ class DeepSeekLongMemory(AbstractLongMemory):
         # Calculate cosine similarity
         candidate_embeddings = np.array([self._embeddings[id] for id in candidate_ids])
         similarities = np.dot(candidate_embeddings, query_embedding) / (
-            np.linalg.norm(candidate_embeddings, axis=1) * np.linalg.norm(query_embedding)
+            np.linalg.norm(candidate_embeddings, axis=1)
+            * np.linalg.norm(query_embedding)
         )
 
         # Get top n_results

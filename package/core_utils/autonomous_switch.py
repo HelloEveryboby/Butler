@@ -14,22 +14,22 @@ Butler 自动交换机 (Autonomous Switchboard V2.0 - 完整版)
 """
 
 import os
-import sys
 import time
 import threading
 import psutil
 from collections import defaultdict
-from pathlib import Path
 from package.core_utils.log_manager import LogManager
 from package.core_utils.health_monitor import HealthMonitor
 
 # 获取日志记录器
 logger = LogManager.get_logger("autonomous_switch")
 
+
 class AutonomousSwitch:
     """
     自动交换机：Butler 系统的资源协调与进程治理中心。
     """
+
     _instance = None
     _lock = threading.Lock()
 
@@ -47,7 +47,8 @@ class AutonomousSwitch:
             base_interval: 基础检查周期（秒）。
             exclusive_mode: 是否开启独占模式。
         """
-        if hasattr(self, '_initialized'): return
+        if hasattr(self, "_initialized"):
+            return
         self.base_interval = base_interval
         self.current_interval = base_interval
         self.exclusive_mode = exclusive_mode
@@ -58,6 +59,7 @@ class AutonomousSwitch:
         # 尝试加载资源管理器
         try:
             from butler.resource_manager import ResourceManager
+
             self.res_mgr = ResourceManager()
         except ImportError:
             self.res_mgr = None
@@ -74,7 +76,9 @@ class AutonomousSwitch:
             return
 
         self.running = True
-        logger.info(f"Butler 自动交换机已启动 (间隔: {self.base_interval}s, 独占模式: {self.exclusive_mode})")
+        logger.info(
+            f"Butler 自动交换机已启动 (间隔: {self.base_interval}s, 独占模式: {self.exclusive_mode})"
+        )
 
         if background:
             self.thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -86,10 +90,11 @@ class AutonomousSwitch:
         """通过进程名和命令行检查是否重复运行"""
         count = 0
         current_pid = os.getpid()
-        for proc in psutil.process_iter(['pid', 'cmdline']):
+        for proc in psutil.process_iter(["pid", "cmdline"]):
             try:
-                if proc.info['pid'] == current_pid: continue
-                cmdline = proc.info['cmdline']
+                if proc.info["pid"] == current_pid:
+                    continue
+                cmdline = proc.info["cmdline"]
                 if cmdline and "autonomous_switch.py" in " ".join(cmdline):
                     count += 1
             except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -108,10 +113,13 @@ class AutonomousSwitch:
         # BHL 二进制程序关键字
         bhl_targets = ["hybrid_compute", "hybrid_net", "hybrid_crypto"]
 
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cpu_percent', 'memory_info', 'create_time']):
+        for proc in psutil.process_iter(
+            ["pid", "name", "cmdline", "cpu_percent", "memory_info", "create_time"]
+        ):
             try:
-                cmdline = proc.info['cmdline']
-                if not cmdline: continue
+                cmdline = proc.info["cmdline"]
+                if not cmdline:
+                    continue
                 cmd_str = " ".join(cmdline)
 
                 # 判定规则：
@@ -121,15 +129,17 @@ class AutonomousSwitch:
                 is_bhl = any(target in cmd_str for target in bhl_targets)
 
                 if (is_package or is_bhl) and "autonomous_switch" not in cmd_str:
-                    butler_procs.append({
-                        'pid': proc.info['pid'],
-                        'name': proc.info['name'],
-                        'cmd': cmd_str,
-                        'cpu': proc.info['cpu_percent'],
-                        'mem': proc.info['memory_info'].rss / (1024 * 1024),
-                        'ctime': proc.info['create_time'],
-                        'is_bhl': is_bhl
-                    })
+                    butler_procs.append(
+                        {
+                            "pid": proc.info["pid"],
+                            "name": proc.info["name"],
+                            "cmd": cmd_str,
+                            "cpu": proc.info["cpu_percent"],
+                            "mem": proc.info["memory_info"].rss / (1024 * 1024),
+                            "ctime": proc.info["create_time"],
+                            "is_bhl": is_bhl,
+                        }
+                    )
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
         return butler_procs
@@ -154,30 +164,34 @@ class AutonomousSwitch:
 
                 if procs:
                     # 1. 自动排序：按内存占用降序
-                    procs.sort(key=lambda x: x['mem'], reverse=True)
+                    procs.sort(key=lambda x: x["mem"], reverse=True)
 
                     # 2. 独占模式治理
                     if self.exclusive_mode:
                         cmd_groups = defaultdict(list)
                         for p in procs:
-                            cmd_groups[p['cmd']].append(p)
+                            cmd_groups[p["cmd"]].append(p)
 
                         for cmd, group in cmd_groups.items():
                             if len(group) > 1:
                                 # 按创建时间排序，保留最新的 PID
-                                group.sort(key=lambda x: x['ctime'], reverse=True)
+                                group.sort(key=lambda x: x["ctime"], reverse=True)
                                 survivor = group[0]
                                 victims = group[1:]
-                                logger.info(f"独占模式激活：保留最新进程 {survivor['pid']} ({cmd})，清理 {len(victims)} 个重复实例。")
+                                logger.info(
+                                    f"独占模式激活：保留最新进程 {survivor['pid']} ({cmd})，清理 {len(victims)} 个重复实例。"
+                                )
                                 for v in victims:
-                                    self._terminate_process(v['pid'], "重复实例清理")
+                                    self._terminate_process(v["pid"], "重复实例清理")
 
                     # 3. 资源熔断保护
                     if cpu_load > 90 or mem_load > 90:
-                        logger.error(f"⚠️ 系统资源危急! CPU: {cpu_load}%, MEM: {mem_load}%。启动自动熔断。")
+                        logger.error(
+                            f"⚠️ 系统资源危急! CPU: {cpu_load}%, MEM: {mem_load}%。启动自动熔断。"
+                        )
                         # 杀掉内存占用最高的一个进程（通常是失控的脚本）
                         target = procs[0]
-                        self._terminate_process(target['pid'], "资源过载自动熔断")
+                        self._terminate_process(target["pid"], "资源过载自动熔断")
 
             except Exception as e:
                 logger.error(f"交换机循环执行异常: {e}")
@@ -204,11 +218,13 @@ class AutonomousSwitch:
         except Exception as e:
             logger.error(f"关闭进程 {pid} 失败: {e}")
 
+
 def run():
     """入口点"""
     switch = AutonomousSwitch(base_interval=3)
     # 以阻塞模式运行，适合独立进程启动
     switch.start(background=False)
+
 
 if __name__ == "__main__":
     try:

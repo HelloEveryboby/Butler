@@ -8,10 +8,13 @@ logger = LogManager.get_logger(__name__)
 # Load environment variables once
 load_dotenv()
 
+
 class ConfigLoader:
     _instance = None
     _config = {}
-    _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    _project_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
     _config_path = os.path.join(_project_root, "config", "system_config.json")
 
     def __new__(cls):
@@ -24,13 +27,15 @@ class ConfigLoader:
         """Loads configuration from JSON file."""
         if os.path.exists(self._config_path):
             try:
-                with open(self._config_path, 'r', encoding='utf-8') as f:
+                with open(self._config_path, "r", encoding="utf-8") as f:
                     self._config = json.load(f)
             except Exception as e:
                 logger.error(f"Failed to load config from {self._config_path}: {e}")
                 self._config = {}
         else:
-            logger.warning(f"Config file not found at {self._config_path}. Using defaults/env.")
+            logger.warning(
+                f"Config file not found at {self._config_path}. Using defaults/env."
+            )
             self._config = {}
 
     def get(self, key_path: str, default=None):
@@ -38,7 +43,7 @@ class ConfigLoader:
         Retrieves a configuration value using a dot-separated path (e.g., 'api.deepseek.key').
         Falls back to environment variables if the key is not found in JSON.
         """
-        parts = key_path.split('.')
+        parts = key_path.split(".")
         value = self._config
         for part in parts:
             if isinstance(value, dict) and part in value:
@@ -51,7 +56,7 @@ class ConfigLoader:
             return value
 
         # Fallback to Environment Variables (uppercase, dot replaced by underscore)
-        env_key = key_path.upper().replace('.', '_')
+        env_key = key_path.upper().replace(".", "_")
         env_value = os.getenv(env_key)
         if env_value is not None:
             return env_value
@@ -65,12 +70,13 @@ class ConfigLoader:
 
         try:
             os.makedirs(os.path.dirname(self._config_path), exist_ok=True)
-            with open(self._config_path, 'w', encoding='utf-8') as f:
+            with open(self._config_path, "w", encoding="utf-8") as f:
                 json.dump(self._config, f, indent=4, ensure_ascii=False)
             return True
         except Exception as e:
             logger.error(f"Failed to save config: {e}")
             return False
+
 
 # Global instance for easy access
 config_loader = ConfigLoader()

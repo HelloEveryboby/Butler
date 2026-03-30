@@ -2,14 +2,16 @@ import os
 import sys
 import webview
 import json
-import threading
 
 # Add project root to sys.path
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from butler.core.hybrid_link import HybridLinkClient
+
 
 class TerminalBridge:
     def __init__(self, window):
@@ -17,17 +19,20 @@ class TerminalBridge:
         self.terminal_client = None
 
     def start_terminal(self):
-        terminal_path = os.path.join(project_root, "programs/hybrid_terminal/terminal_service")
+        terminal_path = os.path.join(
+            project_root, "programs/hybrid_terminal/terminal_service"
+        )
         self.terminal_client = HybridLinkClient(
-            executable_path=terminal_path,
-            fallback_enabled=False
+            executable_path=terminal_path, fallback_enabled=False
         )
         self.terminal_client.start()
 
         def on_event(event):
             if event.get("method") == "terminal_output":
                 output = event.get("params")
-                self.window.evaluate_js(f"window.onTerminalOutput({json.dumps(output)})")
+                self.window.evaluate_js(
+                    f"window.onTerminalOutput({json.dumps(output)})"
+                )
 
         self.terminal_client.register_event_callback(on_event)
         self.terminal_client.call("start_terminal", {})
@@ -35,6 +40,7 @@ class TerminalBridge:
     def terminal_input(self, data):
         if self.terminal_client:
             self.terminal_client.call("write_input", {"data": data})
+
 
 def run():
     # This HTML is a minimal version of the terminal part
@@ -87,10 +93,13 @@ def run():
     </html>
     """
 
-    window = webview.create_window('Butler Independent Terminal', html=html, width=800, height=600)
+    window = webview.create_window(
+        "Butler Independent Terminal", html=html, width=800, height=600
+    )
     bridge = TerminalBridge(window)
     window.expose(bridge)
     webview.start()
+
 
 if __name__ == "__main__":
     run()

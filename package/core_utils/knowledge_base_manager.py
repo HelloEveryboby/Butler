@@ -5,16 +5,17 @@
 
 import os
 import sys
-import json
 import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from package.core_utils.log_manager import LogManager
 from package.core_utils.embedding_utils import get_embedding
 from package.core_utils.config_loader import config_loader
 
 # Use consistent project root resolution
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-markitdown_src = os.path.join(project_root, 'markitdown', 'src')
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+markitdown_src = os.path.join(project_root, "markitdown", "src")
 if markitdown_src not in sys.path:
     sys.path.insert(0, markitdown_src)
 
@@ -27,16 +28,18 @@ except ImportError:
 logger = LogManager.get_logger(__name__)
 API_KEY = config_loader.get("api.deepseek.key")
 
+
 class KnowledgeBase:
     """
     表示一个 zvec 驱动的语义知识库。
     """
+
     def __init__(self, name: str):
         self.name = name
         base_dir = os.path.dirname(os.path.abspath(__file__))
         self.base_path = os.path.join(base_dir, "../data/knowledge_bases", name)
         self.collection = None
-        self._offline = (API_KEY is None)
+        self._offline = API_KEY is None
         self._init_zvec()
 
     def _init_zvec(self):
@@ -56,15 +59,16 @@ class KnowledgeBase:
                 fields=[
                     zvec.FieldSchema("content", zvec.DataType.STRING),
                     zvec.FieldSchema("source", zvec.DataType.STRING),
-                    zvec.FieldSchema("timestamp", zvec.DataType.DOUBLE)
-                ]
+                    zvec.FieldSchema("timestamp", zvec.DataType.DOUBLE),
+                ],
             )
             self.collection = zvec.create_and_open(path=self.base_path, schema=schema)
         except Exception as e:
             logger.error(f"初始化知识库 {self.name} 失败: {e}")
 
     def add_document(self, content: str, source: str):
-        if not self.collection: return
+        if not self.collection:
+            return
         import zvec
 
         chunk_size = 1000
@@ -74,8 +78,9 @@ class KnowledgeBase:
             chunks = [content]
         else:
             for i in range(0, len(content), chunk_size - overlap):
-                chunks.append(content[i:i + chunk_size])
-                if i + chunk_size >= len(content): break
+                chunks.append(content[i : i + chunk_size])
+                if i + chunk_size >= len(content):
+                    break
 
         docs = []
         for i, chunk in enumerate(chunks):
@@ -87,8 +92,8 @@ class KnowledgeBase:
                     fields={
                         "content": chunk,
                         "source": source,
-                        "timestamp": time.time()
-                    }
+                        "timestamp": time.time(),
+                    },
                 )
                 docs.append(doc)
 
@@ -100,11 +105,13 @@ class KnowledgeBase:
                 logger.error(f"数据插入失败: {e}")
 
     def search(self, query_text: str, topk: int = 5) -> List[Dict[str, Any]]:
-        if not self.collection: return []
+        if not self.collection:
+            return []
         import zvec
 
         emb = get_embedding(query_text, API_KEY, offline=self._offline)
-        if emb is None: return []
+        if emb is None:
+            return []
 
         query = zvec.VectorQuery(field_name="embedding", vector=emb.tolist())
         try:
@@ -113,12 +120,14 @@ class KnowledgeBase:
                 {
                     "content": doc.field("content"),
                     "source": doc.field("source"),
-                    "score": doc.score
-                } for doc in results
+                    "score": doc.score,
+                }
+                for doc in results
             ]
         except Exception as e:
             logger.error(f"知识库查询失败: {e}")
             return []
+
 
 def run(*args, **kwargs):
     operation = kwargs.get("operation")
@@ -146,7 +155,9 @@ def run(*args, **kwargs):
         count = 0
         for root, _, files in os.walk(dir_path):
             for f in files:
-                if f.lower().endswith(('.pdf', '.docx', '.md', '.txt', '.pptx', '.xlsx')):
+                if f.lower().endswith(
+                    (".pdf", ".docx", ".md", ".txt", ".pptx", ".xlsx")
+                ):
                     path = os.path.join(root, f)
                     try:
                         result = md_convert(path)
@@ -176,8 +187,11 @@ def run(*args, **kwargs):
     elif operation == "list":
         base_dir = os.path.dirname(os.path.abspath(__file__))
         kb_dir = os.path.join(base_dir, "../data/knowledge_bases")
-        if not os.path.exists(kb_dir): return "目前没有任何知识库。"
+        if not os.path.exists(kb_dir):
+            return "目前没有任何知识库。"
         kbs = [d for d in os.listdir(kb_dir) if os.path.isdir(os.path.join(kb_dir, d))]
         return "现有知识库: " + ", ".join(kbs) if kbs else "目前没有任何知识库。"
 
-    return f"不支持的操作: {operation}。支持的操作: index_file, index_dir, query, list。"
+    return (
+        f"不支持的操作: {operation}。支持的操作: index_file, index_dir, query, list。"
+    )

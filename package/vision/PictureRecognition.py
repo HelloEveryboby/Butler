@@ -6,6 +6,7 @@ from package.network.image_search_tool import ImageSearchTool
 
 logger = LogManager.get_logger(__name__)
 
+
 def run(*args, **kwargs):
     logger.info("PictureRecognition tool started")
     # 创建 Tkinter 窗口
@@ -17,11 +18,15 @@ def run(*args, **kwargs):
     entry.pack()
 
     # 创建搜索按钮
-    search_button = tk.Button(window, text="搜索", command=lambda: search_image(entry, result_label))
+    search_button = tk.Button(
+        window, text="搜索", command=lambda: search_image(entry, result_label)
+    )
     search_button.pack()
 
     # 创建本地文件夹搜索按钮
-    local_search_button = tk.Button(window, text="搜索文件夹", command=lambda: search_folder(entry, result_label))
+    local_search_button = tk.Button(
+        window, text="搜索文件夹", command=lambda: search_folder(entry, result_label)
+    )
     local_search_button.pack()
 
     # 创建关闭按钮
@@ -33,7 +38,7 @@ def run(*args, **kwargs):
     result_label.pack()
 
     # 设置拖放功能
-    window.drop_target_register('DND_FILES')
+    window.drop_target_register("DND_FILES")
     window.dnd_bind("<<Drop>>", lambda event: drop(event, entry))
 
     # 添加按钮点击效果
@@ -51,14 +56,19 @@ def run(*args, **kwargs):
 
     # 为搜索按钮添加点击效果
     search_button.bind("<Button-1>", lambda event: on_button_click(search_button))
-    search_button.bind("<ButtonRelease-1>", lambda event: on_button_release(search_button))
+    search_button.bind(
+        "<ButtonRelease-1>", lambda event: on_button_release(search_button)
+    )
 
     # 为关闭按钮添加点击效果
     close_button.bind("<Button-1>", lambda event: on_button_click(close_button))
-    close_button.bind("<ButtonRelease-1>", lambda event: on_button_release(close_button))
+    close_button.bind(
+        "<ButtonRelease-1>", lambda event: on_button_release(close_button)
+    )
 
     # 运行窗口
     window.mainloop()
+
 
 def search_folder(entry, result_label):
     """
@@ -74,12 +84,16 @@ def search_folder(entry, result_label):
         if folder_path:
             tool = ImageSearchTool()
             found = tool.search_local_images(folder_path)
-            result_label.config(text=f"在文件夹中找到 {len(found)} 张图片:\n" + "\n".join([os.path.basename(f) for f in found[:10]]))
+            result_label.config(
+                text=f"在文件夹中找到 {len(found)} 张图片:\n"
+                + "\n".join([os.path.basename(f) for f in found[:10]])
+            )
         else:
             messagebox.showwarning("Warning", "Please select a directory.")
     except Exception as e:
         logger.error(f"Error searching folder: {e}")
         messagebox.showerror("Error", str(e))
+
 
 # 使用整合的图片搜索工具
 def search_image(entry, result_label):
@@ -103,7 +117,9 @@ def search_image(entry, result_label):
                 # 关键词搜图
                 images = tool.search_by_text(input_val)
                 if images:
-                    result_label.config(text=f"找到 {len(images)} 张图片:\n" + "\n".join(images[:5]))
+                    result_label.config(
+                        text=f"找到 {len(images)} 张图片:\n" + "\n".join(images[:5])
+                    )
                 else:
                     result_label.config(text="未找到相关图片")
         else:
@@ -112,6 +128,7 @@ def search_image(entry, result_label):
     except Exception as e:
         logger.error(f"An error occurred during image search: {e}", exc_info=True)
         messagebox.showerror("Error", f"An error occurred: {e}")
+
 
 # 处理拖放事件
 def drop(event, entry):

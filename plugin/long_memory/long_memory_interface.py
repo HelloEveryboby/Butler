@@ -20,7 +20,6 @@ class LongMemoryItem:
 
 
 class AbstractLongMemory(metaclass=ABCMeta):
-
     @abstractmethod
     def init(self, logger: logging.Logger):
         pass
@@ -30,7 +29,9 @@ class AbstractLongMemory(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def search(self, text: str, n_results: int, metadata_filter: dict) -> [LongMemoryItem]:
+    def search(
+        self, text: str, n_results: int, metadata_filter: dict
+    ) -> [LongMemoryItem]:
         pass
 
     @abstractmethod

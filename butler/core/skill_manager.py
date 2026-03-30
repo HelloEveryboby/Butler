@@ -7,12 +7,13 @@ from pathlib import Path
 
 logger = logging.getLogger("SkillManager")
 
+
 class SkillManager:
     def __init__(self, skills_dir="skills", lock_file="skills-lock.json"):
         self.skills_dir = skills_dir
         self.lock_file = lock_file
         self.loaded_skills = {}  # 格式: { "skill_id": handle_func }
-        self.manifests = {}      # 格式: { "skill_id": manifest_dict }
+        self.manifests = {}  # 格式: { "skill_id": manifest_dict }
 
         # Ensure project root is in sys.path
         project_root = str(Path(__file__).resolve().parent.parent.parent)
@@ -26,7 +27,7 @@ class SkillManager:
             return
 
         try:
-            with open(self.lock_file, 'r', encoding='utf-8') as f:
+            with open(self.lock_file, "r", encoding="utf-8") as f:
                 enabled_skills = json.load(f).get("enabled_skills", [])
         except Exception as e:
             logger.error(f"Failed to read {self.lock_file}: {e}")
@@ -43,7 +44,7 @@ class SkillManager:
                 # 加载元数据
                 m_path = os.path.join(self.skills_dir, skill_id, "manifest.json")
                 if os.path.exists(m_path):
-                    with open(m_path, 'r', encoding='utf-8') as mf:
+                    with open(m_path, "r", encoding="utf-8") as mf:
                         self.manifests[skill_id] = json.load(mf)
 
                 # 注册入口
@@ -67,6 +68,8 @@ class SkillManager:
         This can be improved with NLU.
         """
         for skill_id, manifest in self.manifests.items():
-            if manifest.get("name") in command or any(keyword in command for keyword in manifest.get("keywords", [])):
+            if manifest.get("name") in command or any(
+                keyword in command for keyword in manifest.get("keywords", [])
+            ):
                 return skill_id
         return None

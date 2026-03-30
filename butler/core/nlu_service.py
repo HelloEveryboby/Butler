@@ -1,8 +1,6 @@
-import os
 import json
 import requests
-import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from package.core_utils.log_manager import LogManager
 from package.core_utils.config_loader import config_loader
 from package.core_utils.quota_manager import quota_manager
@@ -10,13 +8,17 @@ from butler.core.habit_manager import habit_manager
 
 logger = LogManager.get_logger(__name__)
 
+
 class NLUService:
     def __init__(self, api_key: str, prompts: Dict[str, Any]):
         # Prefer the provided api_key (from .env or direct call), or fall back to centralized config
         self.api_key = api_key or config_loader.get("api.deepseek.key")
         self.prompts = prompts
         # Centralized endpoint with fallback
-        self.url = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
+        self.url = (
+            config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1")
+            + "/chat/completions"
+        )
 
     def _get_augmented_system_prompt(self, base_prompt_key: str) -> str:
         """Augments the system prompt with the current user habit profile."""
@@ -47,8 +49,16 @@ class NLUService:
         messages = [{"role": "system", "content": system_prompt}]
         if history:
             for item in history:
-                role = item.metadata.get('role', 'user') if hasattr(item, 'metadata') else item.get('role', 'user')
-                content = item.content if hasattr(item, 'content') else item.get('content', '')
+                role = (
+                    item.metadata.get("role", "user")
+                    if hasattr(item, "metadata")
+                    else item.get("role", "user")
+                )
+                content = (
+                    item.content
+                    if hasattr(item, "content")
+                    else item.get("content", "")
+                )
                 messages.append({"role": role, "content": content})
 
         messages.append({"role": "user", "content": text})
@@ -57,22 +67,25 @@ class NLUService:
             "model": "deepseek-chat",
             "messages": messages,
             "max_tokens": 512,
-            "temperature": 0
+            "temperature": 0,
         }
 
         try:
-            headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
             response = requests.post(self.url, headers=headers, json=payload)
             response.raise_for_status()
             resp_json = response.json()
 
             # Update quota based on tokens consumed
-            usage = resp_json.get('usage', {})
-            total_tokens = usage.get('total_tokens', 0)
+            usage = resp_json.get("usage", {})
+            total_tokens = usage.get("total_tokens", 0)
             if total_tokens > 0:
                 quota_manager.update_usage(total_tokens)
 
-            result_text = resp_json['choices'][0]['message']['content']
+            result_text = resp_json["choices"][0]["message"]["content"]
 
             if result_text.strip().startswith("```json"):
                 result_text = result_text.strip()[7:-4].strip()
@@ -92,40 +105,57 @@ class NLUService:
             "model": "deepseek-chat",
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": text}
+                {"role": "user", "content": text},
             ],
             "max_tokens": 150,
-            "temperature": 0.5
+            "temperature": 0.5,
         }
         try:
-            headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
             response = requests.post(self.url, headers=headers, json=payload)
             response.raise_for_status()
             resp_json = response.json()
 
             # Update quota
-            usage = resp_json.get('usage', {})
-            total_tokens = usage.get('total_tokens', 0)
+            usage = resp_json.get("usage", {})
+            total_tokens = usage.get("total_tokens", 0)
             if total_tokens > 0:
                 quota_manager.update_usage(total_tokens)
 
-            return resp_json['choices'][0]['message']['content']
+            return resp_json["choices"][0]["message"]["content"]
         except Exception as e:
             logger.error(f"General response generation failed: {e}")
             return "抱歉，我暂时无法回答这个问题。"
 
-    def ask_llm(self, prompt: str, history: List[Any] = None, use_habit: bool = True) -> str:
+    def ask_llm(
+        self, prompt: str, history: List[Any] = None, use_habit: bool = True
+    ) -> str:
         """通用 LLM 问答接口。"""
         if not quota_manager.check_quota():
             return "Error: API 额度已用尽。"
 
-        system_prompt = self._get_augmented_system_prompt("general_response") if use_habit else self.prompts.get("general_response", {}).get("prompt", "")
+        system_prompt = (
+            self._get_augmented_system_prompt("general_response")
+            if use_habit
+            else self.prompts.get("general_response", {}).get("prompt", "")
+        )
 
         messages = [{"role": "system", "content": system_prompt}]
         if history:
             for item in history:
-                role = item.metadata.get('role', 'user') if hasattr(item, 'metadata') else item.get('role', 'user')
-                content = item.content if hasattr(item, 'content') else item.get('content', '')
+                role = (
+                    item.metadata.get("role", "user")
+                    if hasattr(item, "metadata")
+                    else item.get("role", "user")
+                )
+                content = (
+                    item.content
+                    if hasattr(item, "content")
+                    else item.get("content", "")
+                )
                 messages.append({"role": role, "content": content})
 
         messages.append({"role": "user", "content": prompt})
@@ -134,22 +164,25 @@ class NLUService:
             "model": "deepseek-chat",
             "messages": messages,
             "max_tokens": 2048,
-            "temperature": 0.2
+            "temperature": 0.2,
         }
 
         try:
-            headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
             response = requests.post(self.url, headers=headers, json=payload)
             response.raise_for_status()
             resp_json = response.json()
 
             # Update quota
-            usage = resp_json.get('usage', {})
-            total_tokens = usage.get('total_tokens', 0)
+            usage = resp_json.get("usage", {})
+            total_tokens = usage.get("total_tokens", 0)
             if total_tokens > 0:
                 quota_manager.update_usage(total_tokens)
 
-            return resp_json['choices'][0]['message']['content']
+            return resp_json["choices"][0]["message"]["content"]
         except Exception as e:
             logger.error(f"ask_llm failed: {e}")
             return f"Error: {e}"

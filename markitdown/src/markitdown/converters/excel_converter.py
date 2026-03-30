@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 def convert_excel(file_path: str) -> str:
     """
     Converts an Excel file to Markdown.
@@ -13,6 +14,6 @@ def convert_excel(file_path: str) -> str:
             markdown_parts.append(f"## {sheet_name}\n")
             markdown_parts.append(df.to_markdown(index=False))
 
-        return '\n\n'.join(markdown_parts)
+        return "\n\n".join(markdown_parts)
     except Exception as e:
         return f"Error converting Excel file: {e}"

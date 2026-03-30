@@ -39,8 +39,6 @@ def merge_runs(input_dir: str) -> tuple[int, str]:
         return 0, f"Error: {e}"
 
 
-
-
 def _find_elements(root, tag: str) -> list:
     results = []
 
@@ -88,8 +86,6 @@ def _is_adjacent(elem1, elem2) -> bool:
     return False
 
 
-
-
 def _remove_elements(root, tag: str):
     for elem in _find_elements(root, tag):
         if elem.parentNode:
@@ -101,8 +97,6 @@ def _strip_run_rsid_attrs(root):
         for attr in list(run.attributes.values()):
             if "rsid" in attr.name.lower():
                 run.removeAttribute(attr.name)
-
-
 
 
 def _merge_runs_in(container) -> int:

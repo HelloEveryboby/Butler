@@ -2,10 +2,12 @@ import json
 import os
 from .task import Task
 
+
 class TaskManager:
     """
     负责处理所有任务数据的加载、保存和管理。
     """
+
     def __init__(self, data_file="tasks.json"):
         """
         初始化任务管理器。
@@ -21,7 +23,7 @@ class TaskManager:
         if not os.path.exists(self.data_file):
             return []
         try:
-            with open(self.data_file, 'r', encoding='utf-8') as f:
+            with open(self.data_file, "r", encoding="utf-8") as f:
                 tasks_data = json.load(f)
             return [Task.from_dict(data) for data in tasks_data]
         except (json.JSONDecodeError, IOError):
@@ -30,8 +32,10 @@ class TaskManager:
 
     def _save_tasks(self):
         """将所有任务数据保存到JSON文件中。"""
-        with open(self.data_file, 'w', encoding='utf-8') as f:
-            json.dump([task.to_dict() for task in self.tasks], f, indent=4, ensure_ascii=False)
+        with open(self.data_file, "w", encoding="utf-8") as f:
+            json.dump(
+                [task.to_dict() for task in self.tasks], f, indent=4, ensure_ascii=False
+            )
 
     def add_task(self, task, parent_id=None):
         """
@@ -58,6 +62,7 @@ class TaskManager:
         :param task_id: 要查找的任务的ID。
         :return: 找到的 Task 对象，或 None。
         """
+
         def search(tasks):
             for task in tasks:
                 if task.id == task_id:
@@ -66,6 +71,7 @@ class TaskManager:
                 if found:
                     return found
             return None
+
         return search(self.tasks)
 
     def update_task(self, task_id, title=None, description=None, status=None):
@@ -95,6 +101,7 @@ class TaskManager:
 
         :param task_id: 要删除的任务的ID。
         """
+
         def remove_from(tasks):
             for i, task in enumerate(tasks):
                 if task.id == task_id:

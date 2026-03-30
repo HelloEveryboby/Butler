@@ -85,9 +85,7 @@ class _BashSession:
                     await asyncio.sleep(self._output_delay)
                     # 如果我们直接从stdout/stderr读取，它将永远等待
                     # EOF.而是直接使用StreamReader缓冲区
-                    output = (
-                        self._process.stdout._buffer.decode()
-                    )  # pyright: ignore[reportAttributeAccessIssue]
+                    output = self._process.stdout._buffer.decode()  # pyright: ignore[reportAttributeAccessIssue]
                     if self._sentinel in output:
                         # 剥去哨兵的衣服打破
                         output = output[: output.index(self._sentinel)]
@@ -101,9 +99,7 @@ class _BashSession:
         if output.endswith("\n"):
             output = output[:-1]
 
-        error = (
-            self._process.stderr._buffer.decode()
-        )  # pyright: ignore[reportAttributeAccessIssue]
+        error = self._process.stderr._buffer.decode()  # pyright: ignore[reportAttributeAccessIssue]
         if error.endswith("\n"):
             error = error[:-1]
 

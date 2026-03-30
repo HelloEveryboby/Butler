@@ -4,8 +4,10 @@ import tempfile
 from typing import Optional
 
 # Use consistent project root resolution
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-markitdown_src = os.path.join(project_root, 'markitdown', 'src')
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+markitdown_src = os.path.join(project_root, "markitdown", "src")
 
 if markitdown_src not in sys.path:
     sys.path.insert(0, markitdown_src)
@@ -18,6 +20,7 @@ try:
 except ImportError as e:
     print(f"[-] 导入依赖失败: {e}")
     sys.exit(1)
+
 
 def run(file_path: Optional[str] = None):
     """
@@ -41,16 +44,23 @@ def run(file_path: Optional[str] = None):
         return
 
     # 2. Hybrid Analysis
-    executable_path = os.path.join(project_root, "programs", "hybrid_doc_processor", "processor")
+    executable_path = os.path.join(
+        project_root, "programs", "hybrid_doc_processor", "processor"
+    )
 
     # If binary doesn't exist, try to compile it (as a fallback/convenience)
     if not os.path.exists(executable_path):
-        source_path = os.path.join(project_root, "programs", "hybrid_doc_processor", "processor.cpp")
+        source_path = os.path.join(
+            project_root, "programs", "hybrid_doc_processor", "processor.cpp"
+        )
         if os.path.exists(source_path):
             print("[*] 正在编译混合编程模块...")
             import subprocess
+
             try:
-                subprocess.run(["g++", "-O3", source_path, "-o", executable_path], check=True)
+                subprocess.run(
+                    ["g++", "-O3", source_path, "-o", executable_path], check=True
+                )
             except subprocess.CalledProcessError as e:
                 print(f"[-] 编译失败: {e}")
             except FileNotFoundError:
@@ -59,7 +69,9 @@ def run(file_path: Optional[str] = None):
     if os.path.exists(executable_path):
         print("[*] 正在调用 C++ 模块进行高性能分析...")
         # Create a temp file for the markdown content
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False, encoding='utf-8') as tf:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as tf:
             tf.write(markdown_content)
             temp_md_path = tf.name
 
@@ -67,21 +79,21 @@ def run(file_path: Optional[str] = None):
             with HybridLinkClient(executable_path) as client:
                 analysis = client.call("analyze_file", {"file_path": temp_md_path})
 
-                print("\n" + "="*40)
+                print("\n" + "=" * 40)
                 print("         混合文档分析报告 (C++)")
-                print("="*40)
+                print("=" * 40)
 
                 if analysis and "error" not in analysis:
                     print(f"总词数: {analysis.get('word_count')}")
                     print(f"独立词数: {analysis.get('unique_words')}")
                     print(f"处理耗时: {analysis.get('processing_time_ms'):.2f} ms")
                     print("\n前 10 个高频词:")
-                    for kw in analysis.get('top_keywords', []):
+                    for kw in analysis.get("top_keywords", []):
                         print(f"  - {kw['word']}: {kw['count']}")
                 else:
-                    err_msg = analysis['error']['message'] if analysis else "未知错误"
+                    err_msg = analysis["error"]["message"] if analysis else "未知错误"
                     print(f"分析失败: {err_msg}")
-                print("="*40)
+                print("=" * 40)
         finally:
             if os.path.exists(temp_md_path):
                 os.remove(temp_md_path)
@@ -95,11 +107,12 @@ def run(file_path: Optional[str] = None):
     # Save output
     save_path = file_path + ".md"
     try:
-        with open(save_path, 'w', encoding='utf-8') as f:
+        with open(save_path, "w", encoding="utf-8") as f:
             f.write(markdown_content)
         print(f"\n[+] 结果已保存至: {save_path}")
     except Exception as e:
         print(f"[-] 无法保存结果: {e}")
+
 
 if __name__ == "__main__":
     target = sys.argv[1] if len(sys.argv) > 1 else None

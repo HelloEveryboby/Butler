@@ -1,16 +1,16 @@
 from datetime import datetime, timedelta
 from package.core_utils.log_manager import LogManager
-from abc import ABCMeta, abstractmethod
 from plugin.plugin_interface import AbstractPlugin, PluginResult
 
 logging = LogManager.get_logger(__name__)
+
 
 class CountdownPlugin(AbstractPlugin):
     def __init__(self):
         self.name = "倒计时"
         self.chinese_name = "倒计时插件程序"
         self.description = "执行倒计时功能，支持秒级设置"
-        self._is_running = False # 添加运行状态标志
+        self._is_running = False  # 添加运行状态标志
         self.parameters = {}
 
     def valid(self) -> bool:
@@ -52,12 +52,16 @@ class CountdownPlugin(AbstractPlugin):
 
         seconds = args.get("seconds")
         if not seconds:
-            return PluginResult.new("无效的参数", False, error_message="Missing 'seconds' argument")
+            return PluginResult.new(
+                "无效的参数", False, error_message="Missing 'seconds' argument"
+            )
 
         try:
             seconds = int(seconds)
         except ValueError:
-            return PluginResult.new("无效的参数", False, error_message="Invalid 'seconds' argument")
+            return PluginResult.new(
+                "无效的参数", False, error_message="Invalid 'seconds' argument"
+            )
 
         end_time = datetime.now() + timedelta(seconds=seconds)
         while datetime.now() < end_time:
