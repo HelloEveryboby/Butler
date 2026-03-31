@@ -1,14 +1,12 @@
-import io
 import numpy as np
 import cv2
-from PIL import Image
 from .lazy_import import lazy_import
 
 # 延迟导入可选包
 np = lazy_import("numpy")
 try:
     cv2 = lazy_import("cv2")
-except:
+except Exception:
     cv2 = None  # 修复协作错误
 PIL = lazy_import("PIL")
 pytesseract = lazy_import("pytesseract")
@@ -16,7 +14,7 @@ pytesseract = lazy_import("pytesseract")
 
 def pytesseract_get_text(img):
     # 列出pytesseract的属性，这将触发它的延迟加载
-    attributes = dir(pytesseract)
+    dir(pytesseract)
     if pytesseract == None:
         raise ImportError("pytesseract模块无法导入.")
 
@@ -104,9 +102,7 @@ def find_text_in_image(img, text, debug=False):
                 line_type,
             )
 
-        
         if text.lower() in d["text"][i].lower():
-        
             start_index = d["text"][i].lower().find(text.lower())
             start_percentage = start_index / len(d["text"][i])
             d["left"][i] = d["left"][i] + int(d["width"][i] * start_percentage)

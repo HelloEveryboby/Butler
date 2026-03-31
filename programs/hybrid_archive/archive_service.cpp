@@ -37,7 +37,6 @@ int archive_stream_replace(const char* archive_path,
 
     // 模拟原子更新过程
     // 1. 初始化 CRC32 校验
-    uint32_t current_crc = 0;
 
     // 2. 遍历并复制 (Pseudo-code for miniz interaction)
     /*

@@ -5,6 +5,7 @@ import time
 from bs4 import BeautifulSoup
 from package.core_utils.config_loader import config_loader
 
+
 def text_to_speech(text):
     # 配置 Baidu Speech 服务的 API Key 等
     try:
@@ -24,19 +25,25 @@ def text_to_speech(text):
     client = AipSpeech(app_id, api_key, secret_key)
 
     # 合成语音
-    result = client.synthesis(text, 'zh', 1, {
-        'vol': 5,
-        'per': 4, # 4 是常用女声
-    })
+    result = client.synthesis(
+        text,
+        "zh",
+        1,
+        {
+            "vol": 5,
+            "per": 4,  # 4 是常用女声
+        },
+    )
 
     # 检查合成结果并播放
     if not isinstance(result, dict):
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as f:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
             f.write(result)
             temp_file = f.name
 
         try:
             import pygame
+
             if not pygame.mixer.get_init():
                 pygame.mixer.init()
             pygame.mixer.music.load(temp_file)
@@ -54,15 +61,17 @@ def text_to_speech(text):
     else:
         print(f"语音合成失败: {result}")
 
+
 def extract_webpage_content(url):
     try:
         response = requests.get(url)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(response.text, "html.parser")
         content = soup.get_text()  # 提取网页上的所有文本
         return content
     except Exception as e:
         print(f"无法获取网页内容: {e}")
         return ""
+
 
 def read_text_from_file(file_path):
     try:
@@ -72,22 +81,23 @@ def read_text_from_file(file_path):
         print(f"无法读取文档: {e}")
         return ""
 
+
 if __name__ == "__main__":
     choice = input("输入 '1' 来阅读网页，或输入 '2' 来阅读文本文档: ")
 
-    if choice == '1':
+    if choice == "1":
         url = input("请输入网页的URL: ")
         webpage_text = extract_webpage_content(url)
         if webpage_text:
             print("网页内容：", webpage_text)
             text_to_speech(webpage_text)
-    
-    elif choice == '2':
+
+    elif choice == "2":
         file_path = input("请输入文本文档的路径: ")
         document_text = read_text_from_file(file_path)
         if document_text:
             print("文档内容：", document_text)
             text_to_speech(document_text)
-    
+
     else:
         print("无效选择，请输入 '1' 或 '2'")

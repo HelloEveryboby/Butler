@@ -7,6 +7,7 @@ from butler.data_storage import DataStorageManager
 from package.core_utils.log_manager import LogManager
 from butler.core.hybrid_link import HybridLinkClient
 
+
 class PluginResult:
     def __init__(self):
         # Result content, mainly for AI reference
@@ -27,10 +28,18 @@ class PluginResult:
         self.additional_data = {}
         # Timestamp of completion
         self.timestamp = datetime.now()
-        
+
     @staticmethod
-    def new(result: Any, need_call_brain: bool = False, success: bool = True, error_message: str = None,
-            execution_time: float = None, metadata: dict = None, status: str = None, additional_data: dict = None):
+    def new(
+        result: Any,
+        need_call_brain: bool = False,
+        success: bool = True,
+        error_message: str = None,
+        execution_time: float = None,
+        metadata: dict = None,
+        status: str = None,
+        additional_data: dict = None,
+    ):
         r = PluginResult()
         r.result = result
         r.need_call_brain = need_call_brain
@@ -42,7 +51,7 @@ class PluginResult:
         r.additional_data = additional_data if additional_data else {}
         r.timestamp = datetime.now()
         return r
-        
+
     def is_success(self):
         return self.success
 
@@ -56,9 +65,12 @@ class PluginResult:
         return self.metadata.get(key)
 
     def __str__(self):
-        return (f"PluginResult(result={self.result}, need_call_brain={self.need_call_brain}, "
-                f"success={self.success}, error_message={self.error_message}, execution_time={self.execution_time}, "
-                f"metadata={self.metadata}, status={self.status}, additional_data={self.additional_data})")
+        return (
+            f"PluginResult(result={self.result}, need_call_brain={self.need_call_brain}, "
+            f"success={self.success}, error_message={self.error_message}, execution_time={self.execution_time}, "
+            f"metadata={self.metadata}, status={self.status}, additional_data={self.additional_data})"
+        )
+
 
 class AbstractPlugin(metaclass=ABCMeta):
     def __init__(self):
@@ -88,27 +100,38 @@ class AbstractPlugin(metaclass=ABCMeta):
 
         try:
             import json
-            with open(manifest_path, 'r', encoding='utf-8') as f:
+
+            with open(manifest_path, "r", encoding="utf-8") as f:
                 manifest = json.load(f)
 
             executable_rel_path = manifest.get("executable")
             if not executable_rel_path:
-                self.logger.error(f"No executable specified in manifest for module: {module_name}")
+                self.logger.error(
+                    f"No executable specified in manifest for module: {module_name}"
+                )
                 return None
 
-            executable_path = os.path.join(root_dir, "programs", module_name, executable_rel_path)
+            executable_path = os.path.join(
+                root_dir, "programs", module_name, executable_rel_path
+            )
 
             # Auto-build if executable is missing
             if not os.path.exists(executable_path):
-                self.logger.info(f"Executable not found for {module_name}. Attempting to build...")
+                self.logger.info(
+                    f"Executable not found for {module_name}. Attempting to build..."
+                )
                 self._build_native_module(module_name, root_dir)
 
             if os.path.exists(executable_path):
-                client = HybridLinkClient(executable_path, cwd=os.path.dirname(executable_path))
+                client = HybridLinkClient(
+                    executable_path, cwd=os.path.dirname(executable_path)
+                )
                 self._hybrid_clients[module_name] = client
                 return client
             else:
-                self.logger.error(f"Failed to resolve executable for module: {module_name}")
+                self.logger.error(
+                    f"Failed to resolve executable for module: {module_name}"
+                )
                 return None
         except Exception as e:
             self.logger.error(f"Error loading hybrid client for {module_name}: {e}")
@@ -120,6 +143,7 @@ class AbstractPlugin(metaclass=ABCMeta):
         build_sh = os.path.join(module_dir, "build.sh")
 
         import subprocess
+
         if os.path.exists(build_sh):
             try:
                 self.logger.info(f"Running build.sh for {module_name}...")
@@ -131,11 +155,14 @@ class AbstractPlugin(metaclass=ABCMeta):
             manifest_path = os.path.join(module_dir, "manifest.json")
             try:
                 import json
-                with open(manifest_path, 'r', encoding='utf-8') as f:
+
+                with open(manifest_path, "r", encoding="utf-8") as f:
                     manifest = json.load(f)
                 build_cmd = manifest.get("build")
                 if build_cmd:
-                    self.logger.info(f"Running build command for {module_name}: {build_cmd}")
+                    self.logger.info(
+                        f"Running build command for {module_name}: {build_cmd}"
+                    )
                     subprocess.run(build_cmd, shell=True, check=True, cwd=module_dir)
             except Exception as e:
                 self.logger.error(f"Manifest build failed for {module_name}: {e}")
@@ -186,7 +213,7 @@ class AbstractPlugin(metaclass=ABCMeta):
     def on_resume(self):
         """Called when the plugin is resumed."""
         pass
-        
+
     @abstractmethod
     def run(self, command: str, args: dict) -> PluginResult:
         """Main execution entry point for the plugin."""
@@ -210,4 +237,4 @@ class AbstractPlugin(metaclass=ABCMeta):
 
     def get_match_type(self) -> str:
         """Returns the match type for the commands: 'exact', 'prefix', or 'contains'."""
-        return 'contains'
+        return "contains"

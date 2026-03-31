@@ -29,16 +29,36 @@ async def run(
     # Security Hardening: Prefer create_subprocess_exec for simple commands to avoid shell injection
     try:
         command_parts = shlex.split(cmd)
-        shell_chars = {'|', '&', ';', '<', '>', '$', '*', '?', '(', ')', '[', ']', '!', '#', '~'}
+        shell_chars = {
+            "|",
+            "&",
+            ";",
+            "<",
+            ">",
+            "$",
+            "*",
+            "?",
+            "(",
+            ")",
+            "[",
+            "]",
+            "!",
+            "#",
+            "~",
+        }
         has_shell_meta = any(char in cmd for char in shell_chars)
 
         if command_parts and not has_shell_meta:
             logger.info(f"Executing secure command (no shell): {command_parts}")
             process = await asyncio.create_subprocess_exec(
-                *command_parts, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                *command_parts,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
         else:
-            logger.warning(f"Executing command with shell (meta-characters detected): {cmd}")
+            logger.warning(
+                f"Executing command with shell (meta-characters detected): {cmd}"
+            )
             process = await asyncio.create_subprocess_shell(
                 cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )

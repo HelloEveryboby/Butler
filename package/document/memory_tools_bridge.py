@@ -3,11 +3,14 @@ import sys
 import json
 
 # Add project root to sys.path
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from package.document.memory_tools import memory_tools
+
 
 def run(intent=None, entities=None, **kwargs):
     """
@@ -35,6 +38,7 @@ def run(intent=None, entities=None, **kwargs):
         return "Please provide content to record."
 
     return "Unknown memory operation."
+
 
 if __name__ == "__main__":
     # For testing

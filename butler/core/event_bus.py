@@ -4,8 +4,10 @@ import threading
 
 logger = logging.getLogger(__name__)
 
+
 class EventBus:
     """A simple internal pub/sub system for decoupling Jarvis components."""
+
     def __init__(self):
         self._subscribers = collections.defaultdict(list)
         self._lock = threading.Lock()
@@ -34,7 +36,10 @@ class EventBus:
             try:
                 callback(*args, **kwargs)
             except Exception as e:
-                logger.error(f"Error in callback {callback} for event {event_type}: {e}")
+                logger.error(
+                    f"Error in callback {callback} for event {event_type}: {e}"
+                )
+
 
 # Global instance
 event_bus = EventBus()

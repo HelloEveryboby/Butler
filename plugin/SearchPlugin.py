@@ -2,6 +2,7 @@ import urllib.parse
 from package.core_utils.log_manager import LogManager
 from plugin.plugin_interface import AbstractPlugin, PluginResult
 
+
 class SearchPlugin(AbstractPlugin):
     def __init__(self):
         self.name = "SearchPlugin"
@@ -45,9 +46,15 @@ class SearchPlugin(AbstractPlugin):
 
     def run(self, takecommand: str, args: dict) -> PluginResult:
         from butler.butler_app import Jarvis
+
         query = args.get("query")
         if not query:
-            return PluginResult.new(result=None, need_call_brain=False, success=False, error_message="缺少查询参数")
+            return PluginResult.new(
+                result=None,
+                need_call_brain=False,
+                success=False,
+                error_message="缺少查询参数",
+            )
 
         # 根据命令选择搜索引擎
         if "百度" in takecommand:
@@ -61,14 +68,27 @@ class SearchPlugin(AbstractPlugin):
         elif "抖音" in takecommand:
             url = f"https://www.douyin.com/search/{urllib.parse.quote(query)}"
         else:
-            return PluginResult.new(result=None, need_call_brain=False, success=False, error_message="无法识别的搜索引擎")
+            return PluginResult.new(
+                result=None,
+                need_call_brain=False,
+                success=False,
+                error_message="无法识别的搜索引擎",
+            )
 
         try:
             # 在默认浏览器中打开URL
             import webbrowser
+
             webbrowser.open(url)
             Jarvis(None).speak(f"正在为您搜索 {query}")
-            return PluginResult.new(result=f"在浏览器中打开 {url}", need_call_brain=False, success=True)
+            return PluginResult.new(
+                result=f"在浏览器中打开 {url}", need_call_brain=False, success=True
+            )
         except Exception as e:
             self.logger.error(f"打开浏览器失败: {e}")
-            return PluginResult.new(result=None, need_call_brain=False, success=False, error_message=f"打开浏览器失败: {e}")
+            return PluginResult.new(
+                result=None,
+                need_call_brain=False,
+                success=False,
+                error_message=f"打开浏览器失败: {e}",
+            )

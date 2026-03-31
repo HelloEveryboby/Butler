@@ -36,7 +36,7 @@ setup(
         "twisted>=24.7.0rc1",
         "baidu-aip",
         "numpy",
-        "scipy"
+        "scipy",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -45,9 +45,9 @@ setup(
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
         "Topic :: Home Automation",
-        "Topic :: Multimedia :: Sound/Audio :: Speech"
+        "Topic :: Multimedia :: Sound/Audio :: Speech",
     ],
-    python_requires='>=3.8',
+    python_requires=">=3.8",
     license="MIT",
     keywords="voice assistant, AI, home automation, Python",
     project_urls={
@@ -56,14 +56,10 @@ setup(
         "Tracker": "https://github.com/PAYDAY3/Butler/issues",
     },
     entry_points={
-        'console_scripts': [
-            'butler=butler.butler_app:main',
+        "console_scripts": [
+            "butler=butler.butler_app:main",
         ],
     },
     include_package_data=True,
-    package_data={
-        'butler': [
-            'resources/*.wav'
-        ]
-    }
+    package_data={"butler": ["resources/*.wav"]},
 )

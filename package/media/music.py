@@ -1,11 +1,16 @@
 import os
 import json
+
 try:
     from playsound import playsound
 except ImportError:
+
     def playsound(path):
         print(f"[模拟播放] {path}")
+
+
 MUSIC_LIBRARY_FILE = "music_library.json"
+
 
 # 音乐播放器函数
 def music_player():
@@ -29,7 +34,7 @@ def music_player():
         search_path = os.getcwd()
         for root, _, files in os.walk(search_path):
             for file in files:
-                if file.endswith(('.mp3', '.wav', '.ogg')):
+                if file.endswith((".mp3", ".wav", ".ogg")):
                     music_library.append(os.path.join(root, file))
 
     # 加载音乐库，如果文件不存在则构建
@@ -70,11 +75,13 @@ def music_player():
                 play_music(index)
                 return
         print("未找到匹配的歌曲。")
-        
+
     def text_input_control():
         global current_song_index
         while True:
-            user_input = input("请输入命令 (播放, 下一首, 上一首, 搜索 <关键词>, 播放列表, 退出): ").strip()
+            user_input = input(
+                "请输入命令 (播放, 下一首, 上一首, 搜索 <关键词>, 播放列表, 退出): "
+            ).strip()
             if user_input:
                 if "播放" in user_input:
                     play_music(current_song_index)
@@ -100,7 +107,7 @@ def music_player():
                 # 模拟语音输入，因为 jarvis.jarvis.takecommand 不存在
                 print("语音输入模式暂不可用，请使用文字模式。")
                 return
-                command = None # takecommand()
+                command = None  # takecommand()
                 if command:
                     if "播放" in command:
                         play_music(current_song_index)
@@ -123,7 +130,7 @@ def music_player():
                         print("未知命令，请重新输入。")
             except Exception as e:
                 print(f"发生错误: {e}")
-                
+
     # 初始设置
     use_voice_input = True
 
@@ -145,11 +152,13 @@ def music_player():
         else:
             print("未知命令，请重新输入。")
 
+
 def run(*args, **kwargs):
     """
     运行音乐播放器插件。
     """
     music_player()
+
 
 if __name__ == "__main__":
     music_player()

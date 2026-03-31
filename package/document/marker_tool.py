@@ -17,7 +17,6 @@ Marker-Lite 工具: 快速且准确地将文档转换为 Markdown、JSON、区�
 import os
 import re
 import json
-import base64
 import argparse
 from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
@@ -32,16 +31,17 @@ from ebooklib import epub
 import ebooklib
 from PIL import Image
 import requests
-from dotenv import load_dotenv
 
 try:
     import pytesseract
+
     PYTESSERACT_AVAILABLE = True
 except ImportError:
     PYTESSERACT_AVAILABLE = False
 
 try:
     from aip import AipOcr
+
     BAIDU_OCR_AVAILABLE = True
 except ImportError:
     BAIDU_OCR_AVAILABLE = False
@@ -51,13 +51,17 @@ from package.core_utils.config_loader import config_loader
 
 logger = LogManager.get_logger(__name__)
 
+
 class MarkerTool:
     """
     一个轻量级的 Marker 实现，使用 DeepSeek API 进行后端增强。
     """
+
     def __init__(self, api_key: Optional[str] = None, base_url: str = None):
         self.api_key = api_key or config_loader.get("api.deepseek.key")
-        self.base_url = base_url or config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com")
+        self.base_url = base_url or config_loader.get(
+            "api.deepseek.endpoint", "https://api.deepseek.com"
+        )
         self._init_baidu_ocr()
 
     def _init_baidu_ocr(self):
@@ -76,29 +80,39 @@ class MarkerTool:
         self.image_dir = self.output_dir / "images"
         self.image_dir.mkdir(exist_ok=True)
 
-    def _get_deepseek_response(self, prompt: str, system_prompt: str = "You are a professional document converter.", json_mode: bool = False) -> str:
+    def _get_deepseek_response(
+        self,
+        prompt: str,
+        system_prompt: str = "You are a professional document converter.",
+        json_mode: bool = False,
+    ) -> str:
         if not self.api_key:
             return "Error: DeepSeek API Key not found in config or env."
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
         payload = {
             "model": "deepseek-chat",
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ],
-            "temperature": 0.1
+            "temperature": 0.1,
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
 
         try:
-            response = requests.post(f"{self.base_url}/v1/chat/completions", headers=headers, json=payload, timeout=120)
+            response = requests.post(
+                f"{self.base_url}/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=120,
+            )
             response.raise_for_status()
-            return response.json()['choices'][0]['message']['content']
+            return response.json()["choices"][0]["message"]["content"]
         except Exception as e:
             logger.error(f"DeepSeek API error: {e}")
             return f"Error: {e}"
@@ -112,19 +126,21 @@ class MarkerTool:
             for i, page in enumerate(pdf.pages):
                 # 提取文本
                 text = page.extract_text() or ""
-                raw_content.append(f"--- Page {i+1} ---\n{text}")
+                raw_content.append(f"--- Page {i + 1} ---\n{text}")
 
                 # 提取图像
                 for j, img in enumerate(page.images):
                     try:
                         # 简单的图像保存逻辑
-                        img_obj = page.within_bbox((img["x0"], img["top"], img["x1"], img["bottom"])).to_image()
-                        img_name = f"page_{i+1}_img_{j+1}.png"
+                        img_obj = page.within_bbox(
+                            (img["x0"], img["top"], img["x1"], img["bottom"])
+                        ).to_image()
+                        img_name = f"page_{i + 1}_img_{j + 1}.png"
                         img_path = self.image_dir / img_name
                         img_obj.save(img_path)
                         images.append(str(img_path))
                     except Exception as e:
-                        logger.warning(f"Failed to extract image on page {i+1}: {e}")
+                        logger.warning(f"Failed to extract image on page {i + 1}: {e}")
 
         return {"text": "\n\n".join(raw_content), "images": images}
 
@@ -137,7 +153,7 @@ class MarkerTool:
         try:
             for rel in doc.part.rels.values():
                 if "image" in rel.target_ref:
-                    img_name = f"docx_img_{len(images)+1}.png"
+                    img_name = f"docx_img_{len(images) + 1}.png"
                     img_path = self.image_dir / img_name
                     with open(img_path, "wb") as f:
                         f.write(rel.target_part.blob)
@@ -165,32 +181,41 @@ class MarkerTool:
         text = []
         for item in book.get_items():
             if item.get_type() == ebooklib.ITEM_DOCUMENT:
-                soup = BeautifulSoup(item.get_content(), 'html.parser')
+                soup = BeautifulSoup(item.get_content(), "html.parser")
                 text.append(soup.get_text())
         return {"text": "\n".join(text), "images": []}
 
     def split_into_chunks(self, text: str, max_chunk_size: int = 1000) -> List[str]:
         """简单的语义块切分逻辑"""
         # 优先按二级标题切分
-        sections = re.split(r'\n(?=## )', text)
+        sections = re.split(r"\n(?=## )", text)
         chunks = []
         for section in sections:
             if len(section) > max_chunk_size:
                 # 如果依然过大，按段落切分
-                paragraphs = section.split('\n\n')
+                paragraphs = section.split("\n\n")
                 current_chunk = ""
                 for p in paragraphs:
                     if len(current_chunk) + len(p) < max_chunk_size:
                         current_chunk += p + "\n\n"
                     else:
-                        if current_chunk: chunks.append(current_chunk.strip())
+                        if current_chunk:
+                            chunks.append(current_chunk.strip())
                         current_chunk = p + "\n\n"
-                if current_chunk: chunks.append(current_chunk.strip())
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
             else:
                 chunks.append(section.strip())
         return chunks
 
-    def convert(self, file_path: str, output_format: str = "markdown", json_schema: Optional[Dict] = None, custom_prompt: Optional[str] = None, skip_confirmation: bool = True) -> Union[str, List[str], Dict]:
+    def convert(
+        self,
+        file_path: str,
+        output_format: str = "markdown",
+        json_schema: Optional[Dict] = None,
+        custom_prompt: Optional[str] = None,
+        skip_confirmation: bool = True,
+    ) -> Union[str, List[str], Dict]:
         """
         skip_confirmation defaults to True here because we move the confirmation logic
         to the intent handler to avoid blocking background threads.
@@ -199,29 +224,29 @@ class MarkerTool:
         logger.info(f"Converting {file_path} to {output_format}")
 
         # 1. 本地提取
-        if ext == '.pdf':
+        if ext == ".pdf":
             extracted = self.extract_pdf(file_path)
-        elif ext == '.docx':
+        elif ext == ".docx":
             extracted = self.extract_docx(file_path)
-        elif ext == '.pptx':
+        elif ext == ".pptx":
             extracted = self.extract_pptx(file_path)
-        elif ext in ['.xlsx', '.xls']:
+        elif ext in [".xlsx", ".xls"]:
             extracted = self.extract_xlsx(file_path)
-        elif ext == '.epub':
+        elif ext == ".epub":
             extracted = self.extract_epub(file_path)
-        elif ext in ['.html', '.htm']:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                soup = BeautifulSoup(f.read(), 'html.parser')
+        elif ext in [".html", ".htm"]:
+            with open(file_path, "r", encoding="utf-8") as f:
+                soup = BeautifulSoup(f.read(), "html.parser")
                 extracted = {"text": soup.get_text(), "images": []}
-        elif ext == '.txt':
-            with open(file_path, 'r', encoding='utf-8') as f:
+        elif ext == ".txt":
+            with open(file_path, "r", encoding="utf-8") as f:
                 extracted = {"text": f.read(), "images": []}
-        elif ext in ['.png', '.jpg', '.jpeg']:
+        elif ext in [".png", ".jpg", ".jpeg"]:
             text = ""
             # Priority 1: Baidu OCR (Online, accurate)
             if self.baidu_ocr:
                 try:
-                    with open(file_path, 'rb') as f:
+                    with open(file_path, "rb") as f:
                         image = f.read()
                     res = self.baidu_ocr.basicGeneral(image)
                     if "words_result" in res:
@@ -234,7 +259,9 @@ class MarkerTool:
             # Priority 2: Tesseract (Offline)
             if not text and PYTESSERACT_AVAILABLE:
                 try:
-                    text = pytesseract.image_to_string(Image.open(file_path), lang='chi_sim+eng')
+                    text = pytesseract.image_to_string(
+                        Image.open(file_path), lang="chi_sim+eng"
+                    )
                 except Exception as e:
                     logger.warning(f"Tesseract OCR failed: {e}")
 
@@ -251,13 +278,13 @@ class MarkerTool:
         if not skip_confirmation:
             # Note: This blocking input is discouraged in background threads.
             # It's kept for CLI direct usage, but intent handlers should pass skip_confirmation=True.
-            print(f"\n--- 预解析完成 ---")
+            print("\n--- 预解析完成 ---")
             print(f"文件: {file_path}")
             print(f"提取文本长度: {len(raw_text)} 字符")
             print(f"提取图像数量: {len(extracted.get('images', []))}")
             try:
                 confirm = input("是否继续调用 DeepSeek API 进行精准转换/提取? (y/n): ")
-                if confirm.lower() != 'y':
+                if confirm.lower() != "y":
                     return "用户取消转换。"
             except EOFError:
                 logger.warning("Standard input not available for confirmation.")
@@ -293,6 +320,7 @@ class MarkerTool:
 
         return converted_text
 
+
 def run(*args, **kwargs):
     """Extension Manager entry point."""
     tool = MarkerTool()
@@ -300,8 +328,16 @@ def run(*args, **kwargs):
     # CLI Argument Parsing
     parser = argparse.ArgumentParser(description="Marker-Lite Document Converter")
     parser.add_argument("file", help="Path to the document")
-    parser.add_argument("-f", "--format", default="markdown", choices=["markdown", "json", "html", "chunks"], help="Output format")
-    parser.add_argument("-s", "--schema", help="Path to JSON schema file for structured extraction")
+    parser.add_argument(
+        "-f",
+        "--format",
+        default="markdown",
+        choices=["markdown", "json", "html", "chunks"],
+        help="Output format",
+    )
+    parser.add_argument(
+        "-s", "--schema", help="Path to JSON schema file for structured extraction"
+    )
     parser.add_argument("-p", "--prompt", help="Custom prompt for conversion")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
 
@@ -312,15 +348,17 @@ def run(*args, **kwargs):
         # Fallback if called with kwargs or other means
         file_path = kwargs.get("file")
         if not file_path:
-             print("Error: No file path provided.")
-             return
+            print("Error: No file path provided.")
+            return
         tool_format = kwargs.get("format", "markdown")
         schema_path = kwargs.get("schema")
         prompt_text = kwargs.get("prompt")
         skip_confirm = kwargs.get("yes", False)
 
         # Mocking parser namespace for consistency
-        class Args: pass
+        class Args:
+            pass
+
         parsed_args = Args()
         parsed_args.file = file_path
         parsed_args.format = tool_format
@@ -334,12 +372,20 @@ def run(*args, **kwargs):
 
     schema = None
     if parsed_args.schema and os.path.exists(parsed_args.schema):
-        with open(parsed_args.schema, 'r', encoding='utf-8') as f:
+        with open(parsed_args.schema, "r", encoding="utf-8") as f:
             schema = json.load(f)
 
-    result = tool.convert(parsed_args.file, parsed_args.format, schema, parsed_args.prompt, parsed_args.yes)
+    result = tool.convert(
+        parsed_args.file,
+        parsed_args.format,
+        schema,
+        parsed_args.prompt,
+        parsed_args.yes,
+    )
     print(result)
+
 
 if __name__ == "__main__":
     import sys
+
     run(sys.argv[1:])

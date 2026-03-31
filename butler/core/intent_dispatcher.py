@@ -6,24 +6,32 @@ from . import algorithms
 
 logger = logging.getLogger(__name__)
 
+
 class IntentRegistry:
     """用于动态发现和调度意图处理程序的注册表。"""
+
     def __init__(self):
         self._intents = {}
 
     def register(self, intent_name, requires_entities=True):
         """用于将函数注册为意图处理程序的装饰器。"""
+
         def decorator(func):
-            logger.info(f"Registering intent '{intent_name}' to function {func.__name__}")
+            logger.info(
+                f"Registering intent '{intent_name}' to function {func.__name__}"
+            )
             self._intents[intent_name] = {
                 "function": func,
                 "docstring": func.__doc__,
-                "requires_entities": requires_entities
+                "requires_entities": requires_entities,
             }
+
             @wraps(func)
             def wrapper(*args, **kwargs):
                 return func(*args, **kwargs)
+
             return wrapper
+
         return decorator
 
     def dispatch(self, intent_name, **kwargs):
@@ -85,11 +93,16 @@ class IntentRegistry:
                 best_match = intent_name
 
         if highest_similarity >= threshold:
-            logger.info(f"Local match found for '{command}': '{best_match}' with similarity {highest_similarity:.2f}")
+            logger.info(
+                f"Local match found for '{command}': '{best_match}' with similarity {highest_similarity:.2f}"
+            )
             return best_match
         else:
-            logger.info(f"No local match found for '{command}' above threshold {threshold}. Highest similarity was {highest_similarity:.2f} for '{best_match}'.")
+            logger.info(
+                f"No local match found for '{command}' above threshold {threshold}. Highest similarity was {highest_similarity:.2f} for '{best_match}'."
+            )
             return None
+
 
 # A single, global instance of the registry
 intent_registry = IntentRegistry()

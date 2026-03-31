@@ -1,15 +1,15 @@
-import os
-import json
 from package.core_utils.log_manager import LogManager
 from package.core_utils.config_loader import config_loader
 
 logger = LogManager.get_logger(__name__)
+
 
 class QuotaManager:
     """
     API Token 额度管理器 (基于金额/Token 消耗)。
     负责监控、记录和拦截超出的 API 消耗。
     """
+
     _instance = None
 
     def __new__(cls):
@@ -50,26 +50,16 @@ class QuotaManager:
         new_consumed = current_consumed + cost
 
         # 更新配置
-        config_loader.save({
-            "api": {
-                "quota": {
-                    "consumed": new_consumed
-                }
-            }
-        })
+        config_loader.save({"api": {"quota": {"consumed": new_consumed}}})
 
         self.consumed = new_consumed
-        logger.info(f"API 余额更新: 已用 {new_consumed:.4f} 元 / 限额 {self.limit:.2f} 元 (本次消耗 {tokens} tokens, 约 {cost:.6f} 元)")
+        logger.info(
+            f"API 余额更新: 已用 {new_consumed:.4f} 元 / 限额 {self.limit:.2f} 元 (本次消耗 {tokens} tokens, 约 {cost:.6f} 元)"
+        )
 
     def reset_usage(self):
         """重置已消耗金额。"""
-        config_loader.save({
-            "api": {
-                "quota": {
-                    "consumed": 0.0
-                }
-            }
-        })
+        config_loader.save({"api": {"quota": {"consumed": 0.0}}})
 
         self.consumed = 0.0
         logger.info("API 消耗额度已重置。")
@@ -83,11 +73,14 @@ class QuotaManager:
             "limit": self.limit,
             "consumed": round(self.consumed, 4),
             "remaining": round(max(0, self.limit - self.consumed), 4),
-            "percent": round((self.consumed / self.limit * 100), 2) if self.limit > 0 else 100.0,
+            "percent": round((self.consumed / self.limit * 100), 2)
+            if self.limit > 0
+            else 100.0,
             "exceeded": self.consumed >= self.limit,
             "unit": "RMB",
-            "halt_system": self.halt_system
+            "halt_system": self.halt_system,
         }
+
 
 # 单例实例
 quota_manager = QuotaManager()

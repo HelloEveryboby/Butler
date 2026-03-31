@@ -8,6 +8,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 
+
 # 1. Sorting Algorithms
 def _insertion_sort(arr, low, high, pbar=None):
     """
@@ -28,6 +29,7 @@ def _insertion_sort(arr, low, high, pbar=None):
         arr[j + 1] = key
         if pbar:
             pbar.update(1)
+
 
 def _partition(arr, low, high, pbar=None):
     """
@@ -69,6 +71,7 @@ def _partition(arr, low, high, pbar=None):
         pbar.update(1)
     return i
 
+
 def _introsort_util(arr, low, high, depth_limit, pbar=None):
     """
     内省排序的核心递归工具。对于小分区，切换到插入排序。
@@ -80,7 +83,7 @@ def _introsort_util(arr, low, high, depth_limit, pbar=None):
         depth_limit (int): 递归深度限制，以防止最坏情况下的快速排序性能。
         pbar (tqdm, optional): 进度条实例。
     """
-    while high - low > 16: # 切换到插入排序的阈值
+    while high - low > 16:  # 切换到插入排序的阈值
         if depth_limit == 0:
             # 如果递归深度太高，切换到堆排序
             _heap_sort_range(arr, low, high, pbar)
@@ -91,6 +94,7 @@ def _introsort_util(arr, low, high, depth_limit, pbar=None):
         high = pivot_index - 1
 
     _insertion_sort(arr, low, high, pbar)
+
 
 def quick_sort(arr, use_progress_bar=False):
     """
@@ -105,6 +109,7 @@ def quick_sort(arr, use_progress_bar=False):
         list: 包含已排序元素的新列表。
     """
     import math
+
     if not arr:
         return arr
     # Create a mutable copy to sort in-place
@@ -118,6 +123,7 @@ def quick_sort(arr, use_progress_bar=False):
         _introsort_util(arr_copy, 0, len(arr_copy) - 1, depth_limit)
 
     return arr_copy
+
 
 def merge_sort(arr):
     """
@@ -140,6 +146,7 @@ def merge_sort(arr):
     right = merge_sort(right)
 
     return _merge(left, right)
+
 
 def _merge(left, right):
     """
@@ -166,6 +173,7 @@ def _merge(left, right):
     result.extend(left[i:])
     result.extend(right[j:])
     return result
+
 
 def _heapify(arr, n, i, low, pbar=None):
     """
@@ -196,6 +204,7 @@ def _heapify(arr, n, i, low, pbar=None):
         # 对根节点进行堆化。
         _heapify(arr, n, largest, low, pbar)
 
+
 def _heap_sort_range(arr, low, high, pbar=None):
     """
     内省排序的内部辅助函数。使用堆排序对数组的子切片进行排序。
@@ -214,6 +223,7 @@ def _heap_sort_range(arr, low, high, pbar=None):
             pbar.update(1)
         # 对缩小的堆调用 max _heapify
         _heapify(arr, i, 0, low, pbar)
+
 
 def heap_sort(arr, use_progress_bar=False):
     """
@@ -242,6 +252,7 @@ def heap_sort(arr, use_progress_bar=False):
 
     return arr_copy
 
+
 # 2. Searching Algorithm
 def binary_search(arr, target):
     """
@@ -269,6 +280,7 @@ def binary_search(arr, target):
 
     return -1
 
+
 # 3. Pathfinding Algorithm
 def a_star(graph, start, goal, heuristic, use_progress_bar=False):
     """
@@ -288,10 +300,10 @@ def a_star(graph, start, goal, heuristic, use_progress_bar=False):
     open_set = [(0, start)]
     came_from = {}
 
-    g_score = {node: float('infinity') for node in graph}
+    g_score = {node: float("infinity") for node in graph}
     g_score[start] = 0
 
-    f_score = {node: float('infinity') for node in graph}
+    f_score = {node: float("infinity") for node in graph}
     f_score[start] = heuristic(start, goal)
 
     pbar = None
@@ -323,10 +335,11 @@ def a_star(graph, start, goal, heuristic, use_progress_bar=False):
                     if neighbor not in [i[1] for i in open_set]:
                         heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
-        return None # Path not found
+        return None  # Path not found
     finally:
         if pbar:
             pbar.close()
+
 
 def dijkstra(graph, start_node):
     """
@@ -344,7 +357,7 @@ def dijkstra(graph, start_node):
                - predecessors (dict): 将每个节点映射到其在最短路径中的前驱节点的字典。
     """
     # 将所有节点的距离初始化为无穷大，起始节点除外
-    distances = {node: float('infinity') for node in graph}
+    distances = {node: float("infinity") for node in graph}
     distances[start_node] = 0
 
     # 存储 (距离, 节点) 的优先队列
@@ -372,6 +385,7 @@ def dijkstra(graph, start_node):
                 heapq.heappush(priority_queue, (distance, neighbor))
 
     return distances, predecessors
+
 
 def breadth_first_search(graph, start_node):
     """
@@ -403,6 +417,7 @@ def breadth_first_search(graph, start_node):
 
     return order_visited
 
+
 def depth_first_search(graph, start_node, visited=None):
     """
     从起始节点对图执行深度优先搜索（DFS）。
@@ -427,6 +442,7 @@ def depth_first_search(graph, start_node, visited=None):
 
     return order_visited
 
+
 # 4. Text Similarity Algorithm
 def text_cosine_similarity(text1, text2):
     """
@@ -443,6 +459,7 @@ def text_cosine_similarity(text1, text2):
     tfidf_matrix = vectorizer.fit_transform([text1, text2])
     similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
     return similarity[0][0]
+
 
 # 5. Image Processing Algorithm
 def edge_detection(image_path):
@@ -463,6 +480,7 @@ def edge_detection(image_path):
     edges = cv2.Canny(image, 100, 200)
     return edges
 
+
 # 6. Mathematical Algorithm
 def _multiply_matrices(F, M):
     """
@@ -478,6 +496,7 @@ def _multiply_matrices(F, M):
     F[1][0] = z
     F[1][1] = w
 
+
 def _power(F, n):
     """
     斐波那契的内部辅助函数。计算矩阵的幂。
@@ -491,6 +510,7 @@ def _power(F, n):
 
     if n % 2 != 0:
         _multiply_matrices(F, M)
+
 
 def fibonacci(n):
     """

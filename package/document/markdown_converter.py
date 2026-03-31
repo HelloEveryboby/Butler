@@ -2,12 +2,15 @@ import sys
 import os
 
 # Use consistent project root resolution
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-markitdown_src = os.path.join(project_root, 'markitdown', 'src')
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+markitdown_src = os.path.join(project_root, "markitdown", "src")
 if markitdown_src not in sys.path:
     sys.path.insert(0, markitdown_src)
 
 from markitdown.markitdown_app import convert
+
 
 def convert_to_markdown(file_path: str):
     """

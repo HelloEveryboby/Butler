@@ -13,18 +13,18 @@
 """
 
 import os
-import json
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict
 from collections import defaultdict, deque
-from tqdm import tqdm
 
 # 定义路径不可达的极大值
-INFINITY = float('inf')
+INFINITY = float("inf")
+
 
 class ModulePathOptimizer:
     """
     模块路径优化器，使用动态规划和拓扑排序寻找最优执行序列。
     """
+
     def __init__(self):
         self.costs: Dict[str, int] = {}
         self.graph: Dict[str, List[str]] = defaultdict(list)
@@ -42,10 +42,10 @@ class ModulePathOptimizer:
         self.graph = defaultdict(list)
         modules_set = set()
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith('#'):
+                if not line or line.startswith("#"):
                     continue
 
                 parts = line.split()
@@ -54,7 +54,7 @@ class ModulePathOptimizer:
 
                 name = parts[0]
                 cost = int(parts[1])
-                deps = parts[2].split(',') if len(parts) > 2 else []
+                deps = parts[2].split(",") if len(parts) > 2 else []
 
                 self.costs[name] = cost
                 modules_set.add(name)
@@ -91,7 +91,9 @@ class ModulePathOptimizer:
 
         return topo_order
 
-    def find_optimal_path(self, start_node: str, end_node: str) -> Tuple[List[str], float]:
+    def find_optimal_path(
+        self, start_node: str, end_node: str
+    ) -> Tuple[List[str], float]:
         """
         使用动态规划寻找从起点到终点的最短（最低成本）路径。
         """
@@ -129,6 +131,7 @@ class ModulePathOptimizer:
 
         return path[::-1], dp[end_node]
 
+
 def create_demo_config(file_path: str):
     """创建演示用的配置文件"""
     content = [
@@ -139,16 +142,17 @@ def create_demo_config(file_path: str):
         "ui_engine 15 core_service",
         "network_module 8 data_layer",
         "plugin_system 12 data_layer,ui_engine",
-        "final_app 2 network_module,plugin_system"
+        "final_app 2 network_module,plugin_system",
     ]
-    with open(file_path, 'w', encoding='utf-8') as f:
+    with open(file_path, "w", encoding="utf-8") as f:
         f.write("\n".join(content))
+
 
 def run():
     """Butler 系统调用入口"""
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("      Butler 路径优化算法 (Algorithm1 - 完整版)")
-    print("="*50)
+    print("=" * 50)
 
     config_file = "module_execution_config.txt"
     if not os.path.exists(config_file):
@@ -173,13 +177,16 @@ def run():
             # 模拟执行过程
             print("\n开始模拟执行...")
             for i, step in enumerate(path):
-                print(f"[{i+1}/{len(path)}] 正在加载模块: {step:15} | 预期成本: {optimizer.costs.get(step, 0)}")
+                print(
+                    f"[{i + 1}/{len(path)}] 正在加载模块: {step:15} | 预期成本: {optimizer.costs.get(step, 0)}"
+                )
             print("🚀 系统启动成功！")
         else:
             print("❌ 未能找到可达路径。")
 
     except Exception as e:
         print(f"❌ 运行错误: {e}")
+
 
 if __name__ == "__main__":
     run()

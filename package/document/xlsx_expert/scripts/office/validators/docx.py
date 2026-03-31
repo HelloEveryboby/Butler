@@ -14,7 +14,6 @@ from .base import BaseSchemaValidator
 
 
 class DOCXSchemaValidator(BaseSchemaValidator):
-
     WORD_2006_NAMESPACE = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
     W14_NAMESPACE = "http://schemas.microsoft.com/office/word/2010/wordml"
     W16CID_NAMESPACE = "http://schemas.microsoft.com/office/word/2016/wordml/cid"
