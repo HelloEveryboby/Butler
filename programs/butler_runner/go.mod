@@ -1,6 +1,6 @@
 module butler_runner
 
-go 1.24.3
+go 1.21.0
 
 require (
 	github.com/go-vgo/robotgo v1.0.1

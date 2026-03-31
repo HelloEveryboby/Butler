@@ -1,6 +1,7 @@
 import importlib.util
 import sys
 
+
 def lazy_import(name, optional=True):
     """惰性地导入由名称指定的模块。可用于可选软件包，以加快启动时间"""
     # 检查模块是否已经导入

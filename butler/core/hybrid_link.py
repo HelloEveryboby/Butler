@@ -8,11 +8,18 @@ import time
 from typing import Dict, Any, Optional, Callable, List
 from .hybrid_fallbacks import dispatch_fallback
 
+
 class HybridLinkClient:
     """
     Client for communicating with multi-language modules via the BHL protocol.
     """
-    def __init__(self, executable_path: str, cwd: Optional[str] = None, fallback_enabled: bool = True):
+
+    def __init__(
+        self,
+        executable_path: str,
+        cwd: Optional[str] = None,
+        fallback_enabled: bool = True,
+    ):
         self.executable_path = executable_path
         self.cwd = cwd
         self.process = None
@@ -42,9 +49,9 @@ class HybridLinkClient:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                bufsize=1, # Line buffered
+                bufsize=1,  # Line buffered
                 cwd=self.cwd,
-                shell=False
+                shell=False,
             )
             self._running = True
             threading.Thread(target=self._listen_stdout, daemon=True).start()
@@ -62,14 +69,14 @@ class HybridLinkClient:
                 # Try graceful exit if possible
                 try:
                     self.call("exit", {}, wait=False, timeout=0.1)
-                except:
+                except Exception:
                     pass
 
                 time.sleep(0.1)
                 if self.process.stdin:
                     try:
                         self.process.stdin.close()
-                    except:
+                    except Exception:
                         pass
 
                 self.process.terminate()
@@ -82,7 +89,7 @@ class HybridLinkClient:
                 if self.process:
                     try:
                         self.process.kill()
-                    except:
+                    except Exception:
                         pass
             finally:
                 self.process = None
@@ -133,7 +140,14 @@ class HybridLinkClient:
                 break
             self.logger.error(f"Module Stderr: {line.strip()}")
 
-    def call(self, method: str, params: Dict[str, Any], timeout: float = 10.0, wait: bool = True, priority: int = 5) -> Any:
+    def call(
+        self,
+        method: str,
+        params: Dict[str, Any],
+        timeout: float = 10.0,
+        wait: bool = True,
+        priority: int = 5,
+    ) -> Any:
         """
         调用远程模块中的方法。
         :param method: 方法名
@@ -154,7 +168,7 @@ class HybridLinkClient:
             "method": method,
             "params": params,
             "id": req_id,
-            "priority": priority
+            "priority": priority,
         }
 
         if wait:
@@ -169,7 +183,8 @@ class HybridLinkClient:
                 else:
                     return {"error": {"message": "Stdin not available"}}
             except Exception as e:
-                if wait: self._pending_requests.pop(req_id, None)
+                if wait:
+                    self._pending_requests.pop(req_id, None)
                 return {"error": {"message": f"Failed to send request: {e}"}}
 
         if not wait:
@@ -185,6 +200,7 @@ class HybridLinkClient:
                 return {"error": {"message": "Request timed out"}}
         finally:
             self._pending_requests.pop(req_id, None)
+
 
 if __name__ == "__main__":
     # Test would go here, but we need a server first.

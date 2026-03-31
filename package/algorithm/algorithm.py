@@ -2,6 +2,7 @@ from typing import List, Tuple
 import importlib
 from tqdm import tqdm
 
+
 def read_file_list(file_path: str) -> List[Tuple[str, int, str]]:
     """
     读取文件列表，并获取每个文件的优先级、插入位置标识符。
@@ -9,8 +10,13 @@ def read_file_list(file_path: str) -> List[Tuple[str, int, str]]:
     文件格式示例:
     package.module1 1 pos1
     """
-    with open(file_path, 'r') as file:
-        return [(line.split()[0], int(line.split()[1]), line.split()[2]) for line in file if line.strip()]
+    with open(file_path, "r") as file:
+        return [
+            (line.split()[0], int(line.split()[1]), line.split()[2])
+            for line in file
+            if line.strip()
+        ]
+
 
 def hybrid_sort_with_progress(arr: List[Tuple[str, int, str]]):
     """
@@ -19,7 +25,10 @@ def hybrid_sort_with_progress(arr: List[Tuple[str, int, str]]):
     with tqdm(total=len(arr), desc="正在排序模块") as pbar:
         hybridSort(arr, pbar=pbar)
 
-def hybridSort(arr: List[Tuple[str, int, str]], left=None, right=None, depth=0, pbar=None):
+
+def hybridSort(
+    arr: List[Tuple[str, int, str]], left=None, right=None, depth=0, pbar=None
+):
     """
     混合排序算法实现，结合了快速排序（用于大数组）和插入排序（用于小数组）。
 
@@ -52,7 +61,10 @@ def hybridSort(arr: List[Tuple[str, int, str]], left=None, right=None, depth=0, 
             hybridSort(arr, pivot_index + 1, right, depth + 1, pbar)
             hybridSort(arr, left, pivot_index - 1, depth + 1, pbar)
 
-def partition(arr: List[Tuple[str, int, str]], left: int, right: int, depth: int, pbar=None) -> int:
+
+def partition(
+    arr: List[Tuple[str, int, str]], left: int, right: int, depth: int, pbar=None
+) -> int:
     """
     快速排序的分区操作，采用“三数取中法”选择枢轴。
     """
@@ -79,7 +91,10 @@ def partition(arr: List[Tuple[str, int, str]], left: int, right: int, depth: int
         pbar.update(1)
     return j
 
-def median_of_three(arr: List[Tuple[str, int, str]], left: int, mid: int, right: int) -> int:
+
+def median_of_three(
+    arr: List[Tuple[str, int, str]], left: int, mid: int, right: int
+) -> int:
     """
     三数取中，返回中位数的索引，减少快排在已排序数组上的退化风险。
     """
@@ -98,6 +113,7 @@ def median_of_three(arr: List[Tuple[str, int, str]], left: int, mid: int, right:
         else:
             return mid
 
+
 def insertionSort(arr: List[Tuple[str, int, str]], left: int, right: int):
     """
     插入排序实现。
@@ -110,14 +126,20 @@ def insertionSort(arr: List[Tuple[str, int, str]], left: int, right: int):
             j -= 1
         arr[j + 1] = key
 
-def execute_program(module_name: str, modules: List[Tuple[str, int, str]], position_mapping: dict, pbar=None):
+
+def execute_program(
+    module_name: str,
+    modules: List[Tuple[str, int, str]],
+    position_mapping: dict,
+    pbar=None,
+):
     """
     执行指定模块，并处理动态插入逻辑。
     """
     print(f"--- 正在执行模块: {module_name} ---")
     try:
         module = importlib.import_module(module_name)
-        if hasattr(module, 'run'):
+        if hasattr(module, "run"):
             module.run()
         print(f"--- 模块 {module_name} 执行完毕 ---")
     except ImportError as error:
@@ -127,6 +149,7 @@ def execute_program(module_name: str, modules: List[Tuple[str, int, str]], posit
 
     if pbar:
         pbar.update(1)
+
 
 def run():
     """
@@ -140,6 +163,7 @@ def run():
         print("排序完成：", files_with_priority)
     except FileNotFoundError:
         print(f"未找到文件列表: {file_list_path}")
+
 
 if __name__ == "__main__":
     run()

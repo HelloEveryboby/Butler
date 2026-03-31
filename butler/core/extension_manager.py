@@ -1,8 +1,6 @@
 import os
-import sys
 import importlib.util
-import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from plugin.PluginManager import PluginManager
 from butler.code_execution_manager import CodeExecutionManager
 from butler.data_storage import data_storage_manager
@@ -10,11 +8,15 @@ from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
 
+
 class ExtensionManager:
     """
     统一管理插件、包和外部程序。
     """
-    def __init__(self, plugin_dir="plugin", package_dir="package", programs_dir="programs"):
+
+    def __init__(
+        self, plugin_dir="plugin", package_dir="package", programs_dir="programs"
+    ):
         self.plugin_manager = PluginManager(plugin_dir, data_storage_manager)
         self.code_execution_manager = CodeExecutionManager(programs_dir)
         self.package_dir = package_dir
@@ -45,8 +47,11 @@ class ExtensionManager:
                     package_path = os.path.join(root, filename)
 
                     try:
-                        spec = importlib.util.spec_from_file_location(package_name, package_path)
-                        if spec is None: continue
+                        spec = importlib.util.spec_from_file_location(
+                            package_name, package_path
+                        )
+                        if spec is None:
+                            continue
 
                         module = importlib.util.module_from_spec(spec)
                         # 将包添加到 sys.modules 以支持相对导入，但由于这是动态发现，
@@ -55,10 +60,14 @@ class ExtensionManager:
 
                         if hasattr(module, "run"):
                             self.packages[package_name] = module
-                            logger.info(f"Loaded package: {package_name} from {package_path}")
+                            logger.info(
+                                f"Loaded package: {package_name} from {package_path}"
+                            )
                     except Exception as e:
                         # 记录详细错误但不要让它中断整个扫描过程
-                        logger.debug(f"Skipping package {package_name} due to load error: {e}")
+                        logger.debug(
+                            f"Skipping package {package_name} due to load error: {e}"
+                        )
 
     def get_all_tools(self) -> List[Dict[str, Any]]:
         """
@@ -68,31 +77,37 @@ class ExtensionManager:
 
         # 插件
         for name, plugin in self.plugin_manager.plugins.items():
-            tools.append({
-                "name": name,
-                "type": "plugin",
-                "description": f"插件: {name}。处理如下命令: {', '.join(plugin.get_commands())}",
-                "instance": plugin
-            })
+            tools.append(
+                {
+                    "name": name,
+                    "type": "plugin",
+                    "description": f"插件: {name}。处理如下命令: {', '.join(plugin.get_commands())}",
+                    "instance": plugin,
+                }
+            )
 
         # 外部程序
         for name, info in self.code_execution_manager.get_all_programs().items():
-            tools.append({
-                "name": name,
-                "type": "program",
-                "description": info.get('description', '外部程序。'),
-                "path": info['path']
-            })
+            tools.append(
+                {
+                    "name": name,
+                    "type": "program",
+                    "description": info.get("description", "外部程序。"),
+                    "path": info["path"],
+                }
+            )
 
         # 包
         for name, module in self.packages.items():
             doc = getattr(module, "__doc__", "Python 包。")
-            tools.append({
-                "name": name,
-                "type": "package",
-                "description": doc if doc else "Python 包。",
-                "module": module
-            })
+            tools.append(
+                {
+                    "name": name,
+                    "type": "package",
+                    "description": doc if doc else "Python 包。",
+                    "module": module,
+                }
+            )
 
         return tools
 
@@ -120,5 +135,6 @@ class ExtensionManager:
             return output
 
         raise ValueError(f"Extension '{name}' not found.")
+
 
 extension_manager = ExtensionManager()

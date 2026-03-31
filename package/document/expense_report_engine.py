@@ -1,16 +1,16 @@
 import os
-import json
-import pandas as pd
 from package.document.office_automator import automator, open_in_native_app
 from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
+
 
 class ExpenseGenius:
     """
     Handles converting receipt data to formatted Excel reports.
     Expects structured data from the Interpreter (which would use OCR/Vision).
     """
+
     AI_INSTRUCTION = (
         "To process receipts, use a Vision-capable LLM or OCR to extract a list of JSON objects "
         "with 'date', 'vendor', 'amount', and 'category'. Then pass it to expense_genius.process_receipts(data)."
@@ -29,7 +29,9 @@ class ExpenseGenius:
             return output_path
         return None
 
+
 expense_genius = ExpenseGenius()
+
 
 def run(jarvis_app, entities, **kwargs):
     # This would be called via intent dispatcher

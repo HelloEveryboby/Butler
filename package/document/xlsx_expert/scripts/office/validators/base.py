@@ -10,7 +10,6 @@ import lxml.etree
 
 
 class BaseSchemaValidator:
-
     IGNORED_VALIDATION_ERRORS = [
         "hyphenationZone",
         "purl.org/dc/terms",
@@ -124,11 +123,19 @@ class BaseSchemaValidator:
                 for elem in dom.getElementsByTagName("*"):
                     if elem.tagName.endswith(":t") and elem.firstChild:
                         text = elem.firstChild.nodeValue
-                        if text and (text.startswith((' ', '\t')) or text.endswith((' ', '\t'))):
+                        if text and (
+                            text.startswith((" ", "\t")) or text.endswith((" ", "\t"))
+                        ):
                             if elem.getAttribute("xml:space") != "preserve":
                                 elem.setAttribute("xml:space", "preserve")
-                                text_preview = repr(text[:30]) + "..." if len(text) > 30 else repr(text)
-                                print(f"  Repaired: {xml_file.name}: Added xml:space='preserve' to {elem.tagName}: {text_preview}")
+                                text_preview = (
+                                    repr(text[:30]) + "..."
+                                    if len(text) > 30
+                                    else repr(text)
+                                )
+                                print(
+                                    f"  Repaired: {xml_file.name}: Added xml:space='preserve' to {elem.tagName}: {text_preview}"
+                                )
                                 repairs += 1
                                 modified = True
 
@@ -220,7 +227,8 @@ class BaseSchemaValidator:
 
                     if tag in self.UNIQUE_ID_REQUIREMENTS:
                         in_excluded_container = any(
-                            ancestor.tag.split("}")[-1].lower() in self.EXCLUDED_ID_CONTAINERS
+                            ancestor.tag.split("}")[-1].lower()
+                            in self.EXCLUDED_ID_CONTAINERS
                             for ancestor in elem.iterancestors()
                         )
                         if in_excluded_container:
@@ -326,9 +334,7 @@ class BaseSchemaValidator:
                     namespaces={"ns": self.PACKAGE_RELATIONSHIPS_NAMESPACE},
                 ):
                     target = rel.get("Target")
-                    if target and not target.startswith(
-                        ("http", "mailto:")
-                    ):
+                    if target and not target.startswith(("http", "mailto:")):
                         if target.startswith("/"):
                             target_path = self.unpacked_dir / target.lstrip("/")
                         elif rels_file.name == ".rels":
@@ -614,7 +620,8 @@ class BaseSchemaValidator:
         new_errors = current_errors - original_errors
 
         new_errors = {
-            e for e in new_errors
+            e
+            for e in new_errors
             if not any(pattern in e for pattern in self.IGNORED_VALIDATION_ERRORS)
         }
 

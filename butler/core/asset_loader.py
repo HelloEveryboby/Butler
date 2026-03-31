@@ -1,15 +1,20 @@
 import os
-import sys
+
 
 class AssetLoader:
     """
     资源加载器，模拟 STM32 内部/外部 Flash 访问逻辑。
     代码逻辑预期在 'Internal Flash'，资源文件在 'External Flash'。
     """
+
     def __init__(self):
         # 定位项目根目录
-        self.project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.external_flash_base = os.path.join(self.project_root, "data", "external_flash")
+        self.project_root = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        )
+        self.external_flash_base = os.path.join(
+            self.project_root, "data", "external_flash"
+        )
         self.frontend_view_base = os.path.join(self.project_root, "frontend", "view")
 
     def get_ui_path(self):
@@ -40,6 +45,7 @@ class AssetLoader:
         elif virtual_path.startswith("audio://"):
             return os.path.join(self.external_flash_base, "audio", virtual_path[8:])
         return virtual_path
+
 
 # 单例模式供全局使用
 asset_loader = AssetLoader()

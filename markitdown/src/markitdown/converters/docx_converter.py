@@ -5,6 +5,7 @@ from docx.oxml.text.paragraph import CT_P
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 
+
 def convert_docx(file_path: str) -> str:
     """
     Converts a .docx file to Markdown, preserving paragraphs and tables.
@@ -32,6 +33,6 @@ def convert_docx(file_path: str) -> str:
                 markdown_table = tabulate(data, headers=headers, tablefmt="pipe")
                 markdown_parts.append(markdown_table)
 
-        return '\n\n'.join(markdown_parts)
+        return "\n\n".join(markdown_parts)
     except Exception as e:
         return f"Error converting DOCX file: {e}"

@@ -2,6 +2,7 @@
 数据回收器 - 用于清理项目执行过程中生成的临时文件的工具。
 支持清理 __pycache__、.pyc 文件、build/dist 目录和旧日志。
 """
+
 import os
 import shutil
 import time
@@ -10,6 +11,7 @@ from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
 
+
 class DataRecycler:
     def __init__(self, root_dir=".", log_retention_days=7):
         self.root_dir = pathlib.Path(root_dir).resolve()
@@ -17,8 +19,16 @@ class DataRecycler:
         self.temp_dirs = {"temp", "build", "dist", "target"}
         self.protected_dirs = {"lib_external", "runtime", ".git", ".venv", "venv"}
         self.temp_patterns = {
-            "*.pyc", "*.pyo", "*.pyd", ".DS_Store", "*_last_run.txt",
-            "*_exec", "*.so", "*.o", "*.class", "hello_executable"
+            "*.pyc",
+            "*.pyo",
+            "*.pyd",
+            ".DS_Store",
+            "*_last_run.txt",
+            "*_exec",
+            "*.so",
+            "*.o",
+            "*.class",
+            "hello_executable",
         }
         self.specific_files = {"scheduled_tasks.log"}
         self.external_dirs = ["/tmp/outputs"]
@@ -39,11 +49,17 @@ class DataRecycler:
                 if d in self.protected_dirs:
                     dirs.remove(d)
                     continue
-                if d == "__pycache__" or d.endswith(".egg-info") or (root == str(self.root_dir) and d in self.temp_dirs):
+                if (
+                    d == "__pycache__"
+                    or d.endswith(".egg-info")
+                    or (root == str(self.root_dir) and d in self.temp_dirs)
+                ):
                     path = pathlib.Path(root) / d
                     try:
                         size = self._get_dir_size(path)
-                        results.append(f"[DIR] {path.relative_to(self.root_dir)} ({size} bytes)")
+                        results.append(
+                            f"[DIR] {path.relative_to(self.root_dir)} ({size} bytes)"
+                        )
                         total_size += size
                         if not dry_run:
                             shutil.rmtree(path)
@@ -64,10 +80,14 @@ class DataRecycler:
                         is_temp_file = True
                         break
 
-                if is_temp_file or (root == str(self.root_dir) and f in self.specific_files):
+                if is_temp_file or (
+                    root == str(self.root_dir) and f in self.specific_files
+                ):
                     try:
                         size = path.stat().st_size
-                        results.append(f"[FILE] {path.relative_to(self.root_dir)} ({size} bytes)")
+                        results.append(
+                            f"[FILE] {path.relative_to(self.root_dir)} ({size} bytes)"
+                        )
                         total_size += size
                         if not dry_run:
                             path.unlink()
@@ -85,7 +105,9 @@ class DataRecycler:
                         mtime = log_file.stat().st_mtime
                         if now - mtime > retention_sec:
                             size = log_file.stat().st_size
-                            results.append(f"[LOG] {log_file.relative_to(self.root_dir)} ({size} bytes, old)")
+                            results.append(
+                                f"[LOG] {log_file.relative_to(self.root_dir)} ({size} bytes, old)"
+                            )
                             total_size += size
                             if not dry_run:
                                 log_file.unlink()
@@ -119,11 +141,12 @@ class DataRecycler:
                 pass
         return total
 
+
 def run(*args, **kwargs):
     """
     Butler ExtensionManager 的入口点。
     """
-    dry_run = kwargs.get('dry_run', False)
+    dry_run = kwargs.get("dry_run", False)
     if not dry_run and args:
         # Check if dry_run was passed as a positional arg
         if args[0] in (True, False):
@@ -145,7 +168,9 @@ def run(*args, **kwargs):
     print(summary)
     return summary
 
+
 if __name__ == "__main__":
     import sys
+
     is_dry = "--dry-run" in sys.argv
     run(dry_run=is_dry)

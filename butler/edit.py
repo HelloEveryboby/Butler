@@ -42,7 +42,7 @@ class EditTool(BaseTool):
         **kwargs,
     ):
         # 执行命令前请求用户许可
-        print(f"是否要执行以下命令？")
+        print("是否要执行以下命令？")
         print(f"命令: {command}")
         print(f"路径: {path}")
         if file_text:
@@ -75,22 +75,18 @@ class EditTool(BaseTool):
             return ToolResult(output=f"文件已成功创建于: {_path}")
         elif command == "str_replace":
             if not old_str:
-                raise ToolError(
-                    "对于 str_replace 命令，参数 `old_str` 是必需的"
-                )
+                raise ToolError("对于 str_replace 命令，参数 `old_str` 是必需的")
             return self.str_replace(_path, old_str, new_str)
         elif command == "insert":
             if insert_line is None:
-                raise ToolError(
-                    "对于 insert 命令，参数 `insert_line` 是必需的"
-                )
+                raise ToolError("对于 insert 命令，参数 `insert_line` 是必需的")
             if not new_str:
                 raise ToolError("对于 insert 命令，参数 `new_str` 是必需的")
             return self.insert(_path, insert_line, new_str)
         elif command == "undo_edit":
             return self.undo_edit(_path)
         raise ToolError(
-            f'无法识别的命令 {command}。{self.name} 工具允许使用的命令是: {", ".join(get_args(Command))}'
+            f"无法识别的命令 {command}。{self.name} 工具允许使用的命令是: {', '.join(get_args(Command))}"
         )
 
     def validate_path(self, command: str, path: Path):
@@ -105,27 +101,19 @@ class EditTool(BaseTool):
             )
         # 检查路径是否存在
         if not path.exists() and command != "create":
-            raise ToolError(
-                f"路径 {path} 不存在。请提供一个有效的路径。"
-            )
+            raise ToolError(f"路径 {path} 不存在。请提供一个有效的路径。")
         if path.exists() and command == "create":
-            raise ToolError(
-                f"文件已存在于: {path}。不能使用 `create` 命令覆盖文件。"
-            )
+            raise ToolError(f"文件已存在于: {path}。不能使用 `create` 命令覆盖文件。")
         # 检查路径是否指向目录
         if path.is_dir():
             if command != "view":
-                raise ToolError(
-                    f"路径 {path} 是一个目录，只有 `view` 命令可以用于目录"
-                )
+                raise ToolError(f"路径 {path} 是一个目录，只有 `view` 命令可以用于目录")
 
     async def view(self, path: Path, view_range: list[int] | None = None):
         """执行视图命令"""
         if path.is_dir():
             if view_range:
-                raise ToolError(
-                    "当 `path` 指向目录时，不允许使用 `view_range` 参数。"
-                )
+                raise ToolError("当 `path` 指向目录时，不允许使用 `view_range` 参数。")
 
             safe_path = shlex.quote(str(path))
             _, stdout, stderr = await run(
@@ -139,9 +127,7 @@ class EditTool(BaseTool):
         init_line = 1
         if view_range:
             if len(view_range) != 2 or not all(isinstance(i, int) for i in view_range):
-                raise ToolError(
-                    "无效的 `view_range`。它应该是包含两个整数的列表。"
-                )
+                raise ToolError("无效的 `view_range`。它应该是包含两个整数的列表。")
             file_lines = file_content.split("\n")
             n_lines_file = len(file_lines)
             init_line, final_line = view_range
@@ -177,9 +163,7 @@ class EditTool(BaseTool):
         # 检查 old_str 在文件中是否唯一
         occurrences = file_content.count(old_str)
         if occurrences == 0:
-            raise ToolError(
-                f"未进行更换, old_str `{old_str}` 未在中逐字出现 {path}."
-            )
+            raise ToolError(f"未进行更换, old_str `{old_str}` 未在中逐字出现 {path}.")
         elif occurrences > 1:
             file_content_lines = file_content.split("\n")
             lines = [
@@ -208,9 +192,7 @@ class EditTool(BaseTool):
 
         # 准备成功消息
         success_msg = f"文件 {path} 已编辑。"
-        success_msg += self._make_output(
-            snippet, f"{path} 的代码片段", start_line + 1
-        )
+        success_msg += self._make_output(snippet, f"{path} 的代码片段", start_line + 1)
         success_msg += "检查更改并确保它们符合预期。如有必要，再次编辑该文件。"
 
         return CLIResult(output=success_msg)
@@ -298,7 +280,5 @@ class EditTool(BaseTool):
             ]
         )
         return (
-            f"这是对 {file_descriptor} 运行 `cat -n` 的结果：\n"
-            + file_content
-            + "\n"
+            f"这是对 {file_descriptor} 运行 `cat -n` 的结果：\n" + file_content + "\n"
         )

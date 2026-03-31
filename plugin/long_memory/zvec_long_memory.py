@@ -6,19 +6,23 @@ from .long_memory_interface import AbstractLongMemory, LongMemoryItem
 from package.core_utils.log_manager import LogManager
 from package.core_utils.embedding_utils import get_embedding
 
+
 class ZvecLongMemory(AbstractLongMemory):
     """
     使用 zvec 实现的高性能本地向量存储。
     支持联网 (DeepSeek) 和完全离线模式。
     """
+
     def __init__(self, api_key: str = None, collection_name: str = "long_memory_zvec"):
         self._logger = LogManager.get_logger(__name__)
         self._api_key = api_key
         self._collection_name = collection_name
-        self._offline = (api_key is None)
+        self._offline = api_key is None
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        self._data_path = os.path.join(base_dir, "../../data/system_data/zvec_memory", collection_name)
+        self._data_path = os.path.join(
+            base_dir, "../../data/system_data/zvec_memory", collection_name
+        )
         self.collection = None
 
     def init(self, logger=None):
@@ -41,18 +45,21 @@ class ZvecLongMemory(AbstractLongMemory):
                 fields=[
                     zvec.FieldSchema("content", zvec.DataType.STRING),
                     zvec.FieldSchema("metadata", zvec.DataType.STRING),
-                    zvec.FieldSchema("timestamp", zvec.DataType.DOUBLE)
-                ]
+                    zvec.FieldSchema("timestamp", zvec.DataType.DOUBLE),
+                ],
             )
             self.collection = zvec.create_and_open(path=self._data_path, schema=schema)
             mode_str = "离线" if self._offline else "在线"
-            self._logger.info(f"ZvecLongMemory ({mode_str}模式) 初始化成功: {self._data_path}")
+            self._logger.info(
+                f"ZvecLongMemory ({mode_str}模式) 初始化成功: {self._data_path}"
+            )
         except Exception as e:
             self._logger.error(f"ZvecLongMemory 初始化失败: {e}")
             raise
 
     def save(self, items: List[LongMemoryItem]):
-        if not self.collection: return
+        if not self.collection:
+            return
         import zvec
 
         docs = []
@@ -65,8 +72,8 @@ class ZvecLongMemory(AbstractLongMemory):
                     fields={
                         "content": item.content,
                         "metadata": json.dumps(item.metadata),
-                        "timestamp": item.metadata.get("timestamp", time.time())
-                    }
+                        "timestamp": item.metadata.get("timestamp", time.time()),
+                    },
                 )
                 docs.append(doc)
 
@@ -74,12 +81,19 @@ class ZvecLongMemory(AbstractLongMemory):
             self.collection.insert(docs)
             self._logger.info(f"已保存 {len(docs)} 条记忆到 ZvecLongMemory。")
 
-    def search(self, text: str, n_results: int, metadata_filter: Optional[Dict[str, str]] = None) -> List[LongMemoryItem]:
-        if not self.collection: return []
+    def search(
+        self,
+        text: str,
+        n_results: int,
+        metadata_filter: Optional[Dict[str, str]] = None,
+    ) -> List[LongMemoryItem]:
+        if not self.collection:
+            return []
         import zvec
 
         emb = get_embedding(text, self._api_key, offline=self._offline)
-        if emb is None: return []
+        if emb is None:
+            return []
 
         query = zvec.VectorQuery(field_name="embedding", vector=emb.tolist())
         try:
@@ -91,7 +105,7 @@ class ZvecLongMemory(AbstractLongMemory):
                     id=doc.id,
                     content=doc.field("content"),
                     metadata=json.loads(doc.field("metadata")),
-                    distance=doc.score
+                    distance=doc.score,
                 )
                 long_memory_items.append(item)
 
@@ -102,7 +116,8 @@ class ZvecLongMemory(AbstractLongMemory):
 
     def export_data(self) -> List[dict]:
         """Export all data from Zvec collection."""
-        if not self.collection: return []
+        if not self.collection:
+            return []
         data = []
         try:
             # Zvec also doesn't have a direct export, so we query with a broad scope if possible
@@ -118,9 +133,7 @@ class ZvecLongMemory(AbstractLongMemory):
         items = []
         for d in data:
             item = LongMemoryItem.new(
-                content=d["content"],
-                id=d["id"],
-                metadata=d["metadata"]
+                content=d["content"], id=d["id"], metadata=d["metadata"]
             )
             items.append(item)
         if items:

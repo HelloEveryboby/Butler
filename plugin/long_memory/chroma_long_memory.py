@@ -14,20 +14,27 @@ DEFAULT_COLLECTION_NAME = "long_memory_collection"
 # 数据库文件名称
 DATABASE_FILE_NAME = "long_memory.db"
 
+
 class SQLiteLongMemory(AbstractLongMemory):
-    def __init__(self, collection_name: str = DEFAULT_COLLECTION_NAME, cache_size: int = 100):
+    def __init__(
+        self, collection_name: str = DEFAULT_COLLECTION_NAME, cache_size: int = 100
+    ):
         # 初始化日志记录器
         self._logger = LogManager.get_logger(__name__)
         # 初始化集合为 None
         self._conn: Optional[sqlite3.Connection] = None
 
         # 使用提供的集合名称（或默认值），并进行安全性检查，防止 SQL 注入
-        if not collection_name.replace('_', '').isalnum():
-            raise ValueError(f"Invalid collection name: {collection_name}. Must be alphanumeric.")
+        if not collection_name.replace("_", "").isalnum():
+            raise ValueError(
+                f"Invalid collection name: {collection_name}. Must be alphanumeric."
+            )
         self._collection_name = collection_name
 
         # 初始化缓存字典
-        self._cache: Dict[Tuple[str, int, Optional[frozenset]], List[LongMemoryItem]] = {}
+        self._cache: Dict[
+            Tuple[str, int, Optional[frozenset]], List[LongMemoryItem]
+        ] = {}
         # 缓存大小限制
         self._cache_size = cache_size
         # 初始化线程锁以确保线程安全
@@ -35,7 +42,12 @@ class SQLiteLongMemory(AbstractLongMemory):
 
     def init(self):
         # 持久化数据目录
-        db_path = os.path.join(os.path.split(os.path.abspath(__file__))[0], "../../", SYSTEM_DATA_PATH, DATABASE_FILE_NAME)
+        db_path = os.path.join(
+            os.path.split(os.path.abspath(__file__))[0],
+            "../../",
+            SYSTEM_DATA_PATH,
+            DATABASE_FILE_NAME,
+        )
 
         try:
             # Ensure the directory exists
@@ -82,7 +94,13 @@ class SQLiteLongMemory(AbstractLongMemory):
 
             for item in items:
                 old_memories = self.search(text=item.content, n_results=5)
-                to_delete_ids.extend([old_memory.id for old_memory in old_memories if old_memory.distance < 0.2])
+                to_delete_ids.extend(
+                    [
+                        old_memory.id
+                        for old_memory in old_memories
+                        if old_memory.distance < 0.2
+                    ]
+                )
 
             if to_delete_ids:
                 self.delete(to_delete_ids)
@@ -90,9 +108,12 @@ class SQLiteLongMemory(AbstractLongMemory):
                 with self._conn:
                     for item in items:
                         # Use JSON for safer metadata storage
-                        self._conn.execute(f"""
+                        self._conn.execute(
+                            f"""
                         INSERT INTO {self._collection_name} (id, content, metadata) VALUES (?, ?, ?)
-                        """, (item.id, item.content, json.dumps(item.metadata)))
+                        """,
+                            (item.id, item.content, json.dumps(item.metadata)),
+                        )
                 self._update_cache(items)
             except Exception as e:
                 self._logger.error(f"保存项到 SQLiteLongMemory 失败: {e}")
@@ -120,7 +141,9 @@ class SQLiteLongMemory(AbstractLongMemory):
                         metadata = ast.literal_eval(metadata_str)
                     except Exception:
                         metadata = {}
-                items.append(LongMemoryItem.new(content=row[1], metadata=metadata, id=row[0]))
+                items.append(
+                    LongMemoryItem.new(content=row[1], metadata=metadata, id=row[0])
+                )
             return items
         except Exception as e:
             self._logger.error(f"SQLiteLongMemory 获取历史记录失败: {e}")
@@ -145,11 +168,7 @@ class SQLiteLongMemory(AbstractLongMemory):
                         metadata = ast.literal_eval(metadata_str)
                     except Exception:
                         metadata = {}
-                data.append({
-                    "id": row[0],
-                    "content": row[1],
-                    "metadata": metadata
-                })
+                data.append({"id": row[0], "content": row[1], "metadata": metadata})
         except Exception as e:
             self._logger.error(f"SQLiteLongMemory 导出数据失败: {e}")
         return data
@@ -159,16 +178,23 @@ class SQLiteLongMemory(AbstractLongMemory):
         items = []
         for d in data:
             item = LongMemoryItem.new(
-                content=d["content"],
-                id=d["id"],
-                metadata=d["metadata"]
+                content=d["content"], id=d["id"], metadata=d["metadata"]
             )
             items.append(item)
         if items:
             self.save(items)
 
-    def search(self, text: str, n_results: int, metadata_filter: Optional[Dict[str, str]] = None) -> List[LongMemoryItem]:
-        cache_key = (text, n_results, frozenset(metadata_filter.items()) if metadata_filter else None)
+    def search(
+        self,
+        text: str,
+        n_results: int,
+        metadata_filter: Optional[Dict[str, str]] = None,
+    ) -> List[LongMemoryItem]:
+        cache_key = (
+            text,
+            n_results,
+            frozenset(metadata_filter.items()) if metadata_filter else None,
+        )
 
         with self._lock:
             if cache_key in self._cache:
@@ -218,7 +244,9 @@ class SQLiteLongMemory(AbstractLongMemory):
                     except Exception:
                         metadata = {}
 
-                items.append(LongMemoryItem.new(content=row[1], metadata=metadata, id=row[0]))
+                items.append(
+                    LongMemoryItem.new(content=row[1], metadata=metadata, id=row[0])
+                )
 
             with self._lock:
                 # 更新缓存，如果缓存满了，删除最旧的项
@@ -236,10 +264,13 @@ class SQLiteLongMemory(AbstractLongMemory):
             return
         try:
             with self._conn:
-                self._conn.executemany(f"""
+                self._conn.executemany(
+                    f"""
                 DELETE FROM {self._collection_name} WHERE id = ?
-                """, [(id,) for id in ids])
-            # 从集合中删除指定的项    
+                """,
+                    [(id,) for id in ids],
+                )
+            # 从集合中删除指定的项
             self._invalidate_cache(ids)
         except Exception as e:
             # 记录删除失败信息
@@ -253,7 +284,9 @@ class SQLiteLongMemory(AbstractLongMemory):
 
     def _invalidate_cache(self, ids: List[str]):
         # 使缓存中的项失效
-        keys_to_remove = [k for k, v in self._cache.items() if any(item.id in ids for item in v)]
+        keys_to_remove = [
+            k for k, v in self._cache.items() if any(item.id in ids for item in v)
+        ]
         for key in keys_to_remove:
             if any(item.id in ids for item in self._cache.get(key, [])):
                 del self._cache[key]

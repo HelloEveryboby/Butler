@@ -2,6 +2,7 @@ import mss
 import base64
 from io import BytesIO
 
+
 def capture_screen(monitor_number=1) -> str:
     """
     Captures a screenshot of the specified monitor and returns it as a base64 encoded string.
@@ -25,5 +26,5 @@ def capture_screen(monitor_number=1) -> str:
         img_buffer.seek(0)
 
         # Encode to base64
-        b64_string = base64.b64encode(img_buffer.read()).decode('utf-8')
+        b64_string = base64.b64encode(img_buffer.read()).decode("utf-8")
         return b64_string

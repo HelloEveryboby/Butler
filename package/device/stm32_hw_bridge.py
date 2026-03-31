@@ -5,10 +5,12 @@ import threading
 import time
 from typing import Callable, Optional
 
+
 class STM32HardwareBridge:
     """
     PC-side bridge for communicating with STM32 Hardware Nodes via BHL Protocol.
     """
+
     def __init__(self, port: str = None, baudrate: int = 115200, timeout: float = 1.0):
         self.port = port
         self.baudrate = baudrate
@@ -24,7 +26,10 @@ class STM32HardwareBridge:
         ports = serial.tools.list_ports.comports()
         for p in ports:
             # Common chips like CH340, CP2102, FT232
-            if any(id_str in p.description.upper() for id_str in ["CH340", "CP210", "FT232", "USB-SERIAL", "STM32"]):
+            if any(
+                id_str in p.description.upper()
+                for id_str in ["CH340", "CP210", "FT232", "USB-SERIAL", "STM32"]
+            ):
                 return p.device
         return None
 
@@ -43,7 +48,7 @@ class STM32HardwareBridge:
     def _read_loop(self):
         while self.running and self.ser:
             try:
-                line = self.ser.readline().decode('utf-8').strip()
+                line = self.ser.readline().decode("utf-8").strip()
                 if not line:
                     continue
 
@@ -52,8 +57,8 @@ class STM32HardwareBridge:
                 # Handle Response
                 if "id" in data and data["id"] in self._pending_requests:
                     event = self._pending_requests.pop(data["id"])
-                    event['response'] = data
-                    event['flag'].set()
+                    event["response"] = data
+                    event["flag"].set()
 
                 # Handle Async Notification
                 elif self._callback:
@@ -63,7 +68,9 @@ class STM32HardwareBridge:
                 print(f"[!] Bridge Read Error: {e}")
                 time.sleep(1)
 
-    def call(self, method: str, params: dict = None, wait: bool = True, timeout: float = 5.0) -> Optional[dict]:
+    def call(
+        self, method: str, params: dict = None, wait: bool = True, timeout: float = 5.0
+    ) -> Optional[dict]:
         """Call a BHL method on the STM32 hardware."""
         self._request_id += 1
         req_id = self._request_id
@@ -72,17 +79,17 @@ class STM32HardwareBridge:
             "jsonrpc": "2.0",
             "method": method,
             "params": params or {},
-            "id": req_id
+            "id": req_id,
         }
 
-        event = {'flag': threading.Event(), 'response': None}
+        event = {"flag": threading.Event(), "response": None}
         self._pending_requests[req_id] = event
 
-        self.ser.write((json.dumps(payload) + "\n").encode('utf-8'))
+        self.ser.write((json.dumps(payload) + "\n").encode("utf-8"))
 
         if wait:
-            if event['flag'].wait(timeout):
-                return event['response']
+            if event["flag"].wait(timeout):
+                return event["response"]
             else:
                 self._pending_requests.pop(req_id, None)
                 raise TimeoutError(f"Hardware response timeout for method {method}")
@@ -92,6 +99,7 @@ class STM32HardwareBridge:
         self.running = False
         if self.ser:
             self.ser.close()
+
 
 if __name__ == "__main__":
     # Test script

@@ -5,8 +5,8 @@ from plugin.plugin_interface import AbstractPlugin, PluginResult
 
 logging = LogManager.get_logger(__name__)
 
-class BingSearchPlugin(AbstractPlugin):
 
+class BingSearchPlugin(AbstractPlugin):
     def valid(self) -> bool:
         return True
 
@@ -35,7 +35,7 @@ class BingSearchPlugin(AbstractPlugin):
                     "description": "返回结果的数量，默认为5",
                     "minimum": 1,
                     "maximum": 10,
-                }
+                },
             },
             "required": ["query"],
         }
@@ -59,16 +59,26 @@ class BingSearchPlugin(AbstractPlugin):
 
         if not query:
             self._logger.warning("缺少搜索关键字参数")
-            return PluginResult.new(result=None, need_call_brain=False, success=False,
-                                    error_message="缺少搜索关键字参数")
+            return PluginResult.new(
+                result=None,
+                need_call_brain=False,
+                success=False,
+                error_message="缺少搜索关键字参数",
+            )
 
         if not (1 <= num <= 10):
             self._logger.warning("参数 'num' 超出范围")
-            return PluginResult.new(result=None, need_call_brain=False, success=False,
-                                    error_message="参数 'num' 必须在 1 到 10 之间")
+            return PluginResult.new(
+                result=None,
+                need_call_brain=False,
+                success=False,
+                error_message="参数 'num' 必须在 1 到 10 之间",
+            )
 
         # 必应搜索 API 的 URL 和请求头
-        base_url = config_loader.get("api.bing.endpoint", "https://api.bing.microsoft.com/v7.0/search")
+        base_url = config_loader.get(
+            "api.bing.endpoint", "https://api.bing.microsoft.com/v7.0/search"
+        )
         headers = {
             "Ocp-Apim-Subscription-Key": config_loader.get("api.bing.search_key")
         }
@@ -87,10 +97,10 @@ class BingSearchPlugin(AbstractPlugin):
 
             # 解析结果
             result = "以下是从必应中搜索到的网页及其摘要：\n"
-            for item in data.get('webPages', {}).get('value', []):
-                result += "【网页标题】：{}\n".format(item.get('name', '无标题'))
-                result += "【摘要】：{}\n".format(item.get('snippet', '无摘要'))
-                result += "【网页链接】：{}\n\n".format(item.get('url', '无链接'))
+            for item in data.get("webPages", {}).get("value", []):
+                result += "【网页标题】：{}\n".format(item.get("name", "无标题"))
+                result += "【摘要】：{}\n".format(item.get("snippet", "无摘要"))
+                result += "【网页链接】：{}\n\n".format(item.get("url", "无链接"))
 
             result += (
                 "如果上述网页的摘要已经足够让你回答用户的问题或者继续与用户对话，那么你可以直接与用户继续对话。\n"
@@ -102,10 +112,18 @@ class BingSearchPlugin(AbstractPlugin):
 
         except requests.exceptions.RequestException as e:
             self._logger.error(f"必应搜索请求失败: {str(e)}")
-            return PluginResult.new(result=None, need_call_brain=False, success=False,
-                                    error_message=f"必应搜索请求失败: {str(e)}")
+            return PluginResult.new(
+                result=None,
+                need_call_brain=False,
+                success=False,
+                error_message=f"必应搜索请求失败: {str(e)}",
+            )
 
         except Exception as e:
             self._logger.error(f"处理必应搜索结果时出错: {str(e)}")
-            return PluginResult.new(result=None, need_call_brain=False, success=False,
-                                    error_message=f"处理必应搜索结果时出错: {str(e)}")
+            return PluginResult.new(
+                result=None,
+                need_call_brain=False,
+                success=False,
+                error_message=f"处理必应搜索结果时出错: {str(e)}",
+            )

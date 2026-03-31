@@ -5,14 +5,19 @@ import logging
 import shlex
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 
 class CodeExecutionManager:
     def __init__(self, programs_dir="programs"):
         self.programs_dir = programs_dir
         self.registered_programs = {}
         if not os.path.isdir(self.programs_dir):
-            logging.warning(f"Programs directory '{self.programs_dir}' not found. Creating it.")
+            logging.warning(
+                f"Programs directory '{self.programs_dir}' not found. Creating it."
+            )
             os.makedirs(self.programs_dir)
 
     def scan_and_register(self):
@@ -25,16 +30,20 @@ class CodeExecutionManager:
             if not os.path.isdir(project_path):
                 continue
 
-            manifest_path = os.path.join(project_path, 'manifest.json')
+            manifest_path = os.path.join(project_path, "manifest.json")
             if not os.path.isfile(manifest_path):
-                logging.warning(f"No manifest.json found in '{project_path}', skipping.")
+                logging.warning(
+                    f"No manifest.json found in '{project_path}', skipping."
+                )
                 continue
 
             try:
-                with open(manifest_path, 'r', encoding='utf-8') as f:
+                with open(manifest_path, "r", encoding="utf-8") as f:
                     manifest = json.load(f)
 
-                logging.info(f"Processing project '{manifest.get('name', project_name)}'")
+                logging.info(
+                    f"Processing project '{manifest.get('name', project_name)}'"
+                )
                 self._compile_and_register_project(project_path, manifest)
 
             except json.JSONDecodeError:
@@ -49,15 +58,17 @@ class CodeExecutionManager:
         """
         Handles the compilation and registration of a single project.
         """
-        name = manifest.get('name')
-        language = manifest.get('language')
-        build_command = manifest.get('build')
-        source_files = manifest.get('source', [])
-        executable_name = manifest.get('executable')
-        description = manifest.get('description', '')
+        name = manifest.get("name")
+        language = manifest.get("language")
+        build_command = manifest.get("build")
+        source_files = manifest.get("source", [])
+        executable_name = manifest.get("executable")
+        description = manifest.get("description", "")
 
         if not all([name, language, build_command, source_files, executable_name]):
-            logging.error(f"Manifest for '{name}' is missing required fields (name, language, build, source, executable).")
+            logging.error(
+                f"Manifest for '{name}' is missing required fields (name, language, build, source, executable)."
+            )
             return
 
         executable_path = os.path.join(project_path, executable_name)
@@ -68,9 +79,14 @@ class CodeExecutionManager:
             exec_mtime = os.path.getmtime(executable_path)
             for src_file in source_files:
                 src_path = os.path.join(project_path, src_file)
-                if not os.path.exists(src_path) or os.path.getmtime(src_path) > exec_mtime:
+                if (
+                    not os.path.exists(src_path)
+                    or os.path.getmtime(src_path) > exec_mtime
+                ):
                     needs_compilation = True
-                    logging.info(f"Source file '{src_file}' is newer than the executable. Recompiling '{name}'.")
+                    logging.info(
+                        f"Source file '{src_file}' is newer than the executable. Recompiling '{name}'."
+                    )
                     break
 
         if needs_compilation:
@@ -79,12 +95,11 @@ class CodeExecutionManager:
             # Create a dictionary of placeholders to format the build command
             # Use relative paths since the command is run inside the project directory
             source_paths = " ".join([shlex.quote(f) for f in source_files])
-            output_path = shlex.quote(executable_name) # This is also relative to the project dir
+            output_path = shlex.quote(
+                executable_name
+            )  # This is also relative to the project dir
 
-            format_dict = {
-                'source': source_paths,
-                'output': output_path
-            }
+            format_dict = {"source": source_paths, "output": output_path}
 
             try:
                 # Use str.format() to replace placeholders
@@ -94,38 +109,80 @@ class CodeExecutionManager:
                 # Execute the command from within the project directory
                 # Note: build_command comes from manifest.json which is trusted internal config.
                 # For security, we prefer list-based execution if possible.
-                shell_chars = {'|', '&', ';', '<', '>', '$', '*', '?', '(', ')', '[', ']', '!', '#', '~'}
+                shell_chars = {
+                    "|",
+                    "&",
+                    ";",
+                    "<",
+                    ">",
+                    "$",
+                    "*",
+                    "?",
+                    "(",
+                    ")",
+                    "[",
+                    "]",
+                    "!",
+                    "#",
+                    "~",
+                }
                 has_shell_meta = any(char in formatted_command for char in shell_chars)
 
                 if not has_shell_meta:
                     command_parts = shlex.split(formatted_command)
-                    result = subprocess.run(command_parts, shell=False, cwd=project_path, check=True, capture_output=True, text=True)
+                    result = subprocess.run(
+                        command_parts,
+                        shell=False,
+                        cwd=project_path,
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )
                 else:
-                    result = subprocess.run(formatted_command, shell=True, cwd=project_path, check=True, capture_output=True, text=True)
+                    result = subprocess.run(
+                        formatted_command,
+                        shell=True,
+                        cwd=project_path,
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )
 
-                logging.info(f"Successfully compiled '{name}'.\nCompiler output:\n{result.stdout}")
+                logging.info(
+                    f"Successfully compiled '{name}'.\nCompiler output:\n{result.stdout}"
+                )
 
             except FileNotFoundError:
-                logging.error(f"Failed to compile '{name}': Compiler or build tool not found for command: {formatted_command}")
+                logging.error(
+                    f"Failed to compile '{name}': Compiler or build tool not found for command: {formatted_command}"
+                )
                 return
             except subprocess.CalledProcessError as e:
-                logging.error(f"Failed to compile '{name}'.\nCommand: {e.cmd}\nReturn Code: {e.returncode}\nStderr: {e.stderr}")
-                return # Do not register if compilation fails
+                logging.error(
+                    f"Failed to compile '{name}'.\nCommand: {e.cmd}\nReturn Code: {e.returncode}\nStderr: {e.stderr}"
+                )
+                return  # Do not register if compilation fails
             except KeyError as e:
-                logging.error(f"Build command for '{name}' has an invalid placeholder: {e}. Available placeholders: {{source}}, {{output}}.")
+                logging.error(
+                    f"Build command for '{name}' has an invalid placeholder: {e}. Available placeholders: {{source}}, {{output}}."
+                )
                 return
 
         # Register the program
         if os.path.exists(executable_path):
             self.registered_programs[name] = {
-                'path': os.path.abspath(executable_path),
-                'description': description,
-                'language': language,
-                'run_command': manifest.get('run') # Store the run command if it exists
+                "path": os.path.abspath(executable_path),
+                "description": description,
+                "language": language,
+                "run_command": manifest.get(
+                    "run"
+                ),  # Store the run command if it exists
             }
             logging.info(f"Successfully registered program: '{name}'")
         else:
-            logging.error(f"Build target '{executable_path}' not found after compilation attempt for '{name}'.")
+            logging.error(
+                f"Build target '{executable_path}' not found after compilation attempt for '{name}'."
+            )
 
     def get_program(self, name):
         return self.registered_programs.get(name)
@@ -140,12 +197,14 @@ class CodeExecutionManager:
         """
         descriptions = []
         for name, info in self.registered_programs.items():
-            descriptions.append({
-                "tool_name": name,
-                "description": info.get('description', 'No description available.'),
-                # We can add argument details to manifest.json in the future
-                "args": ["..."]
-            })
+            descriptions.append(
+                {
+                    "tool_name": name,
+                    "description": info.get("description", "No description available."),
+                    # We can add argument details to manifest.json in the future
+                    "args": ["..."],
+                }
+            )
         return descriptions
 
     def execute_program(self, name, args):
@@ -157,15 +216,15 @@ class CodeExecutionManager:
         if not program_info:
             return False, f"Error: Program '{name}' not found."
 
-        project_dir = os.path.dirname(program_info['path'])
-        run_command_template = program_info.get('run_command')
+        project_dir = os.path.dirname(program_info["path"])
+        run_command_template = program_info.get("run_command")
 
         if run_command_template:
             # Quote arguments for safe shell execution
             args_str = " ".join([shlex.quote(str(arg)) for arg in args])
             command = run_command_template.format(args=args_str)
         else:
-            command = [program_info['path']] + list(args)
+            command = [program_info["path"]] + list(args)
 
         logging.info(f"Executing external program with command: {command}")
 
@@ -175,7 +234,23 @@ class CodeExecutionManager:
 
             # Security hardening: even if it's a shell command, check if it actually needs shell features
             if is_shell_command:
-                shell_chars = {'|', '&', ';', '<', '>', '$', '*', '?', '(', ')', '[', ']', '!', '#', '~'}
+                shell_chars = {
+                    "|",
+                    "&",
+                    ";",
+                    "<",
+                    ">",
+                    "$",
+                    "*",
+                    "?",
+                    "(",
+                    ")",
+                    "[",
+                    "]",
+                    "!",
+                    "#",
+                    "~",
+                }
                 if not any(char in command for char in shell_chars):
                     try:
                         command = shlex.split(command)
@@ -189,10 +264,12 @@ class CodeExecutionManager:
                 capture_output=True,
                 text=True,
                 check=True,
-                cwd=project_dir, # Execute from program's dir
-                shell=is_shell_command
+                cwd=project_dir,  # Execute from program's dir
+                shell=is_shell_command,
             )
-            output = f"Program '{name}' executed successfully.\nOutput:\n{result.stdout}"
+            output = (
+                f"Program '{name}' executed successfully.\nOutput:\n{result.stdout}"
+            )
             logging.info(output)
             return True, result.stdout
         except FileNotFoundError:
@@ -209,7 +286,7 @@ class CodeExecutionManager:
             return False, error_msg
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Example usage for testing
     manager = CodeExecutionManager()
     manager.scan_and_register()

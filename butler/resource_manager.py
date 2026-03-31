@@ -1,9 +1,11 @@
 import psutil
 from enum import Enum
 
+
 class PerformanceMode(Enum):
     NORMAL = "NORMAL"
     ECO = "ECO"
+
 
 class ResourceManager:
     def __init__(self):
@@ -22,7 +24,8 @@ class ResourceManager:
     def get_memory_usage(self) -> float:
         return psutil.virtual_memory().percent
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # 示例用法
     manager = ResourceManager()
     print(f"当前模式: {manager.get_mode().value}")

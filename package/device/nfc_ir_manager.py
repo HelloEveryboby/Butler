@@ -1,11 +1,11 @@
 from package.device.stm32_hw_bridge import STM32HardwareBridge
-from butler.core.asset_loader import AssetLoader
-import os
+
 
 class NFCIRManager:
     """
     High-level manager for NFC and IR operations via STM32.
     """
+
     def __init__(self):
         self.bridge = STM32HardwareBridge()
         self._connected = False
@@ -38,6 +38,7 @@ class NFCIRManager:
         self._ensure_connected()
         return self.bridge.call("ir_transmit", {"code_id": code_id})
 
+
 def run(intent=None, params=None):
     """
     Butler Package Entry Point
@@ -59,6 +60,7 @@ def run(intent=None, params=None):
         return "NFC 克隆失败"
 
     return "硬件管理器就绪，但未识别具体指令。"
+
 
 if __name__ == "__main__":
     # Quick manual test

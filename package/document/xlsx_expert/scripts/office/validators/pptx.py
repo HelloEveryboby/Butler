@@ -8,7 +8,6 @@ from .base import BaseSchemaValidator
 
 
 class PPTXSchemaValidator(BaseSchemaValidator):
-
     PRESENTATIONML_NAMESPACE = (
         "http://schemas.openxmlformats.org/presentationml/2006/main"
     )
@@ -233,9 +232,7 @@ class PPTXSchemaValidator(BaseSchemaValidator):
                         if target:
                             normalized_target = target.replace("../", "")
 
-                            slide_name = rels_file.stem.replace(
-                                ".xml", ""
-                            )
+                            slide_name = rels_file.stem.replace(".xml", "")
 
                             if normalized_target not in notes_slide_references:
                                 notes_slide_references[normalized_target] = []

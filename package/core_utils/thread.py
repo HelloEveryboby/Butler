@@ -8,13 +8,27 @@ import concurrent.futures
 
 logging = LogManager.get_logger(__name__)
 
+
 # 模拟处理任务的函数
 def do_something(task):
     return task.upper()
 
+
 # 获取大任务列表
 def get_tasks():
-    return ["task1", "task2", "task3", "task4", "task5", "task6", "task7", "task8", "task9", "task10"]
+    return [
+        "task1",
+        "task2",
+        "task3",
+        "task4",
+        "task5",
+        "task6",
+        "task7",
+        "task8",
+        "task9",
+        "task10",
+    ]
+
 
 # 定义任务处理函数
 def process_task(task, result_queue, stop_event):
@@ -34,12 +48,14 @@ def process_task(task, result_queue, stop_event):
             logging.info("接收到停止信号，线程将退出。")
     return task_result
 
+
 # 工作线程函数
 def worker(subtasks, result_queue, stop_event):
     for task in subtasks:
         if stop_event.is_set():
             break
         process_task(task, result_queue, stop_event)
+
 
 # 定义任务分解函数
 def divide_tasks(tasks, num_threads):
@@ -49,8 +65,9 @@ def divide_tasks(tasks, num_threads):
     # 将大任务分解成多个小任务
     subtasks = []
     for i in range(0, len(tasks), batch_size):
-        subtasks.append(tasks[i:i+batch_size])
+        subtasks.append(tasks[i : i + batch_size])
     return subtasks
+
 
 # 定义任务分发函数
 def dispatch_tasks(tasks, num_threads):
@@ -69,9 +86,10 @@ def dispatch_tasks(tasks, num_threads):
         results.append(result_queue.get())
     return results
 
+
 def retry_task(task, max_retries=3):
     for i in range(max_retries):
-        logging.info(f"第 {i + 1} 次尝试处理任务: {task} ({i+1}/{max_retries})")
+        logging.info(f"第 {i + 1} 次尝试处理任务: {task} ({i + 1}/{max_retries})")
         try:
             # Create a dummy stop_event for this context
             result = process_task(task, None, threading.Event())
@@ -83,8 +101,9 @@ def retry_task(task, max_retries=3):
         if i < max_retries - 1:
             time.sleep(1)  # 等待 1 秒后重试
 
-    logging.error(f"任务 {task} 在重试 {max_retries} 次后仍然失败")       
+    logging.error(f"任务 {task} 在重试 {max_retries} 次后仍然失败")
     return None  # 重试次数最多后任务失败
+
 
 def dispatch_tasks_with_retry(tasks, num_threads):
     logging.info(f"分发任务并重试: {tasks}")
@@ -99,6 +118,7 @@ def dispatch_tasks_with_retry(tasks, num_threads):
                 results.append(result)
         return results
 
+
 # 主函数
 def process_tasks():
     logging.info("开始任务处理")
@@ -107,13 +127,12 @@ def process_tasks():
 
     # 定义线程数，根据CPU核心数动态设置
     num_threads = min(len(tasks), os.cpu_count() or 1)
-    # 创建一个Event对象，用于控制线程退出
-    stop_event = threading.Event()
     # stop_event.set() # 修复：不应立即设置，否则 worker 会直接退出
     # 分发任务并等待结果
     result = dispatch_tasks(tasks, num_threads)
     logging.info(f"任务处理完成，结果: {result}")
     print(result)
+
 
 if __name__ == "__main__":
     process_tasks()

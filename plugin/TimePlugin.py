@@ -1,9 +1,9 @@
-import os
-import time
+from datetime import datetime
 from package.core_utils.log_manager import LogManager
 from plugin.plugin_interface import AbstractPlugin, PluginResult
 
 logging = LogManager.get_logger(__name__)
+
 
 class TimePlugin(AbstractPlugin):
     def __init__(self):
@@ -17,7 +17,7 @@ class TimePlugin(AbstractPlugin):
 
     def init(self, logging):
         self.logger = LogManager.get_logger(self.name)
-        
+
     def get_name(self):
         return self.name
 
