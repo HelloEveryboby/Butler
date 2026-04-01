@@ -1,5 +1,4 @@
 import os
-import platform
 import shutil
 import subprocess
 import tkinter as tk
@@ -257,7 +256,7 @@ class ProgramManager:
 
 def main():
     root = tk.Tk()
-    app = ProgramManager(root)
+    ProgramManager(root)
     root.mainloop()
 
 if __name__ == "__main__":

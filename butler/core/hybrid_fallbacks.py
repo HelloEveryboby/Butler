@@ -252,7 +252,6 @@ def log_scan(directory: str, regex_str: str) -> Dict[str, List[str]]:
 def discover_nodes() -> List[str]:
     """Python 实现：通过 UDP 广播进行节点发现。"""
     import socket
-    import os
     nodes = []
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

@@ -1,5 +1,4 @@
 import tkinter as tk
-from pypinyin import lazy_pinyin, Style
 
 class VirtualKeyboard(tk.Frame):
     def __init__(self, master, **kwargs):

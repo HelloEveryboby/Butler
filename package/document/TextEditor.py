@@ -1,6 +1,5 @@
 import json
 import os
-import time
 import shutil
 from package.core_utils.log_manager import LogManager
 from PIL import Image

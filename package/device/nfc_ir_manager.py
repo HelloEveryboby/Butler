@@ -1,6 +1,4 @@
 from package.device.stm32_hw_bridge import STM32HardwareBridge
-from butler.core.asset_loader import AssetLoader
-import os
 
 class NFCIRManager:
     """

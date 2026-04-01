@@ -54,7 +54,7 @@ class WriteFilePlugin(AbstractPlugin):
 
         content = args.get("content")
         encoding = args.get("encoding", "utf-8")
-        file_extension = args.get("file_extension", "txt")
+        args.get("file_extension", "txt")
   
         # 内容长度限制
         max_length = 1000

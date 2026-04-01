@@ -55,9 +55,9 @@ impl ChaCha20 {
             Self::quarter_round(&mut mix, 3, 4, 9, 14);
         }
 
-        for i in 0..16 {
-            let res = mix[i].wrapping_add(self.state[if i == 12 { 12 } else { i }]);
-            self.keystream[i*4..i*4+4].copy_from_slice(&res.to_le_bytes());
+        for (i, mix_val) in mix.iter().enumerate().take(16) {
+            let res = mix_val.wrapping_add(self.state[i]);
+            self.keystream[i * 4..i * 4 + 4].copy_from_slice(&res.to_le_bytes());
         }
         self.counter += 1;
         self.index = 0;

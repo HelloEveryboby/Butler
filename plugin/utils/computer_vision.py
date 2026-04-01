@@ -1,7 +1,5 @@
-import io
 import numpy as np
 import cv2
-from PIL import Image
 from .lazy_import import lazy_import
 
 # 延迟导入可选包
@@ -16,8 +14,8 @@ pytesseract = lazy_import("pytesseract")
 
 def pytesseract_get_text(img):
     # 列出pytesseract的属性，这将触发它的延迟加载
-    attributes = dir(pytesseract)
-    if pytesseract == None:
+    dir(pytesseract)
+    if pytesseract is None:
         raise ImportError("pytesseract模块无法导入.")
 
     result = pytesseract.image_to_string(img)

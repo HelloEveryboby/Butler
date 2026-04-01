@@ -58,7 +58,7 @@ fn main() -> Result<()> {
             }),
         };
 
-        writeln!(stdout_lock, "{}", response.to_string())?;
+        writeln!(stdout_lock, "{}", response)?;
         stdout_lock.flush()?;
     }
     Ok(())

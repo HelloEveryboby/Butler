@@ -9,8 +9,6 @@ import queue
 import logging
 import numpy as np
 import pyautogui
-import pygetwindow as gw
-from PIL import ImageGrab, Image
 import mss
 import mss.tools
 
@@ -193,7 +191,7 @@ def scan_qr_code_camera(save_folder):
                 
                 time.sleep(0.05)  # 减少CPU使用率
         
-    except Exception as e:
+    except Exception:
         logger.exception("摄像头扫描时发生错误")
     finally:
         if 'cap' in locals() and cap.isOpened():
@@ -251,7 +249,7 @@ def scan_qr_code_screen(save_folder):
                 
                 time.sleep(0.3)  # 降低扫描频率
                 
-    except Exception as e:
+    except Exception:
         logger.exception("屏幕扫描时发生错误")
     finally:
         cv2.destroyAllWindows()
@@ -362,7 +360,7 @@ class QRScannerApp:
 def main():
     """主程序入口"""
     root = tk.Tk()
-    app = QRScannerApp(root)
+    QRScannerApp(root)
     
     root.protocol("WM_DELETE_WINDOW", lambda: on_exit(root))
     root.mainloop()
