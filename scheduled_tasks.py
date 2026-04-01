@@ -1,5 +1,9 @@
+import datetime
 import os
+import shlex
+import subprocess
 import sys
+import time
 
 # Add project root and local lib to sys.path
 project_root = os.path.dirname(os.path.abspath(__file__))
@@ -9,12 +13,6 @@ if project_root not in sys.path:
 lib_path = os.path.join(project_root, "lib_external")
 if os.path.exists(lib_path) and lib_path not in sys.path:
     sys.path.insert(0, lib_path)
-
-import time
-import datetime
-import subprocess
-import shutil
-import shlex
 
 class ScheduledTask:
     def __init__(self, task_name, task_command, schedule_type, schedule_value, data_file_path="task_log.txt", task_function=None):
@@ -91,7 +89,7 @@ class ScheduledTask:
                 cmd = shlex.split(cmd)
 
             with open(self.temp_data_file, "w") as f:
-                process = subprocess.run(cmd, check=True, capture_output=True, text=True, stdout=f)
+                subprocess.run(cmd, check=True, capture_output=True, text=True, stdout=f)
 
             self.last_run_time = datetime.datetime.now()
             self._save_last_run_time()

@@ -63,6 +63,10 @@ def run(self, takecommand: str, args: dict) -> PluginResult:
     content = args.get('content') 
     if content:
         try:
+            from butler.butler_app import extension_manager
+            jarvis = getattr(extension_manager, 'jarvis_app', None)
+            if not jarvis:
+                return PluginResult.new("Jarvis app not found", False)
             item = LongMemoryItem.new(
                 content=content, 
                 metadata={"add_time": time.time()}, 

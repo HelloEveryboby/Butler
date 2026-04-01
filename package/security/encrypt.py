@@ -5,7 +5,6 @@
 import os
 import time
 import sys
-import base64
 import getpass
 import hashlib
 from package.security.crypto_core import SymmetricCrypto
@@ -67,7 +66,8 @@ class EnhancedEncryptor:
 
     def handle_file(self, file_path, algorithm='AES', mode='encrypt'):
         key = self.get_key(algorithm)
-        if not key: return
+        if not key:
+            return
 
         try:
             if mode == 'encrypt':
@@ -95,7 +95,8 @@ class EnhancedEncryptor:
 
     def handle_string(self, algorithm='AES', mode='encrypt'):
         key = self.get_key(algorithm)
-        if not key: return
+        if not key:
+            return
 
         if mode == 'encrypt':
             data = input("请输入要加密的字符串: ")
@@ -124,10 +125,14 @@ def run(file_path=None):
         print("3. DES 加密")
         print("4. DES 解密")
         choice = input("请选择操作 (1-4): ")
-        if choice == '1': encryptor.handle_file(file_path, 'AES', 'encrypt')
-        elif choice == '2': encryptor.handle_file(file_path, 'AES', 'decrypt')
-        elif choice == '3': encryptor.handle_file(file_path, 'DES', 'encrypt')
-        elif choice == '4': encryptor.handle_file(file_path, 'DES', 'decrypt')
+        if choice == '1':
+            encryptor.handle_file(file_path, 'AES', 'encrypt')
+        elif choice == '2':
+            encryptor.handle_file(file_path, 'AES', 'decrypt')
+        elif choice == '3':
+            encryptor.handle_file(file_path, 'DES', 'encrypt')
+        elif choice == '4':
+            encryptor.handle_file(file_path, 'DES', 'decrypt')
         return
 
     while True:
@@ -143,28 +148,42 @@ def run(file_path=None):
         print("0. 返回/退出")
 
         choice = input("请选择操作: ")
-        if choice == '0': break
+        if choice == '0':
+            break
         elif choice == '1':
             path = input("输入文件路径: ")
-            if os.path.isfile(path): encryptor.handle_file(path, 'AES', 'encrypt')
-            else: print("文件不存在。")
+            if os.path.isfile(path):
+                encryptor.handle_file(path, 'AES', 'encrypt')
+            else:
+                print("文件不存在。")
         elif choice == '2':
             path = input("输入文件路径: ")
-            if os.path.isfile(path): encryptor.handle_file(path, 'AES', 'decrypt')
-            else: print("文件不存在。")
+            if os.path.isfile(path):
+                encryptor.handle_file(path, 'AES', 'decrypt')
+            else:
+                print("文件不存在。")
         elif choice == '3':
             path = input("输入文件路径: ")
-            if os.path.isfile(path): encryptor.handle_file(path, 'DES', 'encrypt')
-            else: print("文件不存在。")
+            if os.path.isfile(path):
+                encryptor.handle_file(path, 'DES', 'encrypt')
+            else:
+                print("文件不存在。")
         elif choice == '4':
             path = input("输入文件路径: ")
-            if os.path.isfile(path): encryptor.handle_file(path, 'DES', 'decrypt')
-            else: print("文件不存在。")
-        elif choice == '5': encryptor.handle_string('AES', 'encrypt')
-        elif choice == '6': encryptor.handle_string('AES', 'decrypt')
-        elif choice == '7': encryptor.handle_string('DES', 'encrypt')
-        elif choice == '8': encryptor.handle_string('DES', 'decrypt')
-        else: print("无效选择。")
+            if os.path.isfile(path):
+                encryptor.handle_file(path, 'DES', 'decrypt')
+            else:
+                print("文件不存在。")
+        elif choice == '5':
+            encryptor.handle_string('AES', 'encrypt')
+        elif choice == '6':
+            encryptor.handle_string('AES', 'decrypt')
+        elif choice == '7':
+            encryptor.handle_string('DES', 'encrypt')
+        elif choice == '8':
+            encryptor.handle_string('DES', 'decrypt')
+        else:
+            print("无效选择。")
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:

@@ -49,7 +49,7 @@ void detect_displays(const char* id) {
     // 1. Check /sys/class/drm (Linux Direct Rendering Manager)
     DIR* dir = opendir("/sys/class/drm");
     if (dir) {
-        struct dirent* entry;
+        const struct dirent* entry;
         while ((entry = readdir(dir)) != NULL) {
             if (strncmp(entry->d_name, "card", 4) == 0 && strstr(entry->d_name, "-")) {
                 char path[512];
@@ -85,7 +85,6 @@ void detect_displays(const char* id) {
              display_count, display_count > 0 ? "true" : "false");
 
     // Construct final JSON with details string
-    char* final_ptr = buffer + strlen(buffer);
     print_json_string(details); // This prints directly to stdout, let's fix the buffer approach
 
     // Correction: Construct the result manually to maintain BHL format
@@ -100,11 +99,11 @@ void detect_displays(const char* id) {
 void check_connections(const char* id) {
     int connection_count = 0;
     char devices[512] = "";
-    int offset = 0;
 
     DIR* dir = opendir("/dev");
     if (dir) {
-        struct dirent* entry;
+        const struct dirent* entry;
+        int offset = 0;
         while ((entry = readdir(dir)) != NULL) {
             // Broad search for USB Serial and typical dev board ports
             if (strstr(entry->d_name, "ttyUSB") ||
@@ -113,7 +112,7 @@ void check_connections(const char* id) {
                 strstr(entry->d_name, "tty.usb")) {
 
                 connection_count++;
-                if (offset < sizeof(devices) - 64) {
+                if (offset < (int)sizeof(devices) - 64) {
                     offset += snprintf(devices + offset, sizeof(devices) - offset, "%s ", entry->d_name);
                 }
             }
@@ -157,9 +156,9 @@ void list_processes(const char* id) {
     }
 
     printf("{\"jsonrpc\":\"2.0\",\"result\":{\"processes\":[");
-    struct dirent* entry;
     int first = 1;
 
+    const struct dirent* entry;
     while ((entry = readdir(dir)) != NULL) {
         if (!isdigit(entry->d_name[0])) continue;
 
@@ -195,7 +194,7 @@ void recursive_search(const char* dir_path, const char* pattern, int* count, int
     DIR* dir = opendir(dir_path);
     if (!dir) return;
 
-    struct dirent* entry;
+    const struct dirent* entry;
     while ((entry = readdir(dir)) != NULL) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
 

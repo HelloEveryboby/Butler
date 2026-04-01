@@ -1,5 +1,4 @@
 import os
-import time
 import json
 from package.core_utils.log_manager import LogManager
 from plugin.plugin_interface import AbstractPlugin, PluginResult
@@ -50,7 +49,7 @@ class NotepadPlugin(AbstractPlugin):
         return ["记笔记", "添加笔记", "查看笔记", "删除笔记", "编辑笔记", "搜索笔记"]
 
     def run(self, takecommand: str, args: dict) -> PluginResult:
-        action = args.get("action")
+        args.get("action")
         note = args.get("note")
         index = args.get("index")
 

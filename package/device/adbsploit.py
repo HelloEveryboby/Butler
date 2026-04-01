@@ -664,7 +664,7 @@ def check_screen():
         try:
             d = adbutils.adb.device(device)
             screen = d.is_screen_on()
-            if screen == True:
+            if screen:
                 print(arrow + Fore.GREEN + 'The screen is on...')
             else:
                 print(arrow + Fore.GREEN + 'The screen is off...')
@@ -882,7 +882,7 @@ def unlock_screen():
     if device != 'none':
         try:
             d = adbutils.adb.device(device)
-            if d.is_screen_on() == False:
+            if not d.is_screen_on():
                 print(
                     arrow + ("[{0}+{1}] Specify the unlocking code, leave it blank if don't have code").format(Fore.RED,
                                                                                                                Fore.WHITE))
@@ -1184,7 +1184,7 @@ def backdoor():
     if device != 'none':
         if shutil.which("msfvenom") is not None:
             try:
-                d = adbutils.adb.device(device)
+                adbutils.adb.device(device)
                 print(arrow + ("[{0}+{1}] Specify the payload: (com.whatsapp)").format(Fore.RED, Fore.WHITE))
                 table = Table()
                 table.add_column("Name", style="cyan")
