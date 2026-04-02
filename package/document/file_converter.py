@@ -54,6 +54,7 @@ def process_pdf(input_file_path, output_file_path, output_folder):
 
         if '/XObject' in page['/Resources']:
             xObject = page['/Resources']['/XObject'].get_object()
+            img_index = 0
             for obj in xObject:
                 if xObject[obj]['/Subtype'] == '/Image':
                     size = (xObject[obj]['/Width'], xObject[obj]['/Height'])
@@ -65,6 +66,7 @@ def process_pdf(input_file_path, output_file_path, output_folder):
                     rotated_image.save(img_buffer, format=image.format)
                     img_buffer.seek(0)
                     page.images[img_index]['data'] = img_buffer.read()
+                    img_index += 1
 
         writer.add_page(page)
         print_progress_bar(i + 1, num_pages) # 更新进度条

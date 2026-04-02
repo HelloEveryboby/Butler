@@ -1,10 +1,8 @@
 import json
 import os
-import pyttsx3
 import datetime
 import schedule
 import time
-import threading
 
 class ScheduleManager:
     def __init__(self, jarvis, filename='schedule.json'):
@@ -122,7 +120,7 @@ class ScheduleManager:
                 days = int(time_str.split('天')[0].strip())
                 future_date = datetime.datetime.now() + datetime.timedelta(days=days)
                 self.speak("请输入具体时间，格式为 HH:MM。")
-                time = takecommand()
+                time = self.takecommand()
                 if time:
                     event_datetime = future_date.strftime("%Y-%m-%d") + " " + time
                     self.add_event(event_datetime, event)

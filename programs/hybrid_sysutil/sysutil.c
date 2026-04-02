@@ -80,15 +80,7 @@ void detect_displays(const char* id) {
         offset += snprintf(details + offset, sizeof(details) - offset, "Wayland:%s ", getenv("WAYLAND_DISPLAY"));
     }
 
-    char buffer[1024];
-    snprintf(buffer, sizeof(buffer), "{\"display_count\":%d,\"detected\":%s,\"details\":",
-             display_count, display_count > 0 ? "true" : "false");
-
-    // Construct final JSON with details string
-    char* final_ptr = buffer + strlen(buffer);
-    print_json_string(details); // This prints directly to stdout, let's fix the buffer approach
-
-    // Correction: Construct the result manually to maintain BHL format
+    // Construct the result manually to maintain BHL format
     printf("{\"jsonrpc\":\"2.0\",\"result\":{\"display_count\":%d,\"detected\":%s,\"details\":",
            display_count, display_count > 0 ? "true" : "false");
     print_json_string(details);

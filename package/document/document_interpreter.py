@@ -6,24 +6,20 @@ import os
 import sys
 import shutil
 import re
-import csv
-import json
 import argparse
 from collections import Counter
-from typing import Optional, Dict, List, Any
+from typing import Optional, List, Any
 
 # Third-party imports
 import docx
 from pypdf import PdfReader, PdfWriter
 import pdfplumber
 import pandas as pd
-from openpyxl import load_workbook, Workbook
 from pptx import Presentation
 import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup
 import requests
-from dotenv import load_dotenv
 
 # Local imports
 # Use consistent project root resolution

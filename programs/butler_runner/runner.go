@@ -156,16 +156,29 @@ func isSafePath(path string) bool {
 	if path == "" || path == "/" || path == "." || path == ".." {
 		return false
 	}
-	// Check for path traversal
-	if strings.Contains(path, "..") {
+
+	// Clean the path to resolve any "." or ".."
+	cleanPath := filepath.Clean(path)
+
+	// Check for path traversal after cleaning
+	if strings.HasPrefix(cleanPath, "..") || strings.Contains(cleanPath, filepath.FromSlash("/../")) {
 		return false
 	}
+
 	// Check for absolute path in Unix or root in Windows
-	if filepath.IsAbs(path) {
-		// For simplicity, we only allow relative paths for file ops in this version
-		// Or we can restrict to specific root if configured, but let's at least block root
-		if path == "/" || (runtime.GOOS == "windows" && len(path) <= 3 && strings.HasSuffix(path, ":\\")) {
+	if filepath.IsAbs(cleanPath) {
+		// Block access to system roots
+		if cleanPath == "/" || (runtime.GOOS == "windows" && len(cleanPath) <= 3 && strings.Contains(cleanPath, ":")) {
 			return false
+		}
+		// Block access to sensitive unix directories
+		if runtime.GOOS != "windows" {
+			sensitive := []string{"/etc", "/root", "/var", "/bin", "/sbin", "/proc", "/sys", "/dev"}
+			for _, s := range sensitive {
+				if cleanPath == s || strings.HasPrefix(cleanPath, s+"/") {
+					return false
+				}
+			}
 		}
 	}
 	return true
