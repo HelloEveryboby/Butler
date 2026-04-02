@@ -2,12 +2,11 @@ import pandas as pd
 import numpy as np
 import os
 import glob
-from openpyxl import load_workbook
 from openpyxl.chart import BarChart, LineChart, PieChart, ScatterChart, Reference
+from openpyxl.chart.series import Series
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler
 from scipy import stats
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA

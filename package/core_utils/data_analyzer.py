@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 from package.core_utils.log_manager import LogManager
 from tqdm import tqdm
 import os

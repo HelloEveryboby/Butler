@@ -4,11 +4,13 @@ import subprocess
 import threading
 import os
 import shlex
-# try:
-#     from tkinterdnd2 import DND_FILES, TkinterDnD
-#     HAS_DND = True
-# except ImportError:
-HAS_DND = False
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+    HAS_DND = True
+except ImportError:
+    HAS_DND = False
+    DND_FILES = None
+    TkinterDnD = None
 
 
 class TerminalTab(tk.Frame):
@@ -85,7 +87,7 @@ class TerminalTab(tk.Frame):
                 except IndexError:
                     self.output_area.insert(tk.END, "cd: missing operand\n")
                 except FileNotFoundError:
-                    self.output_area.insert(tk.END, f"cd: no such file or directory\n")
+                    self.output_area.insert(tk.END, "cd: no such file or directory\n")
             elif command_parts[0] == "ls":
                 try:
                     files = os.listdir(self.current_directory)

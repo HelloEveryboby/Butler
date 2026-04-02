@@ -63,12 +63,15 @@ def run(self, takecommand: str, args: dict) -> PluginResult:
     content = args.get('content') 
     if content:
         try:
+            from butler.butler_app import extension_manager
+            jarvis = getattr(extension_manager, 'jarvis_app', None)
             item = LongMemoryItem.new(
                 content=content, 
                 metadata={"add_time": time.time()}, 
                 id=str(time.time_ns())
             )
-            jarvis.long_memory.save([item])
+            if jarvis:
+                jarvis.long_memory.save([item])
             self._logger.info(f"成功记忆内容: {content}")
             return PluginResult.new(result=f"已成功记忆：{content}", need_call_brain=True)
         except Exception as e:

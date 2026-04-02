@@ -39,7 +39,7 @@ fn main() -> Result<()> {
             }
         };
 
-        let req_id = req.id.clone().unwrap_or_default();
+        let req_id = req.id.clone().unwrap_or_else(|| "null".to_string());
         let result = handle_request(req);
 
         let response = match result {

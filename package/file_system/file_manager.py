@@ -1,5 +1,4 @@
 import os
-import shutil
 from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)

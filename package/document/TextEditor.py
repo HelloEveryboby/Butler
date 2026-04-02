@@ -1,6 +1,7 @@
 import json
 import os
-import time
+import sys
+import subprocess
 import shutil
 from package.core_utils.log_manager import LogManager
 from PIL import Image
@@ -147,6 +148,32 @@ def find_file(file_name):
     except Exception as e:
         logger.error(f"查找文件出错：{e}")
         return []
+
+def open_image_file(file_path):
+    """在系统默认查看器中打开图像文件。"""
+    try:
+        if sys.platform == "win32":
+            os.startfile(file_path)
+        elif sys.platform == "darwin":
+            subprocess.run(["open", file_path], check=True)
+        else:
+            subprocess.run(["xdg-open", file_path], check=True)
+        logger.info(f"已打开图片文件：{file_path}")
+    except Exception as e:
+        logger.error(f"打开图片文件出错：{e}")
+
+def open_text_file(file_path):
+    """在系统默认文本编辑器中打开文本文件。"""
+    try:
+        if sys.platform == "win32":
+            os.startfile(file_path)
+        elif sys.platform == "darwin":
+            subprocess.run(["open", file_path], check=True)
+        else:
+            subprocess.run(["xdg-open", file_path], check=True)
+        logger.info(f"已打开文本文件：{file_path}")
+    except Exception as e:
+        logger.error(f"打开文本文件出错：{e}")
 
 def open_file(file_path):
     """根据文件类型打开文件（图片或文本）。"""

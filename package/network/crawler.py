@@ -4,16 +4,18 @@ import random
 import redis
 from bs4 import BeautifulSoup
 import os
+import sys
 import concurrent.futures
 import argparse
 from package.core_utils.log_manager import LogManager
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse
 from scrapy.crawler import CrawlerProcess
-from scrapy.utils.project import get_project_settings
+# from scrapy.utils.project import get_project_settings
 import scrapy
 
 # 设置日志配置
-logging = LogManager.get_logger(__name__)
+logger = LogManager.get_logger(__name__)
+logging = logger
 downloaded = "./downloaded/"  # 存储数据文件
 
 # 设置User Agent列表
@@ -164,6 +166,14 @@ class MyScrapySpider(scrapy.Spider):
             f.write(response.body)
         self.log(f'下载 {response.url}')    
 
+def run_scrapy_crawler(search_query):
+    process = CrawlerProcess({
+        'USER_AGENT': get_random_user_agent(),
+        'LOG_LEVEL': 'INFO'
+    })
+    process.crawl(MyScrapySpider, search_query=search_query)
+    process.start()
+
 def run(*args, **kwargs):
     search_query = kwargs.get('search_query')
     file_type = kwargs.get('type', 'image')
@@ -185,7 +195,10 @@ def crawler():
     file_type = args.type
     
     if not search_query:
-        search_query = input('搜索内容: ')
+        input_str = input('搜索内容或网址: ')
+        search_query = input_str
+    else:
+        input_str = search_query
     
     if urlparse(input_str).scheme:  # 如果输入的是网址
         success = crawl_website(input_str, max_depth)

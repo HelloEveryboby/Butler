@@ -13,7 +13,6 @@ if os.path.exists(lib_path) and lib_path not in sys.path:
 import time
 import datetime
 import subprocess
-import shutil
 import shlex
 
 class ScheduledTask:
