@@ -126,11 +126,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.onAIStreamChunk = (chunk) => {
         if (currentAILine) {
-            // Check for media chunks (e.g., {"type": "media", "media_type": "image", "url": "..."})
+            // Check for structured chunks (e.g., media, translation, code_block)
             try {
                 const data = JSON.parse(chunk);
                 if (data.type === 'media') {
                     renderMediaInChat(data);
+                    return;
+                } else if (data.type === 'translation') {
+                    renderTranslationInChat(data);
+                    return;
+                } else if (data.type === 'code_block') {
+                    renderCodeBlockInChat(data);
                     return;
                 }
             } catch (e) {}
@@ -139,6 +145,92 @@ document.addEventListener('DOMContentLoaded', () => {
             interactionFlow.scrollTop = interactionFlow.scrollHeight;
         }
     };
+
+    function renderTranslationInChat(data) {
+        const container = document.createElement('div');
+        container.className = 'translation-container';
+
+        // Header with metadata and Pink "LA" icon
+        const header = document.createElement('div');
+        header.className = 'translation-header';
+
+        const metadata = document.createElement('div');
+        metadata.className = 'translation-metadata';
+
+        const title = document.createElement('div');
+        title.className = 'translation-title';
+        title.innerText = data.metadata.title || "Translation Result";
+
+        const sourceTitle = document.createElement('div');
+        sourceTitle.className = 'translation-source-title';
+        sourceTitle.innerText = data.metadata.source_title || "";
+
+        const path = document.createElement('div');
+        path.className = 'translation-path';
+        path.innerText = data.metadata.path || "";
+
+        metadata.appendChild(title);
+        if (data.metadata.source_title) metadata.appendChild(sourceTitle);
+        if (data.metadata.path) metadata.appendChild(path);
+
+        const laIcon = document.createElement('div');
+        laIcon.className = 'translation-la-icon';
+        laIcon.innerText = "LA";
+
+        header.appendChild(metadata);
+        header.appendChild(laIcon);
+
+        // Body with bilingual segments
+        const body = document.createElement('div');
+        body.className = 'translation-body';
+
+        data.data.forEach(segment => {
+            const segDiv = document.createElement('div');
+            segDiv.className = 'translation-segment';
+
+            const source = document.createElement('div');
+            source.className = 'segment-source';
+            source.innerText = segment.source;
+
+            const target = document.createElement('div');
+            target.className = 'segment-target';
+            target.innerText = segment.target;
+
+            segDiv.appendChild(source);
+            segDiv.appendChild(target);
+            body.appendChild(segDiv);
+        });
+
+        container.appendChild(header);
+        container.appendChild(body);
+        currentAILine.appendChild(container);
+    }
+
+    function renderCodeBlockInChat(data) {
+        const block = document.createElement('div');
+        block.className = 'code-block';
+
+        const header = document.createElement('div');
+        header.className = 'code-header';
+        header.innerHTML = `<span>${data.language.toUpperCase()}</span><button onclick="navigator.clipboard.writeText(\`${data.code.replace(/`/g, '\\`')}\`)"><i class="fas fa-copy"></i></button>`;
+
+        const content = document.createElement('div');
+        content.className = 'code-content';
+        content.innerText = data.code;
+
+        const output = document.createElement('div');
+        output.className = 'code-output';
+        output.style.padding = '10px 15px';
+        output.style.borderTop = '1px solid #333';
+        output.style.fontSize = '0.85rem';
+        output.style.color = '#8bc34a';
+        output.innerText = data.output || "";
+
+        block.appendChild(header);
+        block.appendChild(content);
+        if (data.output) block.appendChild(output);
+        currentAILine.appendChild(block);
+    }
 
     function renderMediaInChat(data) {
         const container = document.createElement('div');

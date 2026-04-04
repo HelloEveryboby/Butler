@@ -400,3 +400,88 @@ main {
 
 .action-btn { background: #1b6ef3; color: #fff; border: none; padding: 8px 20px; border-radius: 20px; cursor: pointer; font-weight: 500; }
 .theme-apple .action-btn { background: #007aff; }
+
+/* Translation UI Components */
+.translation-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+}
+
+.translation-header {
+    background: rgba(128, 128, 128, 0.15);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    color: inherit;
+    position: relative;
+    border-left: 4px solid #aaa;
+}
+
+.translation-metadata {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+}
+
+.translation-source-title {
+    opacity: 0.6;
+    font-size: 0.8rem;
+}
+
+.translation-path {
+    font-family: monospace;
+    font-size: 0.75rem;
+    opacity: 0.5;
+    word-break: break-all;
+}
+
+.translation-la-icon {
+    width: 32px;
+    height: 32px;
+    background: #ff69b4; /* Pink "LA" background */
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: bold;
+    font-size: 1rem;
+    box-shadow: 0 4px 10px rgba(255, 105, 180, 0.3);
+    flex-shrink: 0;
+}
+
+.translation-body {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 10px 5px;
+}
+
+.translation-segment {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.segment-source {
+    font-size: 1rem;
+    line-height: 1.5;
+    opacity: 0.85;
+}
+
+.segment-target {
+    font-size: 1.05rem;
+    line-height: 1.5;
+    font-weight: 500;
+    color: var(--accent-color);
+}
+
+.theme-google .segment-target {
+    color: var(--md-sys-color-primary);
+}

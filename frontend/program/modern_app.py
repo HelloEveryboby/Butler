@@ -79,6 +79,8 @@ class ModernBridge:
                     self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
                 elif tag == 'chart':
                     self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
+                elif tag == 'translation':
+                    self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
                 elif tag != 'ai_response_start':
                     self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
 
