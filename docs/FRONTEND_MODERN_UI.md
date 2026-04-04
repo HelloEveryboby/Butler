@@ -2,7 +2,7 @@
 
 Butler 采用了一套基于 HTML/CSS/JS 的现代化**玻璃拟态 (Glassmorphism)** 设计界面。该界面受 Apple 设计风格启发，强调流式交互与简洁美感，同时保留了强大的功能扩展性。
 
-![Butler UI Preview](../assets/UI_Preview.png)
+![Butler UI Chat View](../assets/ui_screenshots/ui_chat.png)
 
 ## 核心设计理念
 
@@ -26,20 +26,24 @@ Butler 采用了一套基于 HTML/CSS/JS 的现代化**玻璃拟态 (Glassmorphi
 
 ### 2. 终端 (Terminal)
 集成高性能 `xterm.js` 终端。
+![Butler UI Terminal View](../assets/ui_screenshots/ui_terminal.png)
 *   **原生体验**：支持完整的 PTY 交互，可直接执行 Shell 命令。
 *   **无缝切换**：在 Chat 中输入的系统命令也会同步反映在终端状态中。
 
 ### 3. 全屏工作区 (Workspace)
 专为深度办公设计。
+![Butler UI Workspace View](../assets/ui_screenshots/ui_workspace.png)
 *   **文档预览**：支持 PDF、Markdown、Word 等文档的直接渲染。
 *   **专注模式**：提供无干扰的全屏阅读环境，支持在侧边进行文档翻译。
 
 ### 4. 文件管理 (Files)
 内置文件浏览器。
+![Butler UI Files View](../assets/ui_screenshots/ui_files.png)
 *   **双域管理**：支持切换“本地存储”与“核心系统”路径。
 *   **快速操作**：点击文件可直接在工作区打开预览或进行相应处理。
 
 ### 5. 系统设置 (Settings)
+![Butler UI Settings View](../assets/ui_screenshots/ui_settings.png)
 *   **外观定制**：支持深色/浅色模式切换，以及不同主题风格的选择（如 Apple Classic 或 Modern Glass）。
 *   **状态监控**：实时查看各模型 API 的配额消耗情况。
 
