@@ -599,6 +599,8 @@ def handle_convert_file(jarvis_app, entities, **kwargs):
 
     threading.Thread(target=run_convert, daemon=True).start()
 
+import json
+
 @register_intent("translate_op")
 def handle_translate_op(jarvis_app, entities, **kwargs):
     """翻译操作意图处理。"""
@@ -608,18 +610,43 @@ def handle_translate_op(jarvis_app, entities, **kwargs):
 
     def run_trans():
         try:
-            from package.document.translators import translate_text, translate_file, translate_website
+            from package.document.translators import (
+                translate_text, translate_file, translate_website_bilingual, translate_bilingual
+            )
             if text:
-                res = translate_text(text)
-                jarvis_app.ui_print(f"🌐 翻译结果: {res}")
+                # Use bilingual for individual text if requested or if it's long
+                if len(text) > 50:
+                    res = translate_bilingual(text)
+                    jarvis_app.ui_print(json.dumps({
+                        "type": "translation",
+                        "metadata": {"title": "Text Translation", "path": "Direct Input"},
+                        "data": res
+                    }), tag="translation")
+                else:
+                    res = translate_text(text)
+                    jarvis_app.ui_print(f"🌐 翻译结果: {res}")
                 jarvis_app.speak("翻译完成。")
             elif path:
+                # File translation logic could also be upgraded, but for now we focus on the requested effects
                 out = path + ".translated.txt"
                 translate_file(path, out)
                 jarvis_app.speak(f"文件翻译完成，结果保存在 {out}")
             elif url:
-                translate_website(url)
-                jarvis_app.speak("网页翻译已处理，请查看控制台输出。")
+                jarvis_app.ui_print(f"🚀 正在分析并翻译网页: {url}")
+                result = translate_website_bilingual(url)
+
+                # Send structured message to UI
+                jarvis_app.ui_print(json.dumps({
+                    "type": "translation",
+                    "metadata": {
+                        "title": result.get("title_target"),
+                        "source_title": result.get("title_source"),
+                        "path": result.get("url")
+                    },
+                    "data": result.get("segments")
+                }), tag="translation")
+
+                jarvis_app.speak("网页双语翻译完成。")
         except Exception as e:
             jarvis_app.speak(f"翻译失败: {e}")
 

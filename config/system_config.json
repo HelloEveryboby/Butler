@@ -1,8 +1,7 @@
 {
     "api": {
         "quota": {
-            "consumed": 0.0,
-            "limit": 100.0
+            "consumed": 0.0002
         }
     },
     "voice": {
