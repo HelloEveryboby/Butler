@@ -1,46 +1,28 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Navigation Elements
+    const navItems = {
+        chat: document.getElementById('nav-chat'),
+        terminal: document.getElementById('nav-terminal'),
+        workspace: document.getElementById('nav-workspace'),
+        files: document.getElementById('nav-files'),
+        settings: document.getElementById('nav-settings')
+    };
+
+    const views = {
+        chat: document.getElementById('view-chat'),
+        terminal: document.getElementById('view-terminal'),
+        workspace: document.getElementById('view-workspace'),
+        files: document.getElementById('view-files'),
+        settings: document.getElementById('view-settings')
+    };
+
+    const viewTitle = document.getElementById('current-view-title');
     const interactionFlow = document.getElementById('interaction-flow');
-    const terminalOverlay = document.getElementById('terminal-overlay');
-    const closeTerminalBtn = document.getElementById('close-terminal');
-    const statusBar = { innerText: "" };
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-command-btn');
+    const voiceToggleBtn = document.getElementById('voice-toggle-btn');
 
-    // Nav Bar Items (Google)
-    const navHome = document.getElementById('nav-home');
-    const navTerminal = document.getElementById('nav-terminal');
-    const navVoice = document.getElementById('nav-voice');
-    const navFiles = document.getElementById('nav-files');
-    const navEditor = document.getElementById('nav-editor');
-    const navSettings = document.getElementById('nav-settings');
-
-    // Dock Items (Apple)
-    const dockHome = document.getElementById('dock-home');
-    const dockTerminal = document.getElementById('dock-terminal');
-    const dockVoice = document.getElementById('dock-voice');
-    const dockFiles = document.getElementById('dock-files');
-    const dockEditor = document.getElementById('dock-editor');
-    const dockSettings = document.getElementById('dock-settings');
-    const dockPause = document.getElementById('dock-pause');
-    const dockRetry = document.getElementById('dock-retry');
-
-    // Theme & Background Toggle
-    const themeToggle = document.getElementById('theme-toggle');
-    const bgUploadBtn = document.getElementById('bg-upload-btn');
-    const bgUploadInput = document.getElementById('bg-upload');
-
-    // Media Player Components
-    const mediaOverlay = document.getElementById('media-overlay');
-    const closeMediaBtn = document.getElementById('close-media');
-    const mediaContent = document.getElementById('media-content');
-    const mediaTitle = document.getElementById('media-title');
-    const mediaPlayPauseBtn = document.getElementById('media-play-pause');
-
-    // Editor Components
-    const editorOverlay = document.getElementById('editor-overlay');
-    const closeEditorBtn = document.getElementById('close-editor');
-    const markdownEditor = document.getElementById('markdown-editor');
-    const saveEditorBtn = document.getElementById('save-editor');
-    const openOfficeBtn = document.getElementById('open-in-office');
-
+    // State
     let isStreaming = false;
     let currentAILine = null;
     let lastUserCommand = "";
@@ -48,16 +30,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Terminal initialization
     const term = new Terminal({
         cursorBlink: true,
-        theme: { background: '#141414', foreground: '#f0f0f0' },
+        theme: { background: '#000000', foreground: '#f0f0f0' },
         fontSize: 14,
         fontFamily: 'SFMono-Regular, Consolas, monospace'
     });
     const fitAddon = new FitAddon.FitAddon();
     term.loadAddon(fitAddon);
     term.open(document.getElementById('terminal-container'));
-    setTimeout(() => fitAddon.fit(), 100);
 
-    window.addEventListener('resize', () => fitAddon.fit());
+    // Fit terminal on switch
+    const fitTerminal = () => {
+        setTimeout(() => fitAddon.fit(), 100);
+    };
 
     term.onData(data => {
         if (window.pywebview && window.pywebview.api) {
@@ -65,58 +49,80 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function createUserInputLine() {
-        const welcome = document.querySelector('.welcome-message');
-        if (welcome && interactionFlow.children.length > 1) welcome.style.display = 'none';
-
-        const line = document.createElement('div');
-        line.className = 'interaction-line user-input-line';
-
-        const inputSpan = document.createElement('span');
-        inputSpan.className = 'active-input';
-        inputSpan.contentEditable = true;
-
-        line.appendChild(inputSpan);
-        interactionFlow.appendChild(line);
-        inputSpan.focus();
-
-        inputSpan.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const command = inputSpan.innerText.trim();
-                if (command) executeCommand(command, inputSpan);
-            }
+    // View Switching Logic
+    function switchView(viewName) {
+        Object.keys(views).forEach(key => {
+            views[key].classList.remove('active');
+            navItems[key].classList.remove('active');
         });
 
-        document.addEventListener('click', () => {
-            if (!isStreaming) inputSpan.focus();
-        });
+        views[viewName].classList.add('active');
+        navItems[viewName].classList.add('active');
 
-        interactionFlow.scrollTop = interactionFlow.scrollHeight;
+        const titles = {
+            chat: '智能助手',
+            terminal: '终端会话',
+            workspace: '全屏工作区',
+            files: '文件管理',
+            settings: '系统设置'
+        };
+        viewTitle.innerText = titles[viewName];
+
+        if (viewName === 'terminal') {
+            fitTerminal();
+            if (window.pywebview && window.pywebview.api) window.pywebview.api.start_terminal();
+        } else if (viewName === 'files') {
+            loadFiles('.');
+        }
     }
 
-    function executeCommand(command, inputSpan) {
-        if (isStreaming) return;
-        isStreaming = true;
+    Object.keys(navItems).forEach(key => {
+        navItems[key].addEventListener('click', () => switchView(key));
+    });
+
+    // Chat Logic
+    function executeChatCommand() {
+        const command = chatInput.innerText.trim();
+        if (!command || isStreaming) return;
+
+        // Hide welcome on first interaction
+        const welcome = document.querySelector('.welcome-message');
+        if (welcome) welcome.style.display = 'none';
+
+        // Add user bubble
+        const userLine = document.createElement('div');
+        userLine.className = 'interaction-line user-input-line';
+        userLine.innerText = command;
+        interactionFlow.appendChild(userLine);
+
         lastUserCommand = command;
-        inputSpan.contentEditable = false;
+        chatInput.innerText = "";
+        isStreaming = true;
 
         if (window.pywebview && window.pywebview.api) {
             window.pywebview.api.handle_command(command);
         } else {
-            setTimeout(() => {
-                onAIStreamStart();
-                onAIStreamChunk("Demo Mode: Backend not connected. Your command: " + command);
-                onAIStreamEnd();
-            }, 500);
+            // Mock response
+            onAIStreamStart();
+            onAIStreamChunk("您当前处于演示模式。输入的命令是: " + command);
+            onAIStreamEnd();
         }
+
+        interactionFlow.scrollTop = interactionFlow.scrollHeight;
     }
+
+    sendBtn.addEventListener('click', executeChatCommand);
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            executeChatCommand();
+        }
+    });
 
     // Bridge Functions
     window.onAIStreamStart = () => {
         isStreaming = true;
-        const thinkingStatus = document.getElementById('thinking-status');
-        if (thinkingStatus) thinkingStatus.classList.add('active');
+        document.getElementById('thinking-status').classList.add('active');
 
         currentAILine = document.createElement('div');
         currentAILine.className = 'interaction-line ai-output-line';
@@ -126,7 +132,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.onAIStreamChunk = (chunk) => {
         if (currentAILine) {
-            // Check for structured chunks (e.g., media, translation, code_block)
             try {
                 const data = JSON.parse(chunk);
                 if (data.type === 'media') {
@@ -138,10 +143,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (data.type === 'code_block') {
                     renderCodeBlockInChat(data);
                     return;
+                } else if (data.type === 'quota_report') {
+                    renderQuotaInChat(data);
+                    return;
                 }
             } catch (e) {}
 
-            currentAILine.innerText += chunk;
+            const textSpan = document.createElement('span');
+            textSpan.innerText = chunk;
+            currentAILine.appendChild(textSpan);
             interactionFlow.scrollTop = interactionFlow.scrollHeight;
         }
     };
@@ -150,59 +160,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.createElement('div');
         container.className = 'translation-container';
 
-        // Header with metadata and Pink "LA" icon
         const header = document.createElement('div');
-        header.className = 'translation-header';
+        header.style.display = 'flex';
+        header.style.justifyContent = 'space-between';
+        header.style.marginBottom = '15px';
 
-        const metadata = document.createElement('div');
-        metadata.className = 'translation-metadata';
-
-        const title = document.createElement('div');
-        title.className = 'translation-title';
-        title.innerText = data.metadata.title || "Translation Result";
-
-        const sourceTitle = document.createElement('div');
-        sourceTitle.className = 'translation-source-title';
-        sourceTitle.innerText = data.metadata.source_title || "";
-
-        const path = document.createElement('div');
-        path.className = 'translation-path';
-        path.innerText = data.metadata.path || "";
-
-        metadata.appendChild(title);
-        if (data.metadata.source_title) metadata.appendChild(sourceTitle);
-        if (data.metadata.path) metadata.appendChild(path);
+        const info = document.createElement('div');
+        info.innerHTML = `<div style="font-weight: 600;">${data.metadata.title || '翻译结果'}</div><div style="font-size: 12px; opacity: 0.6;">${data.metadata.source_title || ''}</div>`;
 
         const laIcon = document.createElement('div');
         laIcon.className = 'translation-la-icon';
-        laIcon.innerText = "LA";
+        laIcon.innerText = 'LA';
 
-        header.appendChild(metadata);
+        header.appendChild(info);
         header.appendChild(laIcon);
+        container.appendChild(header);
 
-        // Body with bilingual segments
-        const body = document.createElement('div');
-        body.className = 'translation-body';
-
-        data.data.forEach(segment => {
-            const segDiv = document.createElement('div');
-            segDiv.className = 'translation-segment';
-
-            const source = document.createElement('div');
-            source.className = 'segment-source';
-            source.innerText = segment.source;
-
-            const target = document.createElement('div');
-            target.className = 'segment-target';
-            target.innerText = segment.target;
-
-            segDiv.appendChild(source);
-            segDiv.appendChild(target);
-            body.appendChild(segDiv);
+        data.data.forEach(item => {
+            const segment = document.createElement('div');
+            segment.style.marginBottom = '12px';
+            segment.innerHTML = `<div style="font-size: 14px; opacity: 0.8;">${item.source}</div><div class="segment-target">${item.target}</div>`;
+            container.appendChild(segment);
         });
 
-        container.appendChild(header);
-        container.appendChild(body);
         currentAILine.appendChild(container);
     }
 
@@ -212,299 +192,173 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const header = document.createElement('div');
         header.className = 'code-header';
-        header.innerHTML = `<span>${data.language.toUpperCase()}</span><button onclick="navigator.clipboard.writeText(\`${data.code.replace(/`/g, '\\`')}\`)"><i class="fas fa-copy"></i></button>`;
+        header.innerHTML = `<span>${data.language.toUpperCase()}</span><i class="fas fa-copy" style="cursor:pointer"></i>`;
 
         const content = document.createElement('div');
         content.className = 'code-content';
         content.innerText = data.code;
 
-        const output = document.createElement('div');
-        output.className = 'code-output';
-        output.style.padding = '10px 15px';
-        output.style.borderTop = '1px solid #333';
-        output.style.fontSize = '0.85rem';
-        output.style.color = '#8bc34a';
-        output.innerText = data.output || "";
-
         block.appendChild(header);
         block.appendChild(content);
-        if (data.output) block.appendChild(output);
         currentAILine.appendChild(block);
     }
 
-    function renderMediaInChat(data) {
-        const container = document.createElement('div');
-        container.className = 'chat-media';
+    function renderQuotaInChat(data) {
+        const card = document.createElement('div');
+        card.className = 'ai-output-line';
+        card.style.borderLeft = '4px solid #FF9500';
+        card.style.background = 'rgba(255, 149, 0, 0.05)';
+        card.style.padding = '20px';
+        card.style.marginTop = '15px';
 
-        if (data.media_type === 'image') {
-            const img = document.createElement('img');
-            img.src = data.url;
-            img.style.width = '100%';
-            container.appendChild(img);
-        } else if (data.media_type === 'video') {
-            const video = document.createElement('video');
-            video.src = data.url;
-            video.style.width = '100%';
-            container.appendChild(video);
-            const playIcon = document.createElement('i');
-            playIcon.className = 'fas fa-play-circle';
-            container.appendChild(playIcon);
-        } else if (data.media_type === 'audio') {
-            const audioDiv = document.createElement('div');
-            audioDiv.className = 'm3-card';
-            audioDiv.innerHTML = `<i class="fas fa-music"></i> <span>${data.title || '音频文件'}</span>`;
-            container.appendChild(audioDiv);
-        }
-
-        container.addEventListener('click', () => openMediaPlayer(data));
-        currentAILine.appendChild(container);
-    }
-
-    function openMediaPlayer(data) {
-        mediaContent.innerHTML = '';
-        mediaTitle.innerText = data.title || (data.media_type === 'image' ? '照片' : '视频/音乐');
-
-        if (data.media_type === 'image') {
-            const img = document.createElement('img');
-            img.src = data.url;
-            mediaContent.appendChild(img);
-        } else if (data.media_type === 'video') {
-            const video = document.createElement('video');
-            video.src = data.url;
-            video.controls = true;
-            video.autoplay = true;
-            mediaContent.appendChild(video);
-        } else if (data.media_type === 'audio') {
-            const audio = document.createElement('audio');
-            audio.src = data.url;
-            audio.controls = true;
-            audio.autoplay = true;
-            mediaContent.appendChild(audio);
-            // Add a visual for audio
-            const visual = document.createElement('div');
-            visual.innerHTML = '<i class="fas fa-music" style="font-size: 5rem; color: #fff;"></i>';
-            mediaContent.appendChild(visual);
-        }
-
-        mediaOverlay.classList.remove('hidden');
+        card.innerHTML = `
+            <div style="font-weight: 600; color: #FF9500; margin-bottom: 15px;">系统配额报告</div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                ${data.items.map(item => `
+                    <div style="font-size: 14px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                            <span>${item.name}</span>
+                            <span>${item.used} / ${item.total}</span>
+                        </div>
+                        <div style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px;">
+                            <div style="height: 100%; width: ${(item.used / item.total * 100).toFixed(1)}%; background: #FF9500; border-radius: 2px;"></div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        currentAILine.appendChild(card);
     }
 
     window.onAIStreamEnd = () => {
         isStreaming = false;
-        const thinkingStatus = document.getElementById('thinking-status');
-        if (thinkingStatus) thinkingStatus.classList.remove('active');
-        createUserInputLine();
+        document.getElementById('thinking-status').classList.remove('active');
     };
 
     window.onTerminalOutput = (data) => term.write(data);
 
-    window.onProgressSync = (data) => {
-        const container = document.getElementById('glass-progress-container');
-        if (!data || !data.all_stages) return;
+    // Media and Special Components
+    function renderMediaInChat(data) {
+        const container = document.createElement('div');
+        container.className = 'chat-media-item';
+        container.style.marginTop = '12px';
+        container.style.cursor = 'pointer';
 
-        container.classList.remove('hidden');
-        const stages = ['loading', 'processing', 'syncing'];
-        let total = 0;
-
-        stages.forEach(s => {
-            const el = document.getElementById(`stage-${s}`);
-            const val = data.all_stages[s] || 0;
-            if (el) el.querySelector('.p-val').innerText = `${val}%`;
-            total += val;
-        });
-
-        const progressFill = document.getElementById('glass-progress-fill');
-        if (progressFill) progressFill.style.width = `${total / 3}%`;
-
-        if (total >= 300) {
-            setTimeout(() => container.classList.add('hidden'), 2000);
-        }
-    };
-
-    window.onVoiceStatusChange = (isListening) => {
-        const dot = document.getElementById('voice-status');
-        const voiceIconNav = navVoice.querySelector('i');
-        const voiceIconDock = dockVoice.querySelector('i');
-        if (isListening) {
-            dot.classList.add('active');
-            voiceIconNav.style.color = '#f44336';
-            voiceIconDock.style.color = '#ff3b30';
+        if (data.media_type === 'image') {
+            const img = document.createElement('img');
+            img.src = data.url;
+            img.style.maxWidth = '100%';
+            img.style.borderRadius = '12px';
+            container.appendChild(img);
         } else {
-            dot.classList.remove('active');
-            voiceIconNav.style.color = 'inherit';
-            voiceIconDock.style.color = 'inherit';
+            const placeholder = document.createElement('div');
+            placeholder.className = 'ai-output-line';
+            placeholder.innerHTML = `<i class="fas fa-play-circle"></i> <span>查看媒体: ${data.title || '文件'}</span>`;
+            container.appendChild(placeholder);
         }
-    };
 
-    // Theme Logic
-    window.setTheme = (theme) => {
-        if (theme === 'apple') {
-            document.body.classList.remove('theme-google');
-            document.body.classList.add('theme-apple');
-        } else {
-            document.body.classList.remove('theme-apple');
-            document.body.classList.add('theme-google');
-        }
-    };
-
-    themeToggle.addEventListener('click', () => {
-        const newTheme = document.body.classList.contains('theme-google') ? 'apple' : 'google';
-        window.setTheme(newTheme);
-        if (window.pywebview && window.pywebview.api) {
-            window.pywebview.api.handle_command(`/theme ${newTheme}`);
-        }
-    });
-
-    // Background Logic
-    bgUploadBtn.addEventListener('click', () => bgUploadInput.click());
-
-    bgUploadInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const dataUrl = event.target.result;
-                applyBackground(dataUrl);
-                localStorage.setItem('butler-custom-bg', dataUrl);
-            };
-            reader.readAsDataURL(file);
-        }
-    });
-
-    function applyBackground(dataUrl) {
-        if (dataUrl) {
-            document.body.style.backgroundImage = `url(${dataUrl})`;
-            document.body.classList.add('has-custom-bg');
-        } else {
-            document.body.style.backgroundImage = '';
-            document.body.classList.remove('has-custom-bg');
-        }
+        container.onclick = () => openMediaGallery(data);
+        currentAILine.appendChild(container);
     }
 
-    // Load saved background on startup
-    const savedBg = localStorage.getItem('butler-custom-bg');
-    if (savedBg) applyBackground(savedBg);
+    function openMediaGallery(data) {
+        const overlay = document.getElementById('media-overlay');
+        const content = document.getElementById('media-content');
+        const title = document.getElementById('media-title');
 
-    // Navigation Events (Shared functions)
-    const actions = {
-        home: () => {
-            while (interactionFlow.firstChild) interactionFlow.removeChild(interactionFlow.firstChild);
-            const welcome = document.createElement('div');
-            welcome.className = 'welcome-message';
-            welcome.innerHTML = '<h1>Butler</h1><p>How can I help you today?</p>';
-            interactionFlow.appendChild(welcome);
-            createUserInputLine();
-        },
-        terminal: () => {
-            terminalOverlay.classList.toggle('hidden');
-            if (!terminalOverlay.classList.contains('hidden')) {
-                fitAddon.fit();
-                if (window.pywebview && window.pywebview.api) window.pywebview.api.start_terminal();
-            }
-        },
-        files: () => {
-            const filesOverlay = document.getElementById('files-overlay');
-            filesOverlay.classList.toggle('hidden');
-            if (!filesOverlay.classList.contains('hidden')) {
-                loadFiles('.');
-            }
-        },
-        voice: () => {
-            if (window.pywebview && window.pywebview.api) window.pywebview.api.handle_command("/voice-toggle");
-        },
-        editor: () => editorOverlay.classList.toggle('active'),
-        settings: () => {
-            if (window.pywebview && window.pywebview.api) window.pywebview.api.handle_command("/profile");
+        content.innerHTML = '';
+        title.innerText = data.title || '预览';
+
+        if (data.media_type === 'image') {
+            const img = document.createElement('img');
+            img.src = data.url;
+            content.appendChild(img);
+        } else if (data.media_type === 'video') {
+            const v = document.createElement('video');
+            v.src = data.url;
+            v.controls = v.autoplay = true;
+            content.appendChild(v);
         }
+
+        overlay.classList.remove('hidden');
+    }
+
+    document.getElementById('close-media').onclick = () => {
+        document.getElementById('media-overlay').classList.add('hidden');
+        document.getElementById('media-content').innerHTML = '';
     };
 
-    [navHome, dockHome].forEach(el => el.addEventListener('click', actions.home));
-    [navTerminal, dockTerminal].forEach(el => el.addEventListener('click', actions.terminal));
-    [navVoice, dockVoice].forEach(el => el.addEventListener('click', actions.voice));
-    [navFiles, dockFiles].forEach(el => el.addEventListener('click', actions.files));
-    [navEditor, dockEditor].forEach(el => el.addEventListener('click', actions.editor));
-    [navSettings, dockSettings].forEach(el => el.addEventListener('click', actions.settings));
-
-    dockPause.addEventListener('click', () => {
-        if (window.pywebview && window.pywebview.api) window.pywebview.api.pause_output();
-    });
-
-    dockRetry.addEventListener('click', () => {
-        if (!isStreaming && lastUserCommand) {
-            if (currentAILine) currentAILine.remove();
-            const activeLine = document.querySelector('.user-input-line:last-child');
-            if (activeLine) activeLine.remove();
-
-            const line = document.createElement('div');
-            line.className = 'interaction-line user-input-line';
-            const span = document.createElement('span');
-            span.innerText = lastUserCommand;
-            line.appendChild(span);
-            interactionFlow.appendChild(line);
-            executeCommand(lastUserCommand, span);
-        }
-    });
-
-    closeEditorBtn.addEventListener('click', () => editorOverlay.classList.remove('active'));
-    closeTerminalBtn.addEventListener('click', () => terminalOverlay.classList.add('hidden'));
-    document.getElementById('close-files').addEventListener('click', () => document.getElementById('files-overlay').classList.add('hidden'));
-
+    // Files Logic
     async function loadFiles(path) {
         if (window.pywebview && window.pywebview.api) {
             const files = await window.pywebview.api.list_files(path);
-            renderFileList(files);
+            renderFiles(files);
         }
     }
 
-    function renderFileList(files) {
+    function renderFiles(files) {
         const list = document.getElementById('files-list');
         list.innerHTML = '';
-        if (files.error) {
-            list.innerHTML = `<div class="error-msg">${files.error}</div>`;
-            return;
-        }
 
         files.forEach(file => {
             const item = document.createElement('div');
             item.className = 'file-item';
-            if (file.is_protected) item.classList.add('protected');
-
             item.innerHTML = `
-                <div class="file-info">
-                    <i class="fas ${file.is_dir ? 'fa-folder' : 'fa-file'}"></i>
-                    <span>${file.name}</span>
-                </div>
-                <div class="file-actions">
-                    ${!file.is_protected ? '<button class="delete-btn" title="删除"><i class="fas fa-trash"></i></button>' : '<i class="fas fa-lock" title="系统锁定"></i>'}
-                    <button class="migrate-btn" title="迁移至核心"><i class="fas fa-file-export"></i></button>
-                </div>
+                <i class="fas ${file.is_dir ? 'fa-folder' : 'fa-file-alt'}"></i>
+                <span>${file.name}</span>
             `;
 
-            if (!file.is_protected) {
-                item.querySelector('.delete-btn').onclick = async () => {
-                    const res = await window.pywebview.api.delete_file(file.path);
-                    alert(res.message);
-                    loadFiles('.');
-                };
-            }
-
-            item.querySelector('.migrate-btn').onclick = async () => {
-                const segment = prompt("请输入迁移逻辑段 (CORE_LOGIC, MEDIA_ASSETS, SYSTEM_SOUNDS, USER_DATA):", "CORE_LOGIC");
-                if (segment) {
-                    const res = await window.pywebview.api.migrate_file(file.path, segment);
-                    alert(res.message);
-                    loadFiles('.');
+            item.onclick = () => {
+                if (file.is_dir) {
+                    loadFiles(file.path);
+                } else if (isOfficeDoc(file.name)) {
+                    previewDocument(file);
                 }
             };
-
             list.appendChild(item);
         });
     }
-    closeMediaBtn.addEventListener('click', () => {
-        mediaOverlay.classList.add('hidden');
-        mediaContent.innerHTML = ''; // Stop playback
+
+    function isOfficeDoc(name) {
+        const ext = name.split('.').pop().toLowerCase();
+        return ['pdf', 'docx', 'xlsx', 'pptx', 'txt', 'md'].includes(ext);
+    }
+
+    async function previewDocument(file) {
+        switchView('workspace');
+        const placeholder = document.querySelector('.workspace-placeholder');
+        const viewer = document.getElementById('document-viewer');
+        const content = document.getElementById('viewer-content');
+        const fileName = document.getElementById('viewer-filename');
+
+        placeholder.classList.add('hidden');
+        viewer.classList.remove('hidden');
+        fileName.innerText = file.name;
+        content.innerHTML = '<div class="loading">正在加载文档内容...</div>';
+
+        // Mock document preview logic
+        setTimeout(() => {
+            content.innerHTML = `<h3>${file.name} 预览</h3><p>由于沙盒环境限制，此处显示模拟内容。实际环境中将调用后端转换接口显示 PDF 或 HTML 渲染内容。</p>`;
+        }, 800);
+    }
+
+    document.getElementById('viewer-close').onclick = () => {
+        document.getElementById('document-viewer').classList.add('hidden');
+        document.querySelector('.workspace-placeholder').classList.remove('hidden');
+    };
+
+    // Init
+    window.addEventListener('resize', fitTerminal);
+
+    // Auto-focus chat input
+    chatInput.focus();
+    document.addEventListener('click', (e) => {
+        if (views.chat.classList.contains('active') && !e.target.closest('.sidebar')) {
+            chatInput.focus();
+        }
     });
 
-    // Start
-    setTimeout(createUserInputLine, 1000);
+    // Theme loading
+    const savedBg = localStorage.getItem('butler-custom-bg');
+    if (savedBg) document.body.style.backgroundImage = `url(${savedBg})`;
 });
