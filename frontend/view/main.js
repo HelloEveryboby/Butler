@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const viewTitle = document.getElementById('current-view-title');
     const sidebarToggle = document.getElementById('sidebar-toggle');
+    const bgUploadBtn = document.getElementById('bg-upload-btn');
+    const bgUploadInput = document.getElementById('bg-upload');
     const appContainer = document.querySelector('.app-container');
     const interactionFlow = document.getElementById('interaction-flow');
     const chatInput = document.getElementById('chat-input');
@@ -372,7 +374,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Theme loading
+    // Background Logic
+    bgUploadBtn.addEventListener('click', () => bgUploadInput.click());
+
+    bgUploadInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const dataUrl = event.target.result;
+                applyBackground(dataUrl);
+                localStorage.setItem('butler-custom-bg', dataUrl);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    function applyBackground(dataUrl) {
+        if (dataUrl) {
+            document.body.style.backgroundImage = `url(${dataUrl})`;
+            document.body.classList.add('has-custom-bg');
+        } else {
+            document.body.style.backgroundImage = '';
+            document.body.classList.remove('has-custom-bg');
+        }
+    }
+
+    // Load saved background on startup
     const savedBg = localStorage.getItem('butler-custom-bg');
-    if (savedBg) document.body.style.backgroundImage = `url(${savedBg})`;
+    if (savedBg) applyBackground(savedBg);
 });
