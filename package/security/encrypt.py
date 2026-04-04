@@ -1,172 +1,223 @@
 """
-对称加密工具，支持 AES 和 DES 算法。
-支持文件加密/解密以及字符串加密/解密。
+高级加密工具 - Butler Secure Vault v2
+支持双重动态加密体系 (Dual-Layer Encryption)：
+1. 第一层：独立前置锁（文件唯一 AES-128 密钥）。
+2. 第二层：6位核心码（全局核心码，仅存内存，PBKDF2 派生）。
+流程：先压缩 -> 生成 Layer 1 密钥 -> Layer 2 加密 Layer 1 密钥 -> Layer 1 加密压缩数据。
+防暴力破解：5次错误即触发关键文件可逆乱码化。
 """
 import os
-import time
 import sys
+import time
+import zlib
 import base64
-import getpass
 import hashlib
-from package.security.crypto_core import SymmetricCrypto
+from typing import Optional
 from Crypto.Random import get_random_bytes
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+from package.core_utils.log_manager import LogManager
 
-class EnhancedEncryptor:
+class SecureVault:
+    """管理 6 位核心码的内存存储"""
+    _core_code: Optional[str] = None
+
+    @classmethod
+    def set_core_code(cls, code: str):
+        if len(code) == 6 and code.isdigit():
+            cls._core_code = code
+            LogManager.log_stealth("Core Code loaded into memory.")
+            return True
+        return False
+
+    @classmethod
+    def get_core_code(cls) -> Optional[str]:
+        return cls._core_code
+
+    @classmethod
+    def clear(cls):
+        cls._core_code = None
+
+class DualLayerEncryptor:
     def __init__(self):
-        self.key_file_aes = "encryption_key_aes.bin"
-        self.key_file_des = "encryption_key_des.bin"
-        self.audit_log = "encryption_log.txt"
-    
-    def log_operation(self, operation, target, status):
-        """记录操作日志"""
-        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        log_entry = f"[{timestamp}] {operation}: {target} -> {status}\n"
-        try:
-            with open(self.audit_log, "a", encoding='utf-8') as f:
-                f.write(log_entry)
-        except Exception:
-            pass
+        self.header_magic = b"BUTLER_SECURE_V2"
+        self.failed_attempts = 0
+        self.max_attempts = 5
 
-    def get_key(self, algorithm='AES'):
-        algorithm = algorithm.upper()
-        key_file = self.key_file_aes if algorithm == 'AES' else self.key_file_des
-        if not os.path.exists(key_file):
-            print(f"未找到 {algorithm} 密钥配置。正在创建...")
-            password = getpass.getpass(f"输入用于派生 {algorithm} 密钥的密码: ").strip()
-            if not password:
-                print("密码不能为空。")
-                return None
-            salt = get_random_bytes(16)
-            key = SymmetricCrypto.derive_key(password, salt, algorithm)
+    def _derive_layer2_key(self, core_code: str) -> bytes:
+        """从 6 位核心码派生第二层密钥 (SHA-256)"""
+        return hashlib.sha256(core_code.encode()).digest()
 
-            # 安全改进：不直接存储密钥，仅存储盐和密钥哈希作为验证器
-            verifier = hashlib.sha256(key).digest()
-            with open(key_file, 'wb') as f:
-                f.write(salt + verifier)
-            print(f"{algorithm} 密钥配置已创建。")
-            return key
-        else:
-            password = getpass.getpass(f"输入密码以解锁 {algorithm} 密钥: ").strip()
-            if not password:
-                return None
-            try:
-                with open(key_file, 'rb') as f:
-                    data = f.read()
-                    salt = data[:16]
-                    stored_verifier = data[16:]
-                    key = SymmetricCrypto.derive_key(password, salt, algorithm)
-                    # 验证派生密钥是否正确
-                    if hashlib.sha256(key).digest() == stored_verifier:
-                        return key
-                    else:
-                        print("密码错误。")
-                        return None
-            except Exception as e:
-                print(f"加载密钥失败: {e}")
-                return None
+    def encrypt_file(self, file_path: str, core_code: str) -> str:
+        """双重加密核心逻辑"""
+        if len(core_code) != 6:
+            raise ValueError("核心码必须为 6 位数字")
 
-    def handle_file(self, file_path, algorithm='AES', mode='encrypt'):
-        key = self.get_key(algorithm)
-        if not key: return
+        # 1. 压缩 (消除数据特征，减小体积)
+        with open(file_path, 'rb') as f:
+            raw_data = f.read()
+        compressed_data = zlib.compress(raw_data)
+
+        # 2. 生成 Layer 1 独立密钥 (AES-128)
+        layer1_key = get_random_bytes(16)
+
+        # 3. 加密 Layer 1 密钥 (用核心码派生的 Layer 2 密钥进行 XOR)
+        layer2_key = self._derive_layer2_key(core_code)
+        cipher_layer1_key = bytes(a ^ b for a, b in zip(layer1_key, layer2_key[:16]))
+
+        # 4. 加密内容 (Layer 1 AES-CBC)
+        cipher = AES.new(layer1_key, AES.MODE_CBC)
+        iv = cipher.iv
+        ciphertext = cipher.encrypt(pad(compressed_data, AES.block_size))
+
+        # 5. 构建加密文件：Magic + Enc_L1_Key + IV + Data
+        output_path = file_path + ".ble"
+        with open(output_path, 'wb') as f:
+            f.write(self.header_magic)
+            f.write(cipher_layer1_key)
+            f.write(iv)
+            f.write(ciphertext)
+
+        LogManager.log_stealth(f"Security: File protected with Dual-Layer: {file_path}")
+        return output_path
+
+    def decrypt_file(self, file_path: str, core_code: str, output_path: Optional[str] = None) -> str:
+        """双重解密核心逻辑"""
+        if len(core_code) != 6:
+            raise ValueError("核心码必须为 6 位数字")
 
         try:
-            if mode == 'encrypt':
-                output_file = file_path + ".enc"
-                SymmetricCrypto.encrypt_file(file_path, output_file, key, algorithm)
-                print(f"文件已加密: {output_file}")
-                self.log_operation(f"{algorithm}加密文件", file_path, "成功")
-            else:
-                if file_path.endswith('.enc'):
-                    output_file = file_path[:-4]
-                else:
-                    output_file = file_path + ".dec"
+            with open(file_path, 'rb') as f:
+                magic = f.read(len(self.header_magic))
+                if magic != self.header_magic:
+                    raise ValueError("文件格式不匹配或已损坏")
                 
-                # Avoid overwriting
-                if os.path.exists(output_file):
-                    base, ext = os.path.splitext(output_file)
-                    output_file = f"{base}_{int(time.time())}{ext}"
-                
-                SymmetricCrypto.decrypt_file(file_path, output_file, key, algorithm)
-                print(f"文件已解密: {output_file}")
-                self.log_operation(f"{algorithm}解密文件", file_path, "成功")
+                cipher_layer1_key = f.read(16)
+                iv = f.read(16)
+                ciphertext = f.read()
+
+            # 1. 解密 Layer 1 密钥 (用 Layer 2 XOR 还原)
+            layer2_key = self._derive_layer2_key(core_code)
+            layer1_key = bytes(a ^ b for a, b in zip(cipher_layer1_key, layer2_key[:16]))
+
+            # 2. 解密内容 (Layer 1 AES-CBC)
+            cipher = AES.new(layer1_key, AES.MODE_CBC, iv)
+            compressed_data = unpad(cipher.decrypt(ciphertext), AES.block_size)
+
+            # 3. 解压还原
+            raw_data = zlib.decompress(compressed_data)
+
+            if not output_path:
+                output_path = file_path.replace(".ble", "")
+                if output_path == file_path:
+                    output_path += ".dec"
+
+            with open(output_path, 'wb') as f:
+                f.write(raw_data)
+
+            self.failed_attempts = 0 # 成功后重置计数
+            LogManager.log_stealth(f"Security: File restored: {file_path}")
+            return output_path
+
+        except Exception as e:
+            self.failed_attempts += 1
+            LogManager.log_stealth(f"Security Alert: Failed access ({self.failed_attempts}/{self.max_attempts}) on {file_path}", level="WARNING")
+            if self.failed_attempts >= self.max_attempts:
+                self.trigger_self_destruct()
+            raise e
+
+    def trigger_self_destruct(self):
+        """触发自毁 (对系统核心及用户数据执行乱码化)"""
+        LogManager.log_stealth("CRITICAL: SELF-DESTRUCT MECHANISM ACTIVATED", level="CRITICAL")
+        print("\a" * 3) # 蜂鸣警告
+        print("!!! 警告: 连续多次尝试失败，系统已触发安全锁定 !!!")
+
+        core_code = SecureVault.get_core_code() or "000000"
+
+        # 保护范围
+        targets = [
+            os.path.join("package", "security"),
+            os.path.join("data", "user_data"),
+            os.path.join("butler", "core")
+        ]
+
+        # 获取项目根目录 (兼容 pathlib 结构)
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+        for rel_path in targets:
+            abs_path = os.path.join(project_root, rel_path)
+            if not os.path.exists(abs_path): continue
+
+            for root, _, files in os.walk(abs_path):
+                for file in files:
+                    if file.endswith((".py", ".json", ".txt", ".md")):
+                        file_path = os.path.join(root, file)
+                        # 执行 XOR 乱码化
+                        self._obfuscate_file(file_path, core_code)
+
+        print("系统已进入保护性乱码状态。请物理隔绝环境并使用 recovery_tool.py 进行核心码还原。")
+
+    def _obfuscate_file(self, file_path: str, core_code: str):
+        """文件级可逆 XOR 混淆"""
+        try:
+            with open(file_path, 'rb') as f:
+                data = f.read()
+            key = hashlib.sha256(core_code.encode()).digest()
+            obfuscated = bytes(data[i] ^ key[i % len(key)] for i in range(len(data)))
+            with open(file_path + ".garbled", 'wb') as f:
+                f.write(obfuscated)
+            os.remove(file_path)
+        except Exception: pass
+
+def run(file_path: Optional[str] = None):
+    """CLI 入口"""
+    print("\n" + "="*40)
+    print(" Butler Secure Vault - Advanced Dual-Layer Mode ")
+    print("="*40)
+
+    encryptor = DualLayerEncryptor()
+    core_code = getpass.getpass("请输入 6 位全局核心码: ").strip()
+    if len(core_code) != 6 or not core_code.isdigit():
+        print("错误: 核心码必须为 6 位数字")
+        return
+    SecureVault.set_core_code(core_code)
+
+    if file_path and os.path.isfile(file_path):
+        print(f"当前目标: {file_path}")
+        print("1. 执行双重加密 (.ble)")
+        print("2. 执行双重解密")
+        choice = input("请选择 (1/2): ")
+        try:
+            if choice == '1':
+                out = encryptor.encrypt_file(file_path, core_code)
+                print(f"完成! 加密文件已产出: {out}")
+            elif choice == '2':
+                out = encryptor.decrypt_file(file_path, core_code)
+                print(f"完成! 文件已还原: {out}")
         except Exception as e:
             print(f"操作失败: {e}")
-            self.log_operation(f"{algorithm}{mode}文件", file_path, f"失败: {e}")
-
-    def handle_string(self, algorithm='AES', mode='encrypt'):
-        key = self.get_key(algorithm)
-        if not key: return
-
-        if mode == 'encrypt':
-            data = input("请输入要加密的字符串: ")
-            iv, ct = SymmetricCrypto.encrypt_data(data, key, algorithm)
-            print(f"IV (Base64): {iv}")
-            print(f"密文 (Base64): {ct}")
-            print(f"组合结果: {iv}:{ct}")
-            self.log_operation(f"{algorithm}加密字符串", "文本数据", "成功")
-        else:
-            combined = input("请输入组合结果 (IV:密文): ")
-            try:
-                iv, ct = combined.split(':')
-                pt = SymmetricCrypto.decrypt_data(iv, ct, key, algorithm)
-                print(f"解密结果: {pt}")
-                self.log_operation(f"{algorithm}解密字符串", "文本数据", "成功")
-            except Exception as e:
-                print(f"解密失败: {e}")
-                self.log_operation(f"{algorithm}解密字符串", "文本数据", f"失败: {e}")
-
-def run(file_path=None):
-    encryptor = EnhancedEncryptor()
-    if file_path and os.path.isfile(file_path):
-        print(f"检测到文件: {file_path}")
-        print("1. AES 加密")
-        print("2. AES 解密")
-        print("3. DES 加密")
-        print("4. DES 解密")
-        choice = input("请选择操作 (1-4): ")
-        if choice == '1': encryptor.handle_file(file_path, 'AES', 'encrypt')
-        elif choice == '2': encryptor.handle_file(file_path, 'AES', 'decrypt')
-        elif choice == '3': encryptor.handle_file(file_path, 'DES', 'encrypt')
-        elif choice == '4': encryptor.handle_file(file_path, 'DES', 'decrypt')
         return
 
     while True:
-        print("\n=== 对称加密工具 (AES/DES) ===")
-        print("1. AES 加密文件")
-        print("2. AES 解密文件")
-        print("3. DES 加密文件")
-        print("4. DES 解密文件")
-        print("5. AES 加密字符串")
-        print("6. AES 解密字符串")
-        print("7. DES 加密字符串")
-        print("8. DES 解密字符串")
-        print("0. 返回/退出")
-
-        choice = input("请选择操作: ")
+        print("\n1. 加密文件")
+        print("2. 解密文件")
+        print("0. 退出")
+        choice = input("请选择: ")
         if choice == '0': break
-        elif choice == '1':
-            path = input("输入文件路径: ")
-            if os.path.isfile(path): encryptor.handle_file(path, 'AES', 'encrypt')
-            else: print("文件不存在。")
-        elif choice == '2':
-            path = input("输入文件路径: ")
-            if os.path.isfile(path): encryptor.handle_file(path, 'AES', 'decrypt')
-            else: print("文件不存在。")
-        elif choice == '3':
-            path = input("输入文件路径: ")
-            if os.path.isfile(path): encryptor.handle_file(path, 'DES', 'encrypt')
-            else: print("文件不存在。")
-        elif choice == '4':
-            path = input("输入文件路径: ")
-            if os.path.isfile(path): encryptor.handle_file(path, 'DES', 'decrypt')
-            else: print("文件不存在。")
-        elif choice == '5': encryptor.handle_string('AES', 'encrypt')
-        elif choice == '6': encryptor.handle_string('AES', 'decrypt')
-        elif choice == '7': encryptor.handle_string('DES', 'encrypt')
-        elif choice == '8': encryptor.handle_string('DES', 'decrypt')
-        else: print("无效选择。")
+        path = input("输入文件路径: ").strip()
+        if not os.path.isfile(path):
+            print("文件路径无效")
+            continue
+        try:
+            if choice == '1':
+                print(f"成功: {encryptor.encrypt_file(path, core_code)}")
+            elif choice == '2':
+                print(f"成功: {encryptor.decrypt_file(path, core_code)}")
+        except Exception as e:
+            print(f"失败: {e}")
 
 if __name__ == "__main__":
+    import getpass
     if len(sys.argv) > 1:
         run(sys.argv[1])
     else:

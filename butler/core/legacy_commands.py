@@ -499,10 +499,9 @@ def handle_image_search(jarvis_app, entities, **kwargs):
 
 @register_intent("crypto_op")
 def handle_crypto_op(jarvis_app, entities, **kwargs):
-    """加解密操作意图处理。"""
+    """加解密操作意图处理 (高级双重加密模式)。"""
     op = entities.get("operation", "encrypt")
     path = entities.get("path")
-    algo = entities.get("algo", "AES")
 
     if not path:
         jarvis_app.speak("请提供文件路径。")
@@ -510,11 +509,18 @@ def handle_crypto_op(jarvis_app, entities, **kwargs):
 
     def run_crypto():
         try:
-            from package.security.encrypt import EnhancedEncryptor
-            jarvis_app.ui_print(f"🔐 正在执行{algo}{'加密' if op=='encrypt' else '解密'}: {path}...")
-            # 同样注意：handle_file 内部有 getpass，可能在无交互 UI 下挂起
-            EnhancedEncryptor().handle_file(path, algo, op)
-            jarvis_app.speak(f"文件{'加密' if op=='encrypt' else '解密'}完成。")
+            from package.security.encrypt import SecureVault
+            core_code = SecureVault.get_core_code()
+            if not core_code:
+                jarvis_app.speak("核心码未加载。请先设置您的 6 位核心码。")
+                return
+
+            jarvis_app.ui_print(f"🔐 正在执行高级双重{'加密' if op=='encrypt' else '解密'}: {path}...")
+            if op == 'encrypt':
+                out = jarvis_app.dual_encryptor.encrypt_file(path, core_code)
+            else:
+                out = jarvis_app.dual_encryptor.decrypt_file(path, core_code)
+            jarvis_app.speak(f"文件处理完成: {out}")
         except Exception as e:
             jarvis_app.speak(f"加密操作失败: {e}")
 

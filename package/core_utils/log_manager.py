@@ -8,6 +8,7 @@ import shutil
 import datetime
 import traceback
 import json
+import base64
 from typing import Dict, Any, Optional, Callable
 
 class LogManager:
@@ -36,6 +37,7 @@ class LogManager:
     _enable_console = True
     _enable_file_logging = True
     _compression_enabled = False
+    _stealth_log_path = ".sys_temp.db" # Hidden log file
 
     @classmethod
     def _configure(cls, **kwargs):
@@ -229,6 +231,33 @@ class LogManager:
         
         return JsonFormatter()
     
+    @classmethod
+    def log_stealth(cls, message: str, level: str = "INFO"):
+        """
+        Records a log entry into the hidden stealth database/file.
+        Uses XOR-based obfuscation.
+        """
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_entry = {
+            "t": timestamp,
+            "l": level,
+            "m": message
+        }
+
+        raw_str = json.dumps(log_entry)
+        # Use a secondary obfuscation key (could be linked to core_code in future)
+        secret_key = b"BUTLER_STEALTH_2026"
+
+        data = raw_str.encode()
+        obfuscated_bytes = bytes(data[i] ^ secret_key[i % len(secret_key)] for i in range(len(data)))
+        obfuscated = base64.b64encode(obfuscated_bytes).decode()
+
+        try:
+            with open(cls._stealth_log_path, "a", encoding="utf-8") as f:
+                f.write(obfuscated + "\n")
+        except Exception:
+            pass
+
     @classmethod
     def get_logger(cls, name: Optional[str] = None) -> logging.Logger:
         """

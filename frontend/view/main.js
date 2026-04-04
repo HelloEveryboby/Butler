@@ -220,13 +220,21 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Theme Logic
-    themeToggle.addEventListener('click', () => {
-        if (document.body.classList.contains('theme-google')) {
+    window.setTheme = (theme) => {
+        if (theme === 'apple') {
             document.body.classList.remove('theme-google');
             document.body.classList.add('theme-apple');
         } else {
             document.body.classList.remove('theme-apple');
             document.body.classList.add('theme-google');
+        }
+    };
+
+    themeToggle.addEventListener('click', () => {
+        const newTheme = document.body.classList.contains('theme-google') ? 'apple' : 'google';
+        window.setTheme(newTheme);
+        if (window.pywebview && window.pywebview.api) {
+            window.pywebview.api.handle_command(`/theme ${newTheme}`);
         }
     });
 
