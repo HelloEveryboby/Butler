@@ -13,6 +13,11 @@ if project_root not in sys.path:
 from butler.butler_app import Jarvis
 from package.core_utils.log_manager import LogManager
 from butler.core.asset_loader import asset_loader
+from package.file_system.guard import FileSystemGuard
+from package.file_system.migration_engine import SmartMigrationEngine
+from package.device.hardware_manager import HardwareManager
+from package.core_utils.task_master.progress_tracker import ProgressTracker
+from butler.core.event_bus import event_bus
 
 class ModernBridge:
     def __init__(self, jarvis, window):
@@ -20,6 +25,18 @@ class ModernBridge:
         self.window = window
         self.logger = LogManager.get_logger(__name__)
         self.terminal_process = None
+
+        # Initialize components
+        self.guard = FileSystemGuard()
+        self.migration_engine = SmartMigrationEngine()
+        self.hardware = HardwareManager() # Default to auto-detect later or config
+        self.progress_tracker = ProgressTracker(self.hardware)
+
+        # Subscribe to progress updates
+        event_bus.subscribe("PROGRESS_UPDATE", self._on_progress_update)
+
+    def _on_progress_update(self, data):
+        self.window.evaluate_js(f"window.onProgressSync({json.dumps(data)})")
 
     def handle_command(self, command):
         self.logger.info(f"Modern UI Command: {command}")
@@ -136,6 +153,55 @@ class ModernBridge:
         with open(save_path, 'w', encoding='utf-8') as f:
             f.write(content)
         return save_path
+
+    # --- New APIs for File Management ---
+    def list_files(self, path="."):
+        """Lists files with protection status."""
+        try:
+            full_path = os.path.join(project_root, path)
+            items = os.listdir(full_path)
+            result = []
+            for item in items:
+                item_path = os.path.join(path, item)
+                is_protected = self.guard.is_protected(item_path)
+                is_dir = os.path.isdir(os.path.join(full_path, item))
+                result.append({
+                    "name": item,
+                    "path": item_path,
+                    "is_protected": is_protected,
+                    "is_dir": is_dir
+                })
+            return result
+        except Exception as e:
+            return {"error": str(e)}
+
+    def delete_file(self, path):
+        success, msg = self.guard.safe_delete(path)
+        return {"success": success, "message": msg}
+
+    def migrate_file(self, path, segment):
+        success, msg = self.migration_engine.migrate_file(path, segment)
+        return {"success": success, "message": msg}
+
+    # --- New APIs for Volume & Hardware ---
+    def set_volume(self, volume):
+        self.hardware.set_volume(int(volume))
+        return True
+
+    def set_volume_mode(self, mode):
+        self.hardware.set_volume_mode(mode)
+        return True
+
+    def set_volume_preset(self, level):
+        self.hardware.set_preset(level)
+        return True
+
+    def get_hardware_status(self):
+        return {
+            "mode": self.hardware.volume_mode,
+            "distance": self.hardware.env_distance,
+            "freq": self.hardware.env_noise_freq
+        }
 
 def main():
     # Initialize Jarvis in headless mode (no Tkinter root)
