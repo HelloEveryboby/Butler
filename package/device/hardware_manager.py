@@ -21,6 +21,8 @@ class HardwareManager:
     DEV_MOTOR = 0x20
     DEV_SENSOR = 0x30
     DEV_NFC = 0x40
+    DEV_AUDIO = 0x50
+    DEV_PROGRESS = 0x60
     DEV_SYSTEM = 0xFF
 
     # Command Types
@@ -34,6 +36,15 @@ class HardwareManager:
         self.ser: Optional[serial.Serial] = None
         self.running = False
         self.callback: Optional[Callable] = None
+
+        # Audio Adaptive State
+        self.volume_mode = "manual" # "manual" or "auto"
+        self.manual_volume = 50
+        self.presets = {"low": 20, "medium": 50, "high": 80}
+
+        # Environmental Parameters
+        self.env_noise_freq = 0.0
+        self.env_distance = 100.0 # cm
 
     def connect(self) -> bool:
         if not serial:
@@ -107,8 +118,49 @@ class HardwareManager:
         action = packet_rest[2]
         data = int.from_bytes(packet_rest[3:7], byteorder='big')
 
+        # Handle Sensor Data for Adaptive Algorithm
+        if device == self.DEV_SENSOR:
+            if action == 0x01: # Noise Frequency
+                self.env_noise_freq = float(data)
+                self._update_adaptive_volume()
+            elif action == 0x02: # Distance
+                self.env_distance = float(data)
+                self._update_adaptive_volume()
+
         if self.callback:
             self.callback(cmd_type, device, action, data)
+
+    def _update_adaptive_volume(self):
+        """
+        Adaptive Algorithm:
+        Volume ∝ 1/Distance (the closer, the louder or softer? Requirement says "with ambient frequency (distance)")
+        Let's assume: closer = louder, higher noise = louder
+        """
+        if self.volume_mode != "auto":
+            return
+
+        # Simple heuristic:
+        # Distance (0-200cm), Frequency (20-20000Hz)
+        base = 50
+        dist_factor = max(0, (100 - self.env_distance) / 100.0) # 0 to 1
+        freq_factor = min(1.0, self.env_noise_freq / 5000.0) # 0 to 1
+
+        target_vol = int(base + (dist_factor * 30) + (freq_factor * 20))
+        target_vol = max(0, min(100, target_vol))
+
+        self.set_volume(target_vol)
+
+    def set_volume(self, volume: int):
+        """Send volume control command to STM32."""
+        self.send_command(self.CMD_CONTROL, self.DEV_AUDIO, 0x01, volume)
+
+    def set_volume_mode(self, mode: str):
+        self.volume_mode = mode # "auto" or "manual"
+
+    def set_preset(self, level: str):
+        vol = self.presets.get(level, 50)
+        self.manual_volume = vol
+        self.set_volume(vol)
 
     def set_callback(self, callback: Callable):
         self.callback = callback

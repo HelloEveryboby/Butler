@@ -336,6 +336,65 @@ main {
 }
 #editor-overlay.active { transform: translateY(0); }
 
+/* Files Overlay & Glass Progress */
+#files-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.4); backdrop-filter: blur(10px); z-index: 600;
+    display: flex; align-items: center; justify-content: center;
+}
+
+.files-window {
+    width: 85%; height: 80%; background: var(--apple-bg); border-radius: 24px;
+    border: 1px solid var(--apple-border); display: flex; flex-direction: column;
+    overflow: hidden; box-shadow: 0 40px 100px rgba(0,0,0,0.5);
+}
+
+.files-header { padding: 15px 25px; border-bottom: 1px solid var(--apple-border); display: flex; justify-content: space-between; align-items: center; }
+
+.files-body { flex: 1; display: flex; overflow: hidden; }
+
+.files-sidebar { width: 200px; background: rgba(0,0,0,0.2); border-right: 1px solid var(--apple-border); padding: 20px 10px; }
+.storage-item { padding: 12px 15px; border-radius: 12px; cursor: pointer; margin-bottom: 8px; color: #fff; opacity: 0.7; }
+.storage-item.active { background: rgba(255,255,255,0.1); opacity: 1; }
+
+.files-content { flex: 1; padding: 20px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
+
+.file-item {
+    background: rgba(255,255,255,0.05); border: 1px solid var(--apple-border);
+    border-radius: 16px; padding: 15px; display: flex; flex-direction: column; align-items: center;
+    gap: 10px; transition: all 0.2s; position: relative;
+}
+.file-item:hover { background: rgba(255,255,255,0.1); transform: translateY(-5px); }
+.file-item.protected { border-color: rgba(255, 59, 48, 0.4); }
+
+.file-info { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.file-info i { font-size: 2rem; color: var(--accent-color); }
+.file-info span { font-size: 0.9rem; word-break: break-all; }
+
+.file-actions { display: flex; gap: 8px; margin-top: 5px; }
+.file-actions button {
+    background: rgba(255,255,255,0.1); border: none; color: #fff; width: 32px; height: 32px;
+    border-radius: 8px; cursor: pointer; font-size: 0.8rem;
+}
+.file-actions button:hover { background: var(--accent-color); }
+.file-actions button.delete-btn:hover { background: var(--error-color); }
+
+.files-footer { padding: 15px 25px; border-top: 1px solid var(--apple-border); background: rgba(0,0,0,0.1); }
+
+/* Glass Progress Bar */
+.glass-progress-container { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+.progress-stages { display: flex; justify-content: space-between; font-size: 0.8rem; opacity: 0.8; }
+.stage-item { display: flex; gap: 5px; }
+
+.progress-bar-track { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+.progress-bar-fill {
+    height: 100%; width: 0%; background: linear-gradient(90deg, #007aff, #34c759);
+    box-shadow: 0 0 10px rgba(0, 122, 255, 0.5); transition: width 0.4s ease;
+}
+
+.volume-controls-header { display: flex; align-items: center; gap: 15px; font-size: 0.9rem; }
+#vol-val { color: var(--accent-color); font-weight: bold; }
+
 .editor-header { padding: 15px; border-bottom: 1px solid rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
 #markdown-editor { flex: 1; padding: 25px; background: transparent; border: none; font-size: 1.1rem; outline: none; resize: none; color: inherit; }
 

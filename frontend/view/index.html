@@ -85,6 +85,10 @@
                 <div class="nav-icon-wrapper"><i class="fas fa-microphone"></i></div>
                 <div class="nav-label">语音</div>
             </div>
+            <div class="nav-item" id="nav-files">
+                <div class="nav-icon-wrapper"><i class="fas fa-folder-open"></i></div>
+                <div class="nav-label">文件</div>
+            </div>
             <div class="nav-item" id="nav-editor">
                 <div class="nav-icon-wrapper"><i class="fas fa-file-alt"></i></div>
                 <div class="nav-label">编辑器</div>
@@ -101,6 +105,7 @@
                 <div class="dock-item" id="dock-home" title="首页"><i class="fas fa-home"></i></div>
                 <div class="dock-item" id="dock-terminal" title="终端"><i class="fas fa-terminal"></i></div>
                 <div class="dock-item" id="dock-voice" title="语音控制"><i class="fas fa-microphone"></i></div>
+                <div class="dock-item" id="dock-files" title="文件管理"><i class="fas fa-folder-open"></i></div>
                 <div class="dock-item" id="dock-pause" title="暂停"><i class="fas fa-pause"></i></div>
                 <div class="dock-item" id="dock-retry" title="重试"><i class="fas fa-redo"></i></div>
                 <div class="dock-item" id="dock-editor" title="编辑器"><i class="fas fa-file-alt"></i></div>
@@ -122,6 +127,42 @@
             </div>
         </div>
         <textarea id="markdown-editor" placeholder="在此开始撰写您的文档..."></textarea>
+    </div>
+
+    <!-- File Explorer Overlay -->
+    <div id="files-overlay" class="hidden">
+        <div class="files-window">
+            <div class="files-header">
+                <div class="top-app-bar-start">
+                    <div class="back-button" id="close-files"><i class="fas fa-xmark"></i></div>
+                    <span>多源文件管理器</span>
+                </div>
+                <div class="volume-controls-header">
+                    <div id="volume-indicator"><i class="fas fa-volume-high"></i> <span id="vol-val">50%</span></div>
+                </div>
+            </div>
+            <div class="files-body">
+                <aside class="files-sidebar">
+                    <div class="storage-item active" data-path="."><i class="fas fa-hdd"></i> 本地主机</div>
+                    <div class="storage-item" data-path="/mnt/usb"><i class="fas fa-usb"></i> 外部 USB</div>
+                </aside>
+                <div class="files-content" id="files-list">
+                    <!-- Files will be listed here -->
+                </div>
+            </div>
+            <div class="files-footer">
+                <div id="glass-progress-container" class="glass-progress-container hidden">
+                    <div class="progress-stages">
+                        <div class="stage-item" id="stage-loading">加载 <span class="p-val">0%</span></div>
+                        <div class="stage-item" id="stage-processing">处理 <span class="p-val">0%</span></div>
+                        <div class="stage-item" id="stage-syncing">同步 <span class="p-val">0%</span></div>
+                    </div>
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="glass-progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="terminal-overlay" class="hidden">

@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const navHome = document.getElementById('nav-home');
     const navTerminal = document.getElementById('nav-terminal');
     const navVoice = document.getElementById('nav-voice');
+    const navFiles = document.getElementById('nav-files');
     const navEditor = document.getElementById('nav-editor');
     const navSettings = document.getElementById('nav-settings');
 
@@ -15,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dockHome = document.getElementById('dock-home');
     const dockTerminal = document.getElementById('dock-terminal');
     const dockVoice = document.getElementById('dock-voice');
+    const dockFiles = document.getElementById('dock-files');
     const dockEditor = document.getElementById('dock-editor');
     const dockSettings = document.getElementById('dock-settings');
     const dockPause = document.getElementById('dock-pause');
@@ -204,6 +206,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.onTerminalOutput = (data) => term.write(data);
 
+    window.onProgressSync = (data) => {
+        const container = document.getElementById('glass-progress-container');
+        if (!data || !data.all_stages) return;
+
+        container.classList.remove('hidden');
+        const stages = ['loading', 'processing', 'syncing'];
+        let total = 0;
+
+        stages.forEach(s => {
+            const el = document.getElementById(`stage-${s}`);
+            const val = data.all_stages[s] || 0;
+            if (el) el.querySelector('.p-val').innerText = `${val}%`;
+            total += val;
+        });
+
+        const progressFill = document.getElementById('glass-progress-fill');
+        if (progressFill) progressFill.style.width = `${total / 3}%`;
+
+        if (total >= 300) {
+            setTimeout(() => container.classList.add('hidden'), 2000);
+        }
+    };
+
     window.onVoiceStatusChange = (isListening) => {
         const dot = document.getElementById('voice-status');
         const voiceIconNav = navVoice.querySelector('i');
@@ -285,6 +310,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (window.pywebview && window.pywebview.api) window.pywebview.api.start_terminal();
             }
         },
+        files: () => {
+            const filesOverlay = document.getElementById('files-overlay');
+            filesOverlay.classList.toggle('hidden');
+            if (!filesOverlay.classList.contains('hidden')) {
+                loadFiles('.');
+            }
+        },
         voice: () => {
             if (window.pywebview && window.pywebview.api) window.pywebview.api.handle_command("/voice-toggle");
         },
@@ -297,6 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
     [navHome, dockHome].forEach(el => el.addEventListener('click', actions.home));
     [navTerminal, dockTerminal].forEach(el => el.addEventListener('click', actions.terminal));
     [navVoice, dockVoice].forEach(el => el.addEventListener('click', actions.voice));
+    [navFiles, dockFiles].forEach(el => el.addEventListener('click', actions.files));
     [navEditor, dockEditor].forEach(el => el.addEventListener('click', actions.editor));
     [navSettings, dockSettings].forEach(el => el.addEventListener('click', actions.settings));
 
@@ -322,6 +355,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
     closeEditorBtn.addEventListener('click', () => editorOverlay.classList.remove('active'));
     closeTerminalBtn.addEventListener('click', () => terminalOverlay.classList.add('hidden'));
+    document.getElementById('close-files').addEventListener('click', () => document.getElementById('files-overlay').classList.add('hidden'));
+
+    async function loadFiles(path) {
+        if (window.pywebview && window.pywebview.api) {
+            const files = await window.pywebview.api.list_files(path);
+            renderFileList(files);
+        }
+    }
+
+    function renderFileList(files) {
+        const list = document.getElementById('files-list');
+        list.innerHTML = '';
+        if (files.error) {
+            list.innerHTML = `<div class="error-msg">${files.error}</div>`;
+            return;
+        }
+
+        files.forEach(file => {
+            const item = document.createElement('div');
+            item.className = 'file-item';
+            if (file.is_protected) item.classList.add('protected');
+
+            item.innerHTML = `
+                <div class="file-info">
+                    <i class="fas ${file.is_dir ? 'fa-folder' : 'fa-file'}"></i>
+                    <span>${file.name}</span>
+                </div>
+                <div class="file-actions">
+                    ${!file.is_protected ? '<button class="delete-btn" title="删除"><i class="fas fa-trash"></i></button>' : '<i class="fas fa-lock" title="系统锁定"></i>'}
+                    <button class="migrate-btn" title="迁移至核心"><i class="fas fa-file-export"></i></button>
+                </div>
+            `;
+
+            if (!file.is_protected) {
+                item.querySelector('.delete-btn').onclick = async () => {
+                    const res = await window.pywebview.api.delete_file(file.path);
+                    alert(res.message);
+                    loadFiles('.');
+                };
+            }
+
+            item.querySelector('.migrate-btn').onclick = async () => {
+                const segment = prompt("请输入迁移逻辑段 (CORE_LOGIC, MEDIA_ASSETS, SYSTEM_SOUNDS, USER_DATA):", "CORE_LOGIC");
+                if (segment) {
+                    const res = await window.pywebview.api.migrate_file(file.path, segment);
+                    alert(res.message);
+                    loadFiles('.');
+                }
+            };
+
+            list.appendChild(item);
+        });
+    }
     closeMediaBtn.addEventListener('click', () => {
         mediaOverlay.classList.add('hidden');
         mediaContent.innerHTML = ''; // Stop playback
