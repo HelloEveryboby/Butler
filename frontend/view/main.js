@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const viewTitle = document.getElementById('current-view-title');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const appContainer = document.querySelector('.app-container');
     const interactionFlow = document.getElementById('interaction-flow');
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-command-btn');
@@ -78,6 +80,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     Object.keys(navItems).forEach(key => {
         navItems[key].addEventListener('click', () => switchView(key));
+    });
+
+    // Sidebar Toggle Persistence
+    const isSidebarHidden = localStorage.getItem('butler-sidebar-hidden') === 'true';
+    if (isSidebarHidden) appContainer.classList.add('sidebar-hidden');
+
+    sidebarToggle.addEventListener('click', () => {
+        appContainer.classList.toggle('sidebar-hidden');
+        const isHidden = appContainer.classList.contains('sidebar-hidden');
+        localStorage.setItem('butler-sidebar-hidden', isHidden);
+        // Fit terminal if active
+        if (views.terminal.classList.contains('active')) fitTerminal();
     });
 
     // Chat Logic

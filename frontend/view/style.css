@@ -49,6 +49,11 @@ body {
     display: flex;
     flex-direction: column;
     z-index: 100;
+    transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-hidden .sidebar {
+    margin-left: calc(-1 * var(--sidebar-width));
 }
 
 .sidebar-header {
@@ -404,6 +409,11 @@ body {
     font-size: 13px;
     color: var(--text-primary);
     word-break: break-all;
+}
+
+/* Sidebar Toggle Custom Icon (Approximate macOS SF Symbol style) */
+.fa-sidebar::before {
+    content: "\f03b"; /* fallback fontawesome list icon or custom */
 }
 
 /* Utility Buttons */
