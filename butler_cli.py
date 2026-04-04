@@ -126,12 +126,16 @@ def main():
             img_run(query=args.query, path=args.path, mode=args.mode)
 
         elif args.command == "encrypt":
-            from package.security.encrypt import EnhancedEncryptor
-            EnhancedEncryptor().handle_file(args.path, args.algo, "encrypt")
+            from package.security.encrypt import DualLayerEncryptor, SecureVault
+            import getpass
+            core_code = getpass.getpass("请输入 6 位核心码: ")
+            DualLayerEncryptor().encrypt_file(args.path, core_code)
 
         elif args.command == "decrypt":
-            from package.security.encrypt import EnhancedEncryptor
-            EnhancedEncryptor().handle_file(args.path, args.algo, "decrypt")
+            from package.security.encrypt import DualLayerEncryptor, SecureVault
+            import getpass
+            core_code = getpass.getpass("请输入 6 位核心码: ")
+            DualLayerEncryptor().decrypt_file(args.path, core_code)
 
         elif args.command == "weather":
             from package.network.weather import get_weather_from_web

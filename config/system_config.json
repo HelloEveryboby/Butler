@@ -11,6 +11,7 @@
     },
     "display": {
         "default_mode": "host",
+        "theme": "google",
         "usb_screen": {
             "width": 40,
             "height": 8

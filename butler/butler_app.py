@@ -57,6 +57,7 @@ class Jarvis:
         self.running = True
         self.pending_dev_code = None
 
+        self._check_environment()
         load_dotenv()
         self.logger = LogManager.get_logger(__name__)
 
@@ -97,6 +98,10 @@ class Jarvis:
         )
         self.runner_server.register_event_callback(self._on_runner_event)
         self.runner_server.start()
+
+        # Initialize Encryption Suite
+        from package.security.encrypt import DualLayerEncryptor
+        self.dual_encryptor = DualLayerEncryptor()
 
         self.ui_suggested = False
         self.waiting_for_ui_confirm = False
@@ -252,6 +257,27 @@ class Jarvis:
                 self.ui_print(summary)
             except Exception as e:
                 self.ui_print(f"数据回收失败: {e}", tag='error')
+        elif cmd.startswith("/theme "):
+            parts = cmd.split()
+            if len(parts) > 1:
+                theme = parts[1].lower()
+                if theme in ['dark', 'light', 'google', 'apple']:
+                    # Map dark/light to specific themes
+                    if theme == 'dark': theme = 'apple'
+                    if theme == 'light': theme = 'google'
+
+                    self.config['display']['theme'] = theme
+                    config_loader.set("display.theme", theme)
+                    self.ui_print(f"主题切换到: {theme}")
+                    event_bus.emit("theme_change", theme)
+                else:
+                    self.ui_print("无效主题", tag='error')
+        elif cmd.startswith("/encrypt ") or cmd.startswith("/decrypt "):
+            parts = cmd.split()
+            if len(parts) > 1:
+                path = parts[1]
+                mode = 'encrypt' if cmd.startswith("/encrypt") else 'decrypt'
+                self._handle_advanced_encryption(path, mode)
         elif cmd.startswith("/legacy "):
             self._handle_legacy_command(cmd[8:])
         elif cmd.startswith("/py ") or cmd.startswith("/python "):
@@ -593,6 +619,16 @@ class Jarvis:
     def _handle_manual_habit_learning(self, command: str):
         """Processes manual habit learning requests from the user."""
         content = command.split('：', 1)[-1].split(':', 1)[-1].strip()
+
+        # Handle Security Core Code specifically
+        if "核心码" in content or "core code" in content.lower():
+            digits = re.findall(r'\d{6}', content)
+            if digits:
+                from package.security.encrypt import SecureVault
+                if SecureVault.set_core_code(digits[0]):
+                    self.ui_print("安全核心码已加载至加密内存。", tag='system_message')
+                    return
+
         self.ui_print(f"正在将 '{content}' 存入核心记忆...", tag='system_message')
 
         # We use the reflection mechanism but with high priority for this specific turn
@@ -688,6 +724,45 @@ class Jarvis:
             except Exception:
                 pass
             time.sleep(5)
+
+    def _handle_advanced_encryption(self, path, mode):
+        """处理高级双重加密指令。"""
+        from package.security.encrypt import SecureVault
+
+        core_code = SecureVault.get_core_code()
+        if not core_code:
+            self.ui_print("请先通过 '记住：核心码是XXXXXX' 设置 6 位核心码。", tag='error')
+            return
+
+        try:
+            if mode == 'encrypt':
+                out = self.dual_encryptor.encrypt_file(path, core_code)
+                self.ui_print(f"双重加密成功: {out}")
+            else:
+                out = self.dual_encryptor.decrypt_file(path, core_code)
+                self.ui_print(f"双重解密成功: {out}")
+        except Exception as e:
+            self.ui_print(f"操作失败: {e}", tag='error')
+
+    def _check_environment(self):
+        """Checks for .env_ready and installs dependencies if missing."""
+        # Project root is defined at module level
+        env_ready_file = project_root / ".env_ready"
+        if env_ready_file.exists():
+            return
+
+        print("正在进行环境自检与依赖安装 (静默模式)...")
+        try:
+            from package.core_utils import dependency_manager
+            # Perform silent installation
+            result = dependency_manager.run(command="install_all")
+            if "成功" in result:
+                env_ready_file.touch()
+                print("环境自检完成，依赖已就绪。")
+            else:
+                print(f"环境自检警告: {result}")
+        except Exception as e:
+            print(f"环境自检失败: {e}")
 
     def _cleanup_temp_files(self):
         temp_dir = tempfile.gettempdir()

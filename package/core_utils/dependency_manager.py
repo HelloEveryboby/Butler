@@ -73,6 +73,49 @@ def setup_runtime(target_dir):
         logger.error(f"设置运行环境时出错: {e}")
         return f"错误: {e}"
 
+def check_for_updates(server_url: str = "https://api.github.com/repos/user/butler/releases/latest"):
+    """
+    检查服务器上的版本清单并与本地对比。
+    目前实现为模板逻辑，返回是否需要更新。
+    """
+    logger.info(f"正在检查更新: {server_url}...")
+    # 模拟逻辑：假设本地版本存放在 .version 文件中
+    try:
+        # res = requests.get(server_url, timeout=5)
+        # server_manifest = res.json()
+        # compare with local...
+        return False # 默认暂无更新
+    except Exception as e:
+        logger.error(f"检查更新失败: {e}")
+        return False
+
+def verify_integrity():
+    """
+    扫描项目目录，验证关键文件完整性。
+    """
+    logger.info("正在执行系统文件完整性自检...")
+    critical_files = [
+        "requirements.txt",
+        "butler/butler_app.py",
+        "package/security/encrypt.py",
+        "config/system_config.json"
+    ]
+
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    missing = []
+
+    for rel_path in critical_files:
+        abs_path = os.path.join(project_root, rel_path)
+        if not os.path.exists(abs_path):
+            missing.append(rel_path)
+
+    if missing:
+        logger.warning(f"系统文件缺失: {', '.join(missing)}")
+        return False, missing
+
+    logger.info("系统文件完整性校验通过。")
+    return True, []
+
 def run(*args, **kwargs):
     """
     执行依赖管理操作。

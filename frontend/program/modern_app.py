@@ -171,7 +171,15 @@ def main():
     def on_nostalgia():
         window.evaluate_js("window.onNostalgiaMode()")
 
+    def on_theme_change(theme):
+        window.evaluate_js(f"window.setTheme({json.dumps(theme)})")
+
     event_bus.subscribe("nostalgia_mode_activated", on_nostalgia)
+    event_bus.subscribe("theme_change", on_theme_change)
+
+    # Apply initial theme from config
+    initial_theme = jarvis.config.get("display", {}).get("theme", "google")
+    window.evaluate_js(f"window.setTheme({json.dumps(initial_theme)})")
 
     webview.start(debug=True)
 
