@@ -42,7 +42,13 @@ Butler 采用了一套基于 HTML/CSS/JS 的现代化**玻璃拟态 (Glassmorphi
 *   **双域管理**：支持切换“本地存储”与“核心系统”路径。
 *   **快速操作**：点击文件可直接在工作区打开预览或进行相应处理。
 
-### 5. 系统设置 (Settings)
+### 5. 多媒体中心 (Media)
+专为音频播放与图片查看设计。
+*   **全格式支持**：原生支持 MP3、WAV 音乐播放以及 JPG 图片查看。
+*   **智能随机播放**：集成随机算法，支持一键 Shuffle 媒体库。
+*   **格式百科**：在查看媒体时，自动展示该文件格式的由来、背景及技术特性。
+
+### 6. 系统设置 (Settings)
 ![Butler UI Settings View](../assets/ui_screenshots/ui_settings.png)
 *   **外观定制**：支持深色/浅色模式切换，以及不同主题风格的选择（如 Apple Classic 或 Modern Glass）。
 *   **状态监控**：实时查看各模型 API 的配额消耗情况。

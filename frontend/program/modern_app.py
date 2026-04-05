@@ -205,6 +205,14 @@ class ModernBridge:
             "freq": self.hardware.env_noise_freq
         }
 
+    def get_media_library(self):
+        """Fetches the media library using the media_manager skill."""
+        try:
+            return self.jarvis.skill_manager.execute("media_manager", "get_library")
+        except Exception as e:
+            self.logger.error(f"Failed to fetch media library: {e}")
+            return []
+
 def main():
     # Initialize Jarvis in headless mode (no Tkinter root)
     jarvis = Jarvis(root=None)

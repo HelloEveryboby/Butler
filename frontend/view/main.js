@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chat: document.getElementById('nav-chat'),
         terminal: document.getElementById('nav-terminal'),
         workspace: document.getElementById('nav-workspace'),
+        media: document.getElementById('nav-media'),
         files: document.getElementById('nav-files'),
         settings: document.getElementById('nav-settings')
     };
@@ -12,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chat: document.getElementById('view-chat'),
         terminal: document.getElementById('view-terminal'),
         workspace: document.getElementById('view-workspace'),
+        media: document.getElementById('view-media'),
         files: document.getElementById('view-files'),
         settings: document.getElementById('view-settings')
     };
@@ -67,6 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
             chat: '智能助手',
             terminal: '终端会话',
             workspace: '全屏工作区',
+            media: '多媒体中心',
             files: '文件管理',
             settings: '系统设置'
         };
@@ -77,6 +80,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.pywebview && window.pywebview.api) window.pywebview.api.start_terminal();
         } else if (viewName === 'files') {
             loadFiles('.');
+        } else if (viewName === 'media') {
+            loadMediaLibrary();
         }
     }
 
@@ -399,6 +404,113 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.classList.remove('has-custom-bg');
         }
     }
+
+    // Media Center Logic
+    let mediaLibrary = [];
+    let currentMediaFilter = 'audio';
+
+    async function loadMediaLibrary() {
+        if (window.pywebview && window.pywebview.api) {
+            // Assume we'll have a get_media_library method in the API
+            const library = await window.pywebview.api.get_media_library();
+            mediaLibrary = library;
+            renderMediaLibrary();
+        } else {
+            // Mock data
+            mediaLibrary = [
+                { name: 'Example Music.mp3', path: 'assets/music/example.mp3', type: 'audio' },
+                { name: 'Sample Audio.wav', path: 'assets/music/sample.wav', type: 'audio' },
+                { name: 'Beautiful Landscape.jpg', path: 'assets/images/landscape.jpg', type: 'image' },
+                { name: 'Portrait.jpg', path: 'assets/images/portrait.jpg', type: 'image' }
+            ];
+            renderMediaLibrary();
+        }
+    }
+
+    function renderMediaLibrary() {
+        const listContainer = document.getElementById('media-list');
+        listContainer.innerHTML = '';
+
+        const filtered = mediaLibrary.filter(item => {
+            if (currentMediaFilter === 'audio') return item.name.toLowerCase().endsWith('.mp3') || item.name.toLowerCase().endsWith('.wav');
+            if (currentMediaFilter === 'image') return item.name.toLowerCase().endsWith('.jpg') || item.name.toLowerCase().endsWith('.jpeg');
+            return true;
+        });
+
+        filtered.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'media-item-row';
+            const icon = item.type === 'audio' ? 'fa-music' : 'fa-image';
+
+            const iconEl = document.createElement('i');
+            iconEl.className = `fas ${icon}`;
+            const nameEl = document.createElement('span');
+            nameEl.textContent = item.name;
+
+            div.appendChild(iconEl);
+            div.appendChild(nameEl);
+
+            div.onclick = () => selectMediaItem(item);
+            listContainer.appendChild(div);
+        });
+    }
+
+    document.getElementById('media-filter-audio').onclick = () => {
+        currentMediaFilter = 'audio';
+        document.getElementById('media-filter-audio').classList.add('active');
+        document.getElementById('media-filter-image').classList.remove('active');
+        renderMediaLibrary();
+    };
+
+    document.getElementById('media-filter-image').onclick = () => {
+        currentMediaFilter = 'image';
+        document.getElementById('media-filter-image').classList.add('active');
+        document.getElementById('media-filter-audio').classList.remove('active');
+        renderMediaLibrary();
+    };
+
+    function selectMediaItem(item) {
+        const audioCard = document.getElementById('audio-player-card');
+        const imageCard = document.getElementById('image-viewer-card');
+        const audioPlayer = document.getElementById('main-audio-player');
+        const imageViewer = document.getElementById('main-image-viewer');
+        const titleDisp = document.getElementById('media-title-display');
+        const formatInfo = document.getElementById('format-info-content');
+
+        if (item.type === 'audio') {
+            audioCard.classList.remove('hidden');
+            imageCard.classList.add('hidden');
+            audioPlayer.src = item.path;
+            audioPlayer.play();
+            titleDisp.innerText = item.name;
+            showFormatInfo(item.name.split('.').pop().toLowerCase());
+        } else if (item.type === 'image') {
+            audioCard.classList.add('hidden');
+            imageCard.classList.remove('hidden');
+            audioPlayer.pause();
+            imageViewer.src = item.path;
+            showFormatInfo('jpg');
+        }
+    }
+
+    function showFormatInfo(ext) {
+        const info = {
+            'mp3': '<b>MP3 (MPEG-1 Audio Layer III)</b><br>由来：由德国 Fraunhofer 集成电路研究所开发。它是一种有损压缩音频格式，由于其极高的压缩比（约 1:10）和保持良好的音质，在 90 年代互联网早期迅速流行，彻底改变了音乐发行和存储方式。',
+            'wav': '<b>WAV (Waveform Audio File Format)</b><br>由来：由微软与 IBM 联合开发，主要用于 Windows 系统。它通常存储无损、未压缩的音频数据，采用 PCM（脉冲编码调制）编码。虽然体积巨大，但它是专业音频编辑和高保真听感的标准格式。',
+            'jpg': '<b>JPG / JPEG (Joint Photographic Experts Group)</b><br>由来：由联合图像专家小组于 1992 年发布。它是针对彩色照片进行的有损压缩标准，利用了人类视觉对色彩变化敏感度低于亮度变化的特性。它是目前互联网上使用最广泛的图片格式。',
+            'jpeg': '<b>JPEG</b><br>由来：同 JPG。JPEG 是该标准的完整缩写。'
+        };
+        document.getElementById('format-info-content').innerHTML = info[ext] || '未知格式背景信息。';
+    }
+
+    // Random Shuffle Logic
+    document.getElementById('shuffle-media-btn').onclick = () => {
+        const audios = mediaLibrary.filter(item => item.name.toLowerCase().endsWith('.mp3') || item.name.toLowerCase().endsWith('.wav'));
+        if (audios.length > 0) {
+            const randomIndex = Math.floor(Math.random() * audios.length);
+            selectMediaItem(audios[randomIndex]);
+        }
+    };
 
     // Load saved background on startup
     const savedBg = localStorage.getItem('butler-custom-bg');
