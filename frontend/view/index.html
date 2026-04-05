@@ -40,6 +40,10 @@
                     <i class="fas fa-briefcase"></i>
                     <span>工作区</span>
                 </div>
+                <div class="nav-item" id="nav-media" title="多媒体中心">
+                    <i class="fas fa-play-circle"></i>
+                    <span>媒体</span>
+                </div>
                 <div class="nav-item" id="nav-files" title="文件管理">
                     <i class="fas fa-folder-open"></i>
                     <span>文件</span>
@@ -128,6 +132,55 @@
                         </div>
                     </div>
                     <div id="viewer-content"></div>
+                </div>
+            </section>
+
+            <section id="view-media" class="view-container">
+                <div class="media-view-layout">
+                    <div class="media-sidebar-list">
+                        <div class="media-list-header">
+                            <h3>媒体库</h3>
+                            <div class="media-filter">
+                                <button id="media-filter-audio" class="filter-btn active">音频</button>
+                                <button id="media-filter-image" class="filter-btn">图片</button>
+                            </div>
+                        </div>
+                        <div id="media-list" class="media-list-container">
+                            <!-- Items: MP3, WAV, JPG -->
+                        </div>
+                    </div>
+                    <div class="media-main-player">
+                        <div id="audio-player-card" class="media-card player-active">
+                            <div class="media-visual-area">
+                                <div class="audio-disc-animation">
+                                    <i class="fas fa-music"></i>
+                                </div>
+                            </div>
+                            <div class="media-info-area">
+                                <h2 id="media-title-display">未播放曲目</h2>
+                                <p id="media-subtitle-display">支持 MP3 & WAV 格式</p>
+                                <audio id="main-audio-player" controls style="width: 100%; margin-top: 20px;"></audio>
+                                <div class="media-extra-controls">
+                                    <button id="shuffle-media-btn" class="icon-btn-small" title="随机播放"><i class="fas fa-random"></i> 随机播放</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="image-viewer-card" class="media-card hidden">
+                            <div class="image-preview-box">
+                                <img id="main-image-viewer" src="" alt="Preview">
+                            </div>
+                        </div>
+
+                        <div class="media-format-desc-card">
+                            <div class="desc-header">
+                                <i class="fas fa-history"></i> <span>格式由来与背景</span>
+                            </div>
+                            <div id="format-info-content" class="desc-body">
+                                选择左侧媒体文件以查看其格式由来...
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
