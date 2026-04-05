@@ -28,7 +28,7 @@ def quick_create():
                 data = json.load(f)
                 if "enabled_skills" not in data:
                     data = {"enabled_skills": []}
-            except:
+            except Exception:
                 data = {"enabled_skills": []}
 
     if name not in data["enabled_skills"]:

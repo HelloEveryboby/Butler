@@ -167,7 +167,7 @@ def translate_website_bilingual(url):
                 parsed = json.loads(translated_title)
                 if isinstance(parsed, list) and len(parsed) > 0:
                     translated_title = parsed[0].get("target", title)
-            except: pass
+            except Exception: pass
 
         # Translate content bilingually
         bilingual_data = translate_bilingual(content_text, context=f"Source URL: {url}, Title: {title}")

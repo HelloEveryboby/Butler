@@ -374,7 +374,7 @@ class MarkItDownGUI:
         if not os.path.exists(self.output_dir.get()):
             try:
                 os.makedirs(self.output_dir.get())
-            except:
+            except Exception:
                 messagebox.showerror("错误", "无法创建输出目录。")
                 return
 

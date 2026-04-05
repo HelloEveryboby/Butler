@@ -62,14 +62,14 @@ class HybridLinkClient:
                 # Try graceful exit if possible
                 try:
                     self.call("exit", {}, wait=False, timeout=0.1)
-                except:
+                except Exception:
                     pass
 
                 time.sleep(0.1)
                 if self.process.stdin:
                     try:
                         self.process.stdin.close()
-                    except:
+                    except Exception:
                         pass
 
                 self.process.terminate()
@@ -82,7 +82,7 @@ class HybridLinkClient:
                 if self.process:
                     try:
                         self.process.kill()
-                    except:
+                    except Exception:
                         pass
             finally:
                 self.process = None

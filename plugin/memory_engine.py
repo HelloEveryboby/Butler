@@ -169,7 +169,7 @@ class SQLiteLongMemory(AbstractLongMemory):
                 rows = cursor.fetchall()
                 # bm25 越小越好，此处映射为相似度得分（取负值以便降序排列）
                 items = [LongMemoryItem.new(id=r[0], content=r[1], metadata=json.loads(r[2]), distance=-float(r[3])) for r in rows]
-        except: pass
+        except Exception: pass
 
         if not items:
             # 降级到 LIKE 搜索

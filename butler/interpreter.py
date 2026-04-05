@@ -44,6 +44,7 @@ class Interpreter:
             use_shell = any(char in command for char in shell_chars)
 
             if not use_shell:
+                # Preferred way: split into list to avoid shell execution
                 cmd_list = shlex.split(command)
                 result = subprocess.run(
                     cmd_list,
@@ -54,6 +55,9 @@ class Interpreter:
                     timeout=300
                 )
             else:
+                # Fallback to shell=True for commands with pipes/redirection
+                # NOTE: This is inherently risky and relies on the LLM or user to provide safe commands.
+                # In a production environment, this should be more strictly sandboxed.
                 result = subprocess.run(
                     command,
                     shell=True,

@@ -45,7 +45,7 @@ class EmailAssistant:
             self.create_default_config()
         except json.JSONDecodeError:
             print("⚠️ 配置文件格式错误，请检查JSON格式")
-            exit(1)
+            raise Exception("Invalid email_config.json format.")
             
     def create_default_config(self):
         """创建默认配置文件"""
@@ -77,7 +77,6 @@ class EmailAssistant:
         with open("email_config.json", "w", encoding="utf-8") as f:
             json.dump(default_config, f, ensure_ascii=False, indent=4)
         print("📝 已创建默认配置文件 email_config.json，请修改为您的账户信息")
-        exit(0)
         
     def load_blacklist(self):
         """加载黑名单"""
@@ -85,7 +84,7 @@ class EmailAssistant:
             if os.path.exists("blacklist.json"):
                 with open("blacklist.json", "r", encoding="utf-8") as f:
                     return json.load(f).get(self.email, [])
-        except:
+        except Exception:
             pass
         return []
         
@@ -156,10 +155,10 @@ class EmailAssistant:
                         # 尝试常用编码
                         try:
                             result.append(part.decode('utf-8'))
-                        except:
+                        except Exception:
                             try:
                                 result.append(part.decode('gbk'))
-                            except:
+                            except Exception:
                                 result.append(part.decode('iso-8859-1', 'ignore'))
                 else:
                     result.append(part)
@@ -196,7 +195,7 @@ class EmailAssistant:
         """获取邮件日期"""
         try:
             return parser.parse(email_msg.get("date"))
-        except:
+        except Exception:
             return datetime.datetime.now()
 
     def save_attachments(self, msg, download_folder="attachments"):
@@ -275,7 +274,7 @@ class EmailAssistant:
             try:
                 conn.close()
                 conn.logout()
-            except:
+            except Exception:
                 pass
 
     def display_emails(self, emails):
@@ -304,11 +303,11 @@ class EmailAssistant:
                     try:
                         # 尝试UTF-8解码
                         body_text = body.decode('utf-8')
-                    except:
+                    except Exception:
                         try:
                             # 尝试GBK解码
                             body_text = body.decode('gbk')
-                        except:
+                        except Exception:
                             # 尝试ISO-8859-1解码
                             body_text = body.decode('iso-8859-1', 'ignore')
                     
@@ -363,7 +362,7 @@ class EmailAssistant:
         finally:
             try:
                 server.quit()
-            except:
+            except Exception:
                 pass
         
         return False
@@ -531,10 +530,10 @@ def view_unread_emails(assistant):
                                 body = part.get_payload(decode=True)
                                 try:
                                     print(body.decode('utf-8'))
-                                except:
+                                except Exception:
                                     try:
                                         print(body.decode('gbk'))
-                                    except:
+                                    except Exception:
                                         print(body.decode('iso-8859-1', 'ignore'))
                         print("-" * 50)
                     else:

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import threading
 import uuid
 import websockets
@@ -14,15 +15,16 @@ class RunnerServer:
     def __init__(self, host: str = "127.0.0.1", port: int = 8000, token: str = None):
         self.host = host
         self.port = port
-        self.token = token
+        # Use provided token or look for environment variable. Fallback to default for legacy support.
+        self.token = token or os.getenv("BUTLER_RUNNER_TOKEN", "BUTLER_SECRET_2026")
         self.logger = logging.getLogger("RunnerServer")
         self.runners: Dict[str, Any] = {}
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._server_thread: Optional[threading.Thread] = None
         self._event_callbacks: List[Callable[[str, Dict[str, Any]], None]] = []
 
-        if not self.token or self.token == "BUTLER_SECRET_2026":
-            self.logger.warning("⚠️ RunnerServer is using a default or missing token! This is insecure.")
+        if self.token == "BUTLER_SECRET_2026":
+            self.logger.warning("⚠️ RunnerServer is using a default token! This is insecure. Please set BUTLER_RUNNER_TOKEN environment variable.")
 
     def register_event_callback(self, callback: Callable[[str, Dict[str, Any]], None]):
         """Registers a callback for messages from runners (e.g., screenshots)."""

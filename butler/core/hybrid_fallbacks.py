@@ -121,7 +121,7 @@ def benchmark(url: str, count: int, concurrency: int) -> Dict[str, Any]:
             start = time.time()
             requests.get(url, timeout=10)
             return int((time.time() - start) * 1000)
-        except:
+        except Exception:
             return -1
 
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
@@ -162,7 +162,7 @@ def batch_ping(hosts: List[str]) -> List[Dict[str, Any]]:
             start = time.time()
             socket.create_connection((h, 80), timeout=2).close()
             results.append({"host": h, "alive": True, "latency_ms": int((time.time() - start) * 1000)})
-        except:
+        except Exception:
             results.append({"host": h, "alive": False})
     return results
 
@@ -230,7 +230,7 @@ def log_scan(directory: str, regex_str: str) -> Dict[str, List[str]]:
     results = {}
     try:
         pattern = re.compile(regex_str)
-    except:
+    except Exception:
         return {}
 
     for root, _, files in os.walk(directory):
@@ -245,7 +245,7 @@ def log_scan(directory: str, regex_str: str) -> Dict[str, List[str]]:
                                 matches.append(line.strip())
                     if matches:
                         results[path] = matches
-                except:
+                except Exception:
                     continue
     return results
 
