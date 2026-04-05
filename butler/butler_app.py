@@ -37,10 +37,7 @@ from butler.core.habit_manager import habit_manager
 from butler.core.skill_manager import SkillManager
 from butler.usb_screen import USBScreen
 from butler.resource_manager import ResourceManager, PerformanceMode
-from plugin.long_memory.redis_long_memory import RedisLongMemory
-from plugin.long_memory.zvec_long_memory import ZvecLongMemory
-from plugin.long_memory.chroma_long_memory import SQLiteLongMemory
-from plugin.long_memory.long_memory_interface import LongMemoryItem
+from plugin.memory_engine import RedisLongMemory, ZvecLongMemory, SQLiteLongMemory, LongMemoryItem
 from butler.core.intent_dispatcher import intent_registry
 from butler.core import legacy_commands # Ensure legacy intents are registered
 from butler.interpreter import interpreter
@@ -610,7 +607,7 @@ class Jarvis:
 
         # Add to memory with high importance
         try:
-             from plugin.long_memory.long_memory_interface import LongMemoryItem
+             from plugin.memory_engine import LongMemoryItem
              item = LongMemoryItem.new(content=response, id=f"easter_egg_{time.time()}",
                                       metadata={"type": "easter_egg", "key": "no1_middle_school"})
              self.long_memory.save([item])
