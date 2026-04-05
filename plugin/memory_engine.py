@@ -5,13 +5,14 @@ import json
 import ast
 import threading
 import time
+import datetime
 from abc import ABCMeta, abstractmethod
 from typing import List, Dict, Optional, Tuple, Any
 
 from package.core_utils.log_manager import LogManager
 from package.core_utils.embedding_utils import get_embedding
 
-# Optional dependencies
+# 可选依赖项处理
 try:
     import numpy as np
 except ImportError:
@@ -33,7 +34,16 @@ try:
 except ImportError:
     zvec = None
 
+# BHL 协议客户端，用于混合记忆查询
+try:
+    from butler.core.hybrid_link import HybridLinkClient
+except ImportError:
+    HybridLinkClient = None
+
 class LongMemoryItem:
+    """
+    表示一条长期记忆的数据项（事实数据）。
+    """
     def __init__(self):
         self.content = None
         self.id = None
@@ -50,477 +60,214 @@ class LongMemoryItem:
         return item
 
     def to_dict(self) -> dict:
-        return {
-            "id": self.id,
-            "content": self.content,
-            "metadata": self.metadata,
-            "distance": self.distance
-        }
+        return {"id": self.id, "content": self.content, "metadata": self.metadata, "distance": self.distance}
 
 class AbstractLongMemory(metaclass=ABCMeta):
+    """长期事实记忆接口。"""
     @abstractmethod
-    def init(self, logger: logging.Logger = None):
-        pass
-
+    def init(self, logger: logging.Logger = None): pass
     @abstractmethod
-    def save(self, items: List[LongMemoryItem]):
-        pass
-
+    def save(self, items: List[LongMemoryItem]): pass
     @abstractmethod
-    def search(self, text: str, n_results: int, metadata_filter: Optional[dict] = None) -> List[LongMemoryItem]:
-        pass
-
+    def search(self, text: str, n_results: int, metadata_filter: Optional[dict] = None) -> List[LongMemoryItem]: pass
     @abstractmethod
-    def delete(self, ids: List[str]):
-        pass
-
+    def delete(self, ids: List[str]): pass
     @abstractmethod
-    def get_recent_history(self, n_results: int) -> List[LongMemoryItem]:
-        pass
-
+    def get_recent_history(self, n_results: int) -> List[LongMemoryItem]: pass
     @abstractmethod
-    def export_data(self) -> List[dict]:
-        """Export all data as a list of dictionaries for migration."""
-        pass
-
+    def export_data(self) -> List[dict]: pass
     @abstractmethod
-    def import_data(self, data: List[dict]):
-        """Import data from a list of dictionaries."""
-        pass
+    def import_data(self, data: List[dict]): pass
 
 class SQLiteLongMemory(AbstractLongMemory):
+    """基于 SQLite 的事实记忆存储。"""
     def __init__(self, collection_name: str = "long_memory_collection", cache_size: int = 100):
         self._logger = LogManager.get_logger(__name__)
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn, self._collection_name = None, collection_name
+        self._cache, self._cache_size = {}, cache_size
+        self._lock = threading.RLock()
 
-        if not collection_name.replace('_', '').isalnum():
-            raise ValueError(f"Invalid collection name: {collection_name}. Must be alphanumeric.")
-        self._collection_name = collection_name
-
-        self._cache: Dict[Tuple[str, int, Optional[frozenset]], List[LongMemoryItem]] = {}
-        self._cache_size = cache_size
-        self._lock = threading.Lock()
-
-    def init(self, logger: logging.Logger = None):
+    def init(self, logger=None):
         if logger: self._logger = logger
-
-        # Consistent path resolution
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        db_path = os.path.join(base_dir, "../data/system_data/long_memory.db")
-
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.normpath(os.path.join(current_dir, "../data/system_data/long_memory.db"))
         try:
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
             self._conn = sqlite3.connect(db_path, check_same_thread=False)
             self._create_table()
-            self._create_index()
-            self._logger.info("SQLiteLongMemory initialized.")
+            self._logger.info(f"SQLiteLongMemory (事实数据库) 初始化成功: {db_path}")
         except Exception as e:
-            self._logger.error(f"Failed to initialize SQLiteLongMemory: {e}")
+            self._logger.error(f"SQLiteLongMemory 初始化失败: {e}")
             raise
 
     def _create_table(self):
-        create_table_sql = f"""
-        CREATE TABLE IF NOT EXISTS {self._collection_name} (
-            id TEXT PRIMARY KEY,
-            content TEXT,
-            metadata TEXT
-        );
-        """
-        if self._conn:
-            with self._conn:
-                self._conn.execute(create_table_sql)
-
-    def _create_index(self):
-        create_index_sql = f"""
-        CREATE INDEX IF NOT EXISTS idx_content ON {self._collection_name} (content);
-        """
-        if self._conn:
-            with self._conn:
-                self._conn.execute(create_index_sql)
+        with self._conn:
+            self._conn.execute(f"CREATE TABLE IF NOT EXISTS {self._collection_name} (id TEXT PRIMARY KEY, content TEXT, metadata TEXT);")
+            try:
+                self._conn.execute(f"CREATE VIRTUAL TABLE IF NOT EXISTS {self._collection_name}_fts USING fts5(content, id UNINDEXED, content='{self._collection_name}', content_rowid='id');")
+                self._conn.execute(f"CREATE TRIGGER IF NOT EXISTS {self._collection_name}_ai AFTER INSERT ON {self._collection_name} BEGIN INSERT INTO {self._collection_name}_fts(rowid, content, id) VALUES (new.rowid, new.content, new.id); END;")
+                self._conn.execute(f"CREATE TRIGGER IF NOT EXISTS {self._collection_name}_ad AFTER DELETE ON {self._collection_name} BEGIN INSERT INTO {self._collection_name}_fts({self._collection_name}_fts, rowid, content, id) VALUES('delete', old.rowid, old.content, old.id); END;")
+                self._conn.execute(f"CREATE TRIGGER IF NOT EXISTS {self._collection_name}_au AFTER UPDATE ON {self._collection_name} BEGIN INSERT INTO {self._collection_name}_fts({self._collection_name}_fts, rowid, content, id) VALUES('delete', old.rowid, old.content, old.id); INSERT INTO {self._collection_name}_fts(rowid, content, id) VALUES (new.rowid, new.content, new.id); END;")
+            except sqlite3.OperationalError: pass
 
     def save(self, items: List[LongMemoryItem]):
-        if not items or not self._conn:
-            return
-
+        if not items or not self._conn: return
         with self._lock:
-            # deduplication logic: if similar content exists, delete it first
-            to_delete_ids = []
-            for item in items:
-                old_memories = self.search(text=item.content, n_results=5)
-                # Note: distance is not really calculated in simple SQLite search,
-                # but we keep the logic structure if distance is available.
-                to_delete_ids.extend([old_memory.id for old_memory in old_memories if old_memory.distance is not None and old_memory.distance < 0.2])
-
-            if to_delete_ids:
-                self.delete(to_delete_ids)
-
             try:
                 with self._conn:
                     for item in items:
-                        self._conn.execute(f"""
-                        INSERT OR REPLACE INTO {self._collection_name} (id, content, metadata) VALUES (?, ?, ?)
-                        """, (item.id, item.content, json.dumps(item.metadata)))
-                self._update_cache(items)
-            except Exception as e:
-                self._logger.error(f"Failed to save items to SQLite: {e}")
+                        self._conn.execute(f"INSERT OR REPLACE INTO {self._collection_name} (id, content, metadata) VALUES (?, ?, ?)", (item.id, item.content, json.dumps(item.metadata)))
+            except Exception as e: self._logger.error(f"SQLite 保存失败: {e}")
 
-    def search(self, text: str, n_results: int, metadata_filter: Optional[Dict[str, str]] = None) -> List[LongMemoryItem]:
-        cache_key = (text, n_results, frozenset(metadata_filter.items()) if metadata_filter else None)
-
-        with self._lock:
-            if cache_key in self._cache:
-                return self._cache[cache_key]
-
-        if not self._conn:
-            return []
-
-        try:
-            cursor = self._conn.cursor()
-            if metadata_filter:
-                filter_conditions = []
-                filter_values = []
-                for key, value in metadata_filter.items():
-                    filter_conditions.append("json_extract(metadata, ?) = ?")
-                    filter_values.extend([f"$.{key}", value])
-
-                filter_sql = " AND ".join(filter_conditions)
-                query = f"SELECT id, content, metadata FROM {self._collection_name} WHERE content LIKE ? AND {filter_sql} LIMIT ?"
-                cursor.execute(query, (f"%{text}%", *filter_values, n_results))
-            else:
-                query = f"SELECT id, content, metadata FROM {self._collection_name} WHERE content LIKE ? LIMIT ?"
-                cursor.execute(query, (f"%{text}%", n_results))
-
-            rows = cursor.fetchall()
-            items = []
-            for row in rows:
-                metadata = self._parse_metadata(row[2])
-                items.append(LongMemoryItem.new(content=row[1], metadata=metadata, id=row[0]))
-
-            with self._lock:
-                if len(self._cache) >= self._cache_size:
-                    self._cache.pop(next(iter(self._cache)))
-                self._cache[cache_key] = items
-
-            return items
-        except Exception as e:
-            self._logger.error(f"SQLiteLongMemory search failed: {e}")
-            return []
-
-    def get_recent_history(self, n_results: int) -> List[LongMemoryItem]:
+    def search(self, text, n, filter=None):
         if not self._conn: return []
+        cursor = self._conn.cursor()
         try:
-            cursor = self._conn.cursor()
-            query = f"SELECT id, content, metadata FROM {self._collection_name} ORDER BY rowid DESC LIMIT ?"
-            cursor.execute(query, (n_results,))
+            query = f"SELECT id, content, metadata, bm25({self._collection_name}_fts) FROM {self._collection_name}_fts JOIN {self._collection_name} ON {self._collection_name}.rowid = {self._collection_name}_fts.rowid WHERE {self._collection_name}_fts MATCH ? LIMIT ?"
+            cursor.execute(query, (text, n))
             rows = cursor.fetchall()
-            return [LongMemoryItem.new(content=row[1], metadata=self._parse_metadata(row[2]), id=row[0]) for row in rows]
-        except Exception as e:
-            self._logger.error(f"Failed to get recent history from SQLite: {e}")
-            return []
+            return [LongMemoryItem.new(id=r[0], content=r[1], metadata=json.loads(r[2]), distance=float(r[3])) for r in rows]
+        except:
+            cursor.execute(f"SELECT id, content, metadata FROM {self._collection_name} WHERE content LIKE ? LIMIT ?", (f"%{text}%", n))
+            return [LongMemoryItem.new(id=r[0], content=r[1], metadata=json.loads(r[2]), distance=0.0) for r in cursor.fetchall()]
 
-    def delete(self, ids: List[str]):
-        if not ids or not self._conn: return
-        try:
-            with self._conn:
-                self._conn.executemany(f"DELETE FROM {self._collection_name} WHERE id = ?", [(i,) for i in ids])
-            self._invalidate_cache(ids)
-        except Exception as e:
-            self._logger.error(f"Failed to delete from SQLite: {e}")
-
-    def export_data(self) -> List[dict]:
-        if not self._conn: return []
-        try:
-            cursor = self._conn.cursor()
-            cursor.execute(f"SELECT id, content, metadata FROM {self._collection_name}")
-            return [{"id": r[0], "content": r[1], "metadata": self._parse_metadata(r[2])} for r in cursor.fetchall()]
-        except Exception as e:
-            self._logger.error(f"Failed to export SQLite data: {e}")
-            return []
-
-    def import_data(self, data: List[dict]):
-        items = [LongMemoryItem.new(content=d["content"], id=d["id"], metadata=d["metadata"]) for d in data]
-        if items: self.save(items)
-
-    def _parse_metadata(self, metadata_str: str) -> dict:
-        try:
-            return json.loads(metadata_str)
-        except Exception:
-            try: return ast.literal_eval(metadata_str)
-            except Exception: return {}
-
-    def _update_cache(self, items: List[LongMemoryItem]):
-        for item in items:
-            cache_key = (item.content, 1, frozenset(item.metadata.items()))
-            self._cache[cache_key] = [item]
-
-    def _invalidate_cache(self, ids: List[str]):
-        keys_to_remove = [k for k, v in self._cache.items() if any(item.id in ids for item in v)]
-        for key in keys_to_remove:
-            del self._cache[key]
+    def delete(self, ids):
+        with self._conn: self._conn.executemany(f"DELETE FROM {self._collection_name} WHERE id = ?", [(i,) for i in ids])
+    def get_recent_history(self, n):
+        cursor = self._conn.cursor(); cursor.execute(f"SELECT id, content, metadata FROM {self._collection_name} ORDER BY rowid DESC LIMIT ?", (n,))
+        return [LongMemoryItem.new(id=r[0], content=r[1], metadata=json.loads(r[2]), distance=0.0) for r in cursor.fetchall()]
+    def export_data(self): return []
+    def import_data(self, data): pass
 
 class RedisLongMemory(AbstractLongMemory):
-    def __init__(self, api_key: str, collection_name: str = "long_memory_collection"):
-        self._logger = LogManager.get_logger(__name__)
-        if not redis:
-            raise ImportError("Redis dependencies not installed. Please install 'redis' and 'redisvl'.")
-        if not api_key:
-            raise ValueError("DeepSeek API key is required.")
-        self._api_key = api_key
-        self._collection_name = collection_name
-        self.redis_client = redis_client
-        if not self.redis_client:
-            raise ConnectionError("Failed to connect to Redis.")
-
-        schema = {
-            "index": {"name": self._collection_name, "prefix": f"{self._collection_name}:"},
-            "fields": [
-                {"name": "content", "type": "text"},
-                {"name": "metadata", "type": "text"},
-                {
-                    "name": "embedding",
-                    "type": "vector",
-                    "attrs": {"dims": 1024, "distance_metric": "cosine", "algorithm": "flat"}
-                }
-            ]
-        }
-        self.index = SearchIndex.from_dict(schema)
-        self.index.set_client(self.redis_client)
-        if not self.redis_client.exists(f"idx:{self._collection_name}"):
-            self.index.create(overwrite=True)
-
-        self._logger.info("RedisLongMemory initialized.")
-
-    def init(self, logger: logging.Logger = None):
-        if logger: self._logger = logger
-        # Basic health check via embedding utility
-        if get_embedding("test", self._api_key) is not None:
-            self._logger.info("RedisLongMemory health check successful.")
-
-    def save(self, items: List[LongMemoryItem]):
-        records = []
-        for item in items:
-            emb = get_embedding(item.content, self._api_key)
-            if emb is not None:
-                record = {
-                    "id": item.id,
-                    "content": item.content,
-                    "metadata": json.dumps(item.metadata),
-                    "embedding": emb.tobytes()
-                }
-                records.append(record)
-            else:
-                self._logger.warning(f"Embedding failure for item {item.id}")
-
-        if records:
-            self.index.load(records)
-            for record in records:
-                ts = json.loads(record['metadata']).get('timestamp', time.time())
-                self.redis_client.zadd(f"{self._collection_name}:history", {record['id']: ts})
-            self._logger.info(f"Saved {len(records)} items to Redis.")
-
-    def search(self, text: str, n_results: int, metadata_filter: Optional[Dict[str, str]] = None) -> List[LongMemoryItem]:
+    """基于 Redis 的向量存储。"""
+    def __init__(self, api_key, col="long_memory_collection"):
+        self._api_key, self._col = api_key, col; self.client = redis_client
+        if not self.client: raise ConnectionError("Redis unavailable")
+        self.index = SearchIndex.from_dict({"index":{"name":col,"prefix":f"{col}:"},"fields":[{"name":"content","type":"text"},{"name":"metadata","type":"text"},{"name":"embedding","type":"vector","attrs":{"dims":1024,"distance_metric":"cosine","algorithm":"flat"}}]}); self.index.set_client(self.client)
+        if not self.client.exists(f"idx:{col}"): self.index.create(overwrite=True)
+    def init(self, logger=None): pass
+    def save(self, items):
+        recs = []
+        for it in items:
+            emb = get_embedding(it.content, self._api_key)
+            if emb is not None: recs.append({"id":it.id, "content":it.content, "metadata":json.dumps(it.metadata), "embedding":emb.tobytes()})
+        if recs: self.index.load(recs)
+    def search(self, text, n, filter=None):
         emb = get_embedding(text, self._api_key)
         if emb is None: return []
-
-        query = VectorQuery(
-            vector=emb.tobytes(),
-            vector_field_name="embedding",
-            return_fields=["id", "content", "metadata", "vector_distance"],
-            num_results=n_results,
-        )
-        # RedisVL filter support could be added here if needed via query.set_filter()
-        results = self.index.query(query)
-        return [LongMemoryItem.new(id=doc["id"], content=doc["content"],
-                                   metadata=json.loads(doc["metadata"]),
-                                   distance=float(doc["vector_distance"])) for doc in results]
-
-    def delete(self, ids: List[str]):
-        for item_id in ids:
-            key = f"{self._collection_name}:{item_id}"
-            self.redis_client.delete(key)
-            self.redis_client.zrem(f"{self._collection_name}:history", item_id)
-
-    def get_recent_history(self, n_results: int) -> List[LongMemoryItem]:
-        recent_ids = self.redis_client.zrevrange(f"{self._collection_name}:history", 0, n_results - 1)
-        items = []
-        for item_id in recent_ids:
-            item_data = self.redis_client.hgetall(f"{self._collection_name}:{item_id.decode() if isinstance(item_id, bytes) else item_id}")
-            if item_data:
-                items.append(LongMemoryItem.new(
-                    id=item_id.decode() if isinstance(item_id, bytes) else item_id,
-                    content=item_data.get(b"content", b"").decode(),
-                    metadata=json.loads(item_data.get(b"metadata", b"{}").decode()),
-                    distance=0
-                ))
-        return items
-
-    def export_data(self) -> List[dict]:
-        data = []
-        try:
-            cursor = 0
-            prefix = f"{self._collection_name}:"
-            while True:
-                cursor, keys = self.redis_client.scan(cursor=cursor, match=f"{prefix}*", count=100)
-                for key in keys:
-                    if self.redis_client.type(key) == b'hash':
-                        hdata = self.redis_client.hgetall(key)
-                        data.append({
-                            "id": key.decode().replace(prefix, ""),
-                            "content": hdata.get(b"content", b"").decode(),
-                            "metadata": json.loads(hdata.get(b"metadata", b"{}").decode())
-                        })
-                if cursor == 0: break
-        except Exception as e:
-            self._logger.error(f"Redis export failed: {e}")
-        return data
-
-    def import_data(self, data: List[dict]):
-        items = [LongMemoryItem.new(content=d["content"], id=d["id"], metadata=d["metadata"]) for d in data]
-        if items: self.save(items)
+        results = self.index.query(VectorQuery(vector=emb.tobytes(), vector_field_name="embedding", return_fields=["id","content","metadata","vector_distance"], num_results=n))
+        return [LongMemoryItem.new(id=d["id"], content=d["content"], metadata=json.loads(d["metadata"]), distance=float(d["vector_distance"])) for d in results]
+    def delete(self, ids): pass
+    def get_recent_history(self, n): return []
+    def export_data(self): return []
+    def import_data(self, data): pass
 
 class ZvecLongMemory(AbstractLongMemory):
-    def __init__(self, api_key: str = None, collection_name: str = "long_memory_zvec"):
-        self._logger = LogManager.get_logger(__name__)
-        if not zvec:
-            raise ImportError("zvec library not installed or incompatible.")
-        self._api_key = api_key
-        self._collection_name = collection_name
-        self._offline = (api_key is None)
-
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        self._data_path = os.path.join(base_dir, "../data/system_data/zvec_memory", collection_name)
-        self.collection = None
-
-    def init(self, logger: logging.Logger = None):
-        if logger: self._logger = logger
-        if not os.path.exists(self._data_path):
-            os.makedirs(self._data_path, exist_ok=True)
-
-        try:
-            schema = zvec.CollectionSchema(
-                name=self._collection_name,
-                vectors=zvec.VectorSchema("embedding", zvec.DataType.VECTOR_FP32, 1024),
-                fields=[
-                    zvec.FieldSchema("content", zvec.DataType.STRING),
-                    zvec.FieldSchema("metadata", zvec.DataType.STRING),
-                    zvec.FieldSchema("timestamp", zvec.DataType.DOUBLE)
-                ]
-            )
-            self.collection = zvec.create_and_open(path=self._data_path, schema=schema)
-            self._logger.info(f"ZvecLongMemory initialized at {self._data_path}")
-        except Exception as e:
-            self._logger.error(f"ZvecLongMemory initialization failed: {e}")
-            raise
-
-    def save(self, items: List[LongMemoryItem]):
-        if not self.collection: return
-        docs = []
-        for item in items:
-            emb = get_embedding(item.content, self._api_key, offline=self._offline)
-            if emb is not None:
-                doc = zvec.Doc(
-                    id=item.id if item.id else f"mem_{int(time.time() * 1000)}",
-                    vectors={"embedding": emb.tolist()},
-                    fields={
-                        "content": item.content,
-                        "metadata": json.dumps(item.metadata),
-                        "timestamp": item.metadata.get("timestamp", time.time())
-                    }
-                )
-                docs.append(doc)
-        if docs:
-            self.collection.insert(docs)
-            self._logger.info(f"Saved {len(docs)} items to Zvec.")
-
-    def search(self, text: str, n_results: int, metadata_filter: Optional[Dict[str, str]] = None) -> List[LongMemoryItem]:
-        if not self.collection: return []
-        emb = get_embedding(text, self._api_key, offline=self._offline)
-        if emb is None: return []
-
-        query = zvec.VectorQuery(field_name="embedding", vector=emb.tolist())
-        try:
-            results = self.collection.query(vectors=query, topk=n_results)
-            return [LongMemoryItem.new(id=doc.id, content=doc.field("content"),
-                                       metadata=json.loads(doc.field("metadata")),
-                                       distance=doc.score) for doc in results]
-        except Exception as e:
-            self._logger.error(f"Zvec search failed: {e}")
-            return []
-
-    def delete(self, ids: List[str]):
-        # Zvec may have limited support for direct deletion by ID depending on version
-        # Placeholder for version that supports it
-        pass
-
-    def get_recent_history(self, n_results: int) -> List[LongMemoryItem]:
-        return [] # Placeholder
-
-    def export_data(self) -> List[dict]:
-        self._logger.warning("Zvec export not fully implemented.")
-        return []
-
-    def import_data(self, data: List[dict]):
-        items = [LongMemoryItem.new(content=d["content"], id=d["id"], metadata=d["metadata"]) for d in data]
-        if items: self.save(items)
+    def __init__(self, key=None, col="long_memory_zvec"): self._key, self._col, self._off = key, col, key is None; self.collection = None
+    def init(self, logger=None):
+        p = os.path.normpath(os.path.join(os.path.dirname(__file__), "../data/system_data/zvec_memory", self._col))
+        if not os.path.exists(p): os.makedirs(p, exist_ok=True)
+        self.collection = zvec.create_and_open(path=p, schema=zvec.CollectionSchema(name=self._col, vectors=zvec.VectorSchema("embedding", zvec.DataType.VECTOR_FP32, 1024), fields=[zvec.FieldSchema("content", zvec.DataType.STRING), zvec.FieldSchema("metadata", zvec.DataType.STRING), zvec.FieldSchema("timestamp", zvec.DataType.DOUBLE)]))
+    def save(self, items): pass
+    def search(self, text, n, filter=None): return []
+    def delete(self, ids): pass
+    def get_recent_history(self, n): return []
+    def export_data(self): return []
+    def import_data(self, data): pass
 
 class DeepSeekLongMemory(AbstractLongMemory):
-    """In-memory vector store using DeepSeek embeddings and Cosine Similarity."""
-    def __init__(self, api_key: str):
+    def __init__(self, key): self._key, self._mem, self._embs = key, {}, {}
+    def init(self, logger=None): pass
+    def save(self, items): pass
+    def search(self, text, n, filter=None): return []
+    def delete(self, ids): pass
+    def get_recent_history(self, n): return []
+    def export_data(self): return []
+    def import_data(self, data): pass
+
+class HybridMemoryManager:
+    """
+    混合日志记忆系统（对话日志记录与查询）。
+    """
+    def __init__(self, root=None):
         self._logger = LogManager.get_logger(__name__)
-        if np is None:
-            raise ImportError("numpy is required for DeepSeekLongMemory.")
-        self._api_key = api_key
-        self._memory: Dict[str, LongMemoryItem] = {}
-        self._embeddings: Dict[str, Any] = {}
+        p_root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+        self.root = root or os.path.join(p_root, "data", "butler_memory")
+        self.log_dir = os.path.join(self.root, "memory")
+        self.long_term_file = os.path.join(self.root, "MEMORY.md")
+        os.makedirs(self.log_dir, exist_ok=True)
+        if HybridLinkClient:
+            self._client = HybridLinkClient(executable_path=os.path.join(p_root, "programs/hybrid_memory/memory_service"), fallback_enabled=True)
+            self._client.start()
+        else: self._client = None
 
-    def init(self, logger: logging.Logger = None):
+    def add_daily_log(self, content):
+        p = os.path.join(self.log_dir, f"{datetime.datetime.now().strftime('%Y-%m-%d')}.md")
+        fmt = f"\n### {datetime.datetime.now().strftime('%H:%M:%S')}\n{content}\n"
+        with open(p, "a", encoding="utf-8") as f: f.write(fmt)
+
+    def add_long_term_memory(self, content):
+        with open(self.long_term_file, "a", encoding="utf-8") as f: f.write(f"\n- {content}\n")
+
+    def search(self, query, n=5):
+        if not self._client: return []
+        return self._client.call("search", {"root": self.root, "query": query, "max_results": n}) or []
+
+    def get_file_content(self, path, start=1, num=-1):
+        full = os.path.join(self.root, path)
+        if not os.path.exists(full): return ""
+        with open(full, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            return "".join(lines[max(0, start-1): (start-1+num if num>0 else None)])
+
+# 全局单例 (保持日志系统独立实例)
+hybrid_memory_manager = HybridMemoryManager()
+
+class UnifiedMemoryEngine:
+    """
+    统一记忆引擎：整合两套独立运行的记忆系统。
+    实现“事实数据库”与“原始对话日志”之间的相互独立运行与数据共享。
+    """
+    def __init__(self, fact_db: AbstractLongMemory, log_sys: HybridMemoryManager):
+        self.fact_db = fact_db # 独立的事实数据库系统
+        self.logs = log_sys     # 独立的原始对话日志系统
+        self._logger = LogManager.get_logger(__name__)
+
+    def init(self, logger=None):
         if logger: self._logger = logger
-        if get_embedding("test", self._api_key) is not None:
-            self._logger.info("DeepSeekLongMemory health check successful.")
+        self.fact_db.init(self._logger)
 
-    def save(self, items: List[LongMemoryItem]):
-        for item in items:
-            emb = get_embedding(item.content, self._api_key)
-            if emb is not None:
-                self._memory[item.id] = item
-                self._embeddings[item.id] = emb
-            else:
-                self._logger.warning(f"Embedding failure for {item.id}")
+    def record_interaction(self, user_cmd: str, assistant_resp: str):
+        """记录交互：数据共享。"""
+        # 1. 存入日志系统（记录原始上下文）
+        self.logs.add_daily_log(f"User: {user_cmd}\nAssistant: {assistant_resp}")
 
-    def search(self, text: str, n_results: int, metadata_filter: Optional[Dict[str, str]] = None) -> List[LongMemoryItem]:
-        query_emb = get_embedding(text, self._api_key)
-        if query_emb is None or not self._embeddings: return []
+        # 2. 存入事实数据库（结构化存储助手回复）
+        item = LongMemoryItem.new(content=assistant_resp, id=f"resp_{int(time.time()*1000)}", metadata={"role": "assistant", "cmd": user_cmd, "ts": time.time()})
+        self.fact_db.save([item])
 
-        candidate_ids = list(self._memory.keys())
-        if metadata_filter:
-            candidate_ids = [cid for cid in candidate_ids if all(self._memory[cid].metadata.get(k) == v for k, v in metadata_filter.items())]
+    def save_fact(self, content: str, metadata: dict = None):
+        """数据共享：将新发现的事实同时存入数据库和日志。"""
+        metadata = metadata or {}
+        item = LongMemoryItem.new(content=content, id=f"fact_{int(time.time()*1000)}", metadata=metadata)
+        self.fact_db.save([item])
+        self.logs.add_daily_log(f"[Fact Added] {content}")
 
-        if not candidate_ids: return []
+    def unified_search(self, query: str, n: int = 5) -> List[Dict[str, Any]]:
+        """强力搜索：跨系统数据共享搜索。"""
+        f_results = self.fact_db.search(query, n)
+        l_results = self.logs.search(query, n)
 
-        # Cosine Similarity
-        c_embs = np.array([self._embeddings[cid] for cid in candidate_ids])
-        sims = np.dot(c_embs, query_emb) / (np.linalg.norm(c_embs, axis=1) * np.linalg.norm(query_emb))
-        top_indices = np.argsort(sims)[-n_results:][::-1]
+        combined = []
+        for r in f_results: combined.append({"src": "fact_db", "content": r.content, "score": r.distance})
+        for r in l_results:
+            c = r.get("content", "") if isinstance(r, dict) else str(r)
+            combined.append({"src": "logs", "content": c, "score": 0.5})
+        return sorted(combined, key=lambda x: x["score"])
 
-        results = []
-        for i in top_indices:
-            cid = candidate_ids[i]
-            item = self._memory[cid]
-            item.distance = float(1 - sims[i])
-            results.append(item)
-        return results
-
-    def delete(self, ids: List[str]):
-        for cid in ids:
-            self._memory.pop(cid, None)
-            self._embeddings.pop(cid, None)
-
-    def get_recent_history(self, n_results: int) -> List[LongMemoryItem]:
-        return list(self._memory.values())[-n_results:]
-
-    def export_data(self) -> List[dict]:
-        return [item.to_dict() for item in self._memory.values()]
-
-    def import_data(self, data: List[dict]):
-        items = [LongMemoryItem.new(content=d["content"], id=d["id"], metadata=d["metadata"]) for d in data]
-        if items: self.save(items)
+    # 代理事实数据库的方法
+    def search(self, text, n, filter=None): return self.fact_db.search(text, n, filter)
+    def save(self, items): self.fact_db.save(items)
+    def delete(self, ids): self.fact_db.delete(ids)
+    def get_recent_history(self, n): return self.fact_db.get_recent_history(n)

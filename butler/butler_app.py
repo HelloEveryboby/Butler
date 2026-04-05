@@ -37,7 +37,10 @@ from butler.core.habit_manager import habit_manager
 from butler.core.skill_manager import SkillManager
 from butler.usb_screen import USBScreen
 from butler.resource_manager import ResourceManager, PerformanceMode
-from plugin.memory_engine import RedisLongMemory, ZvecLongMemory, SQLiteLongMemory, LongMemoryItem
+from plugin.memory_engine import (
+    RedisLongMemory, ZvecLongMemory, SQLiteLongMemory,
+    LongMemoryItem, UnifiedMemoryEngine, hybrid_memory_manager
+)
 from butler.core.intent_dispatcher import intent_registry
 from butler.core import legacy_commands # Ensure legacy intents are registered
 from butler.interpreter import interpreter
@@ -114,47 +117,39 @@ class Jarvis:
             return {}
 
     def _initialize_long_memory(self):
+        """初始化统一记忆引擎。"""
         api_key = config_loader.get("api.deepseek.key")
-        old_memory_data = []
+        backend = None
 
-        # 1. Try Redis
+        # 1. 尝试 Redis
         try:
             if api_key:
-                self.long_memory = RedisLongMemory(api_key=api_key)
-                self.long_memory.init(self.logger)
-                return
+                backend = RedisLongMemory(api_key=api_key)
+                backend.init(self.logger)
             else: raise ValueError("No API Key")
         except Exception as e:
             self.logger.warning(f"无法初始化 RedisLongMemory: {e}")
-            # speculatively try to export if it partially initialized, though risky.
-            # In a real fallback, we'd have a manager.
 
-        # 2. Try Zvec (with fallback migration)
-        zvec_safe = False
-        try:
-            import subprocess
-            res = subprocess.run([sys.executable, "-c", "import zvec"],
-                                    capture_output=True, timeout=2)
-            zvec_safe = (res.returncode == 0)
-        except Exception:
-            zvec_safe = False
+        # 2. 尝试 Zvec
+        if not backend:
+            try:
+                import zvec
+                if api_key:
+                    backend = ZvecLongMemory(api_key=api_key)
+                    backend.init(self.logger)
+                else: raise ValueError("No API Key for Zvec")
+            except Exception as e2:
+                self.logger.error(f"无法初始化 ZvecLongMemory: {e2}")
 
-        try:
-            if api_key and zvec_safe:
-                self.long_memory = ZvecLongMemory(api_key=api_key)
-                self.long_memory.init(self.logger)
-                if old_memory_data:
-                    self.long_memory.import_data(old_memory_data)
-                return
-            else:
-                raise ValueError("No API Key for Zvec or zvec is incompatible")
-        except Exception as e2:
-            self.logger.error(f"无法初始化 ZvecLongMemory: {e2}. 降级到 SQLiteLongMemory...")
+        # 3. 降级到 SQLite
+        if not backend:
+            self.logger.info("降级到 SQLiteLongMemory...")
+            backend = SQLiteLongMemory()
+            backend.init(self.logger)
 
-            self.long_memory = SQLiteLongMemory()
-            self.long_memory.init()
-            if old_memory_data:
-                self.long_memory.import_data(old_memory_data)
+        # 封装为统一记忆引擎 (Unified Memory Engine)
+        self.long_memory = UnifiedMemoryEngine(backend, hybrid_memory_manager)
+        self.long_memory.init(self.logger)
 
     def _on_voice_status_change(self, is_listening):
         event_bus.emit("voice_status", is_listening)
@@ -188,18 +183,11 @@ class Jarvis:
             self.usb_screen.display(message, clear_screen=True)
 
     def speak(self, text):
-        """朗读给定的文本并在 UI 中打印。"""
+        """朗读给定的文本并在 UI 中打印。同时利用统一引擎记录至事实数据库和日志系统。"""
         self.ui_print(text, tag='ai_response')
-        memory_item = LongMemoryItem.new(content=text, id=f"assistant_{time.time()}",
-                                        metadata={"role": "assistant", "timestamp": time.time()})
-        self.long_memory.save([memory_item])
 
-        # Record in daily memory
-        try:
-            from package.core_utils.hybrid_memory_manager import hybrid_memory_manager
-            hybrid_memory_manager.add_daily_log(f"Assistant: {text}")
-        except Exception as e:
-            self.logger.error(f"Failed to add to hybrid memory: {e}")
+        # 使用统一引擎的一键存储功能实现数据共享
+        self.long_memory.save_fact(text, metadata={"role": "assistant"})
 
         self.voice_service.speak(text)
 
@@ -215,12 +203,8 @@ class Jarvis:
             self.voice_service.speak("系统额度已耗尽，已停止所有操作。")
             return
 
-        # Record User input in daily memory
-        try:
-            from package.core_utils.hybrid_memory_manager import hybrid_memory_manager
-            hybrid_memory_manager.add_daily_log(f"User: {cmd}")
-        except Exception as e:
-            self.logger.error(f"Failed to add User input to hybrid memory: {e}")
+        # 利用统一引擎记录用户交互（日志 + 事实同步）
+        self.long_memory.logs.add_daily_log(f"User: {cmd}")
 
         # Easter Egg Detection
         if "tmd要是中考分不那么低一中就去了" in cmd or ("一中" in cmd and "早读" in cmd):
