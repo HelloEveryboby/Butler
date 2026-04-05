@@ -2,7 +2,7 @@ from package.core_utils.log_manager import LogManager
 import time
 
 from plugin.plugin_interface import AbstractPlugin, PluginResult
-from .long_memory.long_memory_interface import LongMemoryItem
+from plugin.memory_engine import LongMemoryItem
 
 logger = LogManager.get_logger(__name__)
 
