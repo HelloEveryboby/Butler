@@ -1,5 +1,7 @@
 # Butler 系统技术文档 (Technical Documentation)
 
+> **[架构设计概览 »](ARCHITECTURE.md)** | **[核心实现原理 »](IMPLEMENTATION_DETAILS.md)**
+
 ## 1. 系统概述
 
 Butler 是一个高度模块化的智能助手系统，旨在通过统一的界面（GUI、语音、命令行）调用各种专业工具。系统核心基于 Python 开发，并通过 **Butler Hybrid-Link (BHL)** 协议扩展了对 C++、Go 和 Rust 的支持，以实现性能和安全性的最大化。
