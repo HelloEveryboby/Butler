@@ -187,7 +187,15 @@ document.addEventListener('DOMContentLoaded', () => {
         header.style.marginBottom = '15px';
 
         const info = document.createElement('div');
-        info.innerHTML = `<div style="font-weight: 600;">${data.metadata.title || '翻译结果'}</div><div style="font-size: 12px; opacity: 0.6;">${data.metadata.source_title || ''}</div>`;
+        const titleEl = document.createElement('div');
+        titleEl.style.fontWeight = '600';
+        titleEl.textContent = data.metadata.title || '翻译结果';
+        const sourceTitleEl = document.createElement('div');
+        sourceTitleEl.style.fontSize = '12px';
+        sourceTitleEl.style.opacity = '0.6';
+        sourceTitleEl.textContent = data.metadata.source_title || '';
+        info.appendChild(titleEl);
+        info.appendChild(sourceTitleEl);
 
         const laIcon = document.createElement('div');
         laIcon.className = 'translation-la-icon';
@@ -200,7 +208,18 @@ document.addEventListener('DOMContentLoaded', () => {
         data.data.forEach(item => {
             const segment = document.createElement('div');
             segment.style.marginBottom = '12px';
-            segment.innerHTML = `<div style="font-size: 14px; opacity: 0.8;">${item.source}</div><div class="segment-target">${item.target}</div>`;
+
+            const sourceEl = document.createElement('div');
+            sourceEl.style.fontSize = '14px';
+            sourceEl.style.opacity = '0.8';
+            sourceEl.textContent = item.source;
+
+            const targetEl = document.createElement('div');
+            targetEl.className = 'segment-target';
+            targetEl.textContent = item.target;
+
+            segment.appendChild(sourceEl);
+            segment.appendChild(targetEl);
             container.appendChild(segment);
         });
 
@@ -324,10 +343,14 @@ document.addEventListener('DOMContentLoaded', () => {
         files.forEach(file => {
             const item = document.createElement('div');
             item.className = 'file-item';
-            item.innerHTML = `
-                <i class="fas ${file.is_dir ? 'fa-folder' : 'fa-file-alt'}"></i>
-                <span>${file.name}</span>
-            `;
+
+            const icon = document.createElement('i');
+            icon.className = `fas ${file.is_dir ? 'fa-folder' : 'fa-file-alt'}`;
+            const name = document.createElement('span');
+            name.textContent = file.name;
+
+            item.appendChild(icon);
+            item.appendChild(name);
 
             item.onclick = () => {
                 if (file.is_dir) {
