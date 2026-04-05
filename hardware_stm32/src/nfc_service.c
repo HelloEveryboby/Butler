@@ -43,6 +43,14 @@ bool nfc_scan_tag(void) {
     return false;
 }
 
+bool nfc_get_last_uid(uint8_t* out_uid) {
+    if (nfc_ctx.uid_len > 0) {
+        memcpy(out_uid, nfc_ctx.uid, nfc_ctx.uid_len);
+        return true;
+    }
+    return false;
+}
+
 /**
  * Mifare Classic 1K Read/Write Logic
  */
