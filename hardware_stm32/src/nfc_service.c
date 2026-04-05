@@ -43,9 +43,10 @@ bool nfc_scan_tag(void) {
     return false;
 }
 
-bool nfc_get_last_uid(uint8_t* out_uid) {
+bool nfc_get_last_uid(uint8_t* out_uid, uint8_t max_len, uint8_t* actual_len) {
     if (nfc_ctx.uid_len > 0) {
-        memcpy(out_uid, nfc_ctx.uid, nfc_ctx.uid_len);
+        *actual_len = (nfc_ctx.uid_len > max_len) ? max_len : nfc_ctx.uid_len;
+        memcpy(out_uid, nfc_ctx.uid, *actual_len);
         return true;
     }
     return false;
