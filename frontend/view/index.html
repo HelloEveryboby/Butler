@@ -227,6 +227,22 @@
                         </div>
                     </div>
                     <div class="settings-group">
+                        <h3>技能管理</h3>
+                        <div class="setting-item-stack">
+                            <div class="install-form">
+                                <input type="text" id="skill-install-url" placeholder="技能 Git 链接 (如 https://github.com/...)">
+                                <button id="skill-install-btn"><i class="fas fa-download"></i> 安装</button>
+                            </div>
+                            <div id="skills-list-container">
+                                <!-- Skills populated by JS -->
+                                <p class="loading-text">正在加载技能列表...</p>
+                            </div>
+                            <div class="skills-actions">
+                                <button id="refresh-skills-btn" class="icon-btn-text"><i class="fas fa-sync"></i> 刷新列表</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="settings-group">
                         <h3>配额</h3>
                         <div id="quota-display">
                             <!-- Quota info here -->

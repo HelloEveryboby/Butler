@@ -539,3 +539,101 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedBg = localStorage.getItem('butler-custom-bg');
     if (savedBg) applyBackground(savedBg);
 });
+
+// --- Settings and Skill Management Extensions ---
+document.addEventListener('DOMContentLoaded', () => {
+    const themeSelector = document.getElementById('theme-selector');
+    if (themeSelector) {
+        themeSelector.addEventListener('change', (e) => {
+            const theme = e.target.value;
+            if (window.pywebview && window.pywebview.api) {
+                window.pywebview.api.handle_command(`/theme ${theme}`);
+            }
+        });
+    }
+
+    const skillInstallUrl = document.getElementById('skill-install-url');
+    const skillInstallBtn = document.getElementById('skill-install-btn');
+    const refreshSkillsBtn = document.getElementById('refresh-skills-btn');
+    const skillsListContainer = document.getElementById('skills-list-container');
+
+    async function loadSkillsList() {
+        if (window.pywebview && window.pywebview.api) {
+            skillsListContainer.innerHTML = '<p class="loading-text">正在加载技能列表...</p>';
+            const report = await window.pywebview.api.get_skills_list();
+            renderSkillsFromMarkdown(report);
+        }
+    }
+
+    function renderSkillsFromMarkdown(report) {
+        skillsListContainer.innerHTML = '';
+        const lines = report.split('\n');
+
+        lines.forEach(line => {
+            if (line.startsWith('- **')) {
+                const match = line.match(/- \*\*(.*?)\*\*: (.*?) \((.*?)\)/);
+                if (match) {
+                    const [_, name, desc, status] = match;
+                    const item = document.createElement('div');
+                    item.className = 'skill-ui-item';
+
+                    item.innerHTML = `
+                        <div class="skill-ui-info">
+                            <div class="skill-ui-name">${name}</div>
+                            <div class="skill-ui-desc">${desc}</div>
+                        </div>
+                        <div class="skill-ui-actions">
+                            <span class="skill-status-tag">${status}</span>
+                            ${['markitdown', 'xlsx_recalc', 'task_management'].includes(name) ?
+                                '' :
+                                `<button class="skill-uninstall-btn" onclick="uiUninstallSkill('${name}')"><i class="fas fa-trash"></i></button>`}
+                        </div>
+                    `;
+                    skillsListContainer.appendChild(item);
+                }
+            }
+        });
+
+        if (skillsListContainer.innerHTML === '') {
+            skillsListContainer.innerHTML = '<p class="loading-text">未检测到已安装的技能。</p>';
+        }
+    }
+
+    window.uiUninstallSkill = async (name) => {
+        if (confirm(`确定要卸载技能 "${name}" 吗？`)) {
+            const result = await window.pywebview.api.uninstall_skill(name);
+            alert(result);
+            loadSkillsList();
+        }
+    };
+
+    if (skillInstallBtn) {
+        skillInstallBtn.addEventListener('click', async () => {
+            const url = skillInstallUrl.value.trim();
+            if (!url) return alert('请输入技能 Git 链接');
+
+            skillInstallBtn.disabled = true;
+            skillInstallBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 安装中...';
+
+            const result = await window.pywebview.api.install_skill(url);
+            alert(result);
+
+            skillInstallBtn.disabled = false;
+            skillInstallBtn.innerHTML = '<i class="fas fa-download"></i> 安装';
+            skillInstallUrl.value = '';
+            loadSkillsList();
+        });
+    }
+
+    if (refreshSkillsBtn) {
+        refreshSkillsBtn.addEventListener('click', loadSkillsList);
+    }
+
+    // Override switchView to load skills when settings is selected
+    const navSettings = document.getElementById('nav-settings');
+    if (navSettings) {
+        navSettings.addEventListener('click', () => {
+            loadSkillsList();
+        });
+    }
+});

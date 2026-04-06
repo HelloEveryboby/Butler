@@ -213,6 +213,32 @@ class ModernBridge:
             self.logger.error(f"Failed to fetch media library: {e}")
             return []
 
+    # --- Skills Management APIs ---
+    def get_skills_list(self):
+        """Returns a formatted list of skills or raw data."""
+        try:
+            # We reuse the backend logic we just implemented
+            result = self.jarvis.skill_manager.execute("manage_skills", "list")
+            # The list result is a markdown string. For UI, we might want to parse it or just return it.
+            # Let's also provide a way to get raw status if needed, but for now, the report is fine.
+            return result
+        except Exception as e:
+            return f"Error fetching skills: {str(e)}"
+
+    def install_skill(self, url, name=None):
+        """Installs a skill from a URL."""
+        try:
+            return self.jarvis.skill_manager.execute("manage_skills", "install", url=url, skill_name=name)
+        except Exception as e:
+            return f"Error installing skill: {str(e)}"
+
+    def uninstall_skill(self, name):
+        """Uninstalls a skill by name."""
+        try:
+            return self.jarvis.skill_manager.execute("manage_skills", "uninstall", skill_name=name)
+        except Exception as e:
+            return f"Error uninstalling skill: {str(e)}"
+
 def main():
     # Initialize Jarvis in headless mode (no Tkinter root)
     jarvis = Jarvis(root=None)

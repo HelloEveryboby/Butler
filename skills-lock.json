@@ -1,6 +1,7 @@
 {
     "enabled_skills": [
         "task_management",
-        "xlsx_recalc"
+        "xlsx_recalc",
+        "markitdown"
     ]
 }
