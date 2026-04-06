@@ -4,6 +4,7 @@ import os
 import re
 import time
 import subprocess
+import shutil
 from pathlib import Path
 
 # 环境配置
@@ -37,6 +38,7 @@ from butler.interpreter import interpreter
 
 file_mgr = FileManager()
 
+# 1. 文件操作 (File Operations)
 def read_file(path):
     send_msg("file", "正在读取", extra=path)
     success, res = file_mgr.read_file(path)
@@ -52,25 +54,51 @@ def list_dir(path="."):
     success, res = file_mgr.list_directory(path)
     return "\n".join(res) if success else res
 
+def delete_file(path):
+    send_msg("file", "正在删除", extra=path)
+    success, res = file_mgr.delete_file(path)
+    return res
+
+def move_file(src, dst):
+    send_msg("file", "正在移动/重命名", extra=f"{src} -> {dst}")
+    try:
+        shutil.move(src, dst)
+        return f"成功将 '{src}' 移动/重命名为 '{dst}'。"
+    except Exception as e:
+        return f"操作失败: {str(e)}"
+
+# 2. 搜索 (Search)
+def search_files(pattern, root="."):
+    send_msg("tool", "文件搜索", extra=f"名称模式: {pattern}")
+    try:
+        from butler.core.hybrid_link import HybridLinkClient
+        sysutil_path = project_root / "programs/hybrid_sysutil/sysutil"
+        if sysutil_path.exists():
+            sysutil = HybridLinkClient(executable_path=str(sysutil_path))
+            if sysutil.start():
+                res = sysutil.call("fast_file_search", {"root": root, "pattern": pattern})
+                sysutil.stop()
+                if isinstance(res, dict) and "files" in res:
+                    return "\n".join(res["files"])
+    except: pass
+    # 备选方案: 使用 find
+    success, output = interpreter.run("shell", f"find {root} -name '*{pattern}*'")
+    return output
+
+def search_content(pattern, path=".", regex=True):
+    send_msg("tool", "内容搜索", extra=f"关键词: {pattern}")
+    # 使用 grep 进行正则搜索
+    cmd = f"grep -rnE '{pattern}' {path}" if regex else f"grep -rn '{pattern}' {path}"
+    success, output = interpreter.run("shell", cmd)
+    return output if success else "未找到匹配内容或执行出错。"
+
+# 3. 执行 (Execution)
 def execute_shell(cmd):
     send_msg("tool", "Shell 执行", extra=cmd)
     success, output = interpreter.run("shell", cmd)
     return output
 
-def search_files(pattern, root="."):
-    send_msg("tool", "高速搜索", extra=f"关键词: {pattern}")
-    try:
-        from butler.core.hybrid_link import HybridLinkClient
-        # Assuming hybrid_sysutil exists or similar
-        sysutil = HybridLinkClient(executable_path=str(project_root / "programs/hybrid_sysutil/sysutil"))
-        if sysutil.start():
-            res = sysutil.call("fast_file_search", {"root": root, "pattern": pattern})
-            sysutil.stop()
-            if isinstance(res, dict) and "files" in res:
-                return "\n".join(res["files"])
-    except: pass
-    return "搜索工具不可用或执行失败。"
-
+# 4. 网络 (Network)
 def web_search(query):
     send_msg("tool", "网页搜索", extra=query)
     from package.network.crawler import run_scrapy_crawler
@@ -85,26 +113,36 @@ def translate(text, target="zh"):
 def run_agentic_loop(query, jarvis):
     nlu = jarvis.nlu_service
     system_prompt = (
-        "你是一个高级软件工程师助手 (Butler CLI)。请使用以下项目专属工具解决问题：\n"
-        "- read_file(path): 读取本地文件。\n"
-        "- write_file(path, content): 写入文件内容。\n"
-        "- list_dir(path='.'): 列出目录内容。\n"
-        "- search_files(pattern): 使用高速 C 语言引擎查找文件。\n"
-        "- web_search(query): 搜索互联网信息。\n"
-        "- translate(text): 翻译文字或文档。\n"
-        "- execute_shell(cmd): 执行本地 Shell 或 Git 命令。\n"
-        "请先进行深度的逻辑思考，然后在 ```python ... ``` 代码块中执行操作。你可以进行多步操作直到任务完成。"
+        "你是一个名为 Butler CLI 的高级 AI 助手，界面风格模仿 Claude Code。\n"
+        "你可以通过调用以下 Python 函数来操作环境：\n"
+        "【文件操作】\n"
+        "- read_file(path): 读取文件内容。\n"
+        "- write_file(path, content): 创建或编辑文件（写入完整内容）。\n"
+        "- list_dir(path): 列出目录。\n"
+        "- delete_file(path): 删除文件。\n"
+        "- move_file(src, dst): 重命名或移动文件。\n"
+        "【搜索】\n"
+        "- search_files(pattern): 按名称查找文件。\n"
+        "- search_content(pattern, path): 在文件内容中搜索（支持正则）。\n"
+        "【执行】\n"
+        "- execute_shell(cmd): 运行 shell 命令、启动服务器、运行测试、使用 git。\n"
+        "【网络】\n"
+        "- web_search(query): 搜索互联网、获取文档、查找错误信息。\n"
+        "- translate(text): 翻译文本。\n\n"
+        "请先思考，然后在 ```python ... ``` 代码块中执行。你可以分多步完成复杂任务。"
     )
 
     history = jarvis.long_memory.get_recent_history(10)
     current_prompt = f"{system_prompt}\n\n用户请求: {query}"
 
-    # 注入执行环境
     exec_globals = {
         "read_file": read_file,
         "write_file": write_file,
         "list_dir": list_dir,
+        "delete_file": delete_file,
+        "move_file": move_file,
         "search_files": search_files,
+        "search_content": search_content,
         "web_search": web_search,
         "translate": translate,
         "execute_shell": execute_shell,
@@ -115,24 +153,21 @@ def run_agentic_loop(query, jarvis):
         send_msg("thought", f"正在思考 (步骤 {iteration + 1})...")
         response = nlu.ask_llm(current_prompt, history)
 
-        # 解析 AI 的回复
         code_match = re.search(r"```python\n(.*?)```", response, re.DOTALL)
         thought = response.split("```python")[0].strip()
-        if not thought: thought = "正在调用项目工具..."
+        if not thought: thought = "正在处理您的请求..."
 
         if code_match:
             code = code_match.group(1)
             send_msg("thought", thought)
             send_msg("code", code, extra="python")
 
-            # 捕获 Python 的 stdout
             import io
             from contextlib import redirect_stdout
             f = io.StringIO()
             success = True
             try:
                 with redirect_stdout(f):
-                    # Use exec in a controlled way
                     exec(code, exec_globals)
                 output = f.getvalue()
             except Exception as e:
@@ -141,14 +176,13 @@ def run_agentic_loop(query, jarvis):
 
             if success:
                 if output: send_msg("shell", output)
-                current_prompt = f"上一步操作结果:\n{output if output else '执行成功'}\n\n请继续或给出最终结论。"
+                current_prompt = f"操作结果:\n{output if output else '执行成功'}\n\n请继续或完成任务。"
                 history.append({"role": "assistant", "content": response})
                 history.append({"role": "user", "content": f"结果: {output}"})
             else:
                 send_msg("error", f"执行出错: {output}")
-                current_prompt = f"上一步报错了: {output}\n\n请修复代码并重试。"
+                current_prompt = f"报错: {output}\n\n请修正并重试。"
         else:
-            # 最终总结
             send_msg("text", response)
             break
 
@@ -159,7 +193,6 @@ if __name__ == "__main__":
     try:
         from butler.butler_app import Jarvis
         jarvis = Jarvis(headless=True)
-        # 启动 Agent 循环
         run_agentic_loop(query, jarvis)
     except Exception as e:
-        send_msg("error", f"后端初始化失败: {str(e)}")
+        send_msg("error", f"初始化失败: {str(e)}")
