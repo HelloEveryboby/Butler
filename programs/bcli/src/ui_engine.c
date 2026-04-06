@@ -61,6 +61,10 @@ void ui_print_shell_output(const char* output) {
     printf("%s%s%s\n", CLR_ITL, output, CLR_RST);
 }
 
+void ui_print_file_op(const char* op, const char* path) {
+    printf("%s  📁 %s: %s%s%s%s\n", CLR_CYN, op, CLR_BLD, CLR_UND, path, CLR_RST);
+}
+
 void ui_debug(const char* msg) {
     fprintf(stderr, "%s[DEBUG] %s%s\n", CLR_DIM, msg, CLR_RST);
 }

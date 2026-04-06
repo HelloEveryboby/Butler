@@ -69,6 +69,9 @@ void handle_input(const char* input) {
                 } else if (strcmp(msg->type, "error") == 0) {
                     ui_clear_line();
                     ui_print_error(msg->content ? msg->content : "An error occurred");
+                } else if (strcmp(msg->type, "file") == 0) {
+                    ui_clear_line();
+                    ui_print_file_op(msg->content ? msg->content : "op", msg->extra ? msg->extra : "path");
                 }
             }
 
@@ -82,12 +85,9 @@ void handle_input(const char* input) {
         }
     }
 
-    // Process any remaining messages that might have been sent right before closing
     while ((msg = bridge_receive_next_nonblocking()) != NULL) {
          if (msg->type) {
-                if (strcmp(msg->type, "thought") == 0) {
-                    // ignore final thoughts
-                } else if (strcmp(msg->type, "tool") == 0) {
+                if (strcmp(msg->type, "tool") == 0) {
                     ui_clear_line();
                     ui_print_tool_call(msg->content ? msg->content : "Unknown", msg->extra ? msg->extra : "none");
                 } else if (strcmp(msg->type, "code") == 0) {
@@ -102,6 +102,9 @@ void handle_input(const char* input) {
                 } else if (strcmp(msg->type, "error") == 0) {
                     ui_clear_line();
                     ui_print_error(msg->content ? msg->content : "An error occurred");
+                } else if (strcmp(msg->type, "file") == 0) {
+                    ui_clear_line();
+                    ui_print_file_op(msg->content ? msg->content : "op", msg->extra ? msg->extra : "path");
                 }
             }
             if (msg->type) free(msg->type);
