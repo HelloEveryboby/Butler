@@ -1,0 +1,8 @@
+{
+  "name": "markitdown",
+  "version": "0.1.0",
+  "description": "Convert various file formats (PDF, DOCX, XLSX, etc.) to Markdown.",
+  "entry_point": "skills/markitdown/__init__.py",
+  "actions": ["convert"],
+  "keywords": ["markdown", "convert", "document", "pdf", "docx", "excel"]
+}
