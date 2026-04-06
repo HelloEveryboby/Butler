@@ -3,7 +3,12 @@
 
 #include <stdio.h>
 
-// Colors
+/**
+ * UI 引擎头文件 - 仿 Claude Code 风格
+ * 提供 ANSI 颜色定义及各种 UI 组件的渲染接口
+ */
+
+// 颜色定义
 #define CLR_RED     "\x1b[31m"
 #define CLR_GRN     "\x1b[32m"
 #define CLR_YLW     "\x1b[33m"
@@ -15,6 +20,8 @@
 #define CLR_DIM     "\x1b[2m"
 #define CLR_ITL     "\x1b[3m"
 #define CLR_UND     "\x1b[4m"
+
+// 背景颜色
 #define CLR_BG_RED     "\x1b[41m"
 #define CLR_BG_GRN     "\x1b[42m"
 #define CLR_BG_YLW     "\x1b[43m"
@@ -22,7 +29,7 @@
 #define CLR_BG_MAG     "\x1b[45m"
 #define CLR_BG_CYN     "\x1b[46m"
 
-// UI Components
+// UI 组件接口
 void ui_print_banner();
 void ui_print_thinking(const char* message, int step);
 void ui_print_task(const char* task_name);
@@ -34,5 +41,6 @@ void ui_clear_line();
 void ui_print_code_block(const char* language, const char* code);
 void ui_print_shell_output(const char* output);
 void ui_debug(const char* msg);
+void ui_print_file_op(const char* op, const char* path);
 
 #endif

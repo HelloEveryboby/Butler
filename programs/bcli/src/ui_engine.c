@@ -4,6 +4,10 @@
 #include <string.h>
 #include <unistd.h>
 
+/**
+ * UI 引擎实现 - 负责所有终端渲染逻辑
+ */
+
 #define BANNER_ART \
 "  ____       _   _             \n" \
 " | __ ) _   | |_| | ___ _ __   \n" \
@@ -11,12 +15,14 @@
 " | |_) | |_| | |_| |  __/ |     \n" \
 " |____/ \\__,_|\\__|_|\\___|_|     \n"
 
+// 打印启动横幅
 void ui_print_banner() {
     printf("%s%s%s%s", CLR_CYN, CLR_BLD, BANNER_ART, CLR_RST);
-    printf("%s Butler AI Assistant - CLI Edition (STM32 Compatible)\n", CLR_DIM);
-    printf(" Inspired by Claude Code | Powered by Jarvis Engine%s\n\n", CLR_RST);
+    printf("%s Butler AI 助手 - 命令行版 (兼容 STM32)\n", CLR_DIM);
+    printf(" 界面设计参考 Claude Code | 由 Jarvis 引擎驱动%s\n\n", CLR_RST);
 }
 
+// 打印“思考中”动画
 void ui_print_thinking(const char* message, int step) {
     const char* spinners[] = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
     int num_spinners = sizeof(spinners) / sizeof(spinners[0]);
@@ -25,42 +31,56 @@ void ui_print_thinking(const char* message, int step) {
     fflush(stdout);
 }
 
+// 清除当前行
 void ui_clear_line() {
     printf("\r\x1b[K");
     fflush(stdout);
 }
 
+// 打印任务开始标识
 void ui_print_task(const char* task_name) {
-    printf("\n%s%s▶ Executing Task: %s%s\n", CLR_BLD, CLR_MAG, task_name, CLR_RST);
+    printf("\n%s%s▶ 正在执行任务: %s%s\n", CLR_BLD, CLR_MAG, task_name, CLR_RST);
 }
 
+// 打印工具调用信息
 void ui_print_tool_call(const char* tool_name, const char* args) {
-    printf("%s  🔧 Tool Call: %s%s%s %s(%s)%s\n", CLR_GRN, CLR_BLD, tool_name, CLR_RST, CLR_DIM, args, CLR_RST);
+    printf("%s  🔧 工具调用: %s%s%s %s(%s)%s\n", CLR_GRN, CLR_BLD, tool_name, CLR_RST, CLR_DIM, args, CLR_RST);
 }
 
+// 打印 AI 的消息
 void ui_print_ai_message(const char* message) {
     printf("\n%s%sButler > %s%s\n", CLR_BLD, CLR_BLU, CLR_RST, message);
 }
 
+// 打印错误信息
 void ui_print_error(const char* message) {
-    printf("%s✖ Error: %s%s\n", CLR_RED, message, CLR_RST);
+    printf("%s✖ 错误: %s%s\n", CLR_RED, message, CLR_RST);
 }
 
+// 打印成功信息
 void ui_print_success(const char* message) {
-    printf("%s✔ Success: %s%s\n", CLR_GRN, message, CLR_RST);
+    printf("%s✔ 成功: %s%s\n", CLR_GRN, message, CLR_RST);
 }
 
+// 打印代码块
 void ui_print_code_block(const char* language, const char* code) {
     printf("\n%s%s %s %s\n", CLR_BG_MAG, CLR_BLD, language, CLR_RST);
     printf("%s%s\n", CLR_DIM, code);
     printf("%s\n", CLR_RST);
 }
 
+// 打印 Shell 输出
 void ui_print_shell_output(const char* output) {
-    printf("%s%s$ Shell Output:%s\n", CLR_BG_CYN, CLR_BLD, CLR_RST);
+    printf("%s%s$ Shell 输出:%s\n", CLR_BG_CYN, CLR_BLD, CLR_RST);
     printf("%s%s%s\n", CLR_ITL, output, CLR_RST);
 }
 
+// 打印文件操作
+void ui_print_file_op(const char* op, const char* path) {
+    printf("%s  📁 文件%s: %s%s%s%s\n", CLR_CYN, op, CLR_BLD, CLR_UND, path, CLR_RST);
+}
+
+// 调试信息打印
 void ui_debug(const char* msg) {
-    fprintf(stderr, "%s[DEBUG] %s%s\n", CLR_DIM, msg, CLR_RST);
+    fprintf(stderr, "%s[调试] %s%s\n", CLR_DIM, msg, CLR_RST);
 }

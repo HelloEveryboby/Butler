@@ -155,5 +155,7 @@ programs/**/*.class
 programs/**/*_exec
 programs/**/*.so
 programs/**/*.o
+programs/bcli/butler-c
+programs/bcli/obj/
 programs/ble_framework/ble_framework_exec
 programs/ble_framework/libble.so
