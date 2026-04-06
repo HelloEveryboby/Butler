@@ -629,11 +629,79 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshSkillsBtn.addEventListener('click', loadSkillsList);
     }
 
-    // Override switchView to load skills when settings is selected
+    // Settings Sub-navigation
+    const settingsNavItems = document.querySelectorAll('.settings-nav-item');
+    const settingsPanels = document.querySelectorAll('.settings-panel');
+
+    settingsNavItems.forEach(item => {
+        item.addEventListener('click', () => {
+            const target = item.getAttribute('data-target');
+
+            // Update Nav
+            settingsNavItems.forEach(nav => nav.classList.remove('active'));
+            item.classList.add('active');
+
+            // Update Panels
+            settingsPanels.forEach(panel => panel.classList.remove('active'));
+            document.getElementById(target).classList.add('active');
+
+            // Trigger specific loads
+            if (target === 'settings-skills') loadSkillsList();
+            if (target === 'settings-quota') loadQuotaInfo();
+        });
+    });
+
+    async function loadQuotaInfo() {
+        const quotaDisplay = document.getElementById('quota-display');
+        if (window.pywebview && window.pywebview.api) {
+            // We'll use a hidden command to get quota if no direct API exists,
+            // but usually we can trigger the quota report in chat or get it via API
+            // For now, let's assume we can fetch it or show a placeholder that explains how to get it.
+            quotaDisplay.innerHTML = '<p class="loading-text">正在从系统获取配额信息...</p>';
+
+            // If the backend doesn't have get_quota_report, we might need to handle it.
+            // Let's try to call it if it exists.
+            try {
+                if (window.pywebview.api.get_quota_report) {
+                    const data = await window.pywebview.api.get_quota_report();
+                    renderQuotaInSettings(data);
+                } else {
+                    quotaDisplay.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">请在对话框输入 "/quota" 查看实时配额报告。</div>';
+                }
+            } catch (e) {
+                quotaDisplay.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">获取配额失败。</div>';
+            }
+        }
+    }
+
+    function renderQuotaInSettings(data) {
+        const quotaDisplay = document.getElementById('quota-display');
+        quotaDisplay.innerHTML = data.items.map(item => `
+            <div class="settings-row">
+                <div style="flex: 1;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span class="row-label">${item.name}</span>
+                        <span style="font-size: 12px; color: var(--text-secondary);">${item.used} / ${item.total}</span>
+                    </div>
+                    <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px;">
+                        <div style="height: 100%; width: ${(item.used / item.total * 100).toFixed(1)}%; background: var(--accent-color); border-radius: 3px;"></div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Override switchView to load initial settings data
     const navSettings = document.getElementById('nav-settings');
     if (navSettings) {
         navSettings.addEventListener('click', () => {
-            loadSkillsList();
+            // Default to general, but if we are already on another tab, stay there or refresh it
+            const activeSubNav = document.querySelector('.settings-nav-item.active');
+            if (activeSubNav) {
+                const target = activeSubNav.getAttribute('data-target');
+                if (target === 'settings-skills') loadSkillsList();
+                if (target === 'settings-quota') loadQuotaInfo();
+            }
         });
     }
 });
