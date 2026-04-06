@@ -239,6 +239,21 @@ class ModernBridge:
         except Exception as e:
             return f"Error uninstalling skill: {str(e)}"
 
+    def get_quota_report(self):
+        """Returns the current API quota usage report."""
+        from package.core_utils.quota_manager import quota_manager
+        report = quota_manager.get_usage_report()
+        # Transform for the frontend renderQuotaInSettings function
+        return {
+            "items": [
+                {
+                    "name": "API 总额度 (RMB)",
+                    "used": report["consumed"],
+                    "total": report["limit"]
+                }
+            ]
+        }
+
 def main():
     # Initialize Jarvis in headless mode (no Tkinter root)
     jarvis = Jarvis(root=None)

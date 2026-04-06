@@ -207,45 +207,71 @@
             </section>
 
             <section id="view-settings" class="view-container">
-                <div class="settings-view">
-                    <h2>系统设置</h2>
-                    <div class="settings-group">
-                        <h3>外观</h3>
-                        <div class="setting-item">
-                            <span>深色模式</span>
-                            <label class="switch">
-                                <input type="checkbox" checked>
-                                <span class="slider round"></span>
-                            </label>
+                <div class="settings-wrapper">
+                    <aside class="settings-sidebar">
+                        <div class="settings-nav-item active" data-target="settings-general">
+                            <div class="settings-icon icon-blue"><i class="fas fa-desktop"></i></div>
+                            <span>外观与通用</span>
                         </div>
-                        <div class="setting-item">
-                            <span>界面主题</span>
-                            <select id="theme-selector">
-                                <option value="apple">Apple (Classic)</option>
-                                <option value="modern">Modern Glass</option>
-                            </select>
+                        <div class="settings-nav-item" data-target="settings-skills">
+                            <div class="settings-icon icon-orange"><i class="fas fa-puzzle-piece"></i></div>
+                            <span>技能管理</span>
                         </div>
-                    </div>
-                    <div class="settings-group">
-                        <h3>技能管理</h3>
-                        <div class="setting-item-stack">
-                            <div class="install-form">
-                                <input type="text" id="skill-install-url" placeholder="技能 Git 链接 (如 https://github.com/...)">
-                                <button id="skill-install-btn"><i class="fas fa-download"></i> 安装</button>
+                        <div class="settings-nav-item" data-target="settings-quota">
+                            <div class="settings-icon icon-green"><i class="fas fa-chart-pie"></i></div>
+                            <span>模型配额</span>
+                        </div>
+                    </aside>
+                    <div class="settings-content">
+                        <!-- General Settings -->
+                        <div id="settings-general" class="settings-panel active">
+                            <h2 class="settings-title">外观与通用</h2>
+                            <div class="settings-group-card">
+                                <div class="settings-row">
+                                    <div class="row-label">深色模式</div>
+                                    <div class="row-control">
+                                        <label class="switch">
+                                            <input type="checkbox" checked>
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="settings-row">
+                                    <div class="row-label">界面主题</div>
+                                    <div class="row-control">
+                                        <select id="theme-selector" class="apple-select">
+                                            <option value="apple">Apple (Classic)</option>
+                                            <option value="modern">Modern Glass</option>
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
-                            <div id="skills-list-container">
+                        </div>
+
+                        <!-- Skills Management -->
+                        <div id="settings-skills" class="settings-panel">
+                            <h2 class="settings-title">技能管理</h2>
+                            <div class="settings-group-card">
+                                <div class="install-form">
+                                    <input type="text" id="skill-install-url" placeholder="技能 Git 链接 (https://...)">
+                                    <button id="skill-install-btn" class="apple-btn-primary"><i class="fas fa-download"></i> 安装</button>
+                                </div>
+                            </div>
+                            <div class="settings-group-card no-padding" id="skills-list-container">
                                 <!-- Skills populated by JS -->
                                 <p class="loading-text">正在加载技能列表...</p>
                             </div>
-                            <div class="skills-actions">
+                            <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
                                 <button id="refresh-skills-btn" class="icon-btn-text"><i class="fas fa-sync"></i> 刷新列表</button>
                             </div>
                         </div>
-                    </div>
-                    <div class="settings-group">
-                        <h3>配额</h3>
-                        <div id="quota-display">
-                            <!-- Quota info here -->
+
+                        <!-- Quota -->
+                        <div id="settings-quota" class="settings-panel">
+                            <h2 class="settings-title">模型配额</h2>
+                            <div class="settings-group-card" id="quota-display">
+                                <p class="loading-text">正在获取配额信息...</p>
+                            </div>
                         </div>
                     </div>
                 </div>
