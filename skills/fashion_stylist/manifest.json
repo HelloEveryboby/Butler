@@ -1,0 +1,9 @@
+{
+  "name": "Fashion Stylist",
+  "skill_id": "fashion_stylist",
+  "version": "1.0.0",
+  "description": "每日穿搭：视觉风格管家，结合天气与个人偏好提供穿搭建议。",
+  "entry_point": "skills/fashion_stylist/__init__.py",
+  "actions": ["suggest"],
+  "keywords": ["fashion", "weather", "style", "outfit", "clothing"]
+}

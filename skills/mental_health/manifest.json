@@ -1,0 +1,9 @@
+{
+  "name": "Mental Health",
+  "skill_id": "mental_health",
+  "version": "1.0.0",
+  "description": "心理疏导老师：私人心理医生，提供情感支持与引导式对话。",
+  "entry_point": "skills/mental_health/__init__.py",
+  "actions": ["chat", "support"],
+  "keywords": ["mental", "emotion", "feeling", "support", "psychology"]
+}

@@ -135,16 +135,36 @@ class Notifier:
             self._active_timers[event_id] = timer
             timer.start()
 
-    def update_status(self, event_id: str, status: str):
-        """更新通知状态（如：closed, modified）。"""
+    def update_status(self, event_id: str, status: str, response_data: Optional[Dict[str, Any]] = None):
+        """
+        更新通知状态（如：closed, modified, authorized, denied）。
+        如果是授权响应，则触发 EventBus 信号。
+        """
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             cursor.execute('UPDATE notifications SET status = ? WHERE id = ?', (status, event_id))
             conn.commit()
             conn.close()
+
+            # 如果是授权决策，触发信号通知相关的 Skill
+            if status in ["authorized", "denied"] and event_bus:
+                event_bus.emit("NOTIFICATION_RESPONSE", {
+                    "id": event_id,
+                    "decision": status,
+                    "data": response_data
+                })
         except Exception as e:
             self.logger.error(f"状态更新失败: {e}")
+
+    def handle_user_response(self, event_id: str, action: str, data: Optional[Dict[str, Any]] = None):
+        """
+        处理来自前端的显式用户响应。
+        :param action: 'allow' 或 'deny'
+        """
+        status = "authorized" if action == "allow" else "denied"
+        self.logger.info(f"User {action}ed event {event_id}")
+        self.update_status(event_id, status, response_data=data)
 
     def get_history(self, limit: int = 20):
         """获取历史提醒记录。"""
