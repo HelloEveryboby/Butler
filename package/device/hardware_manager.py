@@ -37,6 +37,13 @@ class HardwareManager:
         self.running = False
         self.callback: Optional[Callable] = None
 
+        # Subscribe to Notifier volume sync requests
+        try:
+            from butler.core.event_bus import event_bus
+            event_bus.subscribe("NOTIFIER_PRE_ALERT_VOLUME_SYNC", self._update_adaptive_volume)
+        except ImportError:
+            pass
+
         # Audio Adaptive State
         self.volume_mode = "manual" # "manual" or "auto"
         self.manual_volume = 50

@@ -18,6 +18,7 @@ from package.file_system.migration_engine import SmartMigrationEngine
 from package.device.hardware_manager import HardwareManager
 from package.core_utils.task_master.progress_tracker import ProgressTracker
 from butler.core.event_bus import event_bus
+from butler.core.notifier_system import notifier
 
 class ModernBridge:
     def __init__(self, jarvis, window):
@@ -34,9 +35,18 @@ class ModernBridge:
 
         # Subscribe to progress updates
         event_bus.subscribe("PROGRESS_UPDATE", self._on_progress_update)
+        # Subscribe to notifications
+        event_bus.subscribe("NOTIFICATION_PUSH", self._on_notification_push)
+        event_bus.subscribe("NOTIFICATION_CLOSE", self._on_notification_close)
 
     def _on_progress_update(self, data):
         self.window.evaluate_js(f"window.onProgressSync({json.dumps(data)})")
+
+    def _on_notification_push(self, event):
+        self.window.evaluate_js(f"window.onNotificationPush({json.dumps(event)})")
+
+    def _on_notification_close(self, data):
+        self.window.evaluate_js(f"window.onNotificationClose({json.dumps(data)})")
 
     def handle_command(self, command):
         self.logger.info(f"Modern UI Command: {command}")
