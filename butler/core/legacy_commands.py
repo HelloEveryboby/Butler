@@ -705,3 +705,81 @@ def handle_remote_runner(jarvis_app, entities, **kwargs):
         jarvis_app.ui_print(f"指令 '{operation}' 已发送至节点 '{runner_id}'。")
     else:
         jarvis_app.speak(f"发送指令失败: {msg}")
+
+@register_intent("grep_search")
+def handle_grep_search(jarvis_app, entities, **kwargs):
+    """执行高性能全文搜索。"""
+    query = entities.get("query")
+    root = entities.get("root", ".")
+    if not query:
+        jarvis_app.speak("请提供搜索关键词。")
+        return
+
+    def run_grep():
+        try:
+            from package.core_utils.dev_tools import dev_tools
+            jarvis_app.ui_print(f"🔍 正在全局搜索: {query} ...")
+            matches = dev_tools.grep(query, root=root)
+            if not matches:
+                jarvis_app.speak(f"未在 {root} 中找到包含 '{query}' 的内容。")
+            else:
+                jarvis_app.ui_print(f"找到 {len(matches)} 处匹配:")
+                for m in matches[:20]: # 仅显示前 20 条
+                    jarvis_app.ui_print(f"  {m['file']}:{m['line']} -> {m['content'].strip()}")
+                if len(matches) > 20:
+                    jarvis_app.ui_print(f"... 以及另外 {len(matches)-20} 条记录。")
+                jarvis_app.speak(f"搜索完成，共发现 {len(matches)} 处匹配。")
+        except Exception as e:
+            jarvis_app.speak(f"搜索失败: {e}")
+
+    threading.Thread(target=run_grep, daemon=True).start()
+
+@register_intent("glob_list")
+def handle_glob_list(jarvis_app, entities, **kwargs):
+    """按模式匹配列出文件。"""
+    pattern = entities.get("pattern")
+    if not pattern:
+        jarvis_app.speak("请提供文件通配符模式。")
+        return
+
+    def run_glob():
+        try:
+            from package.core_utils.dev_tools import dev_tools
+            jarvis_app.ui_print(f"📁 正在匹配模式: {pattern} ...")
+            files = dev_tools.glob(pattern)
+            if not files:
+                jarvis_app.speak("未匹配到任何文件。")
+            else:
+                jarvis_app.ui_print(f"找到 {len(files)} 个文件:")
+                for f in files[:30]:
+                    jarvis_app.ui_print(f"  {f}")
+                jarvis_app.speak(f"匹配完成，共找到 {len(files)} 个文件。")
+        except Exception as e:
+            jarvis_app.speak(f"匹配失败: {e}")
+
+    threading.Thread(target=run_glob, daemon=True).start()
+
+@register_intent("safe_edit")
+def handle_safe_edit(jarvis_app, entities, **kwargs):
+    """安全地编辑文件（搜索-替换模式）。"""
+    path = entities.get("file_path")
+    old_text = entities.get("old_text")
+    new_text = entities.get("new_text")
+
+    if not path or old_text is None or new_text is None:
+        jarvis_app.speak("编辑操作需要文件路径、旧文本块和新文本块。")
+        return
+
+    def run_edit():
+        try:
+            from package.core_utils.dev_tools import dev_tools
+            jarvis_app.ui_print(f"🛠️ 正在安全编辑文件: {path} ...")
+            res = dev_tools.safe_edit(path, old_text, new_text)
+            if res.get("status") == "success":
+                jarvis_app.speak(f"文件 {path} 已成功更新。")
+            else:
+                jarvis_app.speak(f"编辑失败: {res.get('message', '未知错误')}")
+        except Exception as e:
+            jarvis_app.speak(f"编辑过程中出错: {e}")
+
+    threading.Thread(target=run_edit, daemon=True).start()
