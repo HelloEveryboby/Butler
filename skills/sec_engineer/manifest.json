@@ -1,0 +1,9 @@
+{
+  "name": "Security Engineer",
+  "skill_id": "sec_engineer",
+  "version": "1.0.0",
+  "description": "信息安全工程：安全审计专家，支持 nmap/sqlmap 等工具调用及权限提升请求。",
+  "entry_point": "skills/sec_engineer/__init__.py",
+  "actions": ["audit", "scan", "check_tools"],
+  "keywords": ["security", "nmap", "sqlmap", "audit", "security check"]
+}

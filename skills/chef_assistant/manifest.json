@@ -1,0 +1,9 @@
+{
+  "name": "Chef Assistant",
+  "skill_id": "chef_assistant",
+  "version": "1.0.0",
+  "description": "厨师助手：个性化膳食顾问，根据食材库存和口味偏好推荐菜谱。",
+  "entry_point": "skills/chef_assistant/__init__.py",
+  "actions": ["recommend", "list_inventory"],
+  "keywords": ["chef", "food", "recipe", "cooking", "inventory"]
+}

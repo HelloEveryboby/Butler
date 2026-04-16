@@ -1,0 +1,2 @@
+# 推荐安装 requests 以获取真实天气
+requests

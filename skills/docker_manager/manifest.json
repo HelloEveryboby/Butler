@@ -1,0 +1,9 @@
+{
+  "name": "Docker Manager",
+  "skill_id": "docker_manager",
+  "version": "1.0.0",
+  "description": "Docker 配置器：自动化运维助手，管理容器生命周期与配置。",
+  "entry_point": "skills/docker_manager/__init__.py",
+  "actions": ["list", "deploy", "stop"],
+  "keywords": ["docker", "container", "deploy", "devops"]
+}
