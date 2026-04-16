@@ -171,13 +171,13 @@ class ArchiveManagerPlugin(AbstractPlugin):
             try:
                 # os.remove(extracted_path) # Keeping it simple for now
                 pass
-            except:
+            except Exception:
                 pass
 
     def on_shutdown(self):
         if os.path.exists(self.cache_dir):
             try:
                 shutil.rmtree(self.cache_dir)
-            except:
+            except Exception:
                 pass
         super().on_shutdown()

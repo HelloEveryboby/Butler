@@ -81,7 +81,7 @@ class ModernBridge:
                          data = json.loads(message)
                          if data.get("type") == "progress":
                              self.window.evaluate_js(f"window.onProgressUpdate({data['value']})")
-                     except:
+                     except Exception:
                          pass
                 elif tag == 'code_block':
                     self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")

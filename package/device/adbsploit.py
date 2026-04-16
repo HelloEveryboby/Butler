@@ -28,7 +28,7 @@ device = 'none'
 def my_input(text):
     try:
         return input(text).lstrip().rstrip().lower()
-    except:
+    except Exception:
         print(Fore.RED + '[*] ' + Fore.YELLOW + 'Exit.')
         sys.exit(1)
 
@@ -267,9 +267,9 @@ def select():
             print("Selected device: " + Fore.GREEN + output.serial)
             device = output.serial
             main()
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] That device doesn't exist...").format(Fore.RED, Fore.WHITE))
-    except:
+    except Exception:
         print(arrow + ("[{0}+{1}] That device doesn't exist...").format(Fore.RED, Fore.WHITE))
     
 
@@ -361,7 +361,7 @@ def wpa_supplicant():
             d.sync.pull("/sdcard/wpa_supplicant.conf", "wpa_supplicant.conf")
             # d.shell(device + " pull /sdcard/wpa_supplicant.conf "+location)
             print(arrow + Fore.GREEN + 'WPA Supplicant exported correctly')
-        except:
+        except Exception:
             print(arrow + Fore.RED + 'An error has been occurred grabbing the wpa_supplicant')
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -376,7 +376,7 @@ def install():
             d = adbutils.adb.device(device)
             d.install(apk)
             print(arrow + Fore.GREEN + 'APK installed successfully')
-        except:
+        except Exception:
             print(
                 arrow + Fore.RED + 'An error has been occurred installing the APK. Check the path or the error related')
     else:
@@ -392,7 +392,7 @@ def install_remote():
             d = adbutils.adb.device(device)
             d.install_remote(url)
             print(arrow + Fore.GREEN + 'APK installed successfully')
-        except:
+        except Exception:
             print(
                 arrow + Fore.RED + 'An error has been occurred installing the APK. Check the path or the error related')
     else:
@@ -408,7 +408,7 @@ def uninstall():
             d = adbutils.adb.device(device)
             d.uninstall(app)
             print(arrow + Fore.GREEN + 'APK uninstalled successfully')
-        except:
+        except Exception:
             print(
                 arrow + Fore.RED + 'An error has been occurred uninstalling the APK. Check the package name or the error related')
     else:
@@ -421,7 +421,7 @@ def shell():
         try:
             # Use subprocess.run for better security than os.system
             subprocess.run(["adb", "-s", device, "shell"])
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred opening the shell...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -434,7 +434,7 @@ def shutdown():
             d = adbutils.adb.device(device)
             d.shell('reboot -p')
             print(arrow + Fore.GREEN + 'The device is shutting down...')
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred shutting down the device").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -447,7 +447,7 @@ def reboot():
             d = adbutils.adb.device(device)
             d.shell('reboot')
             print(arrow + Fore.GREEN + 'The device is rebooting...')
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred opening the shell...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -457,7 +457,7 @@ def kill_server():
     try:
         adbutils.adb.server_kill()
         print(arrow + Fore.GREEN + 'The server is down...')
-    except:
+    except Exception:
         print(arrow + ("[{0}+{1}] An error ocurred killing the server...").format(Fore.RED, Fore.WHITE))
 
 
@@ -471,7 +471,7 @@ def get_folder():
             name = my_input(arrow + " adbsploit" + Fore.RED + "(get_folder) " + Fore.WHITE + "> ")
             d = adbutils.adb.device(device)
             d.sync.pull(path, name)
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred pulling the folder...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -488,7 +488,7 @@ def logs():
                 subprocess.run(["adb", "-s", device, "logcat"])
             else:
                 subprocess.run(["adb", "-s", device, "logcat", app])
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred getting the logs...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -509,7 +509,7 @@ def start_app():
             else:
                 d.app_start(app, activity)
                 print(Fore.GREEN + "The app " + app + "with the activity " + activity + " is now starting...")
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred starting the app...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -524,7 +524,7 @@ def stop_app():
             d = adbutils.adb.device(device)
             d.app_stop(app)
             print(Fore.GREEN + "The app " + app + " is now stopped...")
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred stopping the app...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -539,7 +539,7 @@ def clear_app():
             d = adbutils.adb.device(device)
             d.app_clear(app)
             print(Fore.GREEN + "The app " + app + " is now clear...")
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred starting the app...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -552,7 +552,7 @@ def show_ip():
             d = adbutils.adb.device(device)
             ip = d.wlan_ip()
             print(arrow + Fore.GREEN + ip)
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred showing the ip...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -566,7 +566,7 @@ def appinfo():
             app = my_input(arrow + " adbsploit" + Fore.RED + "(appinfo) " + Fore.WHITE + "> ")
             d = adbutils.adb.device(device)
             print(Fore.GREEN + str(d.package_info(app)))
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred obtaining the info...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -579,7 +579,7 @@ def battery():
             d = adbutils.adb.device(device)
             bat = d.shell("dumpsys battery")
             print(Fore.GREEN + bat)
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred obtaining the battery info...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -593,7 +593,7 @@ def netstat():
             bat = d.shell("netstat")
             print(arrow + Fore.GREEN + "The netstat for device " + device + " is:")
             print(Fore.MAGENTA + bat)
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred getting the netstat...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -614,7 +614,7 @@ def airplane():
                 print(arrow + Fore.GREEN + "The Airplane Mode is deactivated...")
             else:
                 print(arrow + Fore.RED + "The status value only accepts on or off")
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred with airplane mode...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -652,7 +652,7 @@ def sound():
                 print(arrow + Fore.GREEN + 'The all volume types is now set to ' + set + '...')
             else:
                 print(Fore.RED + "This type doesn't exists...")
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred with the sound...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -668,7 +668,7 @@ def check_screen():
                 print(arrow + Fore.GREEN + 'The screen is on...')
             else:
                 print(arrow + Fore.GREEN + 'The screen is off...')
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred checking the screen...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -680,7 +680,7 @@ def dump_hierarchy():
         try:
             d = adbutils.adb.device(device)
             print(arrow + Fore.GREEN + d.dump_hierarchy())
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred dumping hierarchy...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -695,7 +695,7 @@ def keyevent():
             d = adbutils.adb.device(device)
             d.keyevent(key)
             print(arrow + Fore.GREEN + "They key event is processed correctly...")
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred dumping hierarchy...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -807,7 +807,7 @@ def open_browser():
                 print(arrow + Fore.GREEN + 'The url ' + url + ' is now opening...')
             else:
                 print(arrow + Fore.RED + 'The URL can not be null...')
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred opening the url...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -827,7 +827,7 @@ def remove_password():
             print(arrow + d3)
             d4 = d.shell("su 0 'rm /data/system/locksettings.db-shm'")
             print(arrow + d4)
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred removing the password...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -850,7 +850,7 @@ def swipe():
             d = adbutils.adb.device(device)
             d.swipe(sx, sy, ex, ey, duration)
             print(arrow + Fore.GREEN + ("The swipe is made..."))
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred during the swipe...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -871,7 +871,7 @@ def screen():
                 print(arrow + Fore.GREEN + ("The screen is off..."))
             else:
                 print(Fore.RED + "That option doesn't exists...")
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred during the swipe...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -894,7 +894,7 @@ def unlock_screen():
                 print(arrow + Fore.GREEN + "The screen is unlocked...")
             else:
                 print(arrow + Fore.GREEN + "The screen is already unlocked...")
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred unlocking the device...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -907,7 +907,7 @@ def lock_screen():
             d = adbutils.adb.device(device)
             d.keyevent(26)
             print(Fore.GREEN + "The screen is now locked...")
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred unlocking the device...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -919,7 +919,7 @@ def show_macaddress():
         try:
             d = adbutils.adb.device(device)
             print(arrow + Fore.GREEN + d.shell("cat /sys/class/net/wlan0/address"))
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred showing the mac address...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -936,7 +936,7 @@ def screenshot():
             with open(filename, "wb") as f:
                 subprocess.run(["adb", "-s", device, "exec-out", "screencap", "-p"], stdout=f)
             print(arrow + Fore.GREEN + "An image is created with the name " + filename + " ...")
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred making the screenshot...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -953,7 +953,7 @@ def dump_meminfo():
                 print(arrow + Fore.GREEN + d.shell("dumpsys meminfo"))
             else:
                 print(arrow + Fore.GREEN + d.shell("dumpsys meminfo " + app))
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred dumping the meminfo...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -965,7 +965,7 @@ def process_list():
         try:
             d = adbutils.adb.device(device)
             print(arrow + Fore.GREEN + d.shell("ps -ef"))
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred listing the processes..").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -981,7 +981,7 @@ def tcpip():
                 print(Fore.RED + "You must specify a port to listen on your device...")
             else:
                 subprocess.run(["adb", "-s", device, "tcpip", port])
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred enabling the tcpip mode..").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -1019,7 +1019,7 @@ def extract_sms():
             d = adbutils.adb.device(device)
             output = d.shell("content query --uri content://sms/ --projection _id:address:date:body")
             print(output)
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred extracting sms...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -1052,7 +1052,7 @@ def send_sms():
             d.shell(
                 "service call isms 7 i32 0 s16 " + "com.android.mms.service " + "s16 " + '"' + number + '"' + " s16 " + '"null"' + " s16 " + '"' + message + '"' + ' s16 "null" s16 "null"')
             print(arrow + Fore.GREEN + 'SMS Sent correctly...')
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred sending the sms...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -1084,7 +1084,7 @@ def device_info():
             print(arrow + "Android Version: " + Fore.GREEN + d.shell("getprop ro.build.version.release"))
             print(arrow + "Android Id: " + Fore.GREEN + d.shell("settings get secure android_id"))
             print(arrow + "IMEI: " + Fore.GREEN + d.shell("service call iphonesubinfo 1"))
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred getting the current app...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -1096,7 +1096,7 @@ def recovery_mode():
             d = adbutils.adb.device(device)
             d.shell("reboot recovery")
             print(arrow+Fore.GREEN+"Entering in recovery mode...")
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred entering in recovery mode...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -1108,7 +1108,7 @@ def fastboot_mode():
             d = adbutils.adb.device(device)
             d.shell("reboot bootloader")
             print(arrow+Fore.GREEN+"Entering in fastboot mode...")
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred entering in fastboot mode...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -1122,7 +1122,7 @@ def kill_process():
             pid = my_input(arrow + " adbsploit" + Fore.RED + "(kill-process) " + Fore.WHITE + "> ")
             d.shell("taskkill /PID "+ pid)
             print(arrow+Fore.GREEN+"Killing the process...")
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred killing the process...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -1174,7 +1174,7 @@ def evil_app():
             d.shell("pull " + path[8:])
 
 
-        except:
+        except Exception:
             print(arrow + ("[{0}+{1}] An error ocurred killing the process...").format(Fore.RED, Fore.WHITE))
     else:
         print(arrow + ("[{0}+{1}] You must select a device before...").format(Fore.RED, Fore.WHITE))
@@ -1224,7 +1224,7 @@ def backdoor():
                     print()
                 else:
                     print(arrow + ("[{0}+{1}] Select a correct payload...").format(Fore.RED, Fore.WHITE))
-            except:
+            except Exception:
                 print(arrow + ("[{0}+{1}] An error ocurred generating the backdoor...").format(Fore.RED, Fore.WHITE))
         else:
             print(arrow + ("[{0}+{1}] ADBSploit use Metasploit for generating backdoors, you must install to use this option").format(

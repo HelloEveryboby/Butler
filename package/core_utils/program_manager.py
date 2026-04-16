@@ -104,7 +104,7 @@ class ProgramManager:
                         return f"{size:.2f} {unit}"
                     size /= 1024
             return "未知"
-        except:
+        except Exception:
             return "未知"
     
     def get_install_date(self, key_path):
@@ -116,7 +116,7 @@ class ProgramManager:
             winreg.CloseKey(key)
             date = datetime.strptime(str(install_date), "%Y%m%d")
             return date.strftime("%Y年%m月%d日")
-        except:
+        except Exception:
             return "未知"
     
     def load_programs(self):
@@ -164,17 +164,17 @@ class ProgramManager:
                                 self.tree.insert("", tk.END, values=(program_name, size, install_date))
                                 program_count += 1
                                 
-                            except:
+                            except Exception:
                                 continue
                                 
                             winreg.CloseKey(subkey)
                             
-                        except:
+                        except Exception:
                             continue
                             
                     winreg.CloseKey(key)
                     
-                except:
+                except Exception:
                     continue
             
             self.root.after(0, lambda: self.status_bar.config(

@@ -44,7 +44,7 @@ class HealthMonitor:
         try:
             if os.path.exists(path):
                 return os.path.getsize(path)
-        except:
+        except Exception:
             pass
         return 0
 
@@ -57,7 +57,7 @@ class HealthMonitor:
                     fp = os.path.join(dirpath, f)
                     if not os.path.islink(fp):
                         total += os.path.getsize(fp)
-        except:
+        except Exception:
             pass
         return total
 
@@ -118,7 +118,7 @@ class HealthMonitor:
                         butler_mem += proc.memory_info().rss
                     elif any(m["binary"] in cmd for m in self.bhl_mapping.values()):
                         butler_mem += proc.memory_info().rss
-                except:
+                except Exception:
                     continue
             res["butler_memory_usage"] = self.format_size(butler_mem)
 

@@ -12,23 +12,37 @@
  * Robust version using file-based input to avoid JSON escaping issues.
  */
 
+// Robust JSON value extraction helper (replaces manual parsing logic)
 std::string get_json_value(const std::string& json, const std::string& key) {
     std::string search_key = "\"" + key + "\"";
     size_t pos = json.find(search_key);
     if (pos == std::string::npos) return "";
 
     size_t after_key = pos + search_key.length();
-    while (after_key < json.length() && (std::isspace(json[after_key]) || json[after_key] == ':')) after_key++;
+    // Move past the key and whitespace/colon
+    while (after_key < json.length() && (std::isspace((unsigned char)json[after_key]) || json[after_key] == ':')) after_key++;
 
     if (after_key < json.length() && json[after_key] == '\"') {
         size_t start = after_key + 1;
-        size_t end = json.find('\"', start);
-        while (end != std::string::npos && json[end-1] == '\\') { // Handle escaped quotes
-            end = json.find('\"', end + 1);
+        std::string result;
+        bool escaped = false;
+        // Correctly handle escaped characters within the string
+        for (size_t i = start; i < json.length(); ++i) {
+            char c = json[i];
+            if (escaped) {
+                result += c;
+                escaped = false;
+            } else if (c == '\\') {
+                escaped = true;
+            } else if (c == '\"') {
+                return result;
+            } else {
+                result += c;
+            }
         }
-        if (end == std::string::npos) return "";
-        return json.substr(start, end - start);
+        return ""; // Improperly terminated string
     } else {
+        // Handle numeric or boolean values
         size_t start = after_key;
         size_t end = json.find_first_of(",} ", start);
         if (end == std::string::npos) end = json.length();

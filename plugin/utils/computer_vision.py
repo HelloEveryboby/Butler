@@ -8,7 +8,7 @@ from .lazy_import import lazy_import
 np = lazy_import("numpy")
 try:
     cv2 = lazy_import("cv2")
-except:
+except Exception:
     cv2 = None  # 修复协作错误
 PIL = lazy_import("PIL")
 pytesseract = lazy_import("pytesseract")
