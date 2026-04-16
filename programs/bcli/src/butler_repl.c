@@ -54,6 +54,10 @@ void handle_input(const char* input) {
     // 通过 Bridge 向 Python 发送查询
     bridge_send_query(input);
 
+    if (strcmp(input, "/voice") == 0) {
+        ui_print_voice_status(1);
+    }
+
     bridge_message_t* msg;
     int step = 0;
     char current_thinking_msg[512] = "正在思考";
@@ -84,6 +88,9 @@ void handle_input(const char* input) {
                 } else if (strcmp(msg->type, "file") == 0) {
                     ui_clear_line();
                     ui_print_file_op(msg->content ? msg->content : "操作", msg->extra ? msg->extra : "路径");
+                } else if (strcmp(msg->type, "voice_status") == 0) {
+                    ui_clear_line();
+                    ui_print_voice_status(strcmp(msg->content, "true") == 0);
                 }
             }
 
@@ -120,6 +127,9 @@ void handle_input(const char* input) {
                 } else if (strcmp(msg->type, "file") == 0) {
                     ui_clear_line();
                     ui_print_file_op(msg->content ? msg->content : "操作", msg->extra ? msg->extra : "路径");
+                } else if (strcmp(msg->type, "voice_status") == 0) {
+                    ui_clear_line();
+                    ui_print_voice_status(strcmp(msg->content, "true") == 0);
                 }
             }
             if (msg->type) free(msg->type);

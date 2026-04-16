@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-command-btn');
     const voiceToggleBtn = document.getElementById('voice-toggle-btn');
+    const voiceStatusDot = document.getElementById('voice-status');
 
     // State
     let isStreaming = false;
@@ -132,7 +133,12 @@ document.addEventListener('DOMContentLoaded', () => {
         interactionFlow.scrollTop = interactionFlow.scrollHeight;
     }
 
-    sendBtn.addEventListener('click', executeChatCommand);
+    voiceToggleBtn.addEventListener('click', () => {
+        if (window.pywebview && window.pywebview.api) {
+            window.pywebview.api.handle_command("/voice-toggle");
+        }
+    });
+
     chatInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -276,6 +282,16 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.onTerminalOutput = (data) => term.write(data);
+
+    window.onVoiceStatusChange = (isListening) => {
+        if (isListening) {
+            voiceStatusDot.classList.add('active');
+            voiceToggleBtn.classList.add('active');
+        } else {
+            voiceStatusDot.classList.remove('active');
+            voiceToggleBtn.classList.remove('active');
+        }
+    };
 
     // Media and Special Components
     function renderMediaInChat(data) {
@@ -699,6 +715,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Settings Sub-navigation
     const settingsNavItems = document.querySelectorAll('.settings-nav-item');
     const settingsPanels = document.querySelectorAll('.settings-panel');
+    const voiceEngineSelector = document.getElementById('voice-engine-selector');
+
+    if (voiceEngineSelector) {
+        voiceEngineSelector.addEventListener('change', async (e) => {
+            if (window.pywebview && window.pywebview.api) {
+                await window.pywebview.api.set_voice_engine(e.target.value);
+            }
+        });
+    }
 
     settingsNavItems.forEach(item => {
         item.addEventListener('click', () => {

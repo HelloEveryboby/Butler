@@ -195,6 +195,10 @@ class ModernBridge:
         success, msg = self.migration_engine.migrate_file(path, segment)
         return {"success": success, "message": msg}
 
+    # --- Voice Engine APIs ---
+    def set_voice_engine(self, engine_mode):
+        return self.jarvis.voice_service.set_voice_mode(engine_mode)
+
     # --- New APIs for Volume & Hardware ---
     def set_volume(self, volume):
         self.hardware.set_volume(int(volume))

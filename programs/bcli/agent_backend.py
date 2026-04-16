@@ -31,6 +31,19 @@ def send_msg(type, content, extra=None):
     real_stdout.write(json.dumps(msg) + "\n")
     real_stdout.flush()
 
+def bcli_ui_print(message, tag='ai_response', extra=None):
+    if tag == 'user_input':
+        send_msg("text", f"识别到: {message}")
+    elif tag == 'error':
+        send_msg("error", message)
+    elif tag == 'system_message':
+        send_msg("thought", message)
+    elif tag == 'voice_status':
+        send_msg("voice_status", "true" if message else "false")
+    else:
+        # Avoid double printing if it's already being handled by the loop
+        pass
+
 # --- Butler 项目核心工具集成 ---
 from package.file_system.file_manager import FileManager
 from package.network.crawler import run as crawl_run
@@ -148,6 +161,24 @@ def run_agentic_loop(query, jarvis):
         "execute_shell": execute_shell,
         "jarvis": jarvis
     }
+
+    # Handle Special Commands
+    if query == "/voice":
+        jarvis.voice_service.ui_print = bcli_ui_print
+        jarvis.voice_service.on_status_change = lambda status: send_msg("voice_status", "true" if status else "false")
+        jarvis.voice_service.start_listening()
+        # Wait for recognition to finish (async in backend but we need to keep loop alive)
+        while jarvis.voice_service.is_listening:
+            time.sleep(0.1)
+        return
+
+    if query.startswith("/voice-engine "):
+        engine = query.split(" ")[1]
+        if jarvis.voice_service.set_voice_mode(engine):
+            send_msg("text", f"已切换至 {engine} 语音引擎。")
+        else:
+            send_msg("error", "无效的引擎名称。可用: online, local")
+        return
 
     for iteration in range(10):
         send_msg("thought", f"正在思考 (步骤 {iteration + 1})...")

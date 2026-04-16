@@ -5,8 +5,7 @@
         }
     },
     "voice": {
-        "mode": "offline",
-        "vosk_model_path": "vosk-model-small-en-us-0.15"
+        "mode": "online"
     },
     "display": {
         "default_mode": "host",
