@@ -538,6 +538,73 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load saved background on startup
     const savedBg = localStorage.getItem('butler-custom-bg');
     if (savedBg) applyBackground(savedBg);
+
+    // --- Notifier System Integration ---
+    window.onNotificationPush = (event) => {
+        if (event.priority >= 2) {
+            renderFullscreenNotification(event);
+        } else {
+            renderToastNotification(event);
+        }
+    };
+
+    window.onNotificationClose = (data) => {
+        const el = document.getElementById(data.id);
+        if (el) {
+            el.classList.add('closing');
+            setTimeout(() => el.remove(), 400);
+        }
+
+        const overlay = document.getElementById('fullscreen-overlay-' + data.id);
+        if (overlay) {
+            overlay.style.opacity = '0';
+            setTimeout(() => overlay.remove(), 400);
+        }
+    };
+
+    function renderToastNotification(event) {
+        const root = document.getElementById('notifier-root');
+        const toast = document.createElement('div');
+        toast.className = 'toast-notification';
+        toast.id = event.id;
+
+        toast.innerHTML = `
+            <div class="breathing-glow"></div>
+            <div class="notif-header">
+                <span class="notif-time">${event.timestamp.split(' ')[1]}</span>
+                <i class="fas fa-times" style="cursor:pointer; font-size: 12px; color: var(--text-secondary);" onclick="window.onNotificationClose({id: '${event.id}'})"></i>
+            </div>
+            <div class="notif-title">${event.title}</div>
+            <div class="notif-content">${event.content}</div>
+        `;
+
+        toast.onclick = () => {
+            // Placeholder for clicking to modify data
+            console.log("Modify notification:", event.id);
+        };
+
+        root.appendChild(toast);
+    }
+
+    function renderFullscreenNotification(event) {
+        const overlay = document.createElement('div');
+        overlay.className = 'fullscreen-notif-overlay';
+        overlay.id = 'fullscreen-overlay-' + event.id;
+
+        overlay.innerHTML = `
+            <div class="fullscreen-notif-card">
+                <div class="notif-time" style="margin-bottom: 20px;">${event.timestamp}</div>
+                <h2>${event.title}</h2>
+                <p>${event.content}</p>
+                <div style="display: flex; gap: 15px; justify-content: center;">
+                    <button class="apple-btn-primary" onclick="window.onNotificationClose({id: '${event.id}'})">确认并关闭</button>
+                    <button class="apple-btn-primary" style="background: rgba(255,255,255,0.1); color: var(--text-primary);">稍后处理</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+    }
 });
 
 // --- Settings and Skill Management Extensions ---
