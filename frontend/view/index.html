@@ -213,6 +213,10 @@
                             <div class="settings-icon icon-blue"><i class="fas fa-desktop"></i></div>
                             <span>外观与通用</span>
                         </div>
+                        <div class="settings-nav-item" data-target="settings-voice">
+                            <div class="settings-icon icon-purple"><i class="fas fa-microphone"></i></div>
+                            <span>语音引擎</span>
+                        </div>
                         <div class="settings-nav-item" data-target="settings-skills">
                             <div class="settings-icon icon-orange"><i class="fas fa-puzzle-piece"></i></div>
                             <span>技能管理</span>
@@ -242,6 +246,25 @@
                                         <select id="theme-selector" class="apple-select">
                                             <option value="apple">Apple (Classic)</option>
                                             <option value="modern">Modern Glass</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Voice Settings -->
+                        <div id="settings-voice" class="settings-panel">
+                            <h2 class="settings-title">语音引擎设置</h2>
+                            <div class="settings-group-card">
+                                <div class="settings-row">
+                                    <div class="row-label">
+                                        引擎模式
+                                        <p style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">在线模式调用厂商 API，本地模式使用 Whisper 识别。</p>
+                                    </div>
+                                    <div class="row-control">
+                                        <select id="voice-engine-selector" class="apple-select">
+                                            <option value="online">云端引擎 (Baidu Online)</option>
+                                            <option value="local">本地引擎 (Faster-Whisper)</option>
                                         </select>
                                     </div>
                                 </div>

@@ -80,6 +80,14 @@ void ui_print_file_op(const char* op, const char* path) {
     printf("%s  📁 文件%s: %s%s%s%s\n", CLR_CYN, op, CLR_BLD, CLR_UND, path, CLR_RST);
 }
 
+void ui_print_voice_status(int is_listening) {
+    if (is_listening) {
+        printf("\n%s%s[ 🎤 语音录制中... 按任意键停止 ]%s\n", CLR_BG_RED, CLR_BLD, CLR_RST);
+    } else {
+        printf("\n%s%s[ 🎤 语音录制结束 ]%s\n", CLR_BG_GRN, CLR_BLD, CLR_RST);
+    }
+}
+
 // 调试信息打印
 void ui_debug(const char* msg) {
     fprintf(stderr, "%s[调试] %s%s\n", CLR_DIM, msg, CLR_RST);
