@@ -2,6 +2,7 @@
     "enabled_skills": [
         "task_management",
         "xlsx_recalc",
-        "markitdown"
+        "markitdown",
+        "daily_fashion_stylist"
     ]
 }
