@@ -33,6 +33,10 @@ from butler.core.voice_service import VoiceService
 from butler.core.nlu_service import NLUService
 from butler.core.habit_manager import habit_manager
 from butler.core.skill_manager import SkillManager
+from butler.core.battery_manager import battery_manager
+from butler.core.cron_scheduler import cron_scheduler
+from butler.core.dream_engine import DreamEngine
+from butler.core.proactive_agent import ProactiveAgent
 from butler.usb_screen import USBScreen
 from butler.resource_manager import ResourceManager, PerformanceMode
 from plugin.memory_engine import (
@@ -71,6 +75,14 @@ class Jarvis:
         self.voice_service = VoiceService(self.handle_user_command, self.ui_print, self._on_voice_status_change)
         self.skill_manager = SkillManager()
         self.skill_manager.load_skills()
+
+        # Inject resource manager into battery manager for mode awareness
+        battery_manager.res_mgr = self.resource_manager
+
+        # Initialize KAIROS Suite
+        self.dream_engine = DreamEngine(self)
+        self.proactive_agent = ProactiveAgent(self)
+        self._setup_kairos_tasks()
         
         # Apply voice config
         voice_mode = self.config.get("voice", {}).get("mode", "offline")
@@ -150,6 +162,19 @@ class Jarvis:
     def _on_voice_status_change(self, is_listening):
         event_bus.emit("voice_status", is_listening)
 
+    def _setup_kairos_tasks(self):
+        """配置 KAIROS 自动化任务"""
+        # 1. 记忆整合 (每 24 小时检查一次)
+        cron_scheduler.add_task("dream", interval_seconds=3600*4, permanent=True)
+        event_bus.on("cron:dream", self.dream_engine.dream)
+
+        # 2. 主动模式 Tick (每 1 小时检查一次)
+        cron_scheduler.add_task("proactive-tick", interval_seconds=3600, permanent=True)
+        event_bus.on("cron:proactive-tick", self.proactive_agent.tick)
+
+        # 启动调度器
+        cron_scheduler.start()
+
     def _on_runner_event(self, runner_id: str, data: Dict[str, Any]):
         """Handles incoming messages from remote runners."""
         msg_type = data.get("status")
@@ -184,6 +209,9 @@ class Jarvis:
     def handle_user_command(self, command, programs=None):
         if not command: return
         cmd = command.strip()
+
+        # Notify proactive agent of activity
+        self.proactive_agent.update_activity()
 
         # Quota Check (Global Halt)
         if quota_manager.halt_system and not quota_manager.check_quota():
@@ -259,6 +287,34 @@ class Jarvis:
         elif cmd == "/profile-reset":
             habit_manager.reset_profile()
             self.ui_print("用户画像与习惯已重置。", tag='system_message')
+        elif cmd == "/kairos":
+            percent, plugged = battery_manager.get_status()
+            mode = self.resource_manager.get_mode().value
+            status = (
+                f"🌟 Butler KAIROS 状态:\n"
+                f"- 性能模式: {mode}\n"
+                f"- 电池电量: {percent}% ({'已插电' if plugged else '电池供电'})\n"
+                f"- 节流状态: {'节流中' if battery_manager.should_throttle() else '全速'}\n"
+                f"- 响应倍数: {battery_manager.get_sleep_multiplier()}x\n"
+                f"- 自动做梦: 已就绪"
+            )
+            self.ui_print(status, tag='system_message')
+        elif cmd.startswith("/performance "):
+            mode_str = cmd.split()[1].lower()
+            if mode_str == "high":
+                self.resource_manager.set_mode(PerformanceMode.HIGH_PERFORMANCE)
+                self.ui_print("性能模式已切换至: 高性能 (HIGH_PERFORMANCE)")
+            elif mode_str == "eco":
+                self.resource_manager.set_mode(PerformanceMode.ECO)
+                self.ui_print("性能模式已切换至: 低功耗 (ECO)")
+            elif mode_str == "normal":
+                self.resource_manager.set_mode(PerformanceMode.NORMAL)
+                self.ui_print("性能模式已切换至: 标准 (NORMAL)")
+            else:
+                self.ui_print("无效模式。可选: high, eco, normal", tag='error')
+        elif cmd == "/dream":
+            self.ui_print("正在手动启动做梦引擎...", tag='system_message')
+            threading.Thread(target=self.dream_engine.dream, daemon=True).start()
         elif cmd == "/approve" and self.pending_dev_code:
             code = self.pending_dev_code
             self.pending_dev_code = None
@@ -495,7 +551,10 @@ class Jarvis:
                     status = self.standalone_manager.get_status()
                     event_bus.emit("link_status", status["connection"] == "Connected", status["devices"][0] if status["devices"] else "")
             except Exception: pass
-            time.sleep(5)
+
+            # KAIROS Nap: 根据电池状态动态调整 UI 刷新频率
+            nap_time = 5 * battery_manager.get_sleep_multiplier()
+            time.sleep(nap_time)
 
     def _handle_advanced_encryption(self, path, mode):
         from package.security.encrypt import SecureVault
