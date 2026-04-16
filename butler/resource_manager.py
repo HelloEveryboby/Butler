@@ -2,12 +2,14 @@ import psutil
 from enum import Enum
 
 class PerformanceMode(Enum):
+    HIGH_PERFORMANCE = "HIGH_PERFORMANCE"
     NORMAL = "NORMAL"
     ECO = "ECO"
 
 class ResourceManager:
     def __init__(self):
-        self.mode = PerformanceMode.NORMAL
+        # 默认设置为低功耗模式 (ECO)
+        self.mode = PerformanceMode.ECO
 
     def set_mode(self, mode: PerformanceMode):
         self.mode = mode
@@ -29,5 +31,5 @@ if __name__ == '__main__':
     print(f"CPU 使用率: {manager.get_cpu_usage()}%")
     print(f"内存使用率: {manager.get_memory_usage()}%")
 
-    manager.set_mode(PerformanceMode.ECO)
+    manager.set_mode(PerformanceMode.HIGH_PERFORMANCE)
     print(f"当前模式: {manager.get_mode().value}")

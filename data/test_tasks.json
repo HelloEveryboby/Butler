@@ -1,0 +1,9 @@
+{
+    "persist_test": {
+        "interval": 3600,
+        "permanent": false,
+        "recurring": true,
+        "last_run": 0,
+        "next_run": 1776357399.5226626
+    }
+}
