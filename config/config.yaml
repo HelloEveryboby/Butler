@@ -1,0 +1,38 @@
+# Butler 智能管家系统配置文件
+
+api:
+  # DeepSeek API 密钥
+  deepseek_key: "${DEEPSEEK_API_KEY:-}"
+  # 百度语音 API 配置
+  baidu_app_id: "${BAIDU_APP_ID:-}"
+  baidu_api_key: "${BAIDU_API_KEY:-}"
+  baidu_secret_key: "${BAIDU_SECRET_KEY:-}"
+  # Picovoice 访问密钥
+  picovoice_access_key: "${PICOVOICE_ACCESS_KEY:-}"
+  quota:
+    consumed: 0.0002
+
+voice:
+  # 模式: online (百度), local (Faster-Whisper), offline
+  mode: "online"
+  local_stt_model: "base"
+
+display:
+  default_mode: "host"
+  theme: "google"
+  usb_screen:
+    width: 40
+    height: 8
+
+performance:
+  # 模式: NORMAL, ECO, HIGH_PERFORMANCE
+  mode: "NORMAL"
+
+interpreter:
+  safety_mode: true
+  max_iterations: 10
+
+runner_server:
+  host: "127.0.0.1"
+  port: 8000
+  token: "YOUR_RUNNER_SERVER_TOKEN_HERE"

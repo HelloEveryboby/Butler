@@ -5,6 +5,7 @@ import datetime
 import json
 import re
 import threading
+import logging
 from typing import Dict, Any, List
 import tempfile
 import shutil
@@ -21,6 +22,10 @@ lib_path = project_root / "lib_external"
 if lib_path.exists():
     import site
     site.addsitedir(str(lib_path))
+
+from butler.core.environment import run_preflight_check
+# Run environment check as early as possible
+run_preflight_check()
 
 from package.core_utils.log_manager import LogManager
 from package.core_utils.config_loader import config_loader
@@ -195,7 +200,10 @@ class Jarvis:
             self.ui_print(f"运行节点 '{runner_id}' 错误: {data.get('error')}", tag='error')
 
     def ui_print(self, message, tag='ai_response', response_id=None):
-        print(message)
+        # Log all UI output to structured log
+        lvl = logging.ERROR if tag == 'error' else logging.INFO
+        self.logger.log(lvl, f"[UI:{tag}] {message}")
+
         if tag == 'ai_response_start':
             tag = 'ai_response'
         if self.display_mode in ('host', 'both'):
