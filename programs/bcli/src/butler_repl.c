@@ -91,6 +91,9 @@ void handle_input(const char* input) {
                 } else if (strcmp(msg->type, "voice_status") == 0) {
                     ui_clear_line();
                     ui_print_voice_status(strcmp(msg->content, "true") == 0);
+                } else if (strcmp(msg->type, "memo_card") == 0) {
+                    ui_clear_line();
+                    ui_print_memo_card(msg->content ? msg->content : "", msg->extra ? msg->extra : "", "刚刚");
                 }
             }
 
@@ -130,6 +133,9 @@ void handle_input(const char* input) {
                 } else if (strcmp(msg->type, "voice_status") == 0) {
                     ui_clear_line();
                     ui_print_voice_status(strcmp(msg->content, "true") == 0);
+                } else if (strcmp(msg->type, "memo_card") == 0) {
+                    ui_clear_line();
+                    ui_print_memo_card(msg->content ? msg->content : "", msg->extra ? msg->extra : "", "刚刚");
                 }
             }
             if (msg->type) free(msg->type);

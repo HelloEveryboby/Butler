@@ -40,9 +40,13 @@ def bcli_ui_print(message, tag='ai_response', extra=None):
         send_msg("thought", message)
     elif tag == 'voice_status':
         send_msg("voice_status", "true" if message else "false")
+    elif tag == 'memo_card':
+        # 转发备忘录卡片到 C 端渲染
+        send_msg("memo_card", message, extra=str(extra) if extra else "")
     else:
-        # Avoid double printing if it's already being handled by the loop
-        pass
+        # 默认回退到文本消息
+        if tag == 'ai_response' and not message.startswith("识别到:"):
+            send_msg("text", message)
 
 # --- Butler 项目核心工具集成 ---
 from package.file_system.file_manager import FileManager
@@ -161,6 +165,9 @@ def run_agentic_loop(query, jarvis):
         "execute_shell": execute_shell,
         "jarvis": jarvis
     }
+
+    # 设置 UI 打印回调
+    jarvis.ui_print = bcli_ui_print
 
     # Handle Special Commands
     if query == "/voice":
