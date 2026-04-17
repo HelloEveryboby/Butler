@@ -213,11 +213,23 @@
             <section id="view-memos" class="view-container">
                 <div class="memos-layout">
                     <div class="memos-header">
-                        <div class="memos-search-bar">
-                            <i class="fas fa-search"></i>
-                            <input type="text" id="memo-search-input" placeholder="搜索备忘录...">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div class="memos-search-bar">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="memo-search-input" placeholder="搜索备忘录...">
+                            </div>
+                            <div class="view-mode-toggle">
+                                <button id="memos-list-view-btn" class="icon-btn-small active" title="列表视图"><i class="fas fa-list"></i></button>
+                                <button id="memos-spatial-view-btn" class="icon-btn-small" title="空间视图"><i class="fas fa-project-diagram"></i></button>
+                            </div>
                         </div>
                         <button class="apple-btn-primary" id="new-memo-btn"><i class="fas fa-plus"></i> 新建备忘录</button>
+                    </div>
+
+                    <!-- Memory Heatmap Placeholder (P2) -->
+                    <div id="memos-heatmap-container" class="memos-heatmap-card hidden">
+                        <div class="heatmap-header">知识记忆热力图</div>
+                        <div id="memos-heatmap" class="heatmap-body"></div>
                     </div>
 
                     <div id="memo-editor-container" class="memo-editor-card hidden">
@@ -243,8 +255,35 @@
                         </div>
                     </div>
 
-                    <div id="memos-timeline" class="memos-timeline">
-                        <!-- Memos will be populated here -->
+                    <div id="memos-list-wrapper">
+                        <div id="memos-timeline" class="memos-timeline">
+                            <!-- Memos will be populated here -->
+                        </div>
+                    </div>
+
+                    <div id="memos-spatial-wrapper" class="hidden">
+                        <div id="memos-spatial-container" style="height: 600px; width: 100%;"></div>
+                    </div>
+
+                    <!-- Slide-over Sidebar for Memo Editing -->
+                    <div id="memo-detail-sidebar" class="side-panel-hidden">
+                        <div class="side-panel-header">
+                            <h3>备忘录详情</h3>
+                            <button class="icon-btn-small" id="close-memo-sidebar"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="side-panel-body">
+                            <div id="sidebar-memo-info">
+                                <div id="sidebar-memo-date" class="memo-time"></div>
+                                <div id="sidebar-memo-content-display" class="memo-card-content"></div>
+                                <div id="sidebar-memo-tags" class="memo-tags"></div>
+                                <div id="sidebar-memo-resources" class="memo-resource-grid"></div>
+                            </div>
+                            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
+                            <div class="sidebar-actions">
+                                <button class="apple-btn-primary" id="sidebar-edit-btn">编辑内容</button>
+                                <button class="apple-btn-primary" style="background: rgba(255,59,48,0.2); color: #ff3b30;" id="sidebar-delete-btn">删除记录</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -365,6 +404,8 @@
 
     <!-- Markdown Parser -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Vis-network for Spatial View -->
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     <script src="main.js"></script>
     <script src="memos.js"></script>
 </body>

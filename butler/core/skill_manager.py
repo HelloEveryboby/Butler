@@ -1,69 +1,129 @@
 import importlib
+import importlib.util
 import json
 import os
 import logging
 import sys
 from pathlib import Path
+from typing import Dict, Any, List, Optional, Callable
 
 logger = logging.getLogger("SkillManager")
 
 class SkillManager:
+    """
+    Butler 技能管理器 (P0 增强版)
+    支持动态发现、热加载、统一元数据管理与错误隔离。
+    """
     def __init__(self, skills_dir="skills", lock_file="skills-lock.json"):
-        self.skills_dir = skills_dir
-        self.lock_file = lock_file
-        self.loaded_skills = {}  # 格式: { "skill_id": handle_func }
-        self.manifests = {}      # 格式: { "skill_id": manifest_dict }
+        self.project_root = Path(__file__).resolve().parent.parent.parent
+        self.skills_dir = self.project_root / skills_dir
+        self.lock_file = self.project_root / lock_file
+        self.loaded_skills: Dict[str, Callable] = {}  # skill_id -> handle_request
+        self.manifests: Dict[str, Dict[str, Any]] = {}  # skill_id -> manifest
+        self.configs: Dict[str, Dict[str, Any]] = {}    # skill_id -> config
 
         # Ensure project root is in sys.path
-        project_root = str(Path(__file__).resolve().parent.parent.parent)
-        if project_root not in sys.path:
-            sys.path.insert(0, project_root)
+        if str(self.project_root) not in sys.path:
+            sys.path.insert(0, str(self.project_root))
 
     def load_skills(self):
-        """扫描并加载 skills-lock.json 中启用的所有技能"""
-        if not os.path.exists(self.lock_file):
-            logger.warning(f"Lock file {self.lock_file} not found.")
-            return
+        """
+        全量扫描并加载已启用的技能。
+        支持从 __init__.py 或 main.py 加载入口。
+        """
+        if not self.lock_file.exists():
+            logger.warning(f"Lock file {self.lock_file} not found. Creating default.")
+            self._save_lock_file({"enabled_skills": []})
 
         try:
             with open(self.lock_file, 'r', encoding='utf-8') as f:
                 enabled_skills = json.load(f).get("enabled_skills", [])
         except Exception as e:
             logger.error(f"Failed to read {self.lock_file}: {e}")
-            return
+            enabled_skills = []
+
+        # 清理旧状态以便重新加载（热加载支持）
+        self.loaded_skills.clear()
+        self.manifests.clear()
+        self.configs.clear()
 
         for skill_id in enabled_skills:
-            try:
-                # 动态导入模块
-                # Python imports usually expect dot notation from a root package
-                # Since skills/ is in the root, we can use "skills.skill_id"
-                module_name = f"skills.{skill_id}"
-                module = importlib.import_module(module_name)
+            self._load_single_skill(skill_id)
 
-                # 加载元数据
-                m_path = os.path.join(self.skills_dir, skill_id, "manifest.json")
-                if os.path.exists(m_path):
-                    with open(m_path, 'r', encoding='utf-8') as mf:
-                        self.manifests[skill_id] = json.load(mf)
+    def _load_single_skill(self, skill_id: str):
+        """加载单个技能，包含元数据和配置文件"""
+        skill_path = self.skills_dir / skill_id
+        if not skill_path.is_dir():
+            logger.warning(f"Skill directory not found: {skill_path}")
+            return False
 
-                # 注册入口
+        try:
+            # 1. 加载 manifest.json (元数据)
+            manifest_path = skill_path / "manifest.json"
+            if manifest_path.exists():
+                with open(manifest_path, 'r', encoding='utf-8') as f:
+                    self.manifests[skill_id] = json.load(f)
+
+            # 2. 加载 config.json (配置)
+            config_path = skill_path / "config.json"
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    self.configs[skill_id] = json.load(f)
+
+            # 3. 动态加载模块入口
+            # 优先顺序: main.py > __init__.py
+            entry_file = None
+            if (skill_path / "main.py").exists():
+                entry_file = skill_path / "main.py"
+            elif (skill_path / "__init__.py").exists():
+                entry_file = skill_path / "__init__.py"
+
+            if not entry_file:
+                logger.error(f"Skill {skill_id} has no entry point (main.py or __init__.py)")
+                return False
+
+            # 使用 importlib 细粒度加载，支持热重载
+            module_name = f"skills.{skill_id}"
+            spec = importlib.util.spec_from_file_location(module_name, str(entry_file))
+            if spec and spec.loader:
+                module = importlib.util.module_from_spec(spec)
+                # 强制重新加载以支持代码更新
+                sys.modules[module_name] = module
+                spec.loader.exec_module(module)
+
                 if hasattr(module, "handle_request"):
                     self.loaded_skills[skill_id] = module.handle_request
-                    logger.info(f"Loaded skill: {skill_id}")
+                    logger.info(f"Successfully loaded skill: {skill_id}")
+                    return True
                 else:
-                    logger.error(f"技能 {skill_id} 缺失 handle_request 函数")
-            except Exception as e:
-                logger.error(f"加载技能 {skill_id} 失败: {e}")
+                    logger.error(f"Skill {skill_id} is missing 'handle_request' function.")
 
-    def execute(self, skill_id, action, **kwargs):
-        """统一调用接口"""
-        # 特殊处理系统自带的技能管理动作 (匹配 manage_skills 意图)
-        if skill_id == "manage_skills" or skill_id == "skill_manager":
+        except Exception as e:
+            logger.error(f"Error loading skill {skill_id}: {e}", exc_info=True)
+
+        return False
+
+    def execute(self, skill_id: str, action: str, **kwargs):
+        """
+        统一执行接口，包含错误隔离机制。
+        """
+        # 系统内部管理动作
+        if skill_id in ["manage_skills", "skill_manager"]:
             return self._manage_skills(action, **kwargs)
 
-        if skill_id in self.loaded_skills:
+        if skill_id not in self.loaded_skills:
+            return f"Error: 技能 '{skill_id}' 未加载或不存在。"
+
+        # 注入配置信息
+        kwargs["config"] = self.configs.get(skill_id, {})
+        kwargs["manifest"] = self.manifests.get(skill_id, {})
+
+        try:
+            # 错误隔离：单个技能崩溃不影响主系统
             return self.loaded_skills[skill_id](action, **kwargs)
-        return f"Error: 技能 {skill_id} 未找到"
+        except Exception as e:
+            logger.error(f"Execution error in skill '{skill_id}': {e}", exc_info=True)
+            return f"⚠️ 技能执行出错: {str(e)}"
 
     def _manage_skills(self, action, **kwargs):
         """处理技能管理相关的内部逻辑 (install, uninstall, list, update)"""

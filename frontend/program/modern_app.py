@@ -17,6 +17,7 @@ from package.file_system.guard import FileSystemGuard
 from package.file_system.migration_engine import SmartMigrationEngine
 from package.device.hardware_manager import HardwareManager
 from package.core_utils.task_master.progress_tracker import ProgressTracker
+import keyboard
 from butler.core.event_bus import event_bus
 from butler.core.notifier_system import notifier
 
@@ -91,6 +92,10 @@ class ModernBridge:
                     self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
                 elif tag == 'translation':
                     self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
+                elif tag == 'focus_start':
+                    self.window.evaluate_js(f"window.onFocusStart({json.dumps(message)})")
+                elif tag == 'focus_stop':
+                    self.window.evaluate_js(f"window.onFocusStop()")
                 elif tag != 'ai_response_start':
                     self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
 
@@ -278,12 +283,24 @@ class ModernBridge:
             ]
         }
 
+    # --- Flash Input Support ---
+    def submit_flash_command(self, command):
+        """Called from flash_input.html."""
+        self.jarvis.ui_print(f"⚡ [Flash] {command}", tag='system_message')
+        threading.Thread(target=self._run_command, args=(command,), daemon=True).start()
+        self.hide_flash()
+
+    def hide_flash(self):
+        """Hides the flash input window."""
+        event_bus.emit("flash_hide")
+
 def main():
     # Initialize Jarvis in headless mode (no Tkinter root)
     jarvis = Jarvis(root=None)
 
     # Load HTML via AssetLoader
     html_path = asset_loader.resolve_path("ui://index.html")
+    flash_path = asset_loader.resolve_path("ui://flash_input.html")
 
     window = webview.create_window(
         'Butler - Modern UI',
@@ -293,8 +310,22 @@ def main():
         background_color='#1e1e1e'
     )
 
+    # Create Flash Input Window (Initially hidden)
+    flash_window = webview.create_window(
+        'Butler - Flash Input',
+        url=flash_path,
+        width=700,
+        height=150,
+        frameless=True,
+        on_top=True,
+        hidden=True,
+        transparent=True,
+        background_color='#00000000' # Fully transparent
+    )
+
     bridge = ModernBridge(jarvis, window)
     window.expose(bridge)
+    flash_window.expose(bridge)
 
     # Override voice service callback to update UI
     original_voice_callback = jarvis._on_voice_status_change
@@ -317,6 +348,26 @@ def main():
 
     event_bus.subscribe("nostalgia_mode_activated", on_nostalgia)
     event_bus.subscribe("theme_change", on_theme_change)
+
+    # Flash Input Controls
+    def toggle_flash():
+        if flash_window.hidden:
+            # Center on screen
+            flash_window.show()
+            flash_window.evaluate_js("document.getElementById('main-input').focus()")
+        else:
+            flash_window.hide()
+
+    def hide_flash():
+        flash_window.hide()
+
+    event_bus.on("flash_hide", hide_flash)
+
+    # Global Hotkey (Alt + Space)
+    try:
+        keyboard.add_hotkey('alt+space', toggle_flash)
+    except Exception as e:
+        print(f"Failed to register hotkey: {e}")
 
     # Apply initial theme from config
     initial_theme = jarvis.config.get("display", {}).get("theme", "google")

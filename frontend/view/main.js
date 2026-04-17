@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
         workspace: document.getElementById('nav-workspace'),
         media: document.getElementById('nav-media'),
         files: document.getElementById('nav-files'),
+        memos: document.getElementById('nav-memos'),
         settings: document.getElementById('nav-settings')
     };
 
@@ -15,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
         workspace: document.getElementById('view-workspace'),
         media: document.getElementById('view-media'),
         files: document.getElementById('view-files'),
+        memos: document.getElementById('view-memos'),
         settings: document.getElementById('view-settings')
     };
 
@@ -72,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             workspace: '全屏工作区',
             media: '多媒体中心',
             files: '文件管理',
+            memos: '备忘录',
             settings: '系统设置'
         };
         viewTitle.innerText = titles[viewName];
@@ -561,6 +564,49 @@ document.addEventListener('DOMContentLoaded', () => {
             renderFullscreenNotification(event);
         } else {
             renderToastNotification(event);
+        }
+    };
+
+    window.onFocusStart = (msg) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'fullscreen-notif-overlay focus-overlay';
+        overlay.id = 'focus-mode-overlay';
+        overlay.innerHTML = `
+            <div class="fullscreen-notif-card" style="background: rgba(10, 10, 10, 0.9); border: 1px solid #007AFF;">
+                <i class="fas fa-hourglass-half" style="font-size: 48px; color: #007AFF; margin-bottom: 20px;"></i>
+                <h2>沉浸学习模式已开启</h2>
+                <p style="font-size: 18px; margin-bottom: 30px;">${msg}</p>
+                <div class="focus-timer" style="font-size: 32px; font-weight: bold; margin-bottom: 30px;" id="focus-countdown">--:--</div>
+                <button class="apple-btn-primary" style="background: rgba(255, 59, 48, 0.2); color: #ff3b30;" onclick="window.pywebview.api.handle_command('/focus-stop')">结束专注</button>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        // Start a local UI timer for display
+        let seconds = 25 * 60; // Default or extract from msg
+        if (msg.includes('started')) {
+            const match = msg.match(/(\d+)m/);
+            if (match) seconds = parseInt(match[1]) * 60;
+        }
+
+        const updateTimer = () => {
+            if (!document.getElementById('focus-mode-overlay')) return;
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            document.getElementById('focus-countdown').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+            if (seconds > 0) {
+                seconds--;
+                setTimeout(updateTimer, 1000);
+            }
+        };
+        updateTimer();
+    };
+
+    window.onFocusStop = () => {
+        const el = document.getElementById('focus-mode-overlay');
+        if (el) {
+            el.classList.add('closing');
+            setTimeout(() => el.remove(), 400);
         }
     };
 
