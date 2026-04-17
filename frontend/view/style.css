@@ -1153,15 +1153,125 @@ input:checked + .slider:before {
     display: flex;
     flex-direction: column;
     gap: 20px;
-    max-width: 900px;
+    max-width: 100%;
     margin: 0 auto;
     width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
 }
 
 .memos-header {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: 16px;
+}
+
+.view-mode-toggle {
+    display: flex;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 2px;
+}
+
+.view-mode-toggle .icon-btn-small {
+    background: transparent;
+    box-shadow: none;
+}
+
+.view-mode-toggle .icon-btn-small.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--accent-color);
+}
+
+.memos-heatmap-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 20px;
+}
+
+.heatmap-header {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+
+.heatmap-body {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.heatmap-box {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.05);
+    transition: transform 0.2s;
+}
+
+.heatmap-box:hover {
+    transform: scale(1.2);
+    z-index: 10;
+}
+
+#memos-spatial-wrapper {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+}
+
+#memos-spatial-container {
+    width: 100%;
+    height: 100%;
+}
+
+/* Side Panel (Slide-over) */
+#memo-detail-sidebar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 350px;
+    height: 100%;
+    background: rgba(30, 30, 30, 0.85);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 100;
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+.side-panel-hidden {
+    transform: translateX(100%);
+}
+
+.side-panel-header {
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.side-panel-body {
+    padding: 20px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.sidebar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .memos-search-bar {

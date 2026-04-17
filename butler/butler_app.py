@@ -37,6 +37,9 @@ from butler.core.battery_manager import battery_manager
 from butler.core.cron_scheduler import cron_scheduler
 from butler.core.dream_engine import DreamEngine
 from butler.core.proactive_agent import ProactiveAgent
+from butler.core.focus_mode import FocusMode
+from butler.core.sensing_api import init_sensing_api
+from butler.core.display_protocol import display_server
 from butler.usb_screen import USBScreen
 from butler.resource_manager import ResourceManager, PerformanceMode
 from plugin.memory_engine import (
@@ -82,6 +85,9 @@ class Jarvis:
         # Initialize KAIROS Suite
         self.dream_engine = DreamEngine(self)
         self.proactive_agent = ProactiveAgent(self)
+        self.focus_mode = FocusMode(self)
+        self.sensing_api = init_sensing_api(self)
+        display_server.start()
         self._setup_kairos_tasks()
         
         # Apply voice config
@@ -194,8 +200,12 @@ class Jarvis:
             tag = 'ai_response'
         if self.display_mode in ('host', 'both'):
             event_bus.emit("ui_output", message, tag, response_id)
-        if self.display_mode in ('usb', 'both') and self.usb_screen:
-            self.usb_screen.display(message, clear_screen=True)
+
+        # Sync to hardware displays
+        if self.display_mode in ('usb', 'both'):
+            if self.usb_screen:
+                self.usb_screen.display(message, clear_screen=True)
+            display_server.push_update({"type": "text", "content": message, "tag": tag})
 
     def speak(self, text):
         """朗读给定的文本并在 UI 中打印。同时利用统一引擎记录至事实数据库和日志系统。"""
@@ -315,6 +325,14 @@ class Jarvis:
         elif cmd == "/dream":
             self.ui_print("正在手动启动做梦引擎...", tag='system_message')
             threading.Thread(target=self.dream_engine.dream, daemon=True).start()
+        elif cmd.startswith("/focus"):
+            parts = cmd.split()
+            duration = int(parts[1]) if len(parts) > 1 else 25
+            msg = self.focus_mode.start(duration)
+            self.ui_print(msg, tag='system_message')
+        elif cmd == "/focus-stop":
+            msg = self.focus_mode.stop()
+            self.ui_print(msg, tag='system_message')
         elif cmd == "/approve" and self.pending_dev_code:
             code = self.pending_dev_code
             self.pending_dev_code = None
