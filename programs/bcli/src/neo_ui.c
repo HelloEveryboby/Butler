@@ -34,3 +34,14 @@ void neo_print_progress(int percent) {
 void neo_print_response(const char* msg) {
     printf("\n%s┃%s %s\n", CLR_CYN, CLR_RST, msg);
 }
+
+void neo_print_system_info(const char* brain_status, const char* stm32_status) {
+    printf("\n%s[ SYSTEM STATUS ]%s\n", CLR_DIM, CLR_RST);
+    printf("  Brain: %s%s%s\n", CLR_GRN, brain_status, CLR_RST);
+    printf("  STM32: %s%s%s\n", CLR_GRN, stm32_status, CLR_RST);
+    printf("────────────────────────────────\n");
+}
+
+void neo_print_alert(const char* title, const char* msg) {
+    printf("\n%s%s[! %s ] %s%s%s\n", CLR_BG_MAG, CLR_BLD, title, CLR_RST, CLR_MAG, msg, CLR_RST);
+}

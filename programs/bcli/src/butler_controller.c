@@ -14,6 +14,8 @@ extern int brain_call(const char* command, char* out_buffer, size_t out_size);
 extern void neo_print_banner();
 extern void neo_print_status(const char* task, const char* stage);
 extern void neo_print_response(const char* msg);
+extern void neo_print_system_info(const char* b, const char* s);
+extern void neo_print_alert(const char* t, const char* m);
 extern int serial_init(const char* device, int baudrate);
 extern int serial_send(const char* data);
 extern int serial_receive(char* buffer, size_t size);
@@ -38,6 +40,7 @@ void handle_serial_event(const char* event_json) {
         }
 
         if (current_auto_mode == MODE_WAITING_SOURCE) {
+            neo_print_alert("DETECTED", "Source card found! Starting full dump...");
             neo_print_status("AUTO", "Source detected, reading...");
             serial_send("{\"jsonrpc\":\"2.0\",\"method\":\"nfc_clone\",\"id\":10}\n");
             strncpy(last_uid, current_uid, sizeof(last_uid));
@@ -45,6 +48,7 @@ void handle_serial_event(const char* event_json) {
             neo_print_response("源卡已存入 Slot 0。请移开源卡，放入【目标卡】。");
         } else if (current_auto_mode == MODE_WAITING_TARGET) {
             if (strcmp(current_uid, last_uid) != 0) {
+                neo_print_alert("DETECTED", "Target card found! Initiating hardware burn...");
                 neo_print_status("AUTO", "Target detected, burning...");
                 serial_send("{\"jsonrpc\":\"2.0\",\"method\":\"nfc_burn\",\"params\":{\"slot\":0},\"id\":11}\n");
                 current_auto_mode = MODE_IDLE;
@@ -111,8 +115,10 @@ int main(int argc, char** argv) {
     const char* dev = (argc > 1) ? argv[1] : "/dev/ttyUSB0";
 
     neo_print_banner();
+    neo_print_system_info("Active (Python 3.10)", "Connected (UART)");
+
     if (serial_init(dev, 115200) == 0) {
-        printf("%s[SYSTEM] Connected to STM32 on %s%s\n", CLR_DIM, dev, CLR_RST);
+        printf("%s[SYSTEM] Serial stream established on %s%s\n", CLR_DIM, dev, CLR_RST);
     } else {
         printf("%s[SYSTEM] Running in Offline mode (Serial failed)%s\n", CLR_RED, CLR_RST);
     }
