@@ -150,7 +150,7 @@ def run():
     print("      Butler 路径优化算法 (Algorithm1 - 完整版)")
     print("="*50)
 
-    config_file = "module_execution_config.txt"
+    config_file = "data/module_execution_config.txt"
     if not os.path.exists(config_file):
         print(f"正在创建演示配置: {config_file}")
         create_demo_config(config_file)
