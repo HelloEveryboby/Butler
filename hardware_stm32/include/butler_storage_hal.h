@@ -24,7 +24,8 @@ typedef struct {
 
 // 存储管理器 API
 bool butler_storage_register(butler_storage_device_t* device);
-bool butler_storage_save_nfc_dump(const uint8_t* data, uint32_t len);
-bool butler_storage_load_nfc_dump(uint8_t* buf, uint32_t len);
+bool butler_storage_save_to_slot(uint8_t slot, const uint8_t* data, uint32_t len);
+bool butler_storage_load_from_slot(uint8_t slot, uint8_t* buf, uint32_t len);
+bool butler_storage_get_slot_info(uint8_t slot, char* out_info, size_t max_len);
 
 #endif
