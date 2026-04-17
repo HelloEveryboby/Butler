@@ -43,5 +43,6 @@ void ui_print_shell_output(const char* output);
 void ui_debug(const char* msg);
 void ui_print_file_op(const char* op, const char* path);
 void ui_print_voice_status(int is_listening);
+void ui_print_memo_card(const char* content, const char* tags, const char* time);
 
 #endif

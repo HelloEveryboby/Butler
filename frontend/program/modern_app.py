@@ -239,6 +239,16 @@ class ModernBridge:
         except Exception as e:
             return f"Error fetching skills: {str(e)}"
 
+    def call_skill(self, skill_id, action, params=None):
+        """Generic skill caller for frontend."""
+        if params is None:
+            params = {}
+        try:
+            return self.jarvis.skill_manager.execute(skill_id, action, **params)
+        except Exception as e:
+            self.logger.error(f"Skill call failed: {skill_id}.{action} - {e}")
+            return {"error": str(e)}
+
     def install_skill(self, url, name=None):
         """Installs a skill from a URL."""
         try:

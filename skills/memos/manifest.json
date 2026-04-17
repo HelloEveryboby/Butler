@@ -1,0 +1,7 @@
+{
+  "skill_id": "memos",
+  "name": "备忘录",
+  "description": "支持图片、视频、音频和 Markdown 的备忘录系统，仿 usememos。",
+  "actions": ["add", "list", "search", "delete"],
+  "keywords": ["备忘录", "memo", "记录", "便签"]
+}
