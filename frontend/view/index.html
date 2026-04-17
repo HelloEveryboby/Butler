@@ -48,6 +48,10 @@
                     <i class="fas fa-folder-open"></i>
                     <span>文件</span>
                 </div>
+                <div class="nav-item" id="nav-memos" title="备忘录">
+                    <i class="fas fa-sticky-note"></i>
+                    <span>备忘录</span>
+                </div>
             </nav>
 
             <div class="sidebar-footer">
@@ -206,6 +210,45 @@
                 </div>
             </section>
 
+            <section id="view-memos" class="view-container">
+                <div class="memos-layout">
+                    <div class="memos-header">
+                        <div class="memos-search-bar">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="memo-search-input" placeholder="搜索备忘录...">
+                        </div>
+                        <button class="apple-btn-primary" id="new-memo-btn"><i class="fas fa-plus"></i> 新建备忘录</button>
+                    </div>
+
+                    <div id="memo-editor-container" class="memo-editor-card hidden">
+                        <div class="editor-header">
+                            <input type="text" id="memo-tags-input" placeholder="添加标签 (用空格分隔 #标签)">
+                            <div class="editor-actions">
+                                <label for="memo-file-upload" class="icon-btn-small" title="上传附件">
+                                    <i class="fas fa-paperclip"></i>
+                                </label>
+                                <input type="file" id="memo-file-upload" multiple style="display: none;">
+                                <button class="icon-btn-small" id="cancel-memo-btn" title="取消"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
+                        <div class="editor-body">
+                            <textarea id="memo-content-input" placeholder="输入备忘录内容... (支持 Markdown)"></textarea>
+                            <div id="memo-drop-zone" class="drop-zone">
+                                <span>拖拽文件到此处上传</span>
+                            </div>
+                            <div id="memo-attachment-preview" class="attachment-preview-list"></div>
+                        </div>
+                        <div class="editor-footer">
+                            <button class="apple-btn-primary" id="save-memo-btn">保存</button>
+                        </div>
+                    </div>
+
+                    <div id="memos-timeline" class="memos-timeline">
+                        <!-- Memos will be populated here -->
+                    </div>
+                </div>
+            </section>
+
             <section id="view-settings" class="view-container">
                 <div class="settings-wrapper">
                     <aside class="settings-sidebar">
@@ -320,6 +363,9 @@
 
     <div id="notifier-root" class="notifier-container"></div>
 
+    <!-- Markdown Parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="main.js"></script>
+    <script src="memos.js"></script>
 </body>
 </html>
