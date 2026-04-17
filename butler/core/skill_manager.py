@@ -6,6 +6,7 @@ import logging
 import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Callable
+from butler.core.task_manager import task_manager
 
 logger = logging.getLogger("SkillManager")
 
@@ -105,7 +106,7 @@ class SkillManager:
 
     def execute(self, skill_id: str, action: str, **kwargs):
         """
-        统一执行接口，包含错误隔离机制。
+        统一执行接口，支持同步与异步模式。
         """
         # 系统内部管理动作
         if skill_id in ["manage_skills", "skill_manager"]:
@@ -118,12 +119,38 @@ class SkillManager:
         kwargs["config"] = self.configs.get(skill_id, {})
         kwargs["manifest"] = self.manifests.get(skill_id, {})
 
-        try:
-            # 错误隔离：单个技能崩溃不影响主系统
-            return self.loaded_skills[skill_id](action, **kwargs)
-        except Exception as e:
-            logger.error(f"Execution error in skill '{skill_id}': {e}", exc_info=True)
-            return f"⚠️ 技能执行出错: {str(e)}"
+        jarvis_app = kwargs.get("jarvis_app")
+
+        def skill_wrapper(action, **kwargs):
+            try:
+                result = self.loaded_skills[skill_id](action, **kwargs)
+                # If we have jarvis_app, we can use it to speak the result in async mode
+                if jarvis_app and kwargs.get("_async"):
+                    jarvis_app.speak(str(result))
+                return result
+            except Exception as e:
+                logger.error(f"Execution error in skill '{skill_id}': {e}", exc_info=True)
+                msg = f"⚠️ 技能执行出错: {str(e)}"
+                if jarvis_app and kwargs.get("_async"):
+                    jarvis_app.speak(msg)
+                return msg
+
+        # Decide if we should run async (e.g., if explicitly requested or for long running tasks)
+        run_async = kwargs.get("async_mode", False)
+
+        if run_async:
+            logger.info(f"Scheduling skill execution (ASYNC): {skill_id} -> {action}")
+            kwargs["_async"] = True
+            task_id = task_manager.submit(
+                skill_wrapper,
+                action,
+                name=f"Skill:{skill_id}:{action}",
+                **kwargs
+            )
+            return f"任务已提交 (ID: {task_id})，正在后台处理..."
+        else:
+            logger.info(f"Executing skill (SYNC): {skill_id} -> {action}")
+            return skill_wrapper(action, **kwargs)
 
     def _manage_skills(self, action, **kwargs):
         """处理技能管理相关的内部逻辑 (install, uninstall, list, update)"""
