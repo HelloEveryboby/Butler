@@ -105,9 +105,36 @@ void handle_nfc_read_sector(int id, int sector, char* out_buf, size_t out_len) {
     bhl_format_error(id, -32002, "Read failed", out_buf, out_len);
 }
 
+#include "butler_storage_hal.h"
+
 void handle_nfc_clone(int id, char* out_buf, size_t out_len) {
     // Stage 1: Reading and buffering source card (Mifare 1K)
-    // In a real STM32 app, this would be a state machine over multiple BHL calls
-    // For this source delivery, we provide the logic flow:
-    bhl_format_response(id, "{\"status\":\"ready\",\"msg\":\"Send 'nfc_dump' then 'nfc_burn'\"}", out_buf, out_len);
+    if (nfc_scan_tag()) {
+        uint8_t full_card_data[1024];
+        bool success = true;
+        uint8_t key_default[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+        for (int b = 0; b < 64; b++) {
+            if (mifare_auth(b, key_default)) {
+                if (!mifare_read_block(b, &full_card_data[b * 16])) {
+                    success = false; break;
+                }
+            } else {
+                success = false; break;
+            }
+        }
+
+        if (success) {
+            // Persist to External Storage via HAL
+            if (butler_storage_save_nfc_dump(full_card_data, 1024)) {
+                bhl_format_response(id, "{\"status\":\"cloned_to_storage\",\"uid\":\"...\"}", out_buf, out_len);
+            } else {
+                bhl_format_error(id, -32003, "Storage write failed", out_buf, out_len);
+            }
+        } else {
+            bhl_format_error(id, -32002, "Card read incomplete", out_buf, out_len);
+        }
+    } else {
+        bhl_format_error(id, -32001, "Source tag not found", out_buf, out_len);
+    }
 }
