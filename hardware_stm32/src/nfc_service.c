@@ -43,6 +43,27 @@ bool nfc_scan_tag(void) {
     return false;
 }
 
+void nfc_auto_poll_task(void) {
+    static uint8_t last_uid[10] = {0};
+    static uint8_t last_len = 0;
+    static uint32_t last_detection_time = 0;
+
+    if (nfc_scan_tag()) {
+        // 如果是新卡，或者已经过去了一段时间（防止抖动）
+        if (nfc_ctx.uid_len != last_len || memcmp(nfc_ctx.uid, last_uid, nfc_ctx.uid_len) != 0) {
+            char hex_uid[20] = {0};
+            for(int i=0; i<nfc_ctx.uid_len; i++) sprintf(hex_uid + strlen(hex_uid), "%02X", nfc_ctx.uid[i]);
+            printf("{\"jsonrpc\":\"2.0\",\"method\":\"tag_detected\",\"params\":{\"uid\":\"%s\",\"type\":\"ISO14443A\"}}\n", hex_uid);
+
+            memcpy(last_uid, nfc_ctx.uid, nfc_ctx.uid_len);
+            last_len = nfc_ctx.uid_len;
+        }
+    } else {
+        // 卡片离开，清空记录以便下次能再次识别同一张卡
+        last_len = 0;
+    }
+}
+
 /**
  * Mifare Classic 1K Read/Write Logic
  */
@@ -105,9 +126,60 @@ void handle_nfc_read_sector(int id, int sector, char* out_buf, size_t out_len) {
     bhl_format_error(id, -32002, "Read failed", out_buf, out_len);
 }
 
+#include "butler_storage_hal.h"
+
 void handle_nfc_clone(int id, char* out_buf, size_t out_len) {
     // Stage 1: Reading and buffering source card (Mifare 1K)
-    // In a real STM32 app, this would be a state machine over multiple BHL calls
-    // For this source delivery, we provide the logic flow:
-    bhl_format_response(id, "{\"status\":\"ready\",\"msg\":\"Send 'nfc_dump' then 'nfc_burn'\"}", out_buf, out_len);
+    if (nfc_scan_tag()) {
+        uint8_t full_card_data[1024];
+        bool success = true;
+        uint8_t key_default[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+        for (int b = 0; b < 64; b++) {
+            if (mifare_auth(b, key_default)) {
+                if (!mifare_read_block(b, &full_card_data[b * 16])) {
+                    success = false; break;
+                }
+            } else {
+                success = false; break;
+            }
+        }
+
+        if (success) {
+            // Persist to External Storage via HAL (Default to Slot 0)
+            if (butler_storage_save_to_slot(0, full_card_data, 1024)) {
+                bhl_format_response(id, "{\"status\":\"cloned_to_storage\",\"slot\":0}", out_buf, out_len);
+            } else {
+                bhl_format_error(id, -32003, "Storage write failed", out_buf, out_len);
+            }
+        } else {
+            bhl_format_error(id, -32002, "Card read incomplete", out_buf, out_len);
+        }
+    } else {
+        bhl_format_error(id, -32001, "Source tag not found", out_buf, out_len);
+    }
+}
+
+void handle_nfc_burn(int id, int slot, char* out_buf, size_t out_len) {
+    uint8_t full_card_data[1024];
+    if (butler_storage_load_from_slot(slot, full_card_data, 1024)) {
+        if (nfc_scan_tag()) {
+            bool success = true;
+            for (int b = 0; b < 64; b++) {
+                // 跳过厂商块或其他受限块的逻辑应在此处处理
+                if (!mifare_write_block(b, &full_card_data[b * 16])) {
+                    success = false; break;
+                }
+            }
+            if (success) {
+                bhl_format_response(id, "{\"status\":\"success\",\"msg\":\"Burned from slot\"}", out_buf, out_len);
+            } else {
+                bhl_format_error(id, -32004, "Write failed", out_buf, out_len);
+            }
+        } else {
+            bhl_format_error(id, -32001, "Target tag not found", out_buf, out_len);
+        }
+    } else {
+        bhl_format_error(id, -32005, "Slot empty", out_buf, out_len);
+    }
 }
