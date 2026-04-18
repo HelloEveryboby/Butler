@@ -649,6 +649,9 @@ class Jarvis:
 
         max_turns = 10
         for turn in range(max_turns):
+            # 0. Micro-compression of results
+            messages = self.nlu_service.micro_compact(messages)
+
             # 1. Check Inbox
             inbox = message_bus.read_inbox("lead")
             if inbox:

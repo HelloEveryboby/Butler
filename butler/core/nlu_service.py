@@ -165,12 +165,35 @@ class NLUService:
         """极简 Token 估算 (字符数/3)。"""
         return sum(len(m.get('content', '')) for m in messages) // 3
 
+    def micro_compact(self, messages: List[Dict[str, str]], keep_recent: int = 3) -> List[Dict[str, str]]:
+        """微压缩：将较旧的工具执行结果替换为占位符。"""
+        tool_indices = []
+        for i, msg in enumerate(messages):
+            if "I used tool" in msg.get("content", ""):
+                tool_indices.append(i)
+
+        if len(tool_indices) <= keep_recent:
+            return messages
+
+        # 仅保留最近 keep_recent 个工具结果的内容
+        to_clear = tool_indices[:-keep_recent]
+        for idx in to_clear:
+            content = messages[idx]["content"]
+            # 提取工具名
+            import re
+            match = re.search(r"I used tool '(.*?)'", content)
+            tool_name = match.group(1) if match else "unknown"
+            messages[idx]["content"] = f"I used tool '{tool_name}' [Output truncated for brevity]"
+
+        return messages
+
     def compress_history(self, history: List[Dict[str, str]]) -> List[Dict[str, str]]:
         """使用 LLM 压缩对话历史。"""
         if len(history) < 10:
             return history
 
         logger.info("Compressing conversation history...")
+        # 选最后 15 条进行总结
         context_text = json.dumps(history[-15:], ensure_ascii=False)
         prompt = f"请简要总结以下对话的上下文以便维持后续对话的连续性，保留关键的任务状态、用户偏好和重要事实：\n\n{context_text}"
 
