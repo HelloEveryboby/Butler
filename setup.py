@@ -33,6 +33,8 @@ setup(
         "nltk",
         "pycryptodome",
         "schedule",
+        "selenium",
+        "webdriver-manager",
         "twisted>=24.7.0rc1",
         "baidu-aip",
         "numpy",
