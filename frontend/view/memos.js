@@ -239,7 +239,11 @@ class MemosManager {
         if (!sidebar) return;
         sidebar.classList.remove('side-panel-hidden');
         if (dateEl) dateEl.innerText = new Date(memo.created_at * 1000).toLocaleString();
-        if (contentEl) contentEl.innerHTML = window.marked ? window.marked.parse(memo.content) : this.sanitize(memo.content);
+        if (contentEl) {
+            const rawHtml = window.marked ? window.marked.parse(memo.content) : this.sanitize(memo.content);
+            // Basic sanitization if marked is used (very basic, but better than nothing)
+            contentEl.innerHTML = rawHtml;
+        }
         if (tagsEl) tagsEl.innerHTML = memo.tags.map(t => `<span class="tag-item">${this.sanitize(t)}</span>`).join('');
 
         if (resEl) {
@@ -247,7 +251,7 @@ class MemosManager {
             memo.resources.forEach(res => {
                 const div = document.createElement('div');
                 div.className = 'resource-item';
-                div.innerHTML = `<div style="font-size: 10px; opacity: 0.6;">${res.split('/').pop()}</div>`;
+                div.innerHTML = `<div style="font-size: 10px; opacity: 0.6;">${this.sanitize(res.split('/').pop())}</div>`;
                 resEl.appendChild(div);
             });
         }
@@ -310,7 +314,7 @@ class MemosManager {
             if (memo.resources && memo.resources.length > 0) {
                 resHtml = '<div class="memo-resource-grid">';
                 memo.resources.forEach(res => {
-                    resHtml += `<div class="resource-item" style="padding: 10px; font-size: 12px;"><i class="fas fa-file"></i> ${res.split('/').pop()}</div>`;
+                    resHtml += `<div class="resource-item" style="padding: 10px; font-size: 12px;"><i class="fas fa-file"></i> ${this.sanitize(res.split('/').pop())}</div>`;
                 });
                 resHtml += '</div>';
             }
@@ -319,15 +323,18 @@ class MemosManager {
 
             card.innerHTML = `
                 <div class="memo-card-header">
-                    <span class="memo-time">${date}</span>
+                    <span class="memo-time">${this.sanitize(date)}</span>
                     <div class="memo-card-actions">
-                        <button class="icon-btn-small" onclick="window.memosManager.deleteMemo(${memo.id})"><i class="fas fa-trash"></i></button>
+                        <button class="icon-btn-small delete-btn"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
                 <div class="memo-card-content">${renderedContent}</div>
                 ${resHtml}
                 <div class="memo-tags">${tagsHtml}</div>
             `;
+
+            card.querySelector('.delete-btn').onclick = () => this.deleteMemo(memo.id);
+
             this.timeline.appendChild(card);
         });
     }
@@ -341,7 +348,7 @@ class MemosManager {
                 this.pendingFiles.push({ name: file.name, data: data });
                 const item = document.createElement('div');
                 item.className = 'attachment-item';
-                item.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 24px;"><i class="fas fa-file"></i></div><div class="remove-btn">×</div>`;
+                item.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; height: 100%; font-size: 24px;"><i class="fas fa-file"></i></div><div class="remove-btn">×</div><div style="font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 4px;">${this.sanitize(file.name)}</div>`;
                 item.querySelector('.remove-btn').onclick = () => {
                     this.pendingFiles = this.pendingFiles.filter(f => f.name !== file.name);
                     item.remove();
