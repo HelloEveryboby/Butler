@@ -387,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return ['pdf', 'docx', 'xlsx', 'pptx', 'txt', 'md'].includes(ext);
     }
 
-    async function previewDocument(file) {
+    window.previewDocument = async function(file) {
         switchView('workspace');
         const placeholder = document.querySelector('.workspace-placeholder');
         const viewer = document.getElementById('document-viewer');
