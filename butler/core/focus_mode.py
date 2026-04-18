@@ -64,11 +64,13 @@ class FocusMode:
                 # ctypes.windll.user32.keybd_event(0xAD, 0, 0, 0)
                 pass
             else:
-                os.system("amixer set Master mute > /dev/null 2>&1")
+                import subprocess
+                subprocess.run(["amixer", "set", "Master", "mute"], capture_output=True)
         except: pass
 
     def _unmute_system(self):
         try:
             if sys.platform != "win32":
-                os.system("amixer set Master unmute > /dev/null 2>&1")
+                import subprocess
+                subprocess.run(["amixer", "set", "Master", "unmute"], capture_output=True)
         except: pass
