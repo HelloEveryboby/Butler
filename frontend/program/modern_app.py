@@ -176,7 +176,11 @@ class ModernBridge:
         """Reads a file and returns it as a base64 encoded string."""
         import base64
         try:
-            full_path = os.path.join(project_root, path)
+            # Path safety check
+            full_path = os.path.abspath(os.path.join(project_root, path))
+            if os.path.commonpath([full_path, os.path.abspath(project_root)]) != os.path.abspath(project_root):
+                return {"error": "Access denied: Path is outside project root."}
+
             with open(full_path, 'rb') as f:
                 data = f.read()
                 return base64.b64encode(data).decode('utf-8')
@@ -186,7 +190,11 @@ class ModernBridge:
     def list_files(self, path="."):
         """Lists files with protection status."""
         try:
-            full_path = os.path.join(project_root, path)
+            # Path safety check
+            full_path = os.path.abspath(os.path.join(project_root, path))
+            if os.path.commonpath([full_path, os.path.abspath(project_root)]) != os.path.abspath(project_root):
+                return {"error": "Access denied: Path is outside project root."}
+
             items = os.listdir(full_path)
             result = []
             for item in items:

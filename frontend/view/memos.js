@@ -15,6 +15,12 @@ class MemosManager {
         this.currentMemos = [];
         this.viewMode = 'list';
         this.init();
+        if (window.marked) {
+            window.marked.setOptions({
+                headerIds: false,
+                mangle: false
+            });
+        }
     }
 
     init() {
@@ -239,7 +245,16 @@ class MemosManager {
         if (!sidebar) return;
         sidebar.classList.remove('side-panel-hidden');
         if (dateEl) dateEl.innerText = new Date(memo.created_at * 1000).toLocaleString();
-        if (contentEl) contentEl.innerHTML = window.marked ? window.marked.parse(memo.content) : this.sanitize(memo.content);
+
+        // Handle Markdown safely
+        if (contentEl) {
+            let html = window.marked ? window.marked.parse(memo.content) : this.sanitize(memo.content);
+            if (window.DOMPurify) {
+                html = window.DOMPurify.sanitize(html);
+            }
+            contentEl.innerHTML = html;
+        }
+
         if (tagsEl) tagsEl.innerHTML = memo.tags.map(t => `<span class="tag-item">${this.sanitize(t)}</span>`).join('');
 
         if (resEl) {
@@ -247,7 +262,8 @@ class MemosManager {
             memo.resources.forEach(res => {
                 const div = document.createElement('div');
                 div.className = 'resource-item';
-                div.innerHTML = `<div style="font-size: 10px; opacity: 0.6;">${res.split('/').pop()}</div>`;
+                const filename = res.split('/').pop();
+                div.innerHTML = `<div style="font-size: 10px; opacity: 0.6;">${this.sanitize(filename)}</div>`;
                 resEl.appendChild(div);
             });
         }
@@ -304,13 +320,17 @@ class MemosManager {
             const card = document.createElement('div');
             card.className = 'memo-card';
             const date = new Date(memo.created_at * 1000).toLocaleString();
-            const renderedContent = window.marked ? window.marked.parse(memo.content) : this.sanitize(memo.content);
+            let renderedContent = window.marked ? window.marked.parse(memo.content) : this.sanitize(memo.content);
+            if (window.DOMPurify) {
+                renderedContent = window.DOMPurify.sanitize(renderedContent);
+            }
 
             let resHtml = '';
             if (memo.resources && memo.resources.length > 0) {
                 resHtml = '<div class="memo-resource-grid">';
                 memo.resources.forEach(res => {
-                    resHtml += `<div class="resource-item" style="padding: 10px; font-size: 12px;"><i class="fas fa-file"></i> ${res.split('/').pop()}</div>`;
+                    const filename = res.split('/').pop();
+                    resHtml += `<div class="resource-item" style="padding: 10px; font-size: 12px;"><i class="fas fa-file"></i> ${this.sanitize(filename)}</div>`;
                 });
                 resHtml += '</div>';
             }
@@ -319,7 +339,7 @@ class MemosManager {
 
             card.innerHTML = `
                 <div class="memo-card-header">
-                    <span class="memo-time">${date}</span>
+                    <span class="memo-time">${this.sanitize(date)}</span>
                     <div class="memo-card-actions">
                         <button class="icon-btn-small" onclick="window.memosManager.deleteMemo(${memo.id})"><i class="fas fa-trash"></i></button>
                     </div>

@@ -1,3 +1,14 @@
+// Global Utilities
+window.escapeHTML = (str) => {
+    if (str === null || str === undefined) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     // Navigation Elements
     const navItems = {
@@ -266,8 +277,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${data.items.map(item => `
                     <div style="font-size: 14px;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                            <span>${item.name}</span>
-                            <span>${item.used} / ${item.total}</span>
+                            <span>${window.escapeHTML(item.name)}</span>
+                            <span>${window.escapeHTML(String(item.used))} / ${window.escapeHTML(String(item.total))}</span>
                         </div>
                         <div style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px;">
                             <div style="height: 100%; width: ${(item.used / item.total * 100).toFixed(1)}%; background: #FF9500; border-radius: 2px;"></div>
@@ -312,7 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             const placeholder = document.createElement('div');
             placeholder.className = 'ai-output-line';
-            placeholder.innerHTML = `<i class="fas fa-play-circle"></i> <span>查看媒体: ${data.title || '文件'}</span>`;
+            placeholder.innerHTML = `<i class="fas fa-play-circle"></i> <span>查看媒体: ${window.escapeHTML(data.title || '文件')}</span>`;
             container.appendChild(placeholder);
         }
 
@@ -434,18 +445,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     await page.render({ canvasContext: context, viewport }).promise;
                 }
             } catch (e) {
-                content.innerHTML = `<div class="error">加载 PDF 失败: ${e.message}</div>`;
+                content.innerHTML = `<div class="error">加载 PDF 失败: ${window.escapeHTML(e.message)}</div>`;
             }
         } else if (ext === 'txt' || ext === 'md') {
             try {
                 const b64Data = await window.pywebview.api.get_file_base64(file.path);
                 const text = decodeURIComponent(escape(atob(b64Data)));
-                content.innerHTML = `<pre style="white-space: pre-wrap; padding: 20px; font-family: 'Inter', sans-serif;">${text}</pre>`;
+                const pre = document.createElement('pre');
+                pre.style.cssText = "white-space: pre-wrap; padding: 20px; font-family: 'Inter', sans-serif;";
+                pre.textContent = text;
+                content.innerHTML = '';
+                content.appendChild(pre);
             } catch (e) {
-                content.innerHTML = `<div class="error">加载文本失败: ${e.message}</div>`;
+                content.innerHTML = `<div class="error">加载文本失败: ${window.escapeHTML(e.message)}</div>`;
             }
         } else {
-            content.innerHTML = `<h3>${file.name} 预览</h3><p>目前仅支持 PDF 和 文本文件在线预览。其他格式请使用对应技能进行处理。</p>`;
+            content.innerHTML = `<h3>${window.escapeHTML(file.name)} 预览</h3><p>目前仅支持 PDF 和 文本文件在线预览。其他格式请使用对应技能进行处理。</p>`;
         }
     }
 
@@ -619,7 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="fullscreen-notif-card" style="background: rgba(10, 10, 10, 0.9); border: 1px solid #007AFF;">
                 <i class="fas fa-hourglass-half" style="font-size: 48px; color: #007AFF; margin-bottom: 20px;"></i>
                 <h2>沉浸学习模式已开启</h2>
-                <p style="font-size: 18px; margin-bottom: 30px;">${msg}</p>
+                <p style="font-size: 18px; margin-bottom: 30px;">${window.escapeHTML(msg)}</p>
                 <div class="focus-timer" style="font-size: 32px; font-weight: bold; margin-bottom: 30px;" id="focus-countdown">--:--</div>
                 <button class="apple-btn-primary" style="background: rgba(255, 59, 48, 0.2); color: #ff3b30;" onclick="window.pywebview.api.handle_command('/focus-stop')">结束专注</button>
             </div>
@@ -677,11 +692,11 @@ document.addEventListener('DOMContentLoaded', () => {
         toast.innerHTML = `
             <div class="breathing-glow"></div>
             <div class="notif-header">
-                <span class="notif-time">${event.timestamp.split(' ')[1]}</span>
+                <span class="notif-time">${window.escapeHTML(event.timestamp.split(' ')[1])}</span>
                 <i class="fas fa-times" style="cursor:pointer; font-size: 12px; color: var(--text-secondary);" onclick="window.onNotificationClose({id: '${event.id}'})"></i>
             </div>
-            <div class="notif-title">${event.title}</div>
-            <div class="notif-content">${event.content}</div>
+            <div class="notif-title">${window.escapeHTML(event.title)}</div>
+            <div class="notif-content">${window.escapeHTML(event.content)}</div>
         `;
 
         toast.onclick = () => {
@@ -699,9 +714,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         overlay.innerHTML = `
             <div class="fullscreen-notif-card">
-                <div class="notif-time" style="margin-bottom: 20px;">${event.timestamp}</div>
-                <h2>${event.title}</h2>
-                <p>${event.content}</p>
+                <div class="notif-time" style="margin-bottom: 20px;">${window.escapeHTML(event.timestamp)}</div>
+                <h2>${window.escapeHTML(event.title)}</h2>
+                <p>${window.escapeHTML(event.content)}</p>
                 <div style="display: flex; gap: 15px; justify-content: center;">
                     <button class="apple-btn-primary" onclick="window.onNotificationClose({id: '${event.id}'})">确认并关闭</button>
                     <button class="apple-btn-primary" style="background: rgba(255,255,255,0.1); color: var(--text-primary);">稍后处理</button>
@@ -752,14 +767,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     item.innerHTML = `
                         <div class="skill-ui-info">
-                            <div class="skill-ui-name">${name}</div>
-                            <div class="skill-ui-desc">${desc}</div>
+                            <div class="skill-ui-name">${window.escapeHTML(name)}</div>
+                            <div class="skill-ui-desc">${window.escapeHTML(desc)}</div>
                         </div>
                         <div class="skill-ui-actions">
-                            <span class="skill-status-tag">${status}</span>
+                            <span class="skill-status-tag">${window.escapeHTML(status)}</span>
                             ${['markitdown', 'xlsx_recalc', 'task_management'].includes(name) ?
                                 '' :
-                                `<button class="skill-uninstall-btn" onclick="uiUninstallSkill('${name}')"><i class="fas fa-trash"></i></button>`}
+                                `<button class="skill-uninstall-btn" onclick="uiUninstallSkill(${window.escapeHTML(JSON.stringify(name))})"><i class="fas fa-trash"></i></button>`}
                         </div>
                     `;
                     skillsListContainer.appendChild(item);
@@ -862,8 +877,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="settings-row">
                 <div style="flex: 1;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span class="row-label">${item.name}</span>
-                        <span style="font-size: 12px; color: var(--text-secondary);">${item.used} / ${item.total}</span>
+                        <span class="row-label">${window.escapeHTML(item.name)}</span>
+                        <span style="font-size: 12px; color: var(--text-secondary);">${window.escapeHTML(String(item.used))} / ${window.escapeHTML(String(item.total))}</span>
                     </div>
                     <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px;">
                         <div style="height: 100%; width: ${(item.used / item.total * 100).toFixed(1)}%; background: var(--accent-color); border-radius: 3px;"></div>

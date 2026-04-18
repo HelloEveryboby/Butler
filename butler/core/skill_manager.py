@@ -166,6 +166,10 @@ class SkillManager:
         if action == "install":
             if not url: return "错误：缺少技能下载链接 (URL)。"
 
+            # 安全检查：限制 URL 格式，防止恶意参数注入
+            if not (url.startswith("https://") or url.startswith("git@")):
+                return "错误：不安全的 URL 格式。"
+
             # 健壮地提取技能名
             parsed_url = urlparse(url.rstrip('/'))
             suggested_name = skill_name or os.path.basename(parsed_url.path).replace(".git", "")
@@ -173,14 +177,20 @@ class SkillManager:
             if not suggested_name:
                 return "错误：无法从 URL 提取有效的技能名称，请手动提供 skill_name 参数。"
 
-            target_path = os.path.join(self.skills_dir, suggested_name)
+            # 路径安全检查：防止目录穿越
+            if ".." in suggested_name or "/" in suggested_name or "\\" in suggested_name:
+                return "错误：非法的技能名称。"
+
+            target_path = os.path.abspath(os.path.join(self.skills_dir, suggested_name))
+            if os.path.commonpath([target_path, os.path.abspath(self.skills_dir)]) != os.path.abspath(self.skills_dir):
+                return "错误：非法安装路径。"
 
             if os.path.exists(target_path):
                 return f"错误：技能 '{suggested_name}' 已存在。请先卸载或更换名称。"
 
             logger.info(f"正在从 {url} 安装技能 '{suggested_name}'...")
             try:
-                # 使用 git clone 下载
+                # 使用 git clone 下载 (shell=False 为默认，参数以列表形式传递，安全)
                 clone_res = subprocess.run(["git", "clone", "--depth", "1", url, target_path], capture_output=True, text=True)
                 if clone_res.returncode != 0:
                     raise Exception(f"Git Clone 失败: {clone_res.stderr}")
@@ -208,7 +218,14 @@ class SkillManager:
 
         elif action == "uninstall":
             if not skill_name: return "错误：请提供要卸载的技能名称。"
-            target_path = os.path.join(self.skills_dir, skill_name)
+
+            # 路径安全检查
+            if ".." in skill_name or "/" in skill_name or "\\" in skill_name:
+                return "错误：非法的技能名称。"
+
+            target_path = os.path.abspath(os.path.join(self.skills_dir, skill_name))
+            if os.path.commonpath([target_path, os.path.abspath(self.skills_dir)]) != os.path.abspath(self.skills_dir):
+                return "错误：非法路径。"
 
             if not os.path.exists(target_path):
                 return f"错误：技能 '{skill_name}' 未安装。"
