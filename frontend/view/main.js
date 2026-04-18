@@ -399,10 +399,54 @@ document.addEventListener('DOMContentLoaded', () => {
         fileName.innerText = file.name;
         content.innerHTML = '<div class="loading">正在加载文档内容...</div>';
 
-        // Mock document preview logic
-        setTimeout(() => {
-            content.innerHTML = `<h3>${file.name} 预览</h3><p>由于沙盒环境限制，此处显示模拟内容。实际环境中将调用后端转换接口显示 PDF 或 HTML 渲染内容。</p>`;
-        }, 800);
+        const ext = file.name.split('.').pop().toLowerCase();
+
+        if (ext === 'pdf') {
+            try {
+                const b64Data = await window.pywebview.api.get_file_base64(file.path);
+                const binaryData = atob(b64Data);
+                const uint8Array = new Uint8Array(binaryData.length);
+                for (let i = 0; i < binaryData.length; i++) {
+                    uint8Array[i] = binaryData.charCodeAt(i);
+                }
+
+                content.innerHTML = '<div id="pdf-container" style="display: flex; flex-direction: column; gap: 20px; align-items: center; padding: 20px;"></div>';
+                const container = document.getElementById('pdf-container');
+                const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+                const pdf = await loadingTask.promise;
+
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const scale = 1.5;
+                    const viewport = page.getViewport({ scale });
+
+                    const canvas = document.createElement('canvas');
+                    canvas.style.width = '100%';
+                    canvas.style.maxWidth = '800px';
+                    canvas.style.borderRadius = '4px';
+                    canvas.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                    container.appendChild(canvas);
+
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    await page.render({ canvasContext: context, viewport }).promise;
+                }
+            } catch (e) {
+                content.innerHTML = `<div class="error">加载 PDF 失败: ${e.message}</div>`;
+            }
+        } else if (ext === 'txt' || ext === 'md') {
+            try {
+                const b64Data = await window.pywebview.api.get_file_base64(file.path);
+                const text = decodeURIComponent(escape(atob(b64Data)));
+                content.innerHTML = `<pre style="white-space: pre-wrap; padding: 20px; font-family: 'Inter', sans-serif;">${text}</pre>`;
+            } catch (e) {
+                content.innerHTML = `<div class="error">加载文本失败: ${e.message}</div>`;
+            }
+        } else {
+            content.innerHTML = `<h3>${file.name} 预览</h3><p>目前仅支持 PDF 和 文本文件在线预览。其他格式请使用对应技能进行处理。</p>`;
+        }
     }
 
     document.getElementById('viewer-close').onclick = () => {

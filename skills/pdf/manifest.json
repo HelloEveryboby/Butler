@@ -1,0 +1,8 @@
+{
+  "name": "pdf",
+  "skill_id": "pdf",
+  "version": "1.0.0",
+  "description": "Advanced PDF processing skill for extracting text, tables, merging, splitting, and creating PDFs.",
+  "actions": ["extract_text", "extract_tables", "merge", "split", "create", "metadata", "rotate"],
+  "keywords": ["pdf", "extract", "merge", "split", "create", "ocr"]
+}

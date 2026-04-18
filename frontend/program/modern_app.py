@@ -172,6 +172,17 @@ class ModernBridge:
         return save_path
 
     # --- New APIs for File Management ---
+    def get_file_base64(self, path):
+        """Reads a file and returns it as a base64 encoded string."""
+        import base64
+        try:
+            full_path = os.path.join(project_root, path)
+            with open(full_path, 'rb') as f:
+                data = f.read()
+                return base64.b64encode(data).decode('utf-8')
+        except Exception as e:
+            return {"error": str(e)}
+
     def list_files(self, path="."):
         """Lists files with protection status."""
         try:
