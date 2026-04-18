@@ -1,3 +1,10 @@
+function escapeHTML(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // Navigation Elements
     const navItems = {
@@ -241,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const header = document.createElement('div');
         header.className = 'code-header';
-        header.innerHTML = `<span>${data.language.toUpperCase()}</span><i class="fas fa-copy" style="cursor:pointer"></i>`;
+        header.innerHTML = `<span>${escapeHTML(data.language.toUpperCase())}</span><i class="fas fa-copy" style="cursor:pointer"></i>`;
 
         const content = document.createElement('div');
         content.className = 'code-content';
@@ -266,8 +273,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${data.items.map(item => `
                     <div style="font-size: 14px;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                            <span>${item.name}</span>
-                            <span>${item.used} / ${item.total}</span>
+                            <span>${escapeHTML(item.name)}</span>
+                            <span>${escapeHTML(item.used)} / ${escapeHTML(item.total)}</span>
                         </div>
                         <div style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px;">
                             <div style="height: 100%; width: ${(item.used / item.total * 100).toFixed(1)}%; background: #FF9500; border-radius: 2px;"></div>
@@ -312,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             const placeholder = document.createElement('div');
             placeholder.className = 'ai-output-line';
-            placeholder.innerHTML = `<i class="fas fa-play-circle"></i> <span>查看媒体: ${data.title || '文件'}</span>`;
+            placeholder.innerHTML = `<i class="fas fa-play-circle"></i> <span>查看媒体: ${escapeHTML(data.title || '文件')}</span>`;
             container.appendChild(placeholder);
         }
 
@@ -434,18 +441,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     await page.render({ canvasContext: context, viewport }).promise;
                 }
             } catch (e) {
-                content.innerHTML = `<div class="error">加载 PDF 失败: ${e.message}</div>`;
+                content.innerHTML = `<div class="error">加载 PDF 失败: ${escapeHTML(e.message)}</div>`;
             }
         } else if (ext === 'txt' || ext === 'md') {
             try {
                 const b64Data = await window.pywebview.api.get_file_base64(file.path);
                 const text = decodeURIComponent(escape(atob(b64Data)));
-                content.innerHTML = `<pre style="white-space: pre-wrap; padding: 20px; font-family: 'Inter', sans-serif;">${text}</pre>`;
+                const pre = document.createElement('pre');
+                pre.style.cssText = "white-space: pre-wrap; padding: 20px; font-family: 'Inter', sans-serif;";
+                pre.textContent = text;
+                content.innerHTML = '';
+                content.appendChild(pre);
             } catch (e) {
-                content.innerHTML = `<div class="error">加载文本失败: ${e.message}</div>`;
+                content.innerHTML = `<div class="error">加载文本失败: ${escapeHTML(e.message)}</div>`;
             }
         } else {
-            content.innerHTML = `<h3>${file.name} 预览</h3><p>目前仅支持 PDF 和 文本文件在线预览。其他格式请使用对应技能进行处理。</p>`;
+            content.innerHTML = `<h3>${escapeHTML(file.name)} 预览</h3><p>目前仅支持 PDF 和 文本文件在线预览。其他格式请使用对应技能进行处理。</p>`;
         }
     }
 
@@ -619,7 +630,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="fullscreen-notif-card" style="background: rgba(10, 10, 10, 0.9); border: 1px solid #007AFF;">
                 <i class="fas fa-hourglass-half" style="font-size: 48px; color: #007AFF; margin-bottom: 20px;"></i>
                 <h2>沉浸学习模式已开启</h2>
-                <p style="font-size: 18px; margin-bottom: 30px;">${msg}</p>
+                <p style="font-size: 18px; margin-bottom: 30px;">${escapeHTML(msg)}</p>
                 <div class="focus-timer" style="font-size: 32px; font-weight: bold; margin-bottom: 30px;" id="focus-countdown">--:--</div>
                 <button class="apple-btn-primary" style="background: rgba(255, 59, 48, 0.2); color: #ff3b30;" onclick="window.pywebview.api.handle_command('/focus-stop')">结束专注</button>
             </div>
@@ -677,12 +688,17 @@ document.addEventListener('DOMContentLoaded', () => {
         toast.innerHTML = `
             <div class="breathing-glow"></div>
             <div class="notif-header">
-                <span class="notif-time">${event.timestamp.split(' ')[1]}</span>
-                <i class="fas fa-times" style="cursor:pointer; font-size: 12px; color: var(--text-secondary);" onclick="window.onNotificationClose({id: '${event.id}'})"></i>
+                <span class="notif-time">${escapeHTML(event.timestamp.split(' ')[1])}</span>
+                <i class="fas fa-times close-notif-btn" style="cursor:pointer; font-size: 12px; color: var(--text-secondary);"></i>
             </div>
-            <div class="notif-title">${event.title}</div>
-            <div class="notif-content">${event.content}</div>
+            <div class="notif-title">${escapeHTML(event.title)}</div>
+            <div class="notif-content">${escapeHTML(event.content)}</div>
         `;
+
+        toast.querySelector('.close-notif-btn').onclick = (e) => {
+            e.stopPropagation();
+            window.onNotificationClose({id: event.id});
+        };
 
         toast.onclick = () => {
             // Placeholder for clicking to modify data
@@ -699,15 +715,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         overlay.innerHTML = `
             <div class="fullscreen-notif-card">
-                <div class="notif-time" style="margin-bottom: 20px;">${event.timestamp}</div>
-                <h2>${event.title}</h2>
-                <p>${event.content}</p>
+                <div class="notif-time" style="margin-bottom: 20px;">${escapeHTML(event.timestamp)}</div>
+                <h2>${escapeHTML(event.title)}</h2>
+                <p>${escapeHTML(event.content)}</p>
                 <div style="display: flex; gap: 15px; justify-content: center;">
-                    <button class="apple-btn-primary" onclick="window.onNotificationClose({id: '${event.id}'})">确认并关闭</button>
+                    <button class="apple-btn-primary confirm-close-btn">确认并关闭</button>
                     <button class="apple-btn-primary" style="background: rgba(255,255,255,0.1); color: var(--text-primary);">稍后处理</button>
                 </div>
             </div>
         `;
+
+        overlay.querySelector('.confirm-close-btn').onclick = () => {
+            window.onNotificationClose({id: event.id});
+        };
 
         document.body.appendChild(overlay);
     }
@@ -752,16 +772,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     item.innerHTML = `
                         <div class="skill-ui-info">
-                            <div class="skill-ui-name">${name}</div>
-                            <div class="skill-ui-desc">${desc}</div>
+                            <div class="skill-ui-name">${escapeHTML(name)}</div>
+                            <div class="skill-ui-desc">${escapeHTML(desc)}</div>
                         </div>
                         <div class="skill-ui-actions">
-                            <span class="skill-status-tag">${status}</span>
+                            <span class="skill-status-tag">${escapeHTML(status)}</span>
                             ${['markitdown', 'xlsx_recalc', 'task_management'].includes(name) ?
                                 '' :
-                                `<button class="skill-uninstall-btn" onclick="uiUninstallSkill('${name}')"><i class="fas fa-trash"></i></button>`}
+                                `<button class="skill-uninstall-btn uninstall-btn"><i class="fas fa-trash"></i></button>`}
                         </div>
                     `;
+                    const uninstallBtn = item.querySelector('.uninstall-btn');
+                    if (uninstallBtn) {
+                        uninstallBtn.onclick = () => uiUninstallSkill(name);
+                    }
                     skillsListContainer.appendChild(item);
                 }
             }
@@ -862,8 +886,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="settings-row">
                 <div style="flex: 1;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span class="row-label">${item.name}</span>
-                        <span style="font-size: 12px; color: var(--text-secondary);">${item.used} / ${item.total}</span>
+                        <span class="row-label">${escapeHTML(item.name)}</span>
+                        <span style="font-size: 12px; color: var(--text-secondary);">${escapeHTML(item.used)} / ${escapeHTML(item.total)}</span>
                     </div>
                     <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px;">
                         <div style="height: 100%; width: ${(item.used / item.total * 100).toFixed(1)}%; background: var(--accent-color); border-radius: 3px;"></div>
