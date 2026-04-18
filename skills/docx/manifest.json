@@ -1,0 +1,8 @@
+{
+  "name": "docx",
+  "skill_id": "docx",
+  "version": "1.0.0",
+  "description": "Advanced Word processing skill for reading, creating, and editing .docx files.",
+  "actions": ["read", "create", "edit", "metadata", "add_image"],
+  "keywords": ["word", "docx", "document", "edit", "create"]
+}
