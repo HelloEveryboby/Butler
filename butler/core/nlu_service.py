@@ -114,18 +114,25 @@ class NLUService:
             logger.error(f"General response generation failed: {e}")
             return "抱歉，我暂时无法回答这个问题。"
 
-    def ask_llm(self, prompt: str, history: List[Any] = None, use_habit: bool = True) -> str:
+    def ask_llm(self, prompt: str, history: List[Any] = None, use_habit: bool = True, system_override: str = None) -> str:
         """通用 LLM 问答接口。"""
         if not quota_manager.check_quota():
             return "Error: API 额度已用尽。"
 
-        system_prompt = self._get_augmented_system_prompt("general_response") if use_habit else self.prompts.get("general_response", {}).get("prompt", "")
+        if system_override:
+            system_prompt = system_override
+        else:
+            system_prompt = self._get_augmented_system_prompt("general_response") if use_habit else self.prompts.get("general_response", {}).get("prompt", "")
 
         messages = [{"role": "system", "content": system_prompt}]
         if history:
             for item in history:
-                role = item.metadata.get('role', 'user') if hasattr(item, 'metadata') else item.get('role', 'user')
-                content = item.content if hasattr(item, 'content') else item.get('content', '')
+                if isinstance(item, dict):
+                    role = item.get('role', 'user')
+                    content = item.get('content', '')
+                else:
+                    role = item.metadata.get('role', 'user') if hasattr(item, 'metadata') else 'user'
+                    content = item.content if hasattr(item, 'content') else str(item)
                 messages.append({"role": role, "content": content})
 
         messages.append({"role": "user", "content": prompt})
@@ -153,3 +160,21 @@ class NLUService:
         except Exception as e:
             logger.error(f"ask_llm failed: {e}")
             return f"Error: {e}"
+
+    def estimate_tokens(self, messages: List[Dict[str, str]]) -> int:
+        """极简 Token 估算 (字符数/3)。"""
+        return sum(len(m.get('content', '')) for m in messages) // 3
+
+    def compress_history(self, history: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        """使用 LLM 压缩对话历史。"""
+        if len(history) < 10:
+            return history
+
+        logger.info("Compressing conversation history...")
+        context_text = json.dumps(history[-15:], ensure_ascii=False)
+        prompt = f"请简要总结以下对话的上下文以便维持后续对话的连续性，保留关键的任务状态、用户偏好和重要事实：\n\n{context_text}"
+
+        summary = self.ask_llm(prompt, use_habit=False)
+        return [
+            {"role": "system", "content": f"以下是之前的对话摘要：{summary}"}
+        ]

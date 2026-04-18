@@ -19,6 +19,8 @@ PROGRAMS_DIR = PROJECT_ROOT / "programs"
 # Data Subdirectories
 AUDIT_LOGS_DIR = DATA_DIR / "audit_logs"
 BUTLER_MEMORY_DIR = DATA_DIR / "butler_memory"
+TEAM_DIR = DATA_DIR / "team"
+INBOX_DIR = TEAM_DIR / "inbox"
 NOTIFICATIONS_DB = DATA_DIR / "notifications.db"
 SCHEDULED_TASKS_JSON = DATA_DIR / "scheduled_tasks.json"
 

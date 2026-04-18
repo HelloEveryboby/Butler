@@ -1,0 +1,149 @@
+import json
+import threading
+import time
+import os
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+from butler.core.constants import TEAM_DIR, DATA_DIR
+from butler.core.message_bus import message_bus
+from butler.core.task_manager import task_manager
+from package.core_utils.log_manager import LogManager
+
+logger = LogManager.get_logger("TeamManager")
+
+class TeamManager:
+    """
+    Butler 团队管理器 (Teammate Manager)
+    负责孵化、配置和监控自主协作智能体。
+    """
+    _instance = None
+
+    def __init__(self, jarvis_app=None):
+        self.jarvis_app = jarvis_app
+        self.team_dir = TEAM_DIR
+        self.team_dir.mkdir(parents=True, exist_ok=True)
+        self.config_path = self.team_dir / "config.json"
+        self.members = self._load_config()
+        self.threads = {}
+        self.lock = threading.Lock()
+        self.poll_interval = 5
+        self.idle_timeout = 300 # 5 minutes before shutdown if idle
+
+    @classmethod
+    def get_instance(cls, jarvis_app=None):
+        if cls._instance is None:
+            cls._instance = TeamManager(jarvis_app)
+        return cls._instance
+
+    def _load_config(self) -> List[Dict[str, Any]]:
+        if self.config_path.exists():
+            try:
+                data = json.loads(self.config_path.read_text(encoding="utf-8"))
+                return data.get("members", [])
+            except Exception as e:
+                logger.error(f"Failed to load team config: {e}")
+        return []
+
+    def _save_config(self):
+        with self.lock:
+            data = {"members": self.members}
+            self.config_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    def _update_member_status(self, name: str, status: str, role: str = None):
+        with self.lock:
+            found = False
+            for m in self.members:
+                if m["name"] == name:
+                    m["status"] = status
+                    if role: m["role"] = role
+                    found = True
+                    break
+            if not found:
+                self.members.append({"name": name, "role": role or "assistant", "status": status})
+        self._save_config()
+
+    def spawn_teammate(self, name: str, role: str, prompt: str):
+        """孵化一个新的自主智能体线程。"""
+        with self.lock:
+            for m in self.members:
+                if m["name"] == name and m["status"] not in ("shutdown", "error"):
+                    return f"Error: Teammate '{name}' is already {m['status']}."
+
+        self._update_member_status(name, "starting", role)
+
+        # Start teammate loop in a separate thread
+        thread = threading.Thread(
+            target=self._teammate_loop,
+            args=(name, role, prompt),
+            name=f"Teammate-{name}",
+            daemon=True
+        )
+        self.threads[name] = thread
+        thread.start()
+        logger.info(f"Spawned teammate '{name}' with role '{role}'.")
+        return f"Spawned teammate '{name}' (role: {role})."
+
+    def _teammate_loop(self, name: str, role: str, initial_prompt: str):
+        """Teammate autonomous execution loop."""
+        from butler.core.nlu_service import NLUService
+        from package.core_utils.config_loader import config_loader
+
+        # Initialize isolated NLU for teammate if needed, or use app's
+        nlu = self.jarvis_app.nlu_service if self.jarvis_app else None
+
+        self._update_member_status(name, "working")
+        messages = [{"role": "user", "content": initial_prompt}]
+
+        # Identity injection
+        system_prompt = (
+            f"You are '{name}', a specialized autonomous teammate in the Butler system. "
+            f"Your role is: {role}. You operate at {os.getcwd()}. "
+            f"Use tools to fulfill your role. Communicate with others via message_bus. "
+            f"If you have no work, use the 'idle' tool. You can claim unclaimed tasks."
+        )
+
+        last_activity = time.time()
+
+        while True:
+            # 1. Check Inbox
+            inbox = message_bus.read_inbox(name)
+            for msg in inbox:
+                if msg.get("type") == "shutdown_request":
+                    logger.info(f"Teammate '{name}' received shutdown request.")
+                    self._update_member_status(name, "shutdown")
+                    return
+                messages.append({"role": "user", "content": f"New message from {msg['from']}: {msg['content']}"})
+                last_activity = time.time()
+
+            # 2. LLM Cycle (Placeholder - will be integrated with tool calling in next steps)
+            # For now, this loop just simulates the structure.
+            # Real integration happens when we define the Agent Loop.
+
+            # 3. Task Claiming (if idle)
+            unclaimed = [t for t in task_manager.list_business_tasks() if t["status"] == "pending" and not t["owner"]]
+            if unclaimed:
+                task = unclaimed[0]
+                res = task_manager.claim_business_task(task["id"], name)
+                if "Claimed" in res:
+                    messages.append({"role": "user", "content": f"You have automatically claimed Task #{task['id']}: {task['subject']}. Start working on it."})
+                    self._update_member_status(name, "working")
+                    last_activity = time.time()
+
+            # 4. Idle Check
+            if time.time() - last_activity > self.idle_timeout:
+                self._update_member_status(name, "shutdown")
+                logger.info(f"Teammate '{name}' timed out due to inactivity.")
+                return
+
+            time.sleep(self.poll_interval)
+
+    def list_teammates(self) -> str:
+        if not self.members:
+            return "No teammates registered."
+        lines = ["--- Teammate Status ---"]
+        for m in self.members:
+            lines.append(f"- {m['name']} ({m['role']}): {m['status']}")
+        return "\n".join(lines)
+
+# Global instance
+team_manager = TeamManager.get_instance()

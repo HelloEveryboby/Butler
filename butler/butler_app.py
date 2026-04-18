@@ -38,6 +38,9 @@ from butler.core.voice_service import VoiceService
 from butler.core.nlu_service import NLUService
 from butler.core.habit_manager import habit_manager
 from butler.core.skill_manager import SkillManager
+from butler.core.task_manager import task_manager
+from butler.core.message_bus import message_bus
+from butler.core.team_manager import TeamManager
 from butler.core.battery_manager import battery_manager
 from butler.core.cron_scheduler import cron_scheduler
 from butler.core.dream_engine import DreamEngine
@@ -83,6 +86,7 @@ class Jarvis:
         self.voice_service = VoiceService(self.handle_user_command, self.ui_print, self._on_voice_status_change)
         self.skill_manager = SkillManager()
         self.skill_manager.load_skills()
+        self.team_manager = TeamManager.get_instance(self)
 
         # Inject resource manager into battery manager for mode awareness
         battery_manager.res_mgr = self.resource_manager
@@ -206,14 +210,22 @@ class Jarvis:
 
         if tag == 'ai_response_start':
             tag = 'ai_response'
-        if self.display_mode in ('host', 'both'):
-            event_bus.emit("ui_output", message, tag, response_id)
 
-        # Sync to hardware displays
-        if self.display_mode in ('usb', 'both'):
-            if self.usb_screen:
-                self.usb_screen.display(message, clear_screen=True)
-            display_server.push_update({"type": "text", "content": message, "tag": tag})
+        # Internal emit helper to ensure UI operations happen in the main thread
+        def do_emit():
+            if self.display_mode in ('host', 'both'):
+                event_bus.emit("ui_output", message, tag, response_id)
+
+            # Sync to hardware displays
+            if self.display_mode in ('usb', 'both'):
+                if self.usb_screen:
+                    self.usb_screen.display(message, clear_screen=True)
+                display_server.push_update({"type": "text", "content": message, "tag": tag})
+
+        if self.root:
+            self.root.after(0, do_emit)
+        else:
+            do_emit()
 
     def speak(self, text):
         """朗读给定的文本并在 UI 中打印。同时利用统一引擎记录至事实数据库和日志系统。"""
@@ -314,6 +326,7 @@ class Jarvis:
                 f"- 电池电量: {percent}% ({'已插电' if plugged else '电池供电'})\n"
                 f"- 节流状态: {'节流中' if battery_manager.should_throttle() else '全速'}\n"
                 f"- 响应倍数: {battery_manager.get_sleep_multiplier()}x\n"
+                f"- 协作队友: {len([m for m in self.team_manager.members if m['status'] != 'shutdown'])} 个活跃\n"
                 f"- 自动做梦: 已就绪"
             )
             self.ui_print(status, tag='system_message')
@@ -341,6 +354,18 @@ class Jarvis:
         elif cmd == "/focus-stop":
             msg = self.focus_mode.stop()
             self.ui_print(msg, tag='system_message')
+        elif cmd == "/tasks":
+            tasks = task_manager.list_business_tasks()
+            report = "📋 **持久化任务看板**:\n"
+            if not tasks:
+                report += "当前无任务。"
+            for t in tasks:
+                m = {"pending": "[ ]", "in_progress": "[>]", "completed": "[x]"}.get(t["status"], "[?]")
+                owner = f" @{t['owner']}" if t.get("owner") else ""
+                report += f"{m} #{t['id']}: {t['subject']}{owner}\n"
+            self.ui_print(report, tag='system_message')
+        elif cmd == "/team":
+            self.ui_print(self.team_manager.list_teammates(), tag='system_message')
         elif cmd == "/approve" and self.pending_dev_code:
             code = self.pending_dev_code
             self.pending_dev_code = None
@@ -350,10 +375,8 @@ class Jarvis:
         elif cmd.startswith("记住这一点：") or cmd.startswith("记住：") or cmd.startswith("Remember this:"):
             self._handle_manual_habit_learning(cmd)
         else:
-            if self._should_use_interpreter(cmd):
-                self._execute_with_llm_interpreter(cmd)
-            else:
-                self._handle_legacy_command(cmd)
+            # Entry point for the new Autonomous Agent Loop
+            threading.Thread(target=self._autonomous_agent_loop, args=(cmd,), daemon=True).start()
 
         self._interaction_count += 1
         if self._interaction_count % 3 == 0 or self._should_use_interpreter(cmd):
@@ -613,6 +636,91 @@ class Jarvis:
             data_recycler.run()
         except Exception: pass
 
+    def _autonomous_agent_loop(self, command: str):
+        """Autonomous agent loop with tool use and persistence."""
+        history = self.long_memory.get_recent_history(10)
+        messages = []
+        for h in history:
+            role = h.metadata.get('role', 'user') if hasattr(h, 'metadata') else 'user'
+            content = h.content if hasattr(h, 'content') else str(h)
+            messages.append({"role": role, "content": content})
+
+        messages.append({"role": "user", "content": command})
+
+        max_turns = 10
+        for turn in range(max_turns):
+            # 1. Check Inbox
+            inbox = message_bus.read_inbox("lead")
+            if inbox:
+                messages.append({"role": "user", "content": f"<inbox>{json.dumps(inbox, ensure_ascii=False)}</inbox>"})
+
+            # 2. Token Check & Compression
+            if self.nlu_service.estimate_tokens(messages) > 3000:
+                messages = self.nlu_service.compress_history(messages)
+
+            # 3. LLM Call (Intent & Strategy)
+            self.ui_print(f"Butler 正在思考 (第 {turn+1} 轮)...", tag='system_message')
+            nlu_result = self.nlu_service.extract_intent(messages[-1]["content"], history=messages[:-1])
+            intent = nlu_result.get("intent", "unknown")
+            entities = nlu_result.get("entities", {})
+
+            if intent == "unknown":
+                # Fallback to general chat if no clear tool intent
+                resp = self.nlu_service.ask_llm(messages[-1]["content"], history=messages[:-1])
+                self.speak(resp)
+                break
+
+            # 4. Tool Dispatch
+            self.ui_print(f"执行意图: {intent}", tag='system_message')
+            output = ""
+
+            # Persistent Task Tools
+            if intent == "task_create":
+                output = task_manager.create_business_task(entities.get("subject", "未命名任务"), entities.get("description", ""))
+            elif intent == "task_update":
+                output = task_manager.update_business_task(int(entities.get("task_id", 0)), entities.get("status"), entities.get("add_blocked_by"), entities.get("remove_blocked_by"))
+            elif intent == "task_list":
+                output = task_manager.list_business_tasks()
+            elif intent == "claim_task":
+                output = task_manager.claim_business_task(int(entities.get("task_id", 0)), "lead")
+
+            # Team Tools
+            elif intent == "spawn_teammate":
+                output = self.team_manager.spawn_teammate(entities.get("name"), entities.get("role"), entities.get("prompt"))
+            elif intent == "list_teammates":
+                output = self.team_manager.list_teammates()
+            elif intent == "send_message":
+                output = message_bus.send("lead", entities.get("to"), entities.get("content"), entities.get("msg_type", "message"))
+            elif intent == "read_inbox":
+                output = message_bus.read_inbox("lead")
+
+            # Context Tools
+            elif intent == "compress":
+                messages = self.nlu_service.compress_history(messages)
+                output = "Context compressed."
+
+            # Legacy & Interpreter Fallbacks
+            elif intent == "xlsx_expert" or intent == "pdf_assistant" or self._should_use_interpreter(command):
+                # Call interpreter for code-based tasks
+                self._execute_with_llm_interpreter(command)
+                break
+            else:
+                # Handle via legacy skill/extension system
+                skill_id = self.skill_manager.match_skill(command)
+                if skill_id:
+                    output = self.skill_manager.execute(skill_id, entities.get("operation"), entities=entities, jarvis_app=self)
+                else:
+                    output = extension_manager.execute(intent, command=command, args=entities)
+
+            # 5. Feedback Loop
+            self.ui_print(f"工具输出: {str(output)[:200]}...", tag='system_message')
+            messages.append({"role": "assistant", "content": f"I used tool '{intent}' and got: {json.dumps(output, ensure_ascii=False)}"})
+
+            # If the tool result looks like a final answer or we've reached a conclusion
+            if "任务已完成" in str(output) or turn == max_turns - 1:
+                final_resp = self.nlu_service.ask_llm("请基于以上工具执行结果，给用户一个最终答复。", history=messages)
+                self.speak(final_resp)
+                break
 def main():
     import argparse
     parser = argparse.ArgumentParser()
