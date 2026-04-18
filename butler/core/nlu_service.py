@@ -19,13 +19,24 @@ class NLUService:
         self.url = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
 
     def _get_augmented_system_prompt(self, base_prompt_key: str) -> str:
-        """Augments the system prompt with the current user habit profile."""
+        """Augments the system prompt with the current user habit profile and available skills."""
         base_prompt = self.prompts.get(base_prompt_key, {}).get("prompt", "")
         habit_summary = habit_manager.get_profile_summary()
 
+        # Skill metadata injection (Layer 1)
+        from butler.core.skill_manager import SkillManager
+        sm = SkillManager()
+        # Mock load to get manifests if not already loaded in this instance
+        skill_list = []
+        for s_id, manifest in sm.manifests.items():
+            desc = manifest.get("description", "No description")
+            skill_list.append(f"  - {s_id}: {desc}")
+
+        skills_summary = "\n可用专业技能 (使用 load_skill 加载详情):\n" + ("\n".join(skill_list) if skill_list else "  (无)")
+
         # Avoid adding conversational instructions for structured extraction tasks
         if base_prompt_key == "nlu_intent_extraction":
-            return f"{base_prompt}\n\n{habit_summary}\n\n注意：请仅在匹配意图时参考上述习惯（例如通过历史确定常开的程序或模糊的文件路径），并始终严格返回 JSON 格式。"
+            return f"{base_prompt}\n\n{skills_summary}\n\n{habit_summary}\n\n注意：请仅在匹配意图时参考上述习惯和技能列表，并始终严格返回 JSON 格式。"
 
         personality_injection = (
             f"\n\n--- 🤖 核心记忆与协同协议 ---\n"

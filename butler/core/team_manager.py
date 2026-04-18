@@ -84,55 +84,62 @@ class TeamManager:
         return f"Spawned teammate '{name}' (role: {role})."
 
     def _teammate_loop(self, name: str, role: str, initial_prompt: str):
-        """Teammate autonomous execution loop."""
+        """Teammate autonomous execution loop with DeepSeek."""
         from butler.core.nlu_service import NLUService
-        from package.core_utils.config_loader import config_loader
 
-        # Initialize isolated NLU for teammate if needed, or use app's
+        # 使用全局 NLU 服务
         nlu = self.jarvis_app.nlu_service if self.jarvis_app else None
+        if not nlu:
+            logger.error(f"Teammate {name} failed: NLU service not available.")
+            return
 
         self._update_member_status(name, "working")
         messages = [{"role": "user", "content": initial_prompt}]
 
-        # Identity injection
+        # 身份注入
         system_prompt = (
-            f"You are '{name}', a specialized autonomous teammate in the Butler system. "
-            f"Your role is: {role}. You operate at {os.getcwd()}. "
-            f"Use tools to fulfill your role. Communicate with others via message_bus. "
-            f"If you have no work, use the 'idle' tool. You can claim unclaimed tasks."
+            f"You are '{name}', role: {role}, an autonomous teammate in Butler. "
+            f"Use message_bus to communicate and claim_task to take work. "
+            f"Current directory: {os.getcwd()}."
         )
 
         last_activity = time.time()
 
         while True:
-            # 1. Check Inbox
+            # 1. 检查收件箱
             inbox = message_bus.read_inbox(name)
             for msg in inbox:
                 if msg.get("type") == "shutdown_request":
-                    logger.info(f"Teammate '{name}' received shutdown request.")
                     self._update_member_status(name, "shutdown")
                     return
-                messages.append({"role": "user", "content": f"New message from {msg['from']}: {msg['content']}"})
+                messages.append({"role": "user", "content": f"Message from {msg['from']}: {msg['content']}"})
                 last_activity = time.time()
 
-            # 2. LLM Cycle (Placeholder - will be integrated with tool calling in next steps)
-            # For now, this loop just simulates the structure.
-            # Real integration happens when we define the Agent Loop.
+            # 2. 压缩上下文
+            if nlu.estimate_tokens(messages) > 2000:
+                messages = nlu.compress_history(messages)
 
-            # 3. Task Claiming (if idle)
+            # 3. 思考并尝试自动认领任务（如果空闲）
             unclaimed = [t for t in task_manager.list_business_tasks() if t["status"] == "pending" and not t["owner"]]
             if unclaimed:
                 task = unclaimed[0]
-                res = task_manager.claim_business_task(task["id"], name)
-                if "Claimed" in res:
-                    messages.append({"role": "user", "content": f"You have automatically claimed Task #{task['id']}: {task['subject']}. Start working on it."})
-                    self._update_member_status(name, "working")
-                    last_activity = time.time()
+                task_manager.claim_business_task(task["id"], name)
+                messages.append({"role": "user", "content": f"Auto-claimed Task #{task['id']}: {task['subject']}"})
+                self._update_member_status(name, "working")
+                last_activity = time.time()
 
-            # 4. Idle Check
+            # 4. 调用 LLM 进行一轮处理
+            if messages:
+                response = nlu.ask_llm(messages[-1]["content"], history=messages[:-1], system_override=system_prompt)
+                if response and not response.startswith("Error:"):
+                    messages.append({"role": "assistant", "content": response})
+                    # 模拟任务处理进度（实际可扩展为工具调用）
+                    if "完成" in response or "Done" in response:
+                         self._update_member_status(name, "idle")
+
+            # 5. 超时检查
             if time.time() - last_activity > self.idle_timeout:
                 self._update_member_status(name, "shutdown")
-                logger.info(f"Teammate '{name}' timed out due to inactivity.")
                 return
 
             time.sleep(self.poll_interval)

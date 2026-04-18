@@ -275,6 +275,22 @@ class SkillManager:
         with open(self.lock_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
 
+    def get_skill_expertise(self, skill_id: str) -> str:
+        """获取技能的专业知识文档（Layer 2 注入）。"""
+        skill_path = self.skills_dir / skill_id
+        if not skill_path.is_dir():
+            return f"Error: Skill '{skill_id}' not found."
+
+        # 寻找 README.md 或专家知识文件
+        for filename in ["README.md", "EXPERTISE.md", "SKILL.md"]:
+            p = skill_path / filename
+            if p.exists():
+                return f"<expertise skill=\"{skill_id}\">\n{p.read_text(encoding='utf-8')}\n</expertise>"
+
+        # 退而求其次，从 manifest 中提取
+        manifest = self.manifests.get(skill_id, {})
+        return f"<expertise skill=\"{skill_id}\">\nDescription: {manifest.get('description', 'No detailed expertise available.')}\n</expertise>"
+
     def match_skill(self, command):
         """
         Simple keyword matching based on manifest descriptions and names.

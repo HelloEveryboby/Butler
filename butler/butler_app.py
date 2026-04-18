@@ -696,6 +696,8 @@ class Jarvis:
                 output = message_bus.send("lead", entities.get("to"), entities.get("content"), entities.get("msg_type", "message"))
             elif intent == "read_inbox":
                 output = message_bus.read_inbox("lead")
+            elif intent == "load_skill":
+                output = self.skill_manager.get_skill_expertise(entities.get("name"))
 
             # Context Tools
             elif intent == "compress":
