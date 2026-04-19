@@ -1,0 +1,8 @@
+{
+  "name": "karpathy_guidelines",
+  "version": "1.0.0",
+  "description": "Andrej Karpathy 启发的编码行为准则，旨在减少 LLM 编码错误。",
+  "entry_point": "skills/karpathy_guidelines/main.py",
+  "actions": ["show", "list_principles"],
+  "keywords": ["karpathy", "guidelines", "best practices", "coding", "AI rules"]
+}
