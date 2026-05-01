@@ -1,0 +1,17 @@
+{
+    "skill_id": "skill_creator",
+    "name": "技能创建助手",
+    "description": "用于快速生成符合 Butler 规范的新技能模板",
+    "version": "1.0.0",
+    "author": "Butler AI",
+    "actions": [
+        "create"
+    ],
+    "keywords": [
+        "创建技能",
+        "新建",
+        "开发",
+        "template",
+        "generator"
+    ]
+}
