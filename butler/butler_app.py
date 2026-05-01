@@ -354,6 +354,9 @@ class Jarvis:
         elif cmd == "/focus-stop":
             msg = self.focus_mode.stop()
             self.ui_print(msg, tag='system_message')
+        elif cmd == "/screenshot-overlay":
+            bridge_script = os.path.join(os.getcwd(), "programs", "hybrid_screenshot", "bridge.py")
+            subprocess.Popen([sys.executable, bridge_script, "--overlay"])
         elif cmd == "/tasks":
             tasks = task_manager.list_business_tasks()
             report = "📋 **持久化任务看板**:\n"
@@ -366,6 +369,9 @@ class Jarvis:
             self.ui_print(report, tag='system_message')
         elif cmd == "/team":
             self.ui_print(self.team_manager.list_teammates(), tag='system_message')
+        elif cmd == "/screenshot-overlay":
+            bridge_script = os.path.join(os.getcwd(), "programs", "hybrid_screenshot", "bridge.py")
+            subprocess.Popen([sys.executable, bridge_script, "--overlay"])
         elif cmd == "/approve" and self.pending_dev_code:
             code = self.pending_dev_code
             self.pending_dev_code = None
@@ -683,6 +689,9 @@ class Jarvis:
                 output = task_manager.list_business_tasks()
             elif intent == "claim_task":
                 output = task_manager.claim_business_task(int(entities.get("task_id", 0)), "lead")
+            elif intent == "take_screenshot":
+                from skills.screenshot.main import handle_request as screenshot_handler
+                output = screenshot_handler(self, self.config, {}, **nlu_result)
 
             # Team Tools
             elif intent == "spawn_teammate":

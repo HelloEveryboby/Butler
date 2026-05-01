@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Butler Screenshot Overlay</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: transparent; font-family: -apple-system, system-ui, sans-serif; }
+        #bg-canvas { position: absolute; top: 0; left: 0; z-index: 1; }
+        #annotation-canvas { position: absolute; top: 0; left: 0; z-index: 2; cursor: crosshair; }
+        #toolbar {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(30, 30, 30, 0.9); backdrop-filter: blur(15px);
+            padding: 10px 20px; border-radius: 14px; display: flex; gap: 12px;
+            z-index: 1000; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.15); align-items: center;
+        }
+        .tool-btn {
+            color: #efefef; cursor: pointer; padding: 8px 12px; border-radius: 8px;
+            transition: all 0.2s; font-size: 14px; font-weight: 500;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .tool-btn:hover { background: rgba(255,255,255,0.15); color: white; }
+        .tool-btn.active { background: #007AFF; color: white; box-shadow: 0 2px 10px rgba(0,122,255,0.4); }
+        .divider { width: 1px; height: 24px; background: rgba(255,255,255,0.15); margin: 0 4px; }
+        #color-picker { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; cursor: pointer; transition: transform 0.2s; }
+        #color-picker:hover { transform: scale(1.1); }
+    </style>
+</head>
+<body>
+    <canvas id="bg-canvas"></canvas>
+    <canvas id="annotation-canvas"></canvas>
+
+    <div id="toolbar">
+        <div class="tool-btn active" id="btn-rect" onclick="setTool('rect')"><span>矩形</span></div>
+        <div class="tool-btn" id="btn-circle" onclick="setTool('circle')"><span>圆形</span></div>
+        <div class="tool-btn" id="btn-arrow" onclick="setTool('arrow')"><span>箭头</span></div>
+        <div class="tool-btn" id="btn-pen" onclick="setTool('pen')"><span>画笔</span></div>
+        <div class="tool-btn" id="btn-text" onclick="setTool('text')"><span>文字</span></div>
+        <div class="tool-btn" id="btn-step" onclick="setTool('step')"><span>序号</span></div>
+        <div class="tool-btn" id="btn-mosaic" onclick="setTool('mosaic')"><span>模糊</span></div>
+        <div class="divider"></div>
+        <div class="tool-btn" onclick="undo()" title="Ctrl+Z"><span>撤销</span></div>
+        <div class="divider"></div>
+        <div id="color-picker" style="background: #ff3b30;" onclick="cycleColor()"></div>
+        <div class="divider"></div>
+        <div class="tool-btn" style="background: #28a745; color: white;" onclick="finish()"><span>完成</span></div>
+        <div class="tool-btn" style="background: #dc3545; color: white;" onclick="cancel()"><span>取消</span></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <script>
+        let canvas, bgCanvas, tool = 'rect', isDrawing = false, origX, origY, activeObj, stepCount = 1;
+        const colors = ['#ff3b30', '#ff9500', '#ffcc00', '#4cd964', '#5ac8fa', '#007aff', '#5856d6', '#ff2d55', '#ffffff', '#000000'];
+        let currentColorIdx = 0;
+
+        window.onload = async () => {
+            const w = window.innerWidth, h = window.innerHeight;
+            bgCanvas = document.getElementById('bg-canvas');
+            bgCanvas.width = w; bgCanvas.height = h;
+            canvas = new fabric.Canvas('annotation-canvas', { width: w, height: h, selection: false });
+
+            try {
+                const b64 = await pywebview.api.get_full_screenshot_b64();
+                const img = new Image();
+                img.onload = () => {
+                    const ctx = bgCanvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+                    ctx.fillRect(0, 0, w, h);
+                };
+                img.src = 'data:image/png;base64,' + b64;
+            } catch(e) { console.error("Bridge API error", e); }
+
+            setupInteraction();
+        };
+
+        function setTool(t) {
+            tool = t;
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+            const btn = document.getElementById('btn-' + t);
+            if(btn) btn.classList.add('active');
+
+            canvas.isDrawingMode = (t === 'pen' || t === 'mosaic');
+            if(canvas.isDrawingMode) {
+                canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+                canvas.freeDrawingBrush.width = (t === 'mosaic') ? 25 : 4;
+                canvas.freeDrawingBrush.color = (t === 'mosaic') ? 'rgba(100,100,100,0.5)' : colors[currentColorIdx];
+            }
+        }
+
+        function cycleColor() {
+            currentColorIdx = (currentColorIdx + 1) % colors.length;
+            document.getElementById('color-picker').style.background = colors[currentColorIdx];
+            if(tool === 'pen') canvas.freeDrawingBrush.color = colors[currentColorIdx];
+        }
+
+        function setupInteraction() {
+            canvas.on('mouse:down', function(o) {
+                if (canvas.isDrawingMode) return;
+                isDrawing = true;
+                const pointer = canvas.getPointer(o.e);
+                origX = pointer.x; origY = pointer.y;
+
+                if (tool === 'rect') {
+                    activeObj = new fabric.Rect({
+                        left: origX, top: origY, width: 0, height: 0,
+                        fill: 'transparent', stroke: colors[currentColorIdx], strokeWidth: 4, rx: 4, ry: 4
+                    });
+                } else if (tool === 'circle') {
+                    activeObj = new fabric.Circle({
+                        left: origX, top: origY, radius: 0,
+                        fill: 'transparent', stroke: colors[currentColorIdx], strokeWidth: 4
+                    });
+                } else if (tool === 'arrow') {
+                    activeObj = new fabric.Line([origX, origY, origX, origY], {
+                        stroke: colors[currentColorIdx], strokeWidth: 4, selectable: false
+                    });
+                } else if (tool === 'step') {
+                    addStep(pointer.x, pointer.y);
+                    isDrawing = false; return;
+                } else if (tool === 'text') {
+                    const text = new fabric.IText('点击输入', {
+                        left: pointer.x, top: pointer.y, fontSize: 24, fill: colors[currentColorIdx],
+                        fontFamily: 'system-ui'
+                    });
+                    canvas.add(text); canvas.setActiveObject(text); text.enterEditing();
+                    isDrawing = false; return;
+                }
+                if(activeObj) canvas.add(activeObj);
+            });
+
+            canvas.on('mouse:move', function(o) {
+                if (!isDrawing || canvas.isDrawingMode) return;
+                const pointer = canvas.getPointer(o.e);
+                if (tool === 'rect') {
+                    activeObj.set({ width: Math.abs(origX - pointer.x), height: Math.abs(origY - pointer.y) });
+                    if(origX > pointer.x) activeObj.set({ left: pointer.x });
+                    if(origY > pointer.y) activeObj.set({ top: pointer.y });
+                } else if (tool === 'circle') {
+                    activeObj.set({ radius: Math.abs(origX - pointer.x) / 2 });
+                } else if (tool === 'arrow') {
+                    activeObj.set({ x2: pointer.x, y2: pointer.y });
+                }
+                canvas.renderAll();
+            });
+
+            canvas.on('mouse:up', function() { isDrawing = false; activeObj = null; });
+
+            window.addEventListener('keydown', (e) => {
+                if(e.ctrlKey && e.key === 'z') undo();
+                if(e.key === 'Escape') cancel();
+                if(e.key === 'Enter' && !e.shiftKey) finish();
+            });
+        }
+
+        function addStep(x, y) {
+            const circle = new fabric.Circle({ radius: 14, fill: colors[currentColorIdx], left: x - 14, top: y - 14, shadow: 'rgba(0,0,0,0.3) 0 2px 10px' });
+            const text = new fabric.Text(stepCount.toString(), { fontSize: 16, fill: 'white', left: x - (stepCount > 9 ? 10 : 6), top: y - 8, fontWeight: 'bold' });
+            canvas.add(new fabric.Group([circle, text], { left: x - 14, top: y - 14 }));
+            stepCount++;
+        }
+
+        function undo() { const objs = canvas.getObjects(); if(objs.length) canvas.remove(objs[objs.length-1]); }
+
+        async function finish() {
+            document.getElementById('toolbar').style.display = 'none';
+            setTimeout(async () => {
+                const out = document.createElement('canvas');
+                out.width = window.innerWidth; out.height = window.innerHeight;
+                const ctx = out.getContext('2d');
+                ctx.drawImage(bgCanvas, 0, 0);
+                const ann = new Image();
+                ann.onload = async () => {
+                    ctx.drawImage(ann, 0, 0);
+                    await pywebview.api.save_screenshot_to_file(out.toDataURL('image/png'));
+                    await pywebview.api.close_overlay();
+                };
+                ann.src = canvas.toDataURL();
+            }, 100);
+        }
+
+        function cancel() { pywebview.api.close_overlay(); }
+    </script>
+</body>
+</html>

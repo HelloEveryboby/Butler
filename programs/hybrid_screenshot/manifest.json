@@ -1,0 +1,9 @@
+{
+  "name": "hybrid_screenshot",
+  "description": "高级截图与标注模块，支持 TS 混合链路与 Playwright 网页抓取",
+  "version": "1.1.0",
+  "author": "Butler AI",
+  "entry": "python bridge.py",
+  "type": "hybrid",
+  "capabilities": ["screenshot", "annotation", "scroll_capture", "window_capture"]
+}

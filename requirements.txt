@@ -58,3 +58,8 @@ zvec
 websockets
 pypdf
 reportlab
+pyperclip
+keyboard
+pywebview
+pygetwindow
+pyrect

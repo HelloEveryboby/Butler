@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
         media: document.getElementById('nav-media'),
         files: document.getElementById('nav-files'),
         memos: document.getElementById('nav-memos'),
+        screenshot: document.getElementById('nav-screenshot'),
         settings: document.getElementById('nav-settings')
     };
 
@@ -28,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
         media: document.getElementById('view-media'),
         files: document.getElementById('view-files'),
         memos: document.getElementById('view-memos'),
+        screenshot: document.getElementById('view-chat'), // Overlay mode
         settings: document.getElementById('view-settings')
     };
 
@@ -86,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
             media: '多媒体中心',
             files: '文件管理',
             memos: '备忘录',
+            screenshot: '高级截图',
             settings: '系统设置'
         };
         viewTitle.innerText = titles[viewName];
@@ -97,6 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
             loadFiles('.');
         } else if (viewName === 'media') {
             loadMediaLibrary();
+        } else if (viewName === 'screenshot') {
+            if (window.pywebview && window.pywebview.api) {
+                window.pywebview.api.handle_command("/screenshot-overlay");
+                setTimeout(() => switchView('chat'), 500);
+            }
         }
     }
 
