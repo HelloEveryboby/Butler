@@ -1,16 +1,14 @@
-"""Shared utilities for skill-creator scripts."""
+"""skill-creator 脚本的共享实用程序。"""
 
 from pathlib import Path
 
-
-
 def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
-    """Parse a SKILL.md file, returning (name, description, full_content)."""
-    content = (skill_path / "SKILL.md").read_text()
+    """解析 SKILL.md 文件，返回 (name, description, full_content)。"""
+    content = (skill_path / "SKILL.md").read_text(encoding="utf-8")
     lines = content.split("\n")
 
     if lines[0].strip() != "---":
-        raise ValueError("SKILL.md missing frontmatter (no opening ---)")
+        raise ValueError("SKILL.md 缺少前置元数据 (没有开头的 ---)")
 
     end_idx = None
     for i, line in enumerate(lines[1:], start=1):
@@ -19,7 +17,7 @@ def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
             break
 
     if end_idx is None:
-        raise ValueError("SKILL.md missing frontmatter (no closing ---)")
+        raise ValueError("SKILL.md 缺少前置元数据 (没有结束的 ---)")
 
     name = ""
     description = ""
@@ -31,7 +29,7 @@ def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
             name = line[len("name:"):].strip().strip('"').strip("'")
         elif line.startswith("description:"):
             value = line[len("description:"):].strip()
-            # Handle YAML multiline indicators (>, |, >-, |-)
+            # 处理 YAML 多行指示符 (>, |, >-, |-)
             if value in (">", "|", ">-", "|-"):
                 continuation_lines: list[str] = []
                 i += 1

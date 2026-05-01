@@ -1,1 +1,2 @@
-# 内置技能，无需额外依赖
+PyYAML
+webbrowser

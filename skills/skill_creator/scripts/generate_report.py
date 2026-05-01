@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Generate an HTML report from run_loop.py output.
+"""从 run_loop.py 的输出生成 HTML 报告。
 
-Takes the JSON output from run_loop.py and generates a visual HTML report
-showing each description attempt with check/x for each test case.
-Distinguishes between train and test queries.
+获取 run_loop.py 的 JSON 输出，并生成一个可视化的 HTML 报告，
+展示每次描述尝试的细节，以及每个测试用例的通过情况。
+报告会区分训练查询（Train）和测试查询（Test）。
 """
 
 import argparse
@@ -14,12 +14,12 @@ from pathlib import Path
 
 
 def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") -> str:
-    """Generate HTML report from loop output data. If auto_refresh is True, adds a meta refresh tag."""
+    """根据循环输出数据生成 HTML 报告。如果 auto_refresh 为 True，则添加 meta 刷新标签。"""
     history = data.get("history", [])
     holdout = data.get("holdout", 0)
     title_prefix = html.escape(skill_name + " \u2014 ") if skill_name else ""
 
-    # Get all unique queries from train and test sets, with should_trigger info
+    # 从训练集和测试集中获取所有唯一的查询及其 should_trigger 信息
     train_queries: list[dict] = []
     test_queries: list[dict] = []
     if history:
@@ -32,10 +32,10 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
     refresh_tag = '    <meta http-equiv="refresh" content="5">\n' if auto_refresh else ""
 
     html_parts = ["""<!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
     <meta charset="utf-8">
-""" + refresh_tag + """    <title>""" + title_prefix + """Skill Description Optimization</title>
+""" + refresh_tag + """    <title>""" + title_prefix + """技能描述优化</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
@@ -146,53 +146,53 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
     </style>
 </head>
 <body>
-    <h1>""" + title_prefix + """Skill Description Optimization</h1>
+    <h1>""" + title_prefix + """技能描述优化</h1>
     <div class="explainer">
-        <strong>Optimizing your skill's description.</strong> This page updates automatically as Claude tests different versions of your skill's description. Each row is an iteration — a new description attempt. The columns show test queries: green checkmarks mean the skill triggered correctly (or correctly didn't trigger), red crosses mean it got it wrong. The "Train" score shows performance on queries used to improve the description; the "Test" score shows performance on held-out queries the optimizer hasn't seen. When it's done, Claude will apply the best-performing description to your skill.
+        <strong>正在优化你的技能描述。</strong> 当 Claude 测试不同版本的技能描述时，此页面会自动更新。每一行代表一次迭代。列展示了测试查询：绿色对钩表示技能触发正确（或正确地没有触发），红色叉号表示触发错误。“训练 (Train)”得分显示了在用于改进描述的查询上的表现；“测试 (Test)”得分显示了在优化器未见过的留出查询上的表现。完成后，Claude 将把表现最好的描述应用到你的技能中。
     </div>
 """]
 
-    # Summary section
+    # 摘要部分
     best_test_score = data.get('best_test_score')
     best_train_score = data.get('best_train_score')
     html_parts.append(f"""
     <div class="summary">
-        <p><strong>Original:</strong> {html.escape(data.get('original_description', 'N/A'))}</p>
-        <p class="best"><strong>Best:</strong> {html.escape(data.get('best_description', 'N/A'))}</p>
-        <p><strong>Best Score:</strong> {data.get('best_score', 'N/A')} {'(test)' if best_test_score else '(train)'}</p>
-        <p><strong>Iterations:</strong> {data.get('iterations_run', 0)} | <strong>Train:</strong> {data.get('train_size', '?')} | <strong>Test:</strong> {data.get('test_size', '?')}</p>
+        <p><strong>原始描述:</strong> {html.escape(data.get('original_description', 'N/A'))}</p>
+        <p class="best"><strong>最佳描述:</strong> {html.escape(data.get('best_description', 'N/A'))}</p>
+        <p><strong>最高得分:</strong> {data.get('best_score', 'N/A')} {'(测试)' if best_test_score else '(训练)'}</p>
+        <p><strong>迭代次数:</strong> {data.get('iterations_run', 0)} | <strong>训练集大小:</strong> {data.get('train_size', '?')} | <strong>测试集大小:</strong> {data.get('test_size', '?')}</p>
     </div>
 """)
 
-    # Legend
+    # 图例
     html_parts.append("""
     <div class="legend">
-        <span style="font-weight:600">Query columns:</span>
-        <span class="legend-item"><span class="legend-swatch swatch-positive"></span> Should trigger</span>
-        <span class="legend-item"><span class="legend-swatch swatch-negative"></span> Should NOT trigger</span>
-        <span class="legend-item"><span class="legend-swatch swatch-train"></span> Train</span>
-        <span class="legend-item"><span class="legend-swatch swatch-test"></span> Test</span>
+        <span style="font-weight:600">查询列:</span>
+        <span class="legend-item"><span class="legend-swatch swatch-positive"></span> 应该触发</span>
+        <span class="legend-item"><span class="legend-swatch swatch-negative"></span> 不应触发</span>
+        <span class="legend-item"><span class="legend-swatch swatch-train"></span> 训练 (Train)</span>
+        <span class="legend-item"><span class="legend-swatch swatch-test"></span> 测试 (Test)</span>
     </div>
 """)
 
-    # Table header
+    # 表头
     html_parts.append("""
     <div class="table-container">
     <table>
         <thead>
             <tr>
-                <th>Iter</th>
-                <th>Train</th>
-                <th>Test</th>
-                <th class="query-col">Description</th>
+                <th>迭代</th>
+                <th>训练</th>
+                <th>测试</th>
+                <th class="query-col">描述 (Description)</th>
 """)
 
-    # Add column headers for train queries
+    # 为训练查询添加列头
     for qinfo in train_queries:
         polarity = "positive-col" if qinfo["should_trigger"] else "negative-col"
         html_parts.append(f'                <th class="{polarity}">{html.escape(qinfo["query"])}</th>\n')
 
-    # Add column headers for test queries (different color)
+    # 为测试查询添加列头（不同颜色）
     for qinfo in test_queries:
         polarity = "positive-col" if qinfo["should_trigger"] else "negative-col"
         html_parts.append(f'                <th class="test-col {polarity}">{html.escape(qinfo["query"])}</th>\n')
@@ -202,13 +202,16 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
         <tbody>
 """)
 
-    # Find best iteration for highlighting
-    if test_queries:
-        best_iter = max(history, key=lambda h: h.get("test_passed") or 0).get("iteration")
+    # 寻找最佳迭代以进行高亮
+    if history:
+        if test_queries:
+            best_iter = max(history, key=lambda h: h.get("test_passed") or 0).get("iteration")
+        else:
+            best_iter = max(history, key=lambda h: h.get("train_passed", h.get("passed", 0))).get("iteration")
     else:
-        best_iter = max(history, key=lambda h: h.get("train_passed", h.get("passed", 0))).get("iteration")
+        best_iter = None
 
-    # Add rows for each iteration
+    # 为每次迭代添加行
     for h in history:
         iteration = h.get("iteration", "?")
         train_passed = h.get("train_passed", h.get("passed", 0))
@@ -219,11 +222,11 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
         train_results = h.get("train_results", h.get("results", []))
         test_results = h.get("test_results", [])
 
-        # Create lookups for results by query
+        # 为按查询查找结果创建映射
         train_by_query = {r["query"]: r for r in train_results}
         test_by_query = {r["query"]: r for r in test_results} if test_results else {}
 
-        # Compute aggregate correct/total runs across all retries
+        # 计算所有重试中的聚合正确/总运行数
         def aggregate_runs(results: list[dict]) -> tuple[int, int]:
             correct = 0
             total = 0
@@ -240,7 +243,7 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
         train_correct, train_runs = aggregate_runs(train_results)
         test_correct, test_runs = aggregate_runs(test_results)
 
-        # Determine score classes
+        # 确定得分样式类
         def score_class(correct: int, total: int) -> str:
             if total > 0:
                 ratio = correct / total
@@ -262,7 +265,7 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
                 <td class="description">{html.escape(description)}</td>
 """)
 
-        # Add result for each train query
+        # 为每个训练查询添加结果
         for qinfo in train_queries:
             r = train_by_query.get(qinfo["query"], {})
             did_pass = r.get("pass", False)
@@ -274,7 +277,7 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
 
             html_parts.append(f'                <td class="result {css_class}">{icon}<span class="rate">{triggers}/{runs}</span></td>\n')
 
-        # Add result for each test query (with different background)
+        # 为每个测试查询添加结果（带不同背景）
         for qinfo in test_queries:
             r = test_by_query.get(qinfo["query"], {})
             did_pass = r.get("pass", False)
@@ -302,22 +305,22 @@ def generate_html(data: dict, auto_refresh: bool = False, skill_name: str = "") 
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate HTML report from run_loop output")
-    parser.add_argument("input", help="Path to JSON output from run_loop.py (or - for stdin)")
-    parser.add_argument("-o", "--output", default=None, help="Output HTML file (default: stdout)")
-    parser.add_argument("--skill-name", default="", help="Skill name to include in the report title")
+    parser = argparse.ArgumentParser(description="根据 run_loop 输出生成 HTML 报告")
+    parser.add_argument("input", help="来自 run_loop.py 的 JSON 输出路径 (或 - 表示标准输入)")
+    parser.add_argument("-o", "--output", default=None, help="输出 HTML 文件 (默认: stdout)")
+    parser.add_argument("--skill-name", default="", help="包含在报告标题中的技能名称")
     args = parser.parse_args()
 
     if args.input == "-":
         data = json.load(sys.stdin)
     else:
-        data = json.loads(Path(args.input).read_text())
+        data = json.loads(Path(args.input).read_text(encoding="utf-8"))
 
     html_output = generate_html(data, skill_name=args.skill_name)
 
     if args.output:
-        Path(args.output).write_text(html_output)
-        print(f"Report written to {args.output}", file=sys.stderr)
+        Path(args.output).write_text(html_output, encoding="utf-8")
+        print(f"报告已写入 {args.output}", file=sys.stderr)
     else:
         print(html_output)
 

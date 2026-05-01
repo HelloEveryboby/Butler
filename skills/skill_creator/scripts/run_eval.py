@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Run trigger evaluation for a skill description.
+"""为技能描述运行触发评估。
 
-Tests whether a skill's description causes Claude to trigger (read the skill)
-for a set of queries. Outputs results as JSON.
+测试技能的描述是否会导致 Claude 在一系列查询中触发（即读取技能内容）。
+结果输出为 JSON。
 """
 
 import argparse
@@ -20,10 +20,10 @@ from scripts.utils import parse_skill_md
 
 
 def find_project_root() -> Path:
-    """Find the project root by walking up from cwd looking for .claude/.
+    """通过查找 .claude/ 目录从 cwd 向上查找项目根目录。
 
-    Mimics how Claude Code discovers its project root, so the command file
-    we create ends up where claude -p will look for it.
+    模拟 Claude Code 发现项目根目录的方式，以便我们创建的命令文件
+    最终位于 claude -p 会寻找的地方。
     """
     current = Path.cwd()
     for parent in [current, *current.parents]:
@@ -40,13 +40,13 @@ def run_single_query(
     project_root: str,
     model: str | None = None,
 ) -> bool:
-    """Run a single query and return whether the skill was triggered.
+    """运行单个查询并返回技能是否被触发。
 
-    Creates a command file in .claude/commands/ so it appears in Claude's
-    available_skills list, then runs `claude -p` with the raw query.
-    Uses --include-partial-messages to detect triggering early from
-    stream events (content_block_start) rather than waiting for the
-    full assistant message, which only arrives after tool execution.
+    在 .claude/commands/ 中创建一个命令文件，使其出现在 Claude 的
+    可用技能列表中，然后使用原始查询运行 `claude -p`。
+    使用 --include-partial-messages 以便从流式事件 (content_block_start)
+    中尽早检测触发，而不是等待完整的助手消息（完整的助手消息通常要在
+    工具执行后才到达）。
     """
     unique_id = uuid.uuid4().hex[:8]
     clean_name = f"{skill_name}-skill-{unique_id}"
@@ -55,7 +55,7 @@ def run_single_query(
 
     try:
         project_commands_dir.mkdir(parents=True, exist_ok=True)
-        # Use YAML block scalar to avoid breaking on quotes in description
+        # 使用 YAML 块标量以避免描述中的引号导致格式崩溃
         indented_desc = "\n  ".join(skill_description.split("\n"))
         command_content = (
             f"---\n"
@@ -63,9 +63,9 @@ def run_single_query(
             f"  {indented_desc}\n"
             f"---\n\n"
             f"# {skill_name}\n\n"
-            f"This skill handles: {skill_description}\n"
+            f"此技能处理: {skill_description}\n"
         )
-        command_file.write_text(command_content)
+        command_file.write_text(command_content, encoding="utf-8")
 
         cmd = [
             "claude",
@@ -77,9 +77,8 @@ def run_single_query(
         if model:
             cmd.extend(["--model", model])
 
-        # Remove CLAUDECODE env var to allow nesting claude -p inside a
-        # Claude Code session. The guard is for interactive terminal conflicts;
-        # programmatic subprocess usage is safe.
+        # 移除 CLAUDECODE 环境变量，以便在 Claude Code 会话中嵌套调用 claude -p。
+        # 该限制是为了防止交互式终端冲突；程序化子进程调用是安全的。
         env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
         process = subprocess.Popen(
@@ -93,7 +92,7 @@ def run_single_query(
         triggered = False
         start_time = time.time()
         buffer = ""
-        # Track state for stream event detection
+        # 跟踪流式事件检测的状态
         pending_tool_name = None
         accumulated_json = ""
 
@@ -125,7 +124,7 @@ def run_single_query(
                     except json.JSONDecodeError:
                         continue
 
-                    # Early detection via stream events
+                    # 通过流式事件进行早期检测
                     if event.get("type") == "stream_event":
                         se = event.get("event", {})
                         se_type = se.get("type", "")
@@ -153,7 +152,7 @@ def run_single_query(
                             if se_type == "message_stop":
                                 return False
 
-                    # Fallback: full assistant message
+                    # 回退方案：完整的助手消息
                     elif event.get("type") == "assistant":
                         message = event.get("message", {})
                         for content_item in message.get("content", []):
@@ -170,7 +169,7 @@ def run_single_query(
                     elif event.get("type") == "result":
                         return triggered
         finally:
-            # Clean up process on any exit path (return, exception, timeout)
+            # 在任何退出路径上清理进程 (return, exception, timeout)
             if process.poll() is None:
                 process.kill()
                 process.wait()
@@ -192,7 +191,7 @@ def run_eval(
     trigger_threshold: float = 0.5,
     model: str | None = None,
 ) -> dict:
-    """Run the full eval set and return results."""
+    """运行整个评估集并返回结果。"""
     results = []
 
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
@@ -221,7 +220,7 @@ def run_eval(
             try:
                 query_triggers[query].append(future.result())
             except Exception as e:
-                print(f"Warning: query failed: {e}", file=sys.stderr)
+                print(f"警告: 查询失败: {e}", file=sys.stderr)
                 query_triggers[query].append(False)
 
     for query, triggers in query_triggers.items():
@@ -257,23 +256,23 @@ def run_eval(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run trigger evaluation for a skill description")
-    parser.add_argument("--eval-set", required=True, help="Path to eval set JSON file")
-    parser.add_argument("--skill-path", required=True, help="Path to skill directory")
-    parser.add_argument("--description", default=None, help="Override description to test")
-    parser.add_argument("--num-workers", type=int, default=10, help="Number of parallel workers")
-    parser.add_argument("--timeout", type=int, default=30, help="Timeout per query in seconds")
-    parser.add_argument("--runs-per-query", type=int, default=3, help="Number of runs per query")
-    parser.add_argument("--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold")
-    parser.add_argument("--model", default=None, help="Model to use for claude -p (default: user's configured model)")
-    parser.add_argument("--verbose", action="store_true", help="Print progress to stderr")
+    parser = argparse.ArgumentParser(description="为技能描述运行触发评估")
+    parser.add_argument("--eval-set", required=True, help="评估集 JSON 文件的路径")
+    parser.add_argument("--skill-path", required=True, help="技能目录路径")
+    parser.add_argument("--description", default=None, help="覆盖要测试的描述")
+    parser.add_argument("--num-workers", type=int, default=10, help="并行工作进程数")
+    parser.add_argument("--timeout", type=int, default=30, help="每个查询的超时时间（秒）")
+    parser.add_argument("--runs-per-query", type=int, default=3, help="每个查询运行的次数")
+    parser.add_argument("--trigger-threshold", type=float, default=0.5, help="触发率阈值")
+    parser.add_argument("--model", default=None, help="用于 claude -p 的模型（默认: 用户配置的模型）")
+    parser.add_argument("--verbose", action="store_true", help="打印进度到 stderr")
     args = parser.parse_args()
 
-    eval_set = json.loads(Path(args.eval_set).read_text())
+    eval_set = json.loads(Path(args.eval_set).read_text(encoding="utf-8"))
     skill_path = Path(args.skill_path)
 
     if not (skill_path / "SKILL.md").exists():
-        print(f"Error: No SKILL.md found at {skill_path}", file=sys.stderr)
+        print(f"错误: 在 {skill_path} 中未找到 SKILL.md", file=sys.stderr)
         sys.exit(1)
 
     name, original_description, content = parse_skill_md(skill_path)
@@ -281,7 +280,7 @@ def main():
     project_root = find_project_root()
 
     if args.verbose:
-        print(f"Evaluating: {description}", file=sys.stderr)
+        print(f"正在评估: {description}", file=sys.stderr)
 
     output = run_eval(
         eval_set=eval_set,
@@ -297,13 +296,13 @@ def main():
 
     if args.verbose:
         summary = output["summary"]
-        print(f"Results: {summary['passed']}/{summary['total']} passed", file=sys.stderr)
+        print(f"结果: {summary['passed']}/{summary['total']} 通过", file=sys.stderr)
         for r in output["results"]:
-            status = "PASS" if r["pass"] else "FAIL"
+            status = "通过" if r["pass"] else "失败"
             rate_str = f"{r['triggers']}/{r['runs']}"
-            print(f"  [{status}] rate={rate_str} expected={r['should_trigger']}: {r['query'][:70]}", file=sys.stderr)
+            print(f"  [{status}] 触发率={rate_str} 预期={r['should_trigger']}: {r['query'][:70]}", file=sys.stderr)
 
-    print(json.dumps(output, indent=2))
+    print(json.dumps(output, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":

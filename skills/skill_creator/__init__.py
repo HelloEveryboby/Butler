@@ -1,6 +1,17 @@
+"""
+技能创作助手 (Skill Creator)
+
+此技能集成了 Anthropic 的专业技能开发工作流，并保留了 Butler 基础模板生成功能。
+主要功能：
+1. 捕获意图并编写 SKILL.md
+2. 运行自动化测试与基准测试 (Benchmark)
+3. 使用 Eval Viewer 进行人工评估
+4. 迭代优化技能质量
+5. 快速生成符合 Butler 规范的新技能模板
+"""
+import logging
 import os
 import json
-import logging
 from pathlib import Path
 
 logger = logging.getLogger("SkillCreator")
@@ -12,7 +23,9 @@ def create_skill(skill_id, name=None, description=None):
     if not skill_id:
         return "错误：必须提供 skill_id。"
 
-    project_root = Path(__file__).resolve().parent.parent.parent
+    # 项目根目录通常是 skills/ 目录的父目录
+    skill_root = Path(__file__).parent.resolve()
+    project_root = skill_root.parent.parent
     skills_dir = project_root / "skills"
     skill_path = skills_dir / skill_id
 
@@ -58,7 +71,7 @@ def handle_request(action, **kwargs):
         with open(skill_path / "__init__.py", "w", encoding="utf-8") as f:
             f.write(init_content)
 
-        # 3. 创建 README.md
+        # 3. 创建 README.md (默认使用中文)
         readme_content = f"""# {manifest["name"]}
 
 {manifest["description"]}
@@ -80,7 +93,7 @@ def handle_request(action, **kwargs):
         with open(skill_path / "requirements.txt", "w", encoding="utf-8") as f:
             f.write("# 在此列出技能所需的 Python 依赖\n")
 
-        # 5. 更新 skills-lock.json (可选，通常通过 SkillManager 处理，但这里为了方便直接更新)
+        # 5. 更新 skills-lock.json
         lock_file = project_root / "skills-lock.json"
         if lock_file.exists():
             try:
@@ -104,11 +117,14 @@ def handle_request(action, **kwargs):
 
 def handle_request(action, **kwargs):
     """
-    Skill Creator 处理入口
+    Butler 技能处理入口。
+
+    支持 'create' (生成模板) 动作，其他高级开发动作通过阅读 SKILL.md 指引执行。
     """
+    logger.info(f"技能创作助手收到动作: {action}")
+
     if action == "create":
         skill_id = kwargs.get("skill_id")
-        # 兼容交互式调用或直接参数传递
         if not skill_id and "entities" in kwargs:
             skill_id = kwargs["entities"].get("skill_id")
 
@@ -119,4 +135,7 @@ def handle_request(action, **kwargs):
         description = kwargs.get("description")
         return create_skill(skill_id, name, description)
 
-    return f"Skill Creator 不支持动作: {action}"
+    if action == "init":
+        return "技能创作助手已就绪。您可以创建新技能模板，或参考 SKILL.md 进行高级技能开发与优化。"
+
+    return f"动作 '{action}' 已通过 SKILL.md 指引加载或由 create 逻辑处理。请直接在工作流中执行相关指令。"
