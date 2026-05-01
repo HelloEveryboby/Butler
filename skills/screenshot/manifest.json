@@ -1,0 +1,25 @@
+{
+  "name": "screenshot",
+  "description": "提供强大的截图与标注功能，支持全屏、区域及网页滚动截图。",
+  "version": "1.1.0",
+  "author": "Butler AI",
+  "main": "main.py",
+  "intents": [
+    {
+      "intent": "take_screenshot",
+      "description": "执行截图操作",
+      "entities": [
+        {
+          "name": "type",
+          "description": "截图类型：full (全屏), region (区域), web (网页滚动), window (窗口)",
+          "type": "string"
+        },
+        {
+          "name": "url",
+          "description": "网页截图时的目标 URL",
+          "type": "string"
+        }
+      ]
+    }
+  ]
+}

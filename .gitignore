@@ -159,3 +159,10 @@ programs/bcli/butler-c
 programs/bcli/obj/
 programs/ble_framework/ble_framework_exec
 programs/ble_framework/libble.so
+
+# Hybrid JS modules
+node_modules/
+dist/
+package-lock.json
+data/screenshots/*
+!data/screenshots/.gitkeep
