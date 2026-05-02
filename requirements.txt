@@ -58,3 +58,4 @@ zvec
 websockets
 pypdf
 reportlab
+PyYAML

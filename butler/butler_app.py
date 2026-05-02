@@ -658,7 +658,22 @@ class Jarvis:
             if self.nlu_service.estimate_tokens(messages) > 3000:
                 messages = self.nlu_service.compress_history(messages)
 
-            # 3. LLM Call (Intent & Strategy)
+            # 3. Skill Activation (Stage 2: Instruction Injection)
+            current_user_msg = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+            matched_skill_id = self.skill_manager.match_skill(current_user_msg)
+            if matched_skill_id:
+                instruction = self.skill_manager.get_skill_instruction(matched_skill_id)
+                if instruction:
+                    verbose = os.getenv("BUTLER_VERBOSE_SKILLS", "false").lower() == "true"
+                    if verbose:
+                        self.ui_print(f"💉 [Stage 2] 激活技能: {matched_skill_id}", tag='system_message')
+
+                    skill_prompt = f"--- 技能指令: {matched_skill_id} ---\n{instruction}\n---"
+                    # Avoid duplicate injection
+                    if not any(skill_prompt in str(m.get("content", "")) for m in messages):
+                        messages.insert(0, {"role": "system", "content": skill_prompt})
+
+            # 4. LLM Call (Intent & Strategy)
             self.ui_print(f"Butler 正在思考 (第 {turn+1} 轮)...", tag='system_message')
             nlu_result = self.nlu_service.extract_intent(messages[-1]["content"], history=messages[:-1])
             intent = nlu_result.get("intent", "unknown")
@@ -670,7 +685,7 @@ class Jarvis:
                 self.speak(resp)
                 break
 
-            # 4. Tool Dispatch
+            # 5. Tool Dispatch
             self.ui_print(f"执行意图: {intent}", tag='system_message')
             output = ""
 
@@ -705,14 +720,14 @@ class Jarvis:
                 self._execute_with_llm_interpreter(command)
                 break
             else:
-                # Handle via legacy skill/extension system
-                skill_id = self.skill_manager.match_skill(command)
+                # Handle via legacy skill/extension system or new SKILL.md scripts
+                skill_id = intent if intent in self.skill_manager.manifests else self.skill_manager.match_skill(command)
                 if skill_id:
-                    output = self.skill_manager.execute(skill_id, entities.get("operation"), entities=entities, jarvis_app=self)
+                    output = self.skill_manager.execute(skill_id, entities.get("operation") or entities.get("action") or "run", entities=entities, jarvis_app=self)
                 else:
                     output = extension_manager.execute(intent, command=command, args=entities)
 
-            # 5. Feedback Loop
+            # 6. Feedback Loop
             self.ui_print(f"工具输出: {str(output)[:200]}...", tag='system_message')
             messages.append({"role": "assistant", "content": f"I used tool '{intent}' and got: {json.dumps(output, ensure_ascii=False)}"})
 
