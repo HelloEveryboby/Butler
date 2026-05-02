@@ -86,6 +86,7 @@ class Jarvis:
         self.voice_service = VoiceService(self.handle_user_command, self.ui_print, self._on_voice_status_change)
         self.skill_manager = SkillManager()
         self.skill_manager.load_skills()
+        self.skill_manager.start_monitoring()
         self.team_manager = TeamManager.get_instance(self)
 
         # Inject resource manager into battery manager for mode awareness
@@ -568,6 +569,7 @@ class Jarvis:
 
     def _handle_exit(self):
         self.speak("再见"); self.running = False; self.voice_service.stop_listening()
+        self.skill_manager.stop_monitoring()
         if self.root: self.root.quit()
 
     def main(self):
@@ -640,6 +642,12 @@ class Jarvis:
         """Autonomous agent loop with tool use and persistence."""
         history = self.long_memory.get_recent_history(10)
         messages = []
+
+        # [Stage 2] 注入全局技能目录
+        skill_extension = self.skill_manager.get_system_prompt_extension()
+        if skill_extension:
+            messages.append({"role": "system", "content": skill_extension})
+
         for h in history:
             role = h.metadata.get('role', 'user') if hasattr(h, 'metadata') else 'user'
             content = h.content if hasattr(h, 'content') else str(h)

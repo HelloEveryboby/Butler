@@ -5,12 +5,40 @@ import os
 import logging
 import sys
 import subprocess
+import threading
+import time
 import yaml
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Callable
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 from butler.core.task_manager import task_manager
 
 logger = logging.getLogger("SkillManager")
+
+class SkillEventHandler(FileSystemEventHandler):
+    """监听 skills 目录变化的处理器"""
+    def __init__(self, manager):
+        self.manager = manager
+        self._debounce_timer = None
+
+    def on_any_event(self, event):
+        if event.is_directory:
+            # 过滤掉一些不需要关注的目录
+            if any(x in event.src_path for x in ["__pycache__", ".git"]):
+                return
+            self._trigger_reload()
+        else:
+            # 关键文件变化
+            filename = os.path.basename(event.src_path)
+            if filename in ["SKILL.md", "manifest.json", "config.yaml", "requirements.txt"]:
+                self._trigger_reload()
+
+    def _trigger_reload(self):
+        if self._debounce_timer:
+            self._debounce_timer.cancel()
+        self._debounce_timer = threading.Timer(1.0, self.manager.load_skills)
+        self._debounce_timer.start()
 
 class SkillManager:
     """
@@ -29,95 +57,182 @@ class SkillManager:
         self.skill_contents: Dict[str, str] = {}        # skill_id -> SKILL.md body (Stage 2)
         self.installed_deps: set = set()                # 已安装依赖的技能路径记录
 
+        # 监控相关
+        self._observer = None
+
         # Ensure project root is in sys.path
         if str(self.project_root) not in sys.path:
             sys.path.insert(0, str(self.project_root))
 
+    def start_monitoring(self):
+        """开启异步监控逻辑"""
+        if self._observer:
+            return
+
+        event_handler = SkillEventHandler(self)
+        self._observer = Observer()
+        self._observer.schedule(event_handler, str(self.skills_dir), recursive=True)
+        self._observer.start()
+        logger.info("Skill directory monitoring started.")
+
+    def stop_monitoring(self):
+        """停止监控"""
+        if self._observer:
+            self._observer.stop()
+            self._observer.join()
+            self._observer = None
+
+    def get_system_prompt_extension(self):
+        """生成全量技能目录供 AI 感知 (Stage 2 增强)"""
+        if not self.manifests:
+            return ""
+
+        extension = "\n### 🛠️ Butler 增强技能库\n"
+        extension += "你当前拥有以下可调用的扩展技能。如果用户请求相关任务，请优先使用对应技能。\n"
+
+        for s_id, meta in self.manifests.items():
+            name = meta.get('name', s_id)
+            desc = meta.get('description', '暂无描述')
+            extension += f"- **{s_id}** ({name}): {desc}\n"
+
+        extension += "\n当需要查看某个技能的具体参数或指令时，请告知用户你正在调用该技能。\n"
+        return extension
+
     def load_skills(self):
         """
         Stage 1: 扫描 skills 目录，发现所有技能并加载元数据。
-        不再强制要求 skills-lock.json，实现即插即用。
+        使用临时状态以避免重扫期间的竞争。
         """
         if not self.skills_dir.exists():
             self.skills_dir.mkdir(parents=True, exist_ok=True)
 
-        self.loaded_skills.clear()
-        self.manifests.clear()
-        self.configs.clear()
-        self.skill_contents.clear()
+        # 使用局部临时变量进行加载
+        new_manifests = {}
+        new_configs = {}
+        new_skill_contents = {}
 
         # 扫描目录
         for item in self.skills_dir.iterdir():
             if item.is_dir():
                 skill_id = item.name
-                self._discover_skill(skill_id)
+                self._discover_skill(skill_id, new_manifests, new_configs, new_skill_contents)
+
+        # 原子交换（在 Python 中，字典赋值是原子的）
+        self.manifests = new_manifests
+        self.configs = new_configs
+        self.skill_contents = new_skill_contents
+
+        # 清理已加载的模块状态（可选，如果需要强制重载 Python 模块）
+        # self.loaded_skills.clear()
 
         logger.info(f"Skill Stage 1 complete: Discovered {len(self.manifests)} skills.")
 
-    def _discover_skill(self, skill_id: str):
+    def _discover_skill(self, skill_id: str, manifests: dict, configs: dict, contents: dict):
         """
         Stage 1 & 2 预加载：检测技能格式并提取元数据。
         """
         skill_path = self.skills_dir / skill_id
 
-        # 优先尝试 SKILL.md (新规范)
+        # 1. 优先尝试 SKILL.md (AI 友好规范)
         skill_md_path = skill_path / "SKILL.md"
         if skill_md_path.exists():
-            return self._load_from_skill_md(skill_id, skill_md_path)
+            self._load_from_skill_md(skill_id, skill_md_path, manifests, contents)
 
-        # Fallback 到 manifest.json (旧规范)
+        # 2. 尝试 config.yaml (系统/硬件友好规范)
+        config_yaml_path = skill_path / "config.yaml"
+        if config_yaml_path.exists():
+            self._load_from_config_yaml(skill_id, config_yaml_path, manifests, configs)
+
+        # 3. Fallback 到 manifest.json (旧版规范)
         manifest_path = skill_path / "manifest.json"
-        if manifest_path.exists():
-            return self._load_from_manifest(skill_id, manifest_path)
+        if manifest_path.exists() and skill_id not in manifests:
+            self._load_from_manifest(skill_id, manifest_path, manifests, configs)
+
+        # 如果至少加载了其中一个
+        if skill_id in manifests:
+            # 探测执行优先级：Binary > Python
+            self._try_load_binary_entry(skill_id, manifests)
+            if not manifests[skill_id].get('has_binary'):
+                self._try_load_python_entry(skill_id, manifests)
+            return True
 
         return False
 
-    def _load_from_skill_md(self, skill_id: str, file_path: Path):
+    def _load_from_config_yaml(self, skill_id: str, file_path: Path, manifests: dict, configs: dict):
+        """解析 config.yaml 元数据"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                config_data = yaml.safe_load(f)
+                if not config_data: return False
+
+                if skill_id not in manifests:
+                    manifests[skill_id] = config_data
+                    manifests[skill_id]['id'] = skill_id
+                    manifests[skill_id]['format'] = 'config.yaml'
+                else:
+                    manifests[skill_id].update(config_data)
+
+                configs[skill_id] = config_data
+                return True
+        except Exception as e:
+            logger.error(f"Error parsing config.yaml for {skill_id}: {e}")
+        return False
+
+    def _load_from_skill_md(self, skill_id: str, file_path: Path, manifests: dict, contents: dict):
         """解析 SKILL.md 中的 YAML Frontmatter 和 Markdown 正文"""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
+            metadata = {}
+            body = content
             if content.startswith('---'):
                 parts = content.split('---', 2)
                 if len(parts) >= 3:
-                    metadata = yaml.safe_load(parts[1])
+                    metadata = yaml.safe_load(parts[1]) or {}
                     body = parts[2].strip()
 
-                    self.manifests[skill_id] = metadata or {}
-                    self.manifests[skill_id]['id'] = skill_id
-                    self.manifests[skill_id]['format'] = 'SKILL.md'
-                    self.skill_contents[skill_id] = body
+            # 如果元数据中缺失描述，尝试从正文第一行提取
+            if 'description' not in metadata:
+                first_line = body.split('\n')[0].strip('# ')
+                if first_line:
+                    metadata['description'] = first_line
 
-                    # 尝试加载配套的 Python 逻辑（如果有）
-                    self._try_load_python_entry(skill_id)
-                    return True
+            if skill_id not in manifests:
+                manifests[skill_id] = metadata
+                manifests[skill_id]['id'] = skill_id
+                manifests[skill_id]['format'] = 'SKILL.md'
+            else:
+                manifests[skill_id].update(metadata)
+
+            contents[skill_id] = body
+            return True
         except Exception as e:
             logger.error(f"Error parsing SKILL.md for {skill_id}: {e}")
         return False
 
-    def _load_from_manifest(self, skill_id: str, file_path: Path):
+    def _load_from_manifest(self, skill_id: str, file_path: Path, manifests: dict, configs: dict):
         """解析旧版的 manifest.json"""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 metadata = json.load(f)
-                self.manifests[skill_id] = metadata
-                self.manifests[skill_id]['id'] = skill_id
-                self.manifests[skill_id]['format'] = 'legacy'
+                manifests[skill_id] = metadata
+                manifests[skill_id]['id'] = skill_id
+                manifests[skill_id]['format'] = 'legacy'
 
                 # 加载 config.json (配置)
                 config_path = (self.skills_dir / skill_id) / "config.json"
                 if config_path.exists():
                     with open(config_path, 'r', encoding='utf-8') as f:
-                        self.configs[skill_id] = json.load(f)
+                        configs[skill_id] = json.load(f)
 
-                self._try_load_python_entry(skill_id)
+                self._try_load_python_entry(skill_id, manifests)
                 return True
         except Exception as e:
             logger.error(f"Error loading manifest for {skill_id}: {e}")
         return False
 
-    def _try_load_python_entry(self, skill_id: str):
+    def _try_load_python_entry(self, skill_id: str, manifests: dict):
         """尝试加载 Python 入口点 (main.py 或 __init__.py)"""
         skill_path = self.skills_dir / skill_id
         entry_file = None
@@ -128,11 +243,30 @@ class SkillManager:
 
         if entry_file:
             # 标记该技能需要 Python 运行时环境
-            self.manifests[skill_id]['has_python'] = True
-            self.manifests[skill_id]['entry_file'] = str(entry_file)
-
-            # 注意：这里不直接加载模块，改为在第一次执行时动态加载（Stage 3）
+            manifests[skill_id].setdefault('has_python', True)
+            manifests[skill_id]['entry_file'] = str(entry_file)
             return True
+        return False
+
+    def _try_load_binary_entry(self, skill_id: str, manifests: dict):
+        """探测二进制可执行文件 (静默执行优先级最高)"""
+        skill_path = self.skills_dir / skill_id
+        bin_dir = skill_path / "bin"
+
+        # 候选文件列表
+        candidates = []
+        if sys.platform == "win32":
+            candidates.extend([f"{skill_id}.exe", f"bin/{skill_id}.exe"])
+        else:
+            candidates.extend([skill_id, f"bin/{skill_id}"])
+
+        for rel_path in candidates:
+            bin_path = skill_path / rel_path
+            if bin_path.exists() and os.access(bin_path, os.X_OK):
+                manifests[skill_id]['has_binary'] = True
+                manifests[skill_id]['binary_path'] = str(bin_path)
+                logger.info(f"Detected binary entry for skill '{skill_id}': {rel_path}")
+                return True
         return False
 
     def _ensure_dependencies(self, skill_id: str):
@@ -188,7 +322,7 @@ class SkillManager:
 
     def execute(self, skill_id: str, action: str, **kwargs):
         """
-        Stage 3: 执行接口。支持 Python handle_request 和 allowed-tools 脚本执行。
+        Stage 3: 执行接口。支持 Binary, Python handle_request 和 allowed-tools 脚本执行。
         """
         # 系统内部管理动作
         if skill_id in ["manage_skills", "skill_manager"]:
@@ -199,11 +333,15 @@ class SkillManager:
 
         manifest = self.manifests[skill_id]
 
-        # 检查是否是脚本调用 (Stage 3: allowed-tools)
+        # 1. 优先执行二进制 (Binary Execution)
+        if manifest.get('has_binary') and action == "run":
+            return self._execute_binary(skill_id, **kwargs)
+
+        # 2. 检查是否是脚本调用 (Stage 3: allowed-tools)
         if action.startswith("scripts/"):
             return self._execute_allowed_script(skill_id, action, **kwargs)
 
-        # 确保 Python 运行时已加载（如果存在）
+        # 3. 确保 Python 运行时已加载（如果存在）
         if manifest.get('has_python'):
             if not self._load_python_runtime(skill_id):
                 return f"Error: 技能 '{skill_id}' 的 Python 环境加载失败。"
@@ -321,6 +459,27 @@ class SkillManager:
     def get_skill_instruction(self, skill_id: str) -> Optional[str]:
         """获取技能的完整指令 (Stage 2)"""
         return self.skill_contents.get(skill_id)
+
+    def _execute_binary(self, skill_id: str, **kwargs):
+        """执行二进制程序"""
+        bin_path = self.manifests[skill_id].get('binary_path')
+        if not bin_path:
+            return f"Error: 技能 '{skill_id}' 找不到二进制路径。"
+
+        try:
+            logger.info(f"Executing binary for skill '{skill_id}': {bin_path}")
+            args = [bin_path]
+            # 将 kwargs 转换为命令行参数
+            for k, v in kwargs.items():
+                if k not in ['jarvis_app', 'config', 'manifest']:
+                    args.extend([f"--{k}", str(v)])
+
+            res = subprocess.run(args, capture_output=True, text=True, check=True)
+            return res.stdout
+        except subprocess.CalledProcessError as e:
+            return f"Error: 二进制程序执行失败 ({e.returncode}): {e.stderr}"
+        except Exception as e:
+            return f"Error: 执行二进制程序时发生未知错误: {str(e)}"
 
     def _execute_allowed_script(self, skill_id: str, script_rel_path: str, **kwargs):
         """执行 SKILL.md 中 allowed-tools 授权的脚本"""
