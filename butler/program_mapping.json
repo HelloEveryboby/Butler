@@ -61,5 +61,9 @@
     "每日日志": "package/document/memory_tools_bridge.py",
     "PDF助手": "pdf_assistant",
     "PDF专家": "pdf_assistant",
-    "解析PDF": "pdf_assistant"
+    "解析PDF": "pdf_assistant",
+    "Butler专家": "butler_expert",
+    "Butler知识": "butler_expert",
+    "Butler帮助": "butler_expert",
+    "Butler排查": "butler_expert"
 }
