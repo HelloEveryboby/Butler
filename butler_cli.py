@@ -4,7 +4,11 @@
 import argparse
 import sys
 import os
+import logging
 from pathlib import Path
+
+# 禁用冗余日志
+logging.basicConfig(level=logging.WARNING)
 
 # 确保项目根目录在 sys.path 中
 project_root = Path(__file__).resolve().parent
@@ -95,6 +99,24 @@ def main():
     file_parser.add_argument("--op", choices=["create", "read", "delete", "list"], required=True, help="操作类型")
     file_parser.add_argument("--path", required=True, help="目标路径")
     file_parser.add_argument("--content", help="写入的内容 (仅用于 create)")
+
+    # --- 动态加载自定义技能 ---
+    try:
+        from butler.core.skill_manager import SkillManager
+        skill_manager = SkillManager()
+        skill_manager.load_skills()
+
+        # 获取已定义的子命令列表，避免重复定义
+        existing_commands = list(subparsers.choices.keys())
+
+        for skill_id, manifest in skill_manager.manifests.items():
+            if skill_id not in existing_commands:
+                s_parser = subparsers.add_parser(skill_id, help=f"[自定义技能] {manifest.get('description', '')}")
+                s_parser.add_argument("action", nargs='?', default="run", help="执行动作 (默认: run)")
+                s_parser.add_argument("extra_args", nargs=argparse.REMAINDER, help="自定义参数 (格式: --key value)")
+    except Exception as e:
+        print(f"⚠️ 加载自定义技能时出错: {e}")
+        skill_manager = None
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -195,6 +217,29 @@ def main():
                     for item in items: print(f"  - {item}")
                 else:
                     print(f"❌ {items}")
+
+        # --- 处理动态技能调用 ---
+        elif skill_manager and args.command in skill_manager.manifests:
+            # 解析额外参数
+            extra_params = {}
+            if hasattr(args, 'extra_args') and args.extra_args:
+                i = 0
+                while i < len(args.extra_args):
+                    arg = args.extra_args[i]
+                    if arg.startswith("--"):
+                        key = arg[2:]
+                        if i + 1 < len(args.extra_args) and not args.extra_args[i+1].startswith("--"):
+                            extra_params[key] = args.extra_args[i+1]
+                            i += 2
+                        else:
+                            extra_params[key] = True
+                            i += 1
+                    else:
+                        i += 1
+
+            # 执行技能
+            result = skill_manager.execute(args.command, args.action, **extra_params)
+            print(f"✅ 执行结果 ({args.command}:{args.action}):\n{result}")
 
     except Exception as e:
         print(f"💥 执行过程中发生错误: {e}")
