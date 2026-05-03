@@ -2,203 +2,269 @@ import requests
 import time
 import random
 import redis
-from bs4 import BeautifulSoup
 import os
 import concurrent.futures
 import argparse
-from package.core_utils.log_manager import LogManager
+import sys
+from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
-from scrapy.crawler import CrawlerProcess
-from scrapy.utils.project import get_project_settings
-import scrapy
+from package.core_utils.log_manager import LogManager
 
-# 设置日志配置
-logging = LogManager.get_logger(__name__)
-downloaded = "./downloaded/"  # 存储数据文件
+# 日志配置
+logger = LogManager.get_logger(__name__)
 
-# 设置User Agent列表
-user_agents = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
-    # 在这里添加更多用户代理
-]
+class ButlerCrawler:
+    def __init__(self, downloaded_dir="./downloaded/", redis_host='localhost', redis_port=6379):
+        self.downloaded_dir = downloaded_dir
+        self.visited_urls = set()
+        self.url_queue = []
+        self.user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        ]
 
-# 随机选择 User Agent
-def get_random_user_agent():
-    return random.choice(user_agents)
+        if not os.path.exists(self.downloaded_dir):
+            os.makedirs(self.downloaded_dir)
 
-# 设置headers
-def get_headers():
-    user_agent = get_random_user_agent()
-    headers = {'User-Agent': user_agent}
-    return headers
+        # 可选的 Redis 客户端
+        try:
+            self.redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=0, socket_timeout=2)
+            self.redis_client.ping()
+            logger.info("成功连接到 Redis，将用于存储状态。")
+        except Exception:
+            self.redis_client = None
+            logger.warning("未能连接到 Redis，将使用本地内存存储状态。")
 
-# 设置爬虫的起始url
-start_url = 'https://www.bing.com'
+    def get_headers(self):
+        return {'User-Agent': random.choice(self.user_agents)}
 
-# 设置爬虫的深度限制
-max_depth = 2
+    def is_valid_url(self, url):
+        parsed = urlparse(url)
+        return bool(parsed.netloc) and bool(parsed.scheme)
 
-# 设置爬虫的延迟时间
-delay_time = 1
+    def download_file(self, url, filename=None):
+        if not filename:
+            filename = os.path.basename(urlparse(url).path)
+            if not filename or '.' not in filename:
+                # 尝试从 URL 或随机生成
+                ext = ".jpg" # 默认假设图片
+                filename = f"file_{int(time.time()*1000)}_{random.randint(1000, 9999)}{ext}"
 
-# 创建一个set来存储已经访问过的url
-visited_urls = set()
+        try:
+            response = requests.get(url, headers=self.get_headers(), stream=True, timeout=10)
+            response.raise_for_status()
+            file_path = os.path.join(self.downloaded_dir, filename)
+            with open(file_path, 'wb') as f:
+                for chunk in response.iter_content(1024):
+                    f.write(chunk)
+            return True, f"成功下载: {url}"
+        except Exception as e:
+            return False, f"下载失败 {url}: {e}"
 
-# 创建一个队列来存储需要访问的url
-url_queue = [start_url]
-
-# 创建一个Redis客户端来存储爬虫的状态
-redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
-
-# 创建一个文件夹用于存储下载的文件
-if not os.path.exists(downloaded):
-    os.makedirs(downloaded)
-
-def download_file(url, filename):
-    try:
-        response = requests.get(url, stream=True)
-        response.raise_for_status()
-        file_path = os.path.join(downloaded, filename)
-        with open(file_path, 'wb') as f:
-            for chunk in response.iter_content(1024):
-                f.write(chunk)
-        logging.info(f"下载 {url}")
-    except requests.RequestException as e:
-        logging.error(f"下载 {url}: {e}")
-
-def search_and_crawl_files(search_query, file_type):
-    search_url = 'https://www.bing.com/search'
-    params = {'q': search_query}
-    if file_type == 'image':
-        params['tbm'] = 'isch'
-    elif file_type == 'video':
-        params['tbm'] = 'vid'
-    headers = get_headers()
-    try:
-        response = requests.get(search_url, params=params, headers=headers)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'html.parser')
+    def search_bing(self, query, file_type='image'):
+        """在 Bing 上搜索多媒体文件"""
+        search_url = 'https://www.bing.com/search'
+        params = {'q': query}
         if file_type == 'image':
-            file_links = [img.get('src') for img in soup.find_all('img')]
+            params['tbm'] = 'isch'
         elif file_type == 'video':
-            file_links = [a['href'] for a in soup.find_all('a', href=True) if 'watch' in a['href']]
-        logging.info("搜索结果:")
-        for i, file_link in enumerate(file_links):
-            logging.info(f"{i+1}. {file_link}")
-        logging.info("")
-        while True:
-            choice = input(f"输入要下载的{file_type}编号(或'q'退出): ")
-            if choice.lower() == 'q':
-                break
+            params['tbm'] = 'vid'
+
+        try:
+            response = requests.get(search_url, params=params, headers=self.get_headers(), timeout=10)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, 'html.parser')
+
+            file_links = []
+            if file_type == 'image':
+                # 增强的图片链接提取
+                file_links = [img.get('src') for img in soup.find_all('img') if img.get('src') and img.get('src').startswith('http')]
+            elif file_type == 'video':
+                file_links = [a['href'] for a in soup.find_all('a', href=True) if 'watch' in a['href']]
+
+            return list(set(file_links))
+        except Exception as e:
+            logger.error(f"Bing 搜索失败: {e}")
+            return []
+
+    def crawl_website(self, start_url, max_depth=2, restrict_domain=True):
+        """递归爬取网站并下载发现的多媒体文件"""
+        domain = urlparse(start_url).netloc
+        self.url_queue = [(start_url, 0)]
+        self.visited_urls = {start_url}
+
+        while self.url_queue:
+            url, depth = self.url_queue.pop(0)
+            if depth > max_depth:
+                continue
+
+            logger.info(f"正在爬取 (深度 {depth}): {url}")
+
             try:
-                choice = int(choice)
-                if 0 < choice <= len(file_links):
-                    file_url = file_links[choice-1]
-                    download_file(file_url, os.path.basename(file_url))
+                response = requests.get(url, headers=self.get_headers(), timeout=10)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.text, 'html.parser')
+
+                # 提取链接进行递归
+                for a_tag in soup.find_all('a', href=True):
+                    full_url = urljoin(url, a_tag['href'])
+                    if self.is_valid_url(full_url) and full_url not in self.visited_urls:
+                        if not restrict_domain or urlparse(full_url).netloc == domain:
+                            self.visited_urls.add(full_url)
+                            self.url_queue.append((full_url, depth + 1))
+
+                # 提取多媒体文件
+                media_urls = []
+                # 提取图片
+                for img in soup.find_all('img'):
+                    src = img.get('src')
+                    if src: media_urls.append(urljoin(url, src))
+                # 提取视频链接
+                for a in soup.find_all('a', href=True):
+                    href = a['href']
+                    if 'watch' in href or href.endswith(('.mp4', '.avi', '.mov')):
+                        media_urls.append(urljoin(url, href))
+
+                # 下载
+                if media_urls:
+                    self.download_multiple(list(set(media_urls)))
+
+            except Exception as e:
+                logger.error(f"处理页面失败 {url}: {e}")
+
+        if self.redis_client:
+            try:
+                self.redis_client.set('crawler_last_session_count', len(self.visited_urls))
+            except: pass
+
+        logger.info(f"爬取完成，总计访问 {len(self.visited_urls)} 个页面。")
+
+    def download_multiple(self, urls):
+        total = len(urls)
+        completed = 0
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(self.download_file, url) for url in urls]
+            for future in concurrent.futures.as_completed(futures):
+                completed += 1
+                success, msg = future.result()
+                if success:
+                    print_progress_bar(completed, total)
                 else:
-                    logging.warning("无效的选择")
-            except ValueError:
-                logging.warning("无效的输入")
-    except requests.RequestException as e:
-        logging.error(f"Failed to search {file_type}: {e}")
-        return False  # 返回False表示失败
-    return True  # 返回True表示成功
+                    logger.debug(msg)
+        print() # 换行
 
 def print_progress_bar(iteration, total, length=40):
     percent = ("{0:.1f}").format(100 * (iteration / float(total)))
     filled_length = int(length * iteration // total)
     bar = '█' * filled_length + '-' * (length - filled_length)
-    sys.stdout.write(f'\r|{bar}| {percent}% 完成')
+    sys.stdout.write(f'\r|{bar}| {percent}% 完成 ({iteration}/{total})')
     sys.stdout.flush()
 
-def crawl_website(start_url, max_depth):
-    while url_queue:
-        url = url_queue.pop(0)
-        if url in visited_urls:
-            continue
-        visited_urls.add(url)
-        try:
-            response = requests.get(url, headers=get_headers())
-            response.raise_for_status()
-            soup = BeautifulSoup(response.content, 'html.parser')
-            links = [link.get('href') for link in soup.find_all('a', href=True)]
-            for link in links:
-                if link not in visited_urls:
-                    url_queue.append(link)
-            files = [img.get('src') for img in soup.find_all('img')] + \
-                    [a['href'] for a in soup.find_all('a', href=True) if 'watch' in a['href']]
-            print_progress_bar(0, len(files))   
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                futures = [executor.submit(download_file, file_url, os.path.basename(file_url)) for file_url in files]
-                for i, future in enumerate(concurrent.futures.as_completed(futures)):
-                    print_progress_bar(i + 1, len(files))
-                time.sleep(delay_time + random.random())
-        except requests.RequestException as e:
-            logging.error(f"爬取 {url} 失败: {e}")
-        if len(visited_urls) >= max_depth:
-            break
-    redis_client.set('crawler_state', str(len(visited_urls)))
-    return True  # 返回True表示成功
-
-def controlled_crawl(urls, delay):
-    for url in urls:
-        response = requests.get(url, headers=get_headers())
-        # 处理响应
-        time.sleep(delay)    
-
-class MyScrapySpider(scrapy.Spider):
-    name = "my_scrapy_spider"
-
-    def __init__(self, search_query=None, *args, **kwargs):
-        super(MyScrapySpider, self).__init__(*args, **kwargs)
-        self.start_urls = [f'https://www.bing.com/images/search?q={search_query}']
-
-    def parse(self, response):
-        images = response.css('img::attr(src)').extract()
-        for image_url in images:
-            yield scrapy.Request(url=image_url, callback=self.download_image)
-
-    def download_image(self, response):
-        path = f'{downloaded}/{os.path.basename(response.url)}'
-        with open(path, 'wb') as f:
-            f.write(response.body)
-        self.log(f'下载 {response.url}')    
+# --- 兼容性函数 ---
 
 def run(*args, **kwargs):
+    url = kwargs.get('url')
     search_query = kwargs.get('search_query')
     file_type = kwargs.get('type', 'image')
-    url = kwargs.get('url')
+    max_depth = kwargs.get('max_depth', 2)
 
+    crawler = ButlerCrawler()
     if url:
-        crawl_website(url, max_depth)
+        crawler.crawl_website(url, max_depth=max_depth)
     elif search_query:
-        search_and_crawl_files(search_query, file_type)
+        links = crawler.search_bing(search_query, file_type)
+        if links:
+            logger.info(f"搜索到 {len(links)} 个链接，开始下载...")
+            crawler.download_multiple(links)
+        else:
+            logger.info("未找到相关结果。")
     else:
-        print("Please provide search_query or url")
+        logger.warning("未提供 URL 或搜索关键词。")
 
-def crawler():
-    parser = argparse.ArgumentParser(description="Multimedia Search and Crawler")
-    parser.add_argument('search_query', type=str, nargs='?', help='输入搜索查询')
-    parser.add_argument('--type', type=str, default='image', choices=['image', 'video'], help='文件类型')
+def run_scrapy_crawler(query):
+    crawler = ButlerCrawler()
+    links = crawler.search_bing(query, 'image')
+    if links:
+        return "\n".join(links)
+    return "未找到结果。"
+
+# --- 交互式与命令行 ---
+
+def run_interactive():
+    crawler = ButlerCrawler()
+    print("\n" + "="*30)
+    print("   Butler 综合爬虫工具")
+    print("="*30)
+    print("1. 搜索并下载 (Bing)")
+    print("2. 递归爬取网站 (广度优先)")
+    print("q. 退出")
+    choice = input("\n请选择模式: ").strip().lower()
+
+    if choice == '1':
+        query = input("输入搜索关键词: ").strip()
+        if not query: return
+        file_type = input("文件类型 (image/video, 默认 image): ").strip() or 'image'
+        links = crawler.search_bing(query, file_type)
+
+        if not links:
+            print("未找到相关结果。")
+            return
+
+        print(f"\n找到 {len(links)} 个结果:")
+        for i, link in enumerate(links):
+            print(f"{i+1}. {link}")
+
+        indices = input("\n输入要下载的编号 (例如 1,2,3 或 'all', 'q' 退出): ").strip().lower()
+        if indices == 'q': return
+
+        to_download = []
+        if indices == 'all':
+            to_download = links
+        else:
+            try:
+                idx_list = [int(x.strip()) - 1 for x in indices.split(',')]
+                to_download = [links[i] for i in idx_list if 0 <= i < len(links)]
+            except (ValueError, IndexError):
+                print("输入无效。")
+                return
+
+        if to_download:
+            print(f"正在下载 {len(to_download)} 个文件...")
+            crawler.download_multiple(to_download)
+
+    elif choice == '2':
+        url = input("输入起始 URL: ").strip()
+        if not url: return
+        try:
+            depth = int(input("输入爬取深度 (默认 2): ").strip() or 2)
+        except ValueError:
+            depth = 2
+        restrict = input("是否限制在同一域名下 (y/n, 默认 y): ").strip().lower() != 'n'
+        crawler.crawl_website(url, max_depth=depth, restrict_domain=restrict)
+    
+    elif choice == 'q':
+        sys.exit(0)
+
+def main():
+    parser = argparse.ArgumentParser(description="Butler Multimedia Crawler & Search Tool")
+    parser.add_argument('--url', type=str, help='起始爬取 URL')
+    parser.add_argument('--query', type=str, help='搜索关键词')
+    parser.add_argument('--type', type=str, default='image', choices=['image', 'video'], help='搜索文件类型')
+    parser.add_argument('--depth', type=int, default=2, help='爬取深度')
     args = parser.parse_args()
-    search_query = args.search_query
-    file_type = args.type
-    
-    if not search_query:
-        search_query = input('搜索内容: ')
-    
-    if urlparse(input_str).scheme:  # 如果输入的是网址
-        success = crawl_website(input_str, max_depth)
-        if not success:
-            logger.info("切换到Scrapy爬虫")
-            run_scrapy_crawler(search_query)        
-            
-    else:  # 如果输入不是网址，作为搜索查询
-        success = search_and_crawl_files(search_query, file_type)
-        if not success:
-            logger.info("切换到Scrapy爬虫")
-            run_scrapy_crawler(search_query)
-    logging.info('爬虫结束！')
-    
+
+    if args.url or args.query:
+        run(url=args.url, search_query=args.query, type=args.type, max_depth=args.depth)
+    else:
+        while True:
+            try:
+                run_interactive()
+            except KeyboardInterrupt:
+                print("\n用户中断。")
+                break
+            except Exception as e:
+                print(f"\n发生错误: {e}")
+
 if __name__ == '__main__':
-    crawler()
+    main()
