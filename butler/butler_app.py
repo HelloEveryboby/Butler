@@ -47,6 +47,8 @@ from butler.core.dream_engine import DreamEngine
 from butler.core.proactive_agent import ProactiveAgent
 from butler.core.focus_mode import FocusMode
 from butler.core.sensing_api import init_sensing_api
+from butler.core.workflow_engine import WorkflowEngine
+from butler.core.self_healing import SelfHealing
 from butler.core.display_protocol import display_server
 from butler.usb_screen import USBScreen
 from butler.resource_manager import ResourceManager, PerformanceMode
@@ -97,6 +99,10 @@ class Jarvis:
         self.proactive_agent = ProactiveAgent(self)
         self.focus_mode = FocusMode(self)
         self.sensing_api = init_sensing_api(self)
+        self.workflow_engine = WorkflowEngine(self)
+        self.self_healing = SelfHealing(self)
+
+        # Sense -> Decide -> Act pattern is implemented via _autonomous_agent_loop
         display_server.start()
         self._setup_kairos_tasks()
         
@@ -187,6 +193,9 @@ class Jarvis:
         # 2. 主动模式 Tick (每 1 小时检查一次)
         cron_scheduler.add_task("proactive-tick", interval_seconds=3600, permanent=True)
         event_bus.on("cron:proactive-tick", self.proactive_agent.tick)
+
+        # 3. 工作流监听
+        event_bus.on("workflow_next", self.workflow_engine.execute_step)
 
         # 启动调度器
         cron_scheduler.start()
@@ -683,13 +692,26 @@ class Jarvis:
 
             # 4. LLM Call (Intent & Strategy)
             self.ui_print(f"Butler 正在思考 (第 {turn+1} 轮)...", tag='system_message')
-            nlu_result = self.nlu_service.extract_intent(messages[-1]["content"], history=messages[:-1])
+
+            # 检查是否需要视觉辅助
+            vision_needed_keywords = ["看", "截图", "屏幕", "图片", "报错", "ui", "界面", "视窗"]
+            image_b64 = None
+            current_query = messages[-1]["content"]
+            if isinstance(current_query, str) and any(k in current_query for k in vision_needed_keywords):
+                try:
+                    from package.device import os_utils
+                    self.ui_print("📸 正在捕获屏幕以进行视觉分析...", tag='system_message')
+                    image_b64 = os_utils.capture_screen()
+                except Exception as e:
+                    self.logger.warning(f"Failed to capture screen for vision: {e}")
+
+            nlu_result = self.nlu_service.extract_intent(current_query, history=messages[:-1])
             intent = nlu_result.get("intent", "unknown")
             entities = nlu_result.get("entities", {})
 
             if intent == "unknown":
                 # Fallback to general chat if no clear tool intent
-                resp = self.nlu_service.ask_llm(messages[-1]["content"], history=messages[:-1])
+                resp = self.nlu_service.ask_llm(current_query, history=messages[:-1], image_b64=image_b64)
                 self.speak(resp)
                 break
 
@@ -707,6 +729,10 @@ class Jarvis:
             elif intent == "claim_task":
                 output = task_manager.claim_business_task(int(entities.get("task_id", 0)), "lead")
 
+            # Skill Management Tools
+            elif intent == "skill_install" or intent == "skill_import":
+                output = self.skill_manager.execute("manage_skills", "install" if intent == "skill_install" else "import", entities=entities, jarvis_app=self)
+
             # Team Tools
             elif intent == "spawn_teammate":
                 output = self.team_manager.spawn_teammate(entities.get("name"), entities.get("role"), entities.get("prompt"))
@@ -717,10 +743,33 @@ class Jarvis:
             elif intent == "read_inbox":
                 output = message_bus.read_inbox("lead")
 
+            # Workflow Tools
+            elif intent == "workflow_list":
+                output = self.workflow_engine.list_workflows()
+            elif intent == "workflow_create":
+                output = self.workflow_engine.create_workflow(entities.get("name"), entities.get("steps"))
+
             # Context Tools
             elif intent == "compress":
                 messages = self.nlu_service.compress_history(messages)
                 output = "Context compressed."
+
+            # Action Bridge Tools
+            elif intent == "call_api":
+                from butler.core.action_bridge import action_bridge
+                output = action_bridge.call_api(
+                    url=entities.get("url"),
+                    method=entities.get("method", "POST"),
+                    data=entities.get("data"),
+                    headers=entities.get("headers")
+                )
+            elif intent == "trigger_webhook":
+                from butler.core.action_bridge import action_bridge
+                output = action_bridge.trigger_webhook(
+                    name=entities.get("name"),
+                    payload=entities.get("payload"),
+                    config=entities.get("config", {})
+                )
 
             # Legacy & Interpreter Fallbacks
             elif intent == "xlsx_expert" or intent == "pdf_assistant" or self._should_use_interpreter(command):
@@ -737,6 +786,29 @@ class Jarvis:
 
             # 6. Feedback Loop
             self.ui_print(f"工具输出: {str(output)[:200]}...", tag='system_message')
+
+            # 自愈逻辑：如果输出包含错误，触发自愈分析
+            if "Error" in str(output) or "失败" in str(output):
+                self.ui_print("🧪 检测到执行异常，正在启动 AI 自愈分析并尝试自动修复...", tag='system_message')
+                healing_result = self.self_healing.analyze_failure(str(output), {"intent": intent, "entities": entities})
+                strategy = healing_result.get("strategy")
+                explanation = healing_result.get("explanation", "正在尝试自动修复。")
+
+                self.ui_print(f"🩹 自愈方案 ({strategy}): {explanation}", tag='system_message')
+
+                if strategy == "retry" and turn < max_turns - 1:
+                    new_entities = healing_result.get("parameters", entities)
+                    # 将重试指令注入对话，让下一轮循环执行
+                    messages.append({"role": "assistant", "content": f"Execution failed. Retrying with parameters: {json.dumps(new_entities)}"})
+                    continue
+                elif strategy == "fallback" and turn < max_turns - 1:
+                    fallback_intent = healing_result.get("parameters", {}).get("tool", "general_chat")
+                    messages.append({"role": "assistant", "content": f"Execution failed. Falling back to tool: {fallback_intent}"})
+                    # 可以在这里修改 intent 并继续，或者让下一轮循环根据 context 决定
+                    continue
+
+                output = f"{output}\n\n[自愈建议]: {explanation}"
+
             messages.append({"role": "assistant", "content": f"I used tool '{intent}' and got: {json.dumps(output, ensure_ascii=False)}"})
 
             # If the tool result looks like a final answer or we've reached a conclusion

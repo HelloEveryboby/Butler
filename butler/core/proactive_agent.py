@@ -73,4 +73,18 @@ class ProactiveAgent:
     def _suggest_improvement(self):
         """基于历史记录建议改进（极其低频）"""
         logger.info("正在思考潜在的系统改进建议...")
-        pass
+        if not self.jarvis: return
+
+        habit_summary = self.jarvis.habit_manager.get_profile_summary()
+        prompt = (
+            f"基于以下用户的习惯画像，请主动提供一条改进建议或一个自动化的新点子：\n"
+            f"{habit_summary}\n\n"
+            f"建议应具有前瞻性（例如：'检测到您常在 9 点处理周报，是否需要我为您预先汇总本周日志？'）。"
+        )
+
+        try:
+            suggestion = self.jarvis.nlu_service.ask_llm(prompt, use_habit=False)
+            self.jarvis.ui_print(f"💡 主动建议: {suggestion}", tag='system_message')
+            event_bus.emit("proactive_suggestion", suggestion)
+        except Exception as e:
+            logger.error(f"Failed to generate proactive suggestion: {e}")

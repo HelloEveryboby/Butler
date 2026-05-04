@@ -114,8 +114,8 @@ class NLUService:
             logger.error(f"General response generation failed: {e}")
             return "抱歉，我暂时无法回答这个问题。"
 
-    def ask_llm(self, prompt: str, history: List[Any] = None, use_habit: bool = True, system_override: str = None) -> str:
-        """通用 LLM 问答接口。"""
+    def ask_llm(self, prompt: str, history: List[Any] = None, use_habit: bool = True, system_override: str = None, image_b64: str = None) -> str:
+        """通用 LLM 问答接口，支持多模态输入。"""
         if not quota_manager.check_quota():
             return "Error: API 额度已用尽。"
 
@@ -130,15 +130,35 @@ class NLUService:
                 if isinstance(item, dict):
                     role = item.get('role', 'user')
                     content = item.get('content', '')
+                    # 保持历史中的多模态结构（如果有）
+                    messages.append({"role": role, "content": content})
                 else:
                     role = item.metadata.get('role', 'user') if hasattr(item, 'metadata') else 'user'
                     content = item.content if hasattr(item, 'content') else str(item)
-                messages.append({"role": role, "content": content})
+                    messages.append({"role": role, "content": content})
 
-        messages.append({"role": "user", "content": prompt})
+        # 构建当前用户消息
+        user_content = prompt
+        if image_b64:
+            # 如果提供了图片，则转换为多模态消息格式
+            user_content = [
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{image_b64}"}
+                }
+            ]
+
+        messages.append({"role": "user", "content": user_content})
+
+        # 动态选择模型：如果有图片，则尝试使用支持多模态的模型 (如 gpt-4o 或 deepseek-vl)
+        # 这里默认尝试使用配置中的模型，或者根据有无图片自动切换
+        model = config_loader.get("api.deepseek.model", "deepseek-chat")
+        if image_b64 and model == "deepseek-chat":
+            model = "gpt-4o" # 默认降级/切换到 GPT-4o 处理图片，如果 DeepSeek 不支持
 
         payload = {
-            "model": "deepseek-chat",
+            "model": model,
             "messages": messages,
             "max_tokens": 2048,
             "temperature": 0.2
