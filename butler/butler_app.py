@@ -729,6 +729,10 @@ class Jarvis:
             elif intent == "claim_task":
                 output = task_manager.claim_business_task(int(entities.get("task_id", 0)), "lead")
 
+            # Skill Management Tools
+            elif intent == "skill_install" or intent == "skill_import":
+                output = self.skill_manager.execute("manage_skills", "install" if intent == "skill_install" else "import", entities=entities, jarvis_app=self)
+
             # Team Tools
             elif intent == "spawn_teammate":
                 output = self.team_manager.spawn_teammate(entities.get("name"), entities.get("role"), entities.get("prompt"))

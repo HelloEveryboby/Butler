@@ -2,6 +2,7 @@ import importlib
 import importlib.util
 import json
 import os
+import shutil
 import logging
 import sys
 import subprocess
@@ -113,6 +114,24 @@ class SkillManager:
 
         return extension
 
+    def _handle_zip_skills(self):
+        """处理 skills 目录下的 .zip 技能包，自动解压"""
+        import zipfile
+        import shutil
+        for item in self.skills_dir.iterdir():
+            if item.suffix == ".zip":
+                skill_name = item.stem
+                target_dir = self.skills_dir / skill_name
+                if not target_dir.exists():
+                    logger.info(f"Detected new zip skill: {item.name}, extracting...")
+                    try:
+                        with zipfile.ZipFile(item, 'r') as zip_ref:
+                            zip_ref.extractall(target_dir)
+                        # 解压成功后移除 zip 文件以防重复触发
+                        item.unlink()
+                    except Exception as e:
+                        logger.error(f"Failed to extract zip skill {item.name}: {e}")
+
     def load_skills(self):
         """
         Stage 1: 扫描 skills 目录，发现所有技能并加载元数据。
@@ -120,6 +139,9 @@ class SkillManager:
         """
         if not self.skills_dir.exists():
             self.skills_dir.mkdir(parents=True, exist_ok=True)
+
+        # 自动处理压缩包
+        self._handle_zip_skills()
 
         # 使用局部临时变量进行加载
         new_manifests = {}
@@ -411,8 +433,29 @@ class SkillManager:
         url = entities.get("url") or kwargs.get("url")
         skill_name = entities.get("skill_name") or kwargs.get("skill_name")
 
-        if action == "install":
-            if not url: return "错误：缺少技能下载链接 (URL)。"
+        if action == "install" or action == "import":
+            # 支持本地路径导入
+            local_path = entities.get("path") or kwargs.get("path")
+            if local_path and os.path.exists(local_path):
+                import zipfile
+                suggested_name = skill_name or Path(local_path).stem
+                target_path = self.skills_dir / suggested_name
+
+                try:
+                    if os.path.isdir(local_path):
+                        shutil.copytree(local_path, target_path)
+                    elif local_path.endswith(".zip"):
+                        with zipfile.ZipFile(local_path, 'r') as zip_ref:
+                            zip_ref.extractall(target_path)
+                    else:
+                        return "错误：不支持的文件格式，请提供目录或 .zip 文件。"
+
+                    self.load_skills()
+                    return f"✅ 技能 '{suggested_name}' 已从本地路径导入。"
+                except Exception as e:
+                    return f"❌ 导入失败: {str(e)}"
+
+            if not url: return "错误：缺少技能下载链接 (URL) 或本地路径 (path)。"
             if not (url.startswith("https://") or url.startswith("git@")):
                 return "错误：不安全的 URL 格式。"
 
