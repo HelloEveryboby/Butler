@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  butler:
+    build: .
+    container_name: butler-assistant
+    restart: always
+    ports:
+      - "5001:5001"
+      - "8000:8000"
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - DISPLAY=${DISPLAY}
+    devices:
+      - "/dev/snd:/dev/snd" # 如果需要音频支持

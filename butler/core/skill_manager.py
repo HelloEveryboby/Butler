@@ -83,19 +83,26 @@ class SkillManager:
             self._observer = None
 
     def get_system_prompt_extension(self):
-        """生成全量技能目录供 AI 感知 (Stage 2 增强)"""
+        """生成全量技能目录供 AI 感知 (Stage 2 增强)，支持 OpenAI Actions 风格描述"""
         if not self.manifests:
             return ""
 
-        extension = "\n### 🛠️ Butler 增强技能库\n"
+        extension = "\n### 🛠️ Butler 增强技能库 (OpenAI Actions 风格)\n"
         extension += "你当前拥有以下可调用的扩展技能。如果用户请求相关任务，请优先使用对应技能。\n"
 
         for s_id, meta in self.manifests.items():
             name = meta.get('name', s_id)
             desc = meta.get('description', '暂无描述')
-            extension += f"- **{s_id}** ({name}): {desc}\n"
 
-        extension += "\n当需要查看某个技能的具体参数或指令时，请告知用户你正在调用该技能。\n"
+            # 如果存在 OpenAI 风格的工具定义，则注入详细参数描述
+            tools = meta.get('tools') or meta.get('actions')
+            if tools:
+                extension += f"- **{s_id}** ({name}): {desc}\n"
+                extension += f"  可用的 Action 定义: {json.dumps(tools, ensure_ascii=False)}\n"
+            else:
+                extension += f"- **{s_id}** ({name}): {desc}\n"
+
+        extension += "\n当调用这些技能时，请提供 JSON 格式的参数，以便系统精准执行。\n"
         return extension
 
     def load_skills(self):
