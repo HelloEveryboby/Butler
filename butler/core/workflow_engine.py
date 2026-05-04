@@ -27,6 +27,9 @@ class WorkflowEngine:
         }
         return workflow_id
 
+    def list_workflows(self):
+        return self.active_workflows
+
     def execute_step(self, workflow_id: str):
         wf = self.active_workflows.get(workflow_id)
         if not wf or wf["status"] == "completed":

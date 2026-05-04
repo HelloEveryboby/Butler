@@ -739,6 +739,12 @@ class Jarvis:
             elif intent == "read_inbox":
                 output = message_bus.read_inbox("lead")
 
+            # Workflow Tools
+            elif intent == "workflow_list":
+                output = self.workflow_engine.list_workflows()
+            elif intent == "workflow_create":
+                output = self.workflow_engine.create_workflow(entities.get("name"), entities.get("steps"))
+
             # Context Tools
             elif intent == "compress":
                 messages = self.nlu_service.compress_history(messages)
@@ -779,10 +785,25 @@ class Jarvis:
 
             # 自愈逻辑：如果输出包含错误，触发自愈分析
             if "Error" in str(output) or "失败" in str(output):
-                self.ui_print("🧪 检测到执行异常，正在启动 AI 自愈分析...", tag='system_message')
-                healing_suggestion = self.self_healing.analyze_failure(str(output), {"intent": intent, "entities": entities})
-                self.ui_print(f"🩹 自愈建议: {healing_suggestion}", tag='system_message')
-                output = f"{output}\n\n[自愈建议]: {healing_suggestion}"
+                self.ui_print("🧪 检测到执行异常，正在启动 AI 自愈分析并尝试自动修复...", tag='system_message')
+                healing_result = self.self_healing.analyze_failure(str(output), {"intent": intent, "entities": entities})
+                strategy = healing_result.get("strategy")
+                explanation = healing_result.get("explanation", "正在尝试自动修复。")
+
+                self.ui_print(f"🩹 自愈方案 ({strategy}): {explanation}", tag='system_message')
+
+                if strategy == "retry" and turn < max_turns - 1:
+                    new_entities = healing_result.get("parameters", entities)
+                    # 将重试指令注入对话，让下一轮循环执行
+                    messages.append({"role": "assistant", "content": f"Execution failed. Retrying with parameters: {json.dumps(new_entities)}"})
+                    continue
+                elif strategy == "fallback" and turn < max_turns - 1:
+                    fallback_intent = healing_result.get("parameters", {}).get("tool", "general_chat")
+                    messages.append({"role": "assistant", "content": f"Execution failed. Falling back to tool: {fallback_intent}"})
+                    # 可以在这里修改 intent 并继续，或者让下一轮循环根据 context 决定
+                    continue
+
+                output = f"{output}\n\n[自愈建议]: {explanation}"
 
             messages.append({"role": "assistant", "content": f"I used tool '{intent}' and got: {json.dumps(output, ensure_ascii=False)}"})
 

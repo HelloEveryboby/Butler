@@ -15,6 +15,8 @@ class ActionBridge:
     def __init__(self):
         self.templates = {
             "ifttt": "https://maker.ifttt.com/trigger/{event}/with/key/{key}",
+            "feishu": "https://open.feishu.cn/open-apis/bot/v2/hook/{token}",
+            "notion": "https://api.notion.com/v1/pages",
             "webhook_generic": "{url}"
         }
 
@@ -42,12 +44,17 @@ class ActionBridge:
 
     def trigger_webhook(self, name: str, payload: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         """Triggers a pre-configured or ad-hoc webhook."""
-        url_template = config.get("url")
+        template_name = config.get("template")
+        url_template = self.templates.get(template_name) if template_name else config.get("url")
+
         if not url_template:
-            return {"success": False, "error": "No URL provided for webhook."}
+            return {"success": False, "error": "No URL or valid template provided for webhook."}
 
         # Simple template replacement
-        url = url_template.format(**config)
+        try:
+            url = url_template.format(**config)
+        except KeyError as e:
+            return {"success": False, "error": f"Missing required parameter for template '{template_name}': {e}"}
         method = config.get("method", "POST")
         headers = config.get("headers", {})
 

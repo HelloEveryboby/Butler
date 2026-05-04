@@ -103,6 +103,14 @@ class SkillManager:
                 extension += f"- **{s_id}** ({name}): {desc}\n"
 
         extension += "\n当调用这些技能时，请提供 JSON 格式的参数，以便系统精准执行。\n"
+
+        # 注入预置 API 模板说明
+        extension += "\n### 🌐 预置 API 模板\n"
+        extension += "系统内置了以下常连接口模板，你可以直接调用 `trigger_webhook` 意图，并指定 `template` 参数：\n"
+        extension += "- **feishu**: 飞书机器人通知 (参数: token)\n"
+        extension += "- **notion**: Notion 页面创建 (需在 headers 中提供 API Key)\n"
+        extension += "- **ifttt**: IFTTT Webhook 触发 (参数: event, key)\n"
+
         return extension
 
     def load_skills(self):
