@@ -18,6 +18,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body class="theme-apple">
+    <div id="dynamic-bg" class="dynamic-bg"></div>
     <div class="app-container">
         <!-- Permanent Sidebar -->
         <aside class="sidebar">
@@ -78,6 +79,9 @@
                 </div>
 
                 <div class="status-indicators">
+                    <div class="status-indicator-item" id="music-mini-player" style="display: none; cursor: pointer;">
+                        <canvas id="music-mini-spectrum" width="40" height="20"></canvas>
+                    </div>
                     <div class="status-indicator-item" title="更换背景">
                         <div class="icon-btn-small" id="bg-upload-btn"><i class="fas fa-image"></i></div>
                         <input type="file" id="bg-upload" accept="image/*" style="display: none;">
@@ -156,16 +160,29 @@
                         </div>
                     </div>
                     <div class="media-main-player">
-                        <div id="audio-player-card" class="media-card player-active">
+                        <div id="audio-player-card" class="media-card player-active music-glass-card">
                             <div class="media-visual-area">
-                                <div class="audio-disc-animation">
+                                <div class="audio-disc-animation" id="audio-disc">
                                     <i class="fas fa-music"></i>
                                 </div>
+                                <canvas id="music-full-spectrum" width="300" height="100"></canvas>
                             </div>
                             <div class="media-info-area">
                                 <h2 id="media-title-display">未播放曲目</h2>
                                 <p id="media-subtitle-display">支持 MP3 & WAV 格式</p>
-                                <audio id="main-audio-player" controls style="width: 100%; margin-top: 20px;"></audio>
+
+                                <div class="custom-player-controls">
+                                    <div class="player-buttons">
+                                        <button id="music-prev-btn" class="player-btn"><i class="fas fa-backward"></i></button>
+                                        <button id="music-play-btn" class="player-btn play-main"><i class="fas fa-play"></i></button>
+                                        <button id="music-next-btn" class="player-btn"><i class="fas fa-forward"></i></button>
+                                    </div>
+                                    <div class="player-volume-container">
+                                        <i class="fas fa-volume-up"></i>
+                                        <input type="range" id="music-volume-slider" min="0" max="100" value="50">
+                                    </div>
+                                </div>
+
                                 <div class="media-extra-controls">
                                     <button id="shuffle-media-btn" class="icon-btn-small" title="随机播放"><i class="fas fa-random"></i> 随机播放</button>
                                 </div>
