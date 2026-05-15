@@ -89,6 +89,8 @@ class Jarvis:
         self.skill_manager = SkillManager()
         self.skill_manager.load_skills()
         self.skill_manager.start_monitoring()
+        # Legacy Plugin system is phased out in favor of Skills
+        # self.extension_manager = extension_manager
         self.team_manager = TeamManager.get_instance(self)
 
         # Inject resource manager into battery manager for mode awareness
@@ -462,10 +464,20 @@ class Jarvis:
             if result is not None:
                 if isinstance(result, str): self.speak(result)
                 return
+
+        # Skill-based fallback
+        skill_id = self.skill_manager.match_skill(legacy_command) or matched_intent
+        if skill_id in self.skill_manager.manifests:
+             result = self.skill_manager.execute(skill_id, entities.get("operation") or "run", entities=entities, jarvis_app=self)
+             self.speak(str(result))
+             return
+
         try:
-            ext_result = extension_manager.execute(matched_intent, command=legacy_command, args=entities)
-            if ext_result is not None: self.speak(str(ext_result))
-            return
+            # Package-based fallback (kept for simple script execution)
+            if matched_intent in extension_manager.packages:
+                ext_result = extension_manager.execute(matched_intent, command=legacy_command, args=entities)
+                if ext_result is not None: self.speak(str(ext_result))
+                return
         except ValueError:
             pass
         self._execute_with_llm_interpreter(legacy_command)
@@ -475,7 +487,10 @@ class Jarvis:
 
     def _dispatch_command(self, command_type, payload):
         if command_type == "text": self.handle_user_command(payload)
-        elif command_type == "execute_program": extension_manager.execute(payload)
+        elif command_type == "execute_program":
+             # Use skill manager instead of extension manager
+             skill_id = payload
+             self.skill_manager.execute(skill_id, "run", jarvis_app=self)
         elif command_type == "display_mode_change": self.display_mode = payload
         elif command_type == "archive_action": self._handle_archive_action(payload)
         elif command_type == "manual_action": self._handle_manual_action(payload)
@@ -485,25 +500,22 @@ class Jarvis:
 
     def _handle_archive_action(self, payload):
         action = payload.get("action")
-        plugin = extension_manager.get_plugin("ArchiveManager")
-        if not plugin: return
         if action == "open":
             zip_path, file_in_zip = payload.get("zip_path"), payload.get("file_in_zip")
-            result = plugin.run("open_zip_file", {"zip_path": zip_path, "file_in_zip": file_in_zip})
-            if result.success:
-                extracted_path = result.result.get("extracted_path")
+            result = self.skill_manager.execute("archive_manager", "open_zip_file", zip_path=zip_path, file_in_zip=file_in_zip)
+            # Minimal migration for UI-triggered background monitoring
+            if "已解压" in str(result):
+                extracted_path = str(result).split(": ")[-1]
                 def monitor_loop():
                     while True:
                         time.sleep(2)
-                        res = plugin.run("detect_changes", {"extracted_path": extracted_path})
-                        if res.result is True:
-                            plugin.run("sync_zip_file", {"extracted_path": extracted_path, "action": 'Y'})
-                            break
-                        if not os.path.exists(extracted_path): break
+                        # ArchiveManager skill in its current simple form doesn't support detect_changes
+                        # This part of the UI logic will need future skill enhancement
+                        break
                 threading.Thread(target=monitor_loop, daemon=True).start()
         elif action == "list":
-            result = plugin.run("list_zip_contents", {"zip_path": payload.get("zip_path")})
-            if result.success: event_bus.emit("archive_browser_update", payload.get("zip_path"), result.result)
+            result = self.skill_manager.execute("archive_manager", "list_zip_contents", zip_path=payload.get("zip_path"))
+            event_bus.emit("archive_browser_update", payload.get("zip_path"), str(result).split("\n"))
 
     def _handle_manual_action(self, payload):
         action = payload.get("action")
@@ -777,11 +789,11 @@ class Jarvis:
                 self._execute_with_llm_interpreter(command)
                 break
             else:
-                # Handle via legacy skill/extension system or new SKILL.md scripts
+                # Handle via skills or package extension system
                 skill_id = intent if intent in self.skill_manager.manifests else self.skill_manager.match_skill(command)
                 if skill_id:
                     output = self.skill_manager.execute(skill_id, entities.get("operation") or entities.get("action") or "run", entities=entities, jarvis_app=self)
-                else:
+                elif intent in extension_manager.packages:
                     output = extension_manager.execute(intent, command=command, args=entities)
 
             # 6. Feedback Loop

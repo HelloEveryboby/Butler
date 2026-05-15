@@ -20,7 +20,6 @@ class HardwareManager:
     DEV_LED = 0x10
     DEV_MOTOR = 0x20
     DEV_SENSOR = 0x30
-    DEV_NFC = 0x40
     DEV_AUDIO = 0x50
     DEV_PROGRESS = 0x60
     DEV_SYSTEM = 0xFF
