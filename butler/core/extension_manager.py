@@ -3,7 +3,6 @@ import sys
 import importlib.util
 import logging
 from typing import Dict, List, Any, Optional
-from plugin.PluginManager import PluginManager
 from butler.code_execution_manager import CodeExecutionManager
 from butler.data_storage import data_storage_manager
 from package.core_utils.log_manager import LogManager
@@ -12,10 +11,9 @@ logger = LogManager.get_logger(__name__)
 
 class ExtensionManager:
     """
-    统一管理插件、包和外部程序。
+    统一管理包和外部程序（插件系统已迁移至 Skills）。
     """
     def __init__(self, plugin_dir="plugin", package_dir="package", programs_dir="programs"):
-        self.plugin_manager = PluginManager(plugin_dir, data_storage_manager)
         self.code_execution_manager = CodeExecutionManager(programs_dir)
         self.package_dir = package_dir
         self.packages: Dict[str, Any] = {}
@@ -24,7 +22,6 @@ class ExtensionManager:
 
     def scan_all(self):
         """扫描所有扩展类型。"""
-        # PluginManager calls load_all_plugins in its __init__
         self.code_execution_manager.scan_and_register()
         self._scan_packages()
 
@@ -49,15 +46,12 @@ class ExtensionManager:
                         if spec is None: continue
 
                         module = importlib.util.module_from_spec(spec)
-                        # 将包添加到 sys.modules 以支持相对导入，但由于这是动态发现，
-                        # 我们使用更安全的方式尝试加载
                         spec.loader.exec_module(module)
 
                         if hasattr(module, "run"):
                             self.packages[package_name] = module
                             logger.info(f"Loaded package: {package_name} from {package_path}")
                     except Exception as e:
-                        # 记录详细错误但不要让它中断整个扫描过程
                         logger.debug(f"Skipping package {package_name} due to load error: {e}")
 
     def get_all_tools(self) -> List[Dict[str, Any]]:
@@ -65,15 +59,6 @@ class ExtensionManager:
         为 LLM 返回统一的工具描述列表。
         """
         tools = []
-
-        # 插件
-        for name, plugin in self.plugin_manager.plugins.items():
-            tools.append({
-                "name": name,
-                "type": "plugin",
-                "description": f"插件: {name}。处理如下命令: {', '.join(plugin.get_commands())}",
-                "instance": plugin
-            })
 
         # 外部程序
         for name, info in self.code_execution_manager.get_all_programs().items():
@@ -100,14 +85,6 @@ class ExtensionManager:
         """
         根据名称执行扩展。
         """
-        # 尝试插件
-        plugin = self.plugin_manager.get_plugin(name)
-        if plugin:
-            # 假设 plugin.run 期望 (command, args_dict)
-            # 这可能需要调整以统一接口
-            command = kwargs.get("command", name)
-            return plugin.run(command, kwargs.get("args", {}))
-
         # 尝试包
         if name in self.packages:
             module = self.packages[name]

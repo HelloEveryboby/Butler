@@ -18,7 +18,6 @@ typedef enum {
     DEV_LED = 0x10,
     DEV_MOTOR = 0x20,
     DEV_SENSOR = 0x30,
-    DEV_NFC = 0x40,
     DEV_SYSTEM = 0xFF
 } hcp_dev_t;
 

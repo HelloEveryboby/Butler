@@ -22,10 +22,6 @@ void handle_hcp_command(const char* input) {
         ui_print_task("硬件控制: 启动电机");
         hcp_print_packet(TYPE_CTRL, DEV_MOTOR, 0x01, 0x00000064);
         ui_print_success("电机控制数据包已生成。");
-    } else if (strstr(input, "nfc query")) {
-        ui_print_task("硬件控制: 查询 NFC");
-        hcp_print_packet(TYPE_QUERY, DEV_NFC, 0x00, 0x00000000);
-        ui_print_success("NFC 查询数据包已生成。");
     } else if (strstr(input, "lock")) {
         ui_print_task("硬件控制: 紧急锁定系统");
         hcp_print_packet(TYPE_ALARM, DEV_SYSTEM, 0x00, 0xDEADBEEF);

@@ -6,14 +6,8 @@
 #include "buce_embedded.h"
 
 // External service handlers
-extern void handle_nfc_get_uid(int id, char* out_buf, size_t out_len);
-extern void handle_nfc_read_sector(int id, int sector, char* out_buf, size_t out_len);
-extern void handle_nfc_clone(int id, char* out_buf, size_t out_len);
-extern void handle_nfc_burn(int id, int slot, char* out_buf, size_t out_len);
 extern void handle_ir_learn(int id, char* out_buf, size_t out_len);
 extern void handle_ir_transmit(int id, const char* params, char* out_buf, size_t out_len);
-extern bool nfc_init(void);
-extern void nfc_auto_poll_task(void);
 
 char rx_buffer[BHL_MAX_PACKET_SIZE];
 char tx_buffer[BHL_MAX_PACKET_SIZE];
@@ -25,23 +19,7 @@ bool pn532_read_response(uint8_t* res, uint8_t len) { return false; }
 void process_command(const char* cmd) {
     bhl_request_t req;
     if (bhl_parse_request(cmd, &req) == BHL_OK) {
-        if (strcmp(req.method, "nfc_get_uid") == 0) {
-            handle_nfc_get_uid(req.id, tx_buffer, sizeof(tx_buffer));
-        } else if (strcmp(req.method, "nfc_clone") == 0) {
-            handle_nfc_clone(req.id, tx_buffer, sizeof(tx_buffer));
-        } else if (strcmp(req.method, "nfc_burn") == 0) {
-            int slot = 0;
-            char slot_str[8] = {0};
-            if (bhl_json_get_value(req.params, "slot", slot_str, 8)) slot = atoi(slot_str);
-            handle_nfc_burn(req.id, slot, tx_buffer, sizeof(tx_buffer));
-        } else if (strcmp(req.method, "nfc_read_sector") == 0) {
-            int sector = 0;
-            char sector_str[8] = {0};
-            if (bhl_json_get_value(req.params, "sector", sector_str, 8)) {
-                sector = atoi(sector_str);
-            }
-            handle_nfc_read_sector(req.id, sector, tx_buffer, sizeof(tx_buffer));
-        } else if (strcmp(req.method, "ir_learn") == 0) {
+        if (strcmp(req.method, "ir_learn") == 0) {
             handle_ir_learn(req.id, tx_buffer, sizeof(tx_buffer));
         } else if (strcmp(req.method, "ir_transmit") == 0) {
             handle_ir_transmit(req.id, req.params, tx_buffer, sizeof(tx_buffer));
@@ -56,20 +34,14 @@ void process_command(const char* cmd) {
 }
 
 int main(void) {
-    // Hardware initialization
-    nfc_init();
-
     // Boot notification
-    printf("{\"jsonrpc\":\"2.0\",\"method\":\"node_ready\",\"params\":{\"type\":\"STM32_NFC_IR\",\"version\":\"" BHL_VERSION "\"}}\n");
+    printf("{\"jsonrpc\":\"2.0\",\"method\":\"node_ready\",\"params\":{\"type\":\"STM32_IR\",\"version\":\"" BHL_VERSION "\"}}\n");
 
     while (1) {
         // Main Loop: Poll UART (Non-blocking check would be better in real HAL)
         if (fgets(rx_buffer, sizeof(rx_buffer), stdin)) {
             process_command(rx_buffer);
         }
-
-        // Background Task: Auto Poll NFC
-        nfc_auto_poll_task();
     }
     return 0;
 }
