@@ -44,6 +44,7 @@ from butler.core.team_manager import TeamManager
 from butler.core.battery_manager import battery_manager
 from butler.core.cron_scheduler import cron_scheduler
 from butler.core.dream_engine import DreamEngine
+from butler.core.local_nlu import LocalNLU
 from butler.core.proactive_agent import ProactiveAgent
 from butler.core.focus_mode import FocusMode
 from butler.core.sensing_api import init_sensing_api
@@ -91,6 +92,7 @@ class Jarvis:
         self.skill_manager = SkillManager()
         self.skill_manager.load_skills()
         self.skill_manager.start_monitoring()
+        self.local_nlu = LocalNLU(self.skill_manager)
         self.team_manager = TeamManager.get_instance(self)
 
         # Inject resource manager into battery manager for mode awareness
@@ -387,7 +389,27 @@ class Jarvis:
         elif cmd.startswith("记住这一点：") or cmd.startswith("记住：") or cmd.startswith("Remember this:"):
             self._handle_manual_habit_learning(cmd)
         else:
-            # Entry point for the new Autonomous Agent Loop
+            # Check if AI (DeepSeek) is configured
+            api_key = config_loader.get("api.deepseek.key")
+            ai_available = api_key and "YOUR_" not in str(api_key)
+
+            if not ai_available:
+                # 1. AI is not available: Attempt Local (AI-free) dispatch
+                intent_id, entities, match_type = self.local_nlu.extract_intent(cmd)
+
+                if match_type == 'intent':
+                    self.ui_print(f"本地命中意图: {intent_id}", tag='system_message')
+                    handler_args = {"jarvis_app": self, "entities": entities, "programs": extension_manager.packages}
+                    result = intent_registry.dispatch(intent_id, **handler_args)
+                    if result: self.speak(str(result))
+                    return
+                elif match_type == 'skill':
+                    self.ui_print(f"本地命中技能: {intent_id}", tag='system_message')
+                    result = self.skill_manager.execute(intent_id, entities.get("operation") or "run", entities=entities, jarvis_app=self)
+                    if result: self.speak(str(result))
+                    return
+
+            # 2. AI is available OR local fallback failed: Use Autonomous Agent Loop (Normal)
             threading.Thread(target=self._autonomous_agent_loop, args=(cmd,), daemon=True).start()
 
         self._interaction_count += 1
