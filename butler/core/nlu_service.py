@@ -38,6 +38,9 @@ class NLUService:
 
     def extract_intent(self, text: str, history: List[Any] = None) -> Dict[str, Any]:
         """使用 DeepSeek API 从用户文本中提取意图和实体。"""
+        if not self.api_key or "YOUR_" in self.api_key:
+             return {"intent": "unknown", "entities": {"error": "DeepSeek API Key missing or placeholder"}}
+
         if not quota_manager.check_quota():
             logger.error("API 额度已用尽，提取意图停止。")
             return {"intent": "quota_exceeded", "entities": {}}
@@ -116,6 +119,9 @@ class NLUService:
 
     def ask_llm(self, prompt: str, history: List[Any] = None, use_habit: bool = True, system_override: str = None, image_b64: str = None) -> str:
         """通用 LLM 问答接口，支持多模态输入。"""
+        if not self.api_key or "YOUR_" in self.api_key:
+            return "【离线提示】当前未配置 API 密钥，仅支持本地指令。如需进行智能对话，请在设置中完成 API 配置。"
+
         if not quota_manager.check_quota():
             return "Error: API 额度已用尽。"
 

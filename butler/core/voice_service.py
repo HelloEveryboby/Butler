@@ -33,10 +33,10 @@ class BaiduVoiceEngine(VoiceEngine):
             api_key = config_loader.get("api.baidu.api_key")
             secret_key = config_loader.get("api.baidu.secret_key")
 
-            if app_id and api_key and secret_key:
+            if app_id and api_key and secret_key and "YOUR_" not in str(app_id):
                 self.client = AipSpeech(app_id, api_key, secret_key)
             else:
-                logger.warning("Baidu API keys missing.")
+                logger.warning("Baidu API keys missing or placeholders.")
         except ImportError:
             logger.error("baidu-aip not installed")
 

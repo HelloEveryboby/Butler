@@ -1,12 +1,31 @@
 import heapq
 from collections import deque
 
-import cv2
-import numpy as np
-from sklearn.cluster import KMeans
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from tqdm import tqdm
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
+try:
+    from sklearn.cluster import KMeans
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+except ImportError:
+    KMeans = TfidfVectorizer = cosine_similarity = None
+try:
+    from tqdm import tqdm
+except ImportError:
+    class tqdm:
+        def __init__(self, *args, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def update(self, *args): pass
+        def close(self): pass
 
 # 1. Sorting Algorithms
 def _insertion_sort(arr, low, high, pbar=None):
@@ -431,14 +450,14 @@ def depth_first_search(graph, start_node, visited=None):
 def text_cosine_similarity(text1, text2):
     """
     使用 TF-IDF 向量计算两个文本字符串之间的余弦相似度。
-
-    参数:
-        text1 (str): 第一个文本字符串。
-        text2 (str): 第二个文本字符串。
-
-    返回:
-        float: 介于 0.0 和 1.0 之间的余弦相似度得分。
     """
+    if TfidfVectorizer is None:
+        # Fallback to simple keyword overlap if sklearn is missing
+        words1 = set(text1.lower().split())
+        words2 = set(text2.lower().split())
+        if not words1 or not words2: return 0.0
+        return len(words1 & words2) / len(words1 | words2)
+
     vectorizer = TfidfVectorizer()
     tfidf_matrix = vectorizer.fit_transform([text1, text2])
     similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
@@ -448,13 +467,10 @@ def text_cosine_similarity(text1, text2):
 def edge_detection(image_path):
     """
     使用 Canny 边缘检测算法检测图像中的边缘。
-
-    参数:
-        image_path (str): 输入图像的文件路径。
-
-    返回:
-        numpy.ndarray or None: 突出显示边缘的新图像，如果无法读取图像则为 None。
     """
+    if cv2 is None:
+        return None
+
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if image is None:
         return None
@@ -517,17 +533,10 @@ def fibonacci(n):
 def k_means_clustering(data, n_clusters, random_state=None):
     """
     对数据集执行 K-Means 聚类。
-
-    参数:
-        data (array-like or sparse matrix, shape (n_samples, n_features)): 输入数据。
-        n_clusters (int): 要形成的簇数。
-        random_state (int, RandomState 实例或 None, optional): 确定质心初始化的随机数生成。使用整数可使随机性具有确定性。默认为 None。
-
-    返回:
-        tuple: 一个包含以下内容的元组：
-               - labels (numpy.ndarray): 每个样本所属的簇的索引。
-               - cluster_centers (numpy.ndarray): 簇中心的坐标。
     """
+    if KMeans is None:
+        return None, None
+
     if not isinstance(data, np.ndarray):
         data = np.array(data)
 

@@ -10,6 +10,12 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# Support portable/local dependency installation
+lib_path = os.path.join(project_root, "lib_external")
+if os.path.exists(lib_path):
+    import site
+    site.addsitedir(lib_path)
+
 from butler.butler_app import Jarvis
 from package.core_utils.log_manager import LogManager
 from butler.core.asset_loader import asset_loader

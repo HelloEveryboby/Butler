@@ -44,6 +44,7 @@ from butler.core.team_manager import TeamManager
 from butler.core.battery_manager import battery_manager
 from butler.core.cron_scheduler import cron_scheduler
 from butler.core.dream_engine import DreamEngine
+from butler.core.local_nlu import LocalNLU
 from butler.core.proactive_agent import ProactiveAgent
 from butler.core.focus_mode import FocusMode
 from butler.core.sensing_api import init_sensing_api
@@ -51,6 +52,8 @@ from butler.core.workflow_engine import WorkflowEngine
 from butler.core.self_healing import SelfHealing
 from butler.core.display_protocol import display_server
 from butler.usb_screen import USBScreen
+from butler.gui.config_wizard import show_config_wizard_if_needed
+from butler.core.asset_downloader import download_essential_assets
 from butler.resource_manager import ResourceManager, PerformanceMode
 from plugin.memory_engine import (
     RedisLongMemory, ZvecLongMemory, SQLiteLongMemory,
@@ -64,7 +67,7 @@ from butler.core.runner_server import RunnerServer
 from package.device.standalone_manager import StandaloneManager
 
 class Jarvis:
-    def __init__(self, root=None, usb_screen=None):
+    def __init__(self, root=None, usb_screen=None, headless=False):
         self.root = root
         self.usb_screen = usb_screen
         self.resource_manager = ResourceManager()
@@ -89,6 +92,7 @@ class Jarvis:
         self.skill_manager = SkillManager()
         self.skill_manager.load_skills()
         self.skill_manager.start_monitoring()
+        self.local_nlu = LocalNLU(self.skill_manager)
         self.team_manager = TeamManager.get_instance(self)
 
         # Inject resource manager into battery manager for mode awareness
@@ -385,7 +389,27 @@ class Jarvis:
         elif cmd.startswith("记住这一点：") or cmd.startswith("记住：") or cmd.startswith("Remember this:"):
             self._handle_manual_habit_learning(cmd)
         else:
-            # Entry point for the new Autonomous Agent Loop
+            # Check if AI (DeepSeek) is configured
+            api_key = config_loader.get("api.deepseek.key")
+            ai_available = api_key and "YOUR_" not in str(api_key)
+
+            if not ai_available:
+                # 1. AI is not available: Attempt Local (AI-free) dispatch
+                intent_id, entities, match_type = self.local_nlu.extract_intent(cmd)
+
+                if match_type == 'intent':
+                    self.ui_print(f"本地命中意图: {intent_id}", tag='system_message')
+                    handler_args = {"jarvis_app": self, "entities": entities, "programs": extension_manager.packages}
+                    result = intent_registry.dispatch(intent_id, **handler_args)
+                    if result: self.speak(str(result))
+                    return
+                elif match_type == 'skill':
+                    self.ui_print(f"本地命中技能: {intent_id}", tag='system_message')
+                    result = self.skill_manager.execute(intent_id, entities.get("operation") or "run", entities=entities, jarvis_app=self)
+                    if result: self.speak(str(result))
+                    return
+
+            # 2. AI is available OR local fallback failed: Use Autonomous Agent Loop (Normal)
             threading.Thread(target=self._autonomous_agent_loop, args=(cmd,), daemon=True).start()
 
         self._interaction_count += 1
@@ -582,6 +606,9 @@ class Jarvis:
         if self.root: self.root.quit()
 
     def main(self):
+        # Auto-download missing assets on startup
+        download_essential_assets()
+
         self._cleanup_temp_files(); self.voice_service.start_listening()
         try:
             from package.core_utils.autonomous_switch import AutonomousSwitch
@@ -824,16 +851,22 @@ def main():
     args = parser.parse_args()
     usb_screen = USBScreen(40, 8)
     if args.headless:
-        jarvis = Jarvis(None, usb_screen); jarvis.main()
+        jarvis = Jarvis(None, usb_screen, headless=True); jarvis.main()
         while jarvis.running: time.sleep(1)
         return
+
+    # Show config wizard if in GUI mode and keys are missing
+    if show_config_wizard_if_needed():
+        load_dotenv(override=True)
+
     if not args.classic:
         try:
             from frontend.program import modern_app
             modern_app.main(); return
         except Exception: pass
+
     root = tk.Tk(); root.title("Jarvis 助手 [管理模式]")
-    jarvis = Jarvis(root, usb_screen)
+    jarvis = Jarvis(root, usb_screen, headless=False)
     all_tools = {t['name']: t.get('path', t.get('module')) for t in extension_manager.get_all_tools()}
     panel = CommandPanel(root, program_mapping=jarvis.program_mapping, programs=all_tools, command_callback=jarvis.panel_command_handler)
     panel.pack(fill=tk.BOTH, expand=True)

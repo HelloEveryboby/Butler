@@ -12,6 +12,7 @@ import tarfile
 import platform
 import shutil
 from package.core_utils.log_manager import LogManager
+from package.core_utils.config_loader import config_loader
 
 logger = LogManager.get_logger(__name__)
 
@@ -23,12 +24,16 @@ def setup_runtime(target_dir):
 
     logger.info(f"正在为 {system} ({arch}) 准备便携式 Python 环境...")
 
-    # 定义下载链接 (示例使用 3.12.3)
-    urls = {
-        "Windows": "https://www.python.org/ftp/python/3.12.3/python-3.12.3-embed-amd64.zip",
-        "Linux": "https://github.com/indygreg/python-build-standalone/releases/download/20240415/cpython-3.12.3+20240415-x86_64-unknown-linux-gnu-install_only.tar.gz",
-        "Darwin": "https://github.com/indygreg/python-build-standalone/releases/download/20240415/cpython-3.12.3+20240415-aarch64-apple-darwin-install_only.tar.gz" if "arm" in arch else "https://github.com/indygreg/python-build-standalone/releases/download/20240415/cpython-3.12.3+20240415-x86_64-apple-darwin-install_only.tar.gz"
-    }
+    # 从配置中获取下载链接
+    urls = config_loader.get("update_source.python_runtime_urls", {})
+
+    # 兼容性处理：如果配置中缺失，则使用硬编码 fallback
+    if not urls:
+        urls = {
+            "Windows": "https://www.python.org/ftp/python/3.12.3/python-3.12.3-embed-amd64.zip",
+            "Linux": "https://github.com/indygreg/python-build-standalone/releases/download/20240415/cpython-3.12.3+20240415-x86_64-unknown-linux-gnu-install_only.tar.gz",
+            "Darwin": "https://github.com/indygreg/python-build-standalone/releases/download/20240415/cpython-3.12.3+20240415-aarch64-apple-darwin-install_only.tar.gz" if "arm" in arch else "https://github.com/indygreg/python-build-standalone/releases/download/20240415/cpython-3.12.3+20240415-x86_64-apple-darwin-install_only.tar.gz"
+        }
 
     url = urls.get(system)
     if not url:
@@ -73,11 +78,14 @@ def setup_runtime(target_dir):
         logger.error(f"设置运行环境时出错: {e}")
         return f"错误: {e}"
 
-def check_for_updates(server_url: str = "https://api.github.com/repos/user/butler/releases/latest"):
+def check_for_updates(server_url: str = None):
     """
     检查服务器上的版本清单并与本地对比。
     目前实现为模板逻辑，返回是否需要更新。
     """
+    if server_url is None:
+        server_url = config_loader.get("update_source.api_latest_release", "https://api.github.com/repos/PAYDAY3/Butler/releases/latest")
+
     logger.info(f"正在检查更新: {server_url}...")
     # 模拟逻辑：假设本地版本存放在 .version 文件中
     try:

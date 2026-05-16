@@ -52,11 +52,17 @@ class EnvironmentChecker:
 
     def _check_essential_libs(self):
         import importlib
+        missing = []
         for lib in self.REQUIRED_LIBS:
             try:
                 importlib.import_module(lib if lib != "yaml" else "yaml")
             except ImportError:
-                self.errors.append(f"Missing essential library: {lib}")
+                missing.append(lib)
+
+        if missing:
+            self.warnings.append(f"Missing libraries: {', '.join(missing)}. Attempting to start anyway...")
+            # We don't block startup for missing libs anymore, as they might be in lib_external
+            # which is added in butler_app.py
 
     def _check_filesystem_permissions(self):
         paths_to_check = [
@@ -83,6 +89,9 @@ class EnvironmentChecker:
 def run_preflight_check():
     checker = EnvironmentChecker()
     if not checker.check_all():
+        if not checker.errors:
+             # Only warnings, allow startup
+             return
         print("\n" + "!" * 60)
         print("  CRITICAL ERROR: Butler environment check failed!")
         for err in checker.errors:
