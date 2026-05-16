@@ -57,6 +57,15 @@ class ModernBridge:
 
     def handle_command(self, command):
         self.logger.info(f"Modern UI Command: {command}")
+        # 记录词频
+        try:
+            from butler.core.memory.input_memory import input_memory
+            for word in command.split():
+                if len(word) > 1: # 仅记录长度大于 1 的词汇
+                    input_memory.record_word(word)
+        except Exception as e:
+            self.logger.error(f"Failed to record input memory: {e}")
+
         if command == "/voice-toggle":
             self.toggle_voice()
             return
@@ -314,6 +323,15 @@ class ModernBridge:
         self.jarvis.ui_print(f"⚡ [Flash] {command}", tag='system_message')
         threading.Thread(target=self._run_command, args=(command,), daemon=True).start()
         self.hide_flash()
+
+    def get_input_suggestions(self, prefix):
+        """获取输入联想建议"""
+        try:
+            from butler.core.memory.input_memory import input_memory
+            return input_memory.suggest(prefix)
+        except Exception as e:
+            self.logger.error(f"Failed to get suggestions: {e}")
+            return []
 
     def hide_flash(self):
         """Hides the flash input window."""

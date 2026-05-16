@@ -104,6 +104,31 @@ document.addEventListener('DOMContentLoaded', () => {
         navItems[key].addEventListener('click', () => switchView(key));
     });
 
+    // --- 灵动岛开场动效 ---
+    const dynamicIsland = document.getElementById('dynamic-island');
+    const startIslandAnimation = () => {
+        dynamicIsland.style.display = 'flex';
+        appContainer.classList.add('island-mode');
+
+        setTimeout(() => {
+            dynamicIsland.classList.add('active');
+            setTimeout(() => {
+                appContainer.classList.remove('island-mode');
+                dynamicIsland.style.display = 'none';
+                dynamicIsland.classList.remove('active');
+            }, 800);
+        }, 500);
+    };
+
+    // 热启动模拟（如果不是从冷启动标记，则触发动效）
+    if (localStorage.getItem('butler-cold-start') !== 'true') {
+        startIslandAnimation();
+    }
+    localStorage.setItem('butler-cold-start', 'true');
+    window.addEventListener('beforeunload', () => {
+        localStorage.removeItem('butler-cold-start');
+    });
+
     // Sidebar Toggle Persistence
     const isSidebarHidden = localStorage.getItem('butler-sidebar-hidden') === 'true';
     if (isSidebarHidden) appContainer.classList.add('sidebar-hidden');
@@ -469,8 +494,91 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('.workspace-placeholder').classList.remove('hidden');
     };
 
+    // --- 文件管理搜索框灵动岛动效 ---
+    const filesSearchTrigger = document.getElementById('files-search-trigger');
+    const filesSearchIsland = document.getElementById('files-search-island');
+    const filesSearchInput = document.getElementById('files-search-input');
+    const filesExplorerView = document.querySelector('.files-explorer-view');
+
+    if (filesSearchTrigger) {
+        filesSearchTrigger.onclick = () => {
+            filesSearchIsland.classList.toggle('active');
+            filesExplorerView.classList.toggle('files-search-active');
+            if (filesSearchIsland.classList.contains('active')) {
+                setTimeout(() => filesSearchInput.focus(), 300);
+            }
+        };
+    }
+
     // Init
     window.addEventListener('resize', fitTerminal);
+
+    // --- 联想记忆输入法 ---
+    let suggestionIsland = null;
+    chatInput.addEventListener('input', async () => {
+        const text = chatInput.innerText.trim();
+        if (!text || text.length < 1 || /Android/i.test(navigator.userAgent)) {
+            removeSuggestionIsland();
+            return;
+        }
+
+        const words = text.split(/\s+/);
+        const lastWord = words[words.length - 1];
+
+        if (lastWord.length >= 1 && window.pywebview && window.pywebview.api) {
+            const suggestions = await window.pywebview.api.get_input_suggestions(lastWord);
+            if (suggestions && suggestions.length > 0) {
+                renderSuggestionIsland(suggestions);
+            } else {
+                removeSuggestionIsland();
+            }
+        } else {
+            removeSuggestionIsland();
+        }
+    });
+
+    function renderSuggestionIsland(suggestions) {
+        if (!suggestionIsland) {
+            suggestionIsland = document.createElement('div');
+            suggestionIsland.className = 'input-suggestion-island';
+            views.chat.appendChild(suggestionIsland);
+        }
+
+        suggestionIsland.innerHTML = '';
+        suggestions.forEach(word => {
+            const chip = document.createElement('div');
+            chip.className = 'suggestion-chip';
+            chip.innerText = word;
+            chip.onclick = () => {
+                const text = chatInput.innerText.trim();
+                const words = text.split(/\s+/);
+                words[words.length - 1] = word;
+                chatInput.innerText = words.join(' ') + ' ';
+                placeCaretAtEnd(chatInput);
+                removeSuggestionIsland();
+            };
+            suggestionIsland.appendChild(chip);
+        });
+    }
+
+    function removeSuggestionIsland() {
+        if (suggestionIsland) {
+            suggestionIsland.remove();
+            suggestionIsland = null;
+        }
+    }
+
+    function placeCaretAtEnd(el) {
+        el.focus();
+        if (typeof window.getSelection != "undefined" && typeof document.createRange != "undefined") {
+            var range = document.createRange();
+            range.selectNodeContents(el);
+            range.collapse(false);
+            var sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+    }
 
     // Auto-focus chat input
     chatInput.focus();

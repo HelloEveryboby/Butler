@@ -1,6 +1,6 @@
 import os
 import json
-from plugin.memory_engine import hybrid_memory_manager
+from butler.core.memory.memory_engine import hybrid_memory_manager
 from package.core_utils.log_manager import LogManager
 
 class MemoryTools:
