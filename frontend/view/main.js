@@ -104,6 +104,32 @@ document.addEventListener('DOMContentLoaded', () => {
         navItems[key].addEventListener('click', () => switchView(key));
     });
 
+    // --- 移动端底部导航逻辑 ---
+    const mobileNavItems = document.querySelectorAll('.mobile-nav-item');
+    mobileNavItems.forEach(item => {
+        item.addEventListener('click', () => {
+            const viewName = item.getAttribute('data-view');
+            switchView(viewName);
+
+            // 更新移动端导航状态
+            mobileNavItems.forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+        });
+    });
+
+    // 劫持 switchView 以同步移动端 UI
+    const originalSwitchView = switchView;
+    window.switchView = (viewName) => {
+        originalSwitchView(viewName);
+        mobileNavItems.forEach(item => {
+            if (item.getAttribute('data-view') === viewName) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
+    };
+
     // --- 灵动岛开场动效 ---
     const dynamicIsland = document.getElementById('dynamic-island');
     const startIslandAnimation = () => {

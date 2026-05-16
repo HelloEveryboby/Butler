@@ -1720,3 +1720,112 @@ input:checked + .slider:before {
     background: var(--accent-color);
     color: #fff;
 }
+
+/* --- Mobile UI Enhancements --- */
+.mobile-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 70px;
+    background: var(--sidebar-glass);
+    backdrop-filter: blur(30px) saturate(180%);
+    border-top: 1px solid var(--border-color);
+    z-index: 1000;
+    padding-bottom: env(safe-area-inset-bottom);
+    justify-content: space-around;
+    align-items: center;
+}
+
+.mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-secondary);
+    font-size: 10px;
+    transition: var(--transition);
+}
+
+.mobile-nav-item i {
+    font-size: 20px;
+}
+
+.mobile-nav-item.active {
+    color: var(--accent-color);
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        display: none;
+    }
+
+    .mobile-nav {
+        display: flex;
+    }
+
+    .main-content {
+        margin-bottom: 70px; /* Space for mobile nav */
+    }
+
+    .content-header {
+        padding: 0 16px;
+    }
+
+    #sidebar-toggle {
+        display: none; /* No sidebar on mobile */
+    }
+
+    #interaction-flow {
+        padding: 20px 16px 100px 16px; /* Extra bottom padding for input */
+    }
+
+    .chat-input-container {
+        position: fixed;
+        bottom: 70px;
+        left: 0;
+        width: 100%;
+        padding: 10px 16px;
+        background: var(--bg-glass);
+        backdrop-filter: blur(20px);
+        z-index: 999;
+    }
+
+    .input-suggestion-island {
+        bottom: 130px;
+        left: 16px;
+        right: 16px;
+    }
+}
+
+@media (max-width: 768px) {
+    .interaction-line {
+        max-width: 90%;
+        font-size: 15px;
+        padding: 12px 16px;
+    }
+
+    .send-btn {
+        width: 44px; /* Larger hit target */
+        height: 44px;
+    }
+
+    .icon-btn-small {
+        width: 40px;
+        height: 40px;
+    }
+
+    .files-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 12px;
+    }
+
+    .file-item i {
+        font-size: 36px;
+    }
+
+    .memo-card {
+        padding: 16px;
+    }
+}
