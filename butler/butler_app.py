@@ -52,6 +52,7 @@ from butler.core.self_healing import SelfHealing
 from butler.core.display_protocol import display_server
 from butler.usb_screen import USBScreen
 from butler.gui.config_wizard import show_config_wizard_if_needed
+from butler.core.asset_downloader import download_essential_assets
 from butler.resource_manager import ResourceManager, PerformanceMode
 from plugin.memory_engine import (
     RedisLongMemory, ZvecLongMemory, SQLiteLongMemory,
@@ -583,6 +584,9 @@ class Jarvis:
         if self.root: self.root.quit()
 
     def main(self):
+        # Auto-download missing assets on startup
+        download_essential_assets()
+
         self._cleanup_temp_files(); self.voice_service.start_listening()
         try:
             from package.core_utils.autonomous_switch import AutonomousSwitch
