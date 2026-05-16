@@ -51,6 +51,7 @@ from butler.core.workflow_engine import WorkflowEngine
 from butler.core.self_healing import SelfHealing
 from butler.core.display_protocol import display_server
 from butler.usb_screen import USBScreen
+from butler.gui.config_wizard import show_config_wizard_if_needed
 from butler.resource_manager import ResourceManager, PerformanceMode
 from plugin.memory_engine import (
     RedisLongMemory, ZvecLongMemory, SQLiteLongMemory,
@@ -64,7 +65,7 @@ from butler.core.runner_server import RunnerServer
 from package.device.standalone_manager import StandaloneManager
 
 class Jarvis:
-    def __init__(self, root=None, usb_screen=None):
+    def __init__(self, root=None, usb_screen=None, headless=False):
         self.root = root
         self.usb_screen = usb_screen
         self.resource_manager = ResourceManager()
@@ -824,16 +825,22 @@ def main():
     args = parser.parse_args()
     usb_screen = USBScreen(40, 8)
     if args.headless:
-        jarvis = Jarvis(None, usb_screen); jarvis.main()
+        jarvis = Jarvis(None, usb_screen, headless=True); jarvis.main()
         while jarvis.running: time.sleep(1)
         return
+
+    # Show config wizard if in GUI mode and keys are missing
+    if show_config_wizard_if_needed():
+        load_dotenv(override=True)
+
     if not args.classic:
         try:
             from frontend.program import modern_app
             modern_app.main(); return
         except Exception: pass
+
     root = tk.Tk(); root.title("Jarvis 助手 [管理模式]")
-    jarvis = Jarvis(root, usb_screen)
+    jarvis = Jarvis(root, usb_screen, headless=False)
     all_tools = {t['name']: t.get('path', t.get('module')) for t in extension_manager.get_all_tools()}
     panel = CommandPanel(root, program_mapping=jarvis.program_mapping, programs=all_tools, command_callback=jarvis.panel_command_handler)
     panel.pack(fill=tk.BOTH, expand=True)

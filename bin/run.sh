@@ -10,12 +10,22 @@ BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$BIN_DIR/.."
 PROJECT_ROOT=$(pwd)
 
-# Check if .env file exists. If not, run the installation script.
+# 1. Ensure .env exists (out-of-the-box)
 if [ ! -f ".env" ]; then
-  echo "Configuration file (.env) not found."
-  echo "Running setup script..."
-  # Run the installation script
-  ./bin/install.sh
+  if [ -f ".env.example" ]; then
+    echo "Initializing .env from .env.example..."
+    cp .env.example .env
+  else
+    echo "Warning: .env.example not found. Creating empty .env..."
+    touch .env
+  fi
+fi
+
+# 2. Check and install dependencies automatically (Portable mode preferred)
+# We check if lib_external exists as a proxy for 'already installed'
+if [ ! -d "lib_external" ] && [ ! -d "venv" ]; then
+    echo "First time setup: Installing dependencies in portable mode..."
+    python3 -m package.dependency_manager install_all
 fi
 
 # Detect and use portable runtime if available
@@ -32,6 +42,6 @@ fi
 
 # Run the main application using the python module flag
 echo "Launching main application..."
-$PYTHON_CMD -m butler.butler_app
+$PYTHON_CMD -m butler.butler_app "$@"
 
 echo "Application closed."
