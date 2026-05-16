@@ -38,9 +38,12 @@ runner_server:
   token: "YOUR_RUNNER_SERVER_TOKEN_HERE"
 
 # 自动资源下载与更新配置
+# 系统会自动从以下地址下载缺失的静态资源（图标、音效等）
 update_source:
-  assets_base_url: "https://raw.githubusercontent.com/PAYDAY3/Butler/main/data/external_flash/"
-  api_latest_release: "https://api.github.com/repos/PAYDAY3/Butler/releases/latest"
+  # 资源下载基准地址 (程序会自动拼接内部路径，如 assets/ 或 audio/)
+  assets_base_url: "https://raw.githubusercontent.com/HelloEveryboby/Butler/main/"
+  # GitHub API 地址，用于检查系统更新
+  api_latest_release: "https://api.github.com/repos/HelloEveryboby/Butler/releases/latest"
   python_runtime_urls:
     Windows: "https://www.python.org/ftp/python/3.12.3/python-3.12.3-embed-amd64.zip"
     Linux: "https://github.com/indygreg/python-build-standalone/releases/download/20240415/cpython-3.12.3+20240415-x86_64-unknown-linux-gnu-install_only.tar.gz"
