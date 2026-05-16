@@ -35,7 +35,7 @@ interpreter:
 runner_server:
   host: "127.0.0.1"
   port: 8000
-  token: "YOUR_RUNNER_SERVER_TOKEN_HERE"
+  token: "${RUNNER_SERVER_TOKEN:-}"
 
 # 自动资源下载与更新配置
 update_source:
