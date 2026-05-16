@@ -36,3 +36,7 @@ runner_server:
   host: "127.0.0.1"
   port: 8000
   token: "YOUR_RUNNER_SERVER_TOKEN_HERE"
+
+# 自动资源下载配置
+update_source:
+  assets_base_url: "https://raw.githubusercontent.com/PAYDAY3/Butler/main/data/external_flash/"
