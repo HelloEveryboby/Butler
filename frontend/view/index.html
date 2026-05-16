@@ -18,6 +18,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body class="theme-apple">
+    <div id="dynamic-island">Butler</div>
     <div class="app-container">
         <!-- Permanent Sidebar -->
         <aside class="sidebar">
@@ -192,21 +193,28 @@
 
             <section id="view-files" class="view-container">
                 <div class="files-explorer-view">
-                    <div class="files-sidebar-inner">
-                        <div class="storage-group">
-                            <div class="storage-item active" data-path="."><i class="fas fa-hdd"></i> 本地存储</div>
-                            <div class="storage-item" data-path="CORE_LOGIC"><i class="fas fa-microchip"></i> 核心系统</div>
-                        </div>
-                    </div>
-                    <div class="files-main-inner">
-                        <div class="files-toolbar">
-                            <div class="breadcrumb" id="files-breadcrumb">Butler / Root</div>
-                            <div class="files-actions-top">
-                                <button class="icon-btn-small"><i class="fas fa-sync"></i></button>
+                    <div class="files-header-row">
+                        <div class="breadcrumb" id="files-breadcrumb">Butler / Root</div>
+                        <div class="files-search-island-wrapper">
+                            <div id="files-search-island">
+                                <input type="text" id="files-search-input" placeholder="搜索文件...">
+                            </div>
+                            <div id="files-search-trigger">
+                                <i class="fas fa-search"></i>
                             </div>
                         </div>
-                        <div class="files-grid" id="files-list">
-                            <!-- Files populated by JS -->
+                    </div>
+                    <div class="files-layout-body">
+                        <div class="files-sidebar-inner">
+                            <div class="storage-group">
+                                <div class="storage-item active" data-path="."><i class="fas fa-hdd"></i> 本地存储</div>
+                                <div class="storage-item" data-path="CORE_LOGIC"><i class="fas fa-microchip"></i> 核心系统</div>
+                            </div>
+                        </div>
+                        <div class="files-main-inner">
+                            <div class="files-grid" id="files-list">
+                                <!-- Files populated by JS -->
+                            </div>
                         </div>
                     </div>
                 </div>

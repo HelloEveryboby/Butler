@@ -55,7 +55,7 @@ from butler.usb_screen import USBScreen
 from butler.gui.config_wizard import show_config_wizard_if_needed
 from butler.core.asset_downloader import download_essential_assets
 from butler.resource_manager import ResourceManager, PerformanceMode
-from plugin.memory_engine import (
+from butler.core.memory.memory_engine import (
     RedisLongMemory, ZvecLongMemory, SQLiteLongMemory,
     LongMemoryItem, UnifiedMemoryEngine, hybrid_memory_manager
 )

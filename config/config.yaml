@@ -17,6 +17,9 @@ voice:
   mode: "online"
   local_stt_model: "base"
 
+persona:
+  emotional_mode: true
+
 display:
   default_mode: "host"
   theme: "google"

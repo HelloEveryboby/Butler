@@ -4,7 +4,7 @@ import datetime
 from pathlib import Path
 from package.core_utils.log_manager import LogManager
 from butler.core.battery_manager import battery_manager
-from plugin.memory_engine import hybrid_memory_manager
+from butler.core.memory.memory_engine import hybrid_memory_manager
 
 logger = LogManager.get_logger("dream_engine")
 

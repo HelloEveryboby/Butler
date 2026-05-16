@@ -38,7 +38,7 @@ except ImportError:
 # BHL 协议客户端，用于混合记忆查询
 try:
     from butler.core.hybrid_link import HybridLinkClient
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     HybridLinkClient = None
 
 class LongMemoryItem:

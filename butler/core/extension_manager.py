@@ -3,7 +3,7 @@ import sys
 import importlib.util
 import logging
 from typing import Dict, List, Any, Optional
-from plugin.PluginManager import PluginManager
+from butler.core.memory.PluginManager import PluginManager
 from butler.code_execution_manager import CodeExecutionManager
 from butler.data_storage import data_storage_manager
 from package.core_utils.log_manager import LogManager

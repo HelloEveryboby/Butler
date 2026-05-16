@@ -17,7 +17,7 @@ try:
     from butler.core.hybrid_link import HybridLinkClient
 except ImportError as e:
     print(f"[-] 导入依赖失败: {e}")
-    sys.exit(1)
+    pass
 
 def run(file_path: Optional[str] = None):
     """
