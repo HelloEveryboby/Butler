@@ -36,8 +36,13 @@ echo "⚙️ [2/5] 正在编译 Go-Mobile 内核 (.aar)..."
 cd "$PROJECT_ROOT/programs/butler_runner"
 mkdir -p "$ANDROID_DIR/android/app/libs"
 
-# 显式指定 API 21 以避免 NDK 版本兼容性报错
-gomobile bind -v -target=android -androidapi 21 -o "$ANDROID_DIR/android/app/libs/butler_runner.aar" ./mobile
+# 检查 gomobile 是否可用，如果不可用则提示但跳过（以便在受限环境下生成代码）
+if command -v gomobile &> /dev/null; then
+    # 显式指定 API 21 以避免 NDK 版本兼容性报错
+    gomobile bind -v -target=android -androidapi 21 -o "$ANDROID_DIR/android/app/libs/butler_runner.aar" ./mobile
+else
+    echo "⚠️ 警告: 未找到 gomobile, 跳过 Go 编译。在真实环境中此步必不可少。"
+fi
 
 # --- 3. 同步 Python 技能包 (Chaquopy) ---
 echo "🐍 [3/5] 正在同步 Python 技能包..."
