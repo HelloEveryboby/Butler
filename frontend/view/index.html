@@ -19,6 +19,42 @@
 </head>
 <body class="theme-apple">
     <div id="dynamic-island">Butler</div>
+
+    <!-- Global Music Widget (Dynamic Island Style) -->
+    <div id="music-widget" class="music-widget-visible glass-surface damping-transition">
+        <div class="music-widget-compact">
+            <div class="disc-container">
+                <div class="mini-disc" id="widget-disc">
+                    <i class="fas fa-music"></i>
+                </div>
+            </div>
+            <div class="music-info-capsule damping-transition">
+                <div class="track-scroller">
+                    <span id="widget-track-name">未在播放</span>
+                </div>
+                <div class="widget-controls">
+                    <i class="fas fa-step-backward" id="widget-prev"></i>
+                    <i class="fas fa-play" id="widget-play-pause"></i>
+                    <i class="fas fa-step-forward" id="widget-next"></i>
+                </div>
+            </div>
+            <div class="widget-menu-trigger" id="widget-list-toggle">
+                <i class="fas fa-bars"></i>
+            </div>
+        </div>
+
+        <!-- Dropdown Playlist -->
+        <div id="widget-playlist" class="widget-playlist-hidden damping-transition">
+            <div class="playlist-header">
+                <span>播放列表</span>
+                <i class="fas fa-random" title="随机播放" id="widget-shuffle"></i>
+            </div>
+            <div id="widget-playlist-items" class="playlist-items-container">
+                <!-- Populated via JS -->
+            </div>
+        </div>
+    </div>
+
     <div class="app-container">
         <!-- Permanent Sidebar -->
         <aside class="sidebar">
