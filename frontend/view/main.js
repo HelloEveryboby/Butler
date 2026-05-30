@@ -1010,3 +1010,142 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// --- Music Widget 2.0 Logic ---
+document.addEventListener('DOMContentLoaded', () => {
+    const musicWidget = document.getElementById('music-widget');
+    const widgetDisc = document.getElementById('widget-disc');
+    const widgetListToggle = document.getElementById('widget-list-toggle');
+    const widgetPlaylist = document.getElementById('widget-playlist');
+    const widgetPlayPause = document.getElementById('widget-play-pause');
+    const widgetTrackName = document.getElementById('widget-track-name');
+
+    let isWidgetExpanded = false;
+    let isPlaylistOpen = false;
+
+    // Toggle Expansion
+    widgetDisc.parentElement.onclick = (e) => {
+        e.stopPropagation();
+        isWidgetExpanded = !isWidgetExpanded;
+        if (isWidgetExpanded) {
+            musicWidget.classList.add('music-widget-expanded');
+        } else {
+            musicWidget.classList.remove('music-widget-expanded');
+            musicWidget.classList.remove('music-widget-full');
+            isPlaylistOpen = false;
+        }
+    };
+
+    // Toggle Playlist
+    widgetListToggle.onclick = (e) => {
+        e.stopPropagation();
+        isPlaylistOpen = !isPlaylistOpen;
+        if (isPlaylistOpen) {
+            musicWidget.classList.add('music-widget-full');
+            loadWidgetPlaylist();
+        } else {
+            musicWidget.classList.remove('music-widget-full');
+        }
+    };
+
+    // Play/Pause Toggle
+    widgetPlayPause.onclick = async () => {
+        const isPlaying = musicWidget.classList.contains('playing');
+        if (isPlaying) {
+            await window.pywebview.api.call_skill('music_player', 'pause');
+            musicWidget.classList.remove('playing');
+            widgetPlayPause.classList.replace('fa-pause', 'fa-play');
+        } else {
+            await window.pywebview.api.call_skill('music_player', 'play');
+            musicWidget.classList.add('playing');
+            widgetPlayPause.classList.replace('fa-play', 'fa-pause');
+        }
+    };
+
+    async function loadWidgetPlaylist() {
+        if (window.pywebview && window.pywebview.api) {
+            const playlist = await window.pywebview.api.call_skill('music_player', 'get_playlist');
+            renderWidgetPlaylist(playlist);
+        }
+    }
+
+    function renderWidgetPlaylist(playlist) {
+        const container = document.getElementById('widget-playlist-items');
+        container.innerHTML = '';
+
+        playlist.forEach((track, index) => {
+            const item = document.createElement('div');
+            item.className = 'widget-playlist-item';
+            item.draggable = true;
+            item.dataset.id = track.id;
+            item.dataset.path = track.path;
+            item.innerHTML = `<i class="fas fa-grip-lines" style="font-size: 10px; opacity: 0.5;"></i> <span>${track.name}</span>`;
+
+            item.onclick = () => {
+                widgetTrackName.innerText = track.name;
+                window.pywebview.api.call_skill('music_player', 'play', {index: index});
+                musicWidget.classList.add('playing');
+                widgetPlayPause.classList.replace('fa-play', 'fa-pause');
+
+                document.querySelectorAll('.widget-playlist-item').forEach(el => el.classList.remove('active'));
+                item.classList.add('active');
+            };
+
+            container.appendChild(item);
+        });
+
+        initPlaylistDragAndDrop();
+    }
+
+    function initPlaylistDragAndDrop() {
+        const container = document.getElementById('widget-playlist-items');
+        let dragItem = null;
+
+        container.addEventListener('dragstart', (e) => {
+            dragItem = e.target;
+            e.target.classList.add('dragging');
+        });
+
+        container.addEventListener('dragend', (e) => {
+            e.target.classList.remove('dragging');
+            syncPlaylistOrder();
+        });
+
+        container.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const afterElement = getDragAfterElement(container, e.clientY);
+            if (afterElement == null) {
+                container.appendChild(dragItem);
+            } else {
+                container.insertBefore(dragItem, afterElement);
+            }
+        });
+    }
+
+    function getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('.widget-playlist-item:not(.dragging)')];
+
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    async function syncPlaylistOrder() {
+        const items = [...document.querySelectorAll('.widget-playlist-item')];
+        const newOrder = items.map(item => ({
+            id: item.dataset.id,
+            path: item.dataset.path,
+            name: item.querySelector('span').innerText
+        }));
+
+        if (window.pywebview && window.pywebview.api) {
+            await window.pywebview.api.call_skill('music_player', 'update_order', {new_id_list: newOrder});
+        }
+    }
+});
