@@ -186,3 +186,24 @@ python -m butler.api
 ## 开源协议
 
 本项目采用 MIT 协议。有关详细信息，请参阅 `LICENSE` 文件。
+
+---
+
+## 🎨 Butler UI 2.0: 极致玻璃拟态与交互体验
+
+Butler UI 2.0 是对系统视觉与交互层面的重大升级。我们不仅引入了全局的玻璃拟态（Glassmorphism）设计语言，还通过“灵动岛”式的组件化设计，将多媒体交互提升到了 Apple 级的质感。
+
+### 核心亮点
+*   **全局玻璃拟态 (Universal Glassmorphism)**：全界面采用 $30\text{px}$ 高斯模糊、 $0.5\text{px}$ 物理级微距边框以及 $180\%$ 饱和度增强。
+*   **灵动岛音乐挂件 (Dynamic Island Widget)**：
+    *   **多态交互**：从静默的小光碟（Mini-Disc），到点击展开的播放胶囊（Capsule Panel），再到下拉的全局歌单。
+    *   **手势重排**：支持 1D 垂直手势拖拽重排歌单，内置中线碰撞检测算法，体验极致丝滑。
+    *   **状态同步**：前端渲染与后端 C++ 音频流实时对齐，转速与音乐律动保持一致。
+*   **物理级动效 (Damping Motion)**：全面采用 `cubic-bezier(0.16, 1, 0.3, 1)` 非线性阻尼曲线，模拟物理世界的惯性与阻尼感。
+
+### 视觉展示
+![Butler UI 2.0 - 展开状态](assets/ui_2_0/music_expanded.png)
+*图 1：灵动岛音乐胶囊展开效果*
+
+![Butler UI 2.0 - 歌单管理](assets/ui_2_0/playlist_open.png)
+*图 2：歌单下拉列表与手势重排界面*
