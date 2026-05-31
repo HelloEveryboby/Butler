@@ -1,0 +1,10 @@
+{
+  "name": "butler_expert",
+  "skill_id": "butler_expert",
+  "version": "1.0.0",
+  "description": "精通 Butler 智能助手系统的架构、功能、部署与开发。适用于解答关于其 AI 对话、算法库、REST API、多模式 UI、插件系统、RAG 本地知识库、语音交互等全方面的问题。",
+  "author": "Butler Community",
+  "entry_point": "skills/butler_expert/__init__.py",
+  "actions": ["ask", "explain", "troubleshoot"],
+  "keywords": ["butler", "expert", "architecture", "help", "guide", "faq"]
+}

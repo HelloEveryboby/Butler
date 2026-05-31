@@ -1,0 +1,7 @@
+{
+  "name": "media_manager",
+  "version": "1.0.0",
+  "description": "Manages MP3, WAV and JPG media files for the system.",
+  "entry_point": "media_manager.py",
+  "actions": ["get_library"]
+}

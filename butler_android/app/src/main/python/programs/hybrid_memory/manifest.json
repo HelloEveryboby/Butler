@@ -1,0 +1,13 @@
+{
+  "name": "hybrid_memory",
+  "version": "1.0.0",
+  "description": "Go-based high-performance memory indexing and search service.",
+  "executable": "memory_service",
+  "source": "memory_service.go",
+  "language": "go",
+  "methods": [
+    "search",
+    "get_stats"
+  ],
+  "build_command": "go build -ldflags='-s -w' -o memory_service memory_service.go"
+}

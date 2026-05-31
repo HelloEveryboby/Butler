@@ -130,7 +130,7 @@ class Jarvis:
         self.runner_server = RunnerServer(
             host=runner_config.get("host", "0.0.0.0"),
             port=runner_config.get("port", 8000),
-            token=runner_config.get("token", "BUTLER_SECRET_2026")
+            token=runner_config.get("token", "BUTLER_TOKEN_PLACEHOLDER")
         )
         self.runner_server.register_event_callback(self._on_runner_event)
         self.runner_server.start()

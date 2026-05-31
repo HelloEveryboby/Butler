@@ -1,0 +1,7 @@
+{
+  "skill_id": "xlsx_recalc",
+  "name": "Excel 重计算",
+  "description": "重新计算 Excel 文件中的所有公式",
+  "actions": ["recalc"],
+  "keywords": ["Excel", "重计算", "公式", "xlsx", "表格", "刷新"]
+}

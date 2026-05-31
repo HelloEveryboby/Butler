@@ -1,0 +1,8 @@
+{
+  "name": "daily_fashion_stylist",
+  "version": "1.1.0",
+  "description": "全能穿搭助手。综合分析个人画像、实时天气与今日任务，提供高度个性化的视觉风格建议。",
+  "entry_point": "skills/daily_fashion_stylist/__init__.py",
+  "actions": ["fashion_advice"],
+  "keywords": ["穿搭", "建议", "天气", "风格", "时尚", "搭配", "fashion", "style", "outfit"]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "hybrid_ts",
+  "name": "TypeScript 混合工具",
+  "description": "提供基于 TypeScript 的逻辑处理能力",
+  "version": "1.0.0",
+  "entry": "node programs/hybrid_ts_tool/dist/index.js",
+  "type": "executable",
+  "language": "typescript"
+}

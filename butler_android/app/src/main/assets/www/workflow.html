@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Butler 工作流中心</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .workflow-container {
+            padding: 20px;
+            color: white;
+        }
+        .workflow-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .step-list {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+        .step-item {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 2px solid #4CAF50;
+        }
+        .status-badge {
+            float: right;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+        }
+        .status-running { background: #2196F3; }
+        .status-completed { background: #4CAF50; }
+        .status-failed { background: #f44336; }
+    </style>
+</head>
+<body class="glass-bg">
+    <div class="workflow-container">
+        <h1>🛠️ 工作流中心 (Workflow Center)</h1>
+        <div id="workflow-list">
+            <!-- 加载中... -->
+            <div class="workflow-card">
+                <p>正在同步活跃工作流状态...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function refreshWorkflows() {
+            try {
+                // 这里调用后端 Bridge 接口获取工作流列表
+                // 假设 ModernBridge 暴露了 get_workflows 接口
+                if (window.modernBridge) {
+                    const workflows = await window.modernBridge.call_skill("workflow_engine", "list");
+                    renderWorkflows(workflows);
+                }
+            } catch (e) {
+                console.error("Failed to load workflows", e);
+            }
+        }
+
+        function renderWorkflows(workflows) {
+            const list = document.getElementById('workflow-list');
+            list.innerHTML = '';
+
+            if (Object.keys(workflows).length === 0) {
+                list.innerHTML = '<div class="workflow-card">当前无活跃工作流。</div>';
+                return;
+            }
+
+            for (const [id, wf] of Object.entries(workflows)) {
+                const card = document.createElement('div');
+                card.className = 'workflow-card';
+                card.innerHTML = `
+                    <span class="status-badge status-${wf.status}">${wf.status}</span>
+                    <h3>${wf.name}</h3>
+                    <p><small>ID: ${id}</small></p>
+                    <div class="step-list">
+                        ${wf.steps.map((step, i) => `
+                            <div class="step-item" style="opacity: ${i < wf.current_step ? 0.6 : 1}">
+                                ${i < wf.current_step ? '✅' : '⏳'} Step ${i + 1}: ${step.intent}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                list.appendChild(card);
+            }
+        }
+
+        setInterval(refreshWorkflows, 3000);
+        refreshWorkflows();
+    </script>
+</body>
+</html>
