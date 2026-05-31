@@ -1,0 +1,3 @@
+# 基础依赖
+# urllib, json, subprocess, logging 均为 Python 标准库，无需额外安装
+# 如果未来需要多模态支持，可在此添加 pillow 等

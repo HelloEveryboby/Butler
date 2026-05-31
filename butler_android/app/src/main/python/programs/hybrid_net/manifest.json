@@ -1,0 +1,10 @@
+{
+  "name": "hybrid_net",
+  "language": "go",
+  "version": "2.0",
+  "description": "Enhanced high-concurrency Go networking module. Features: URL checking, port scanning, HTTP benchmarking, concurrent downloading, and batch pinging. BHL compatible.",
+  "protocol": "bhl",
+  "build": "bash build.sh",
+  "source": ["net_service.go"],
+  "executable": "hybrid_net_exec"
+}
