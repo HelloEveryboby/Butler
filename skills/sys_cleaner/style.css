@@ -70,7 +70,22 @@ h2 { margin: 0; font-weight: 600; font-size: 1.4rem; letter-spacing: -0.02em; }
     100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
 
-.action-zone { margin-bottom: 20px; }
+.action-zone { margin-bottom: 20px; text-align: center; }
+
+.setup-link {
+    margin-top: 12px;
+}
+
+.setup-link a {
+    font-size: 0.75rem;
+    color: #71717a;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.setup-link a:hover {
+    color: #3b82f6;
+}
 
 .btn {
     width: 100%;
