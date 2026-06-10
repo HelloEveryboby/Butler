@@ -100,6 +100,11 @@ def main():
     file_parser.add_argument("--path", required=True, help="目标路径")
     file_parser.add_argument("--content", help="写入的内容 (仅用于 create)")
 
+    # 12. 技能管理 (Skills) - 包装 npx skills
+    skills_parser = subparsers.add_parser("skills", help="技能库管理 (集成 npx skills)")
+    skills_parser.add_argument("op", choices=["add", "remove", "list", "find"], help="操作类型")
+    skills_parser.add_argument("extra_args", nargs=argparse.REMAINDER, help="npx skills 的原生参数")
+
     # --- 动态加载自定义技能 ---
     try:
         from butler.core.skill_manager import SkillManager
@@ -217,6 +222,12 @@ def main():
                     for item in items: print(f"  - {item}")
                 else:
                     print(f"❌ {items}")
+
+        elif args.command == "skills":
+            import subprocess
+            cmd = ["npx", "-y", "skills", args.op] + args.extra_args
+            print(f"🚀 执行命令: {' '.join(cmd)}")
+            subprocess.run(cmd)
 
         # --- 处理动态技能调用 ---
         elif skill_manager and args.command in skill_manager.manifests:

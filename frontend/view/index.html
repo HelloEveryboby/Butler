@@ -402,10 +402,14 @@
                         <!-- Skills Management -->
                         <div id="settings-skills" class="settings-panel">
                             <h2 class="settings-title">技能管理</h2>
-                            <div class="settings-group-card">
+                            <div class="settings-group-card" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
                                 <div class="install-form">
                                     <input type="text" id="skill-install-url" placeholder="技能 Git 链接 (https://...)">
                                     <button id="skill-install-btn" class="apple-btn-primary"><i class="fas fa-download"></i> 安装</button>
+                                </div>
+                                <div class="install-form">
+                                    <input type="text" id="skill-find-input" placeholder="搜索云端技能 (关键词)">
+                                    <button id="skill-find-btn" class="apple-btn-primary" style="background: var(--text-secondary);"><i class="fas fa-search"></i> 发现</button>
                                 </div>
                             </div>
                             <div class="settings-group-card no-padding" id="skills-list-container">

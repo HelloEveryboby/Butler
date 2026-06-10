@@ -1,13 +1,22 @@
 {
-    "enabled_skills": [
-        "task_management",
-        "xlsx_recalc",
-        "markitdown",
-        "daily_fashion_stylist",
-        "test_skill",
-        "pdf",
-        "docx",
-        "karpathy_guidelines",
-        "skill_creator"
-    ]
+  "version": 1,
+  "enabled_skills": [
+    "task_management",
+    "xlsx_recalc",
+    "markitdown",
+    "daily_fashion_stylist",
+    "test_skill",
+    "pdf",
+    "docx",
+    "karpathy_guidelines",
+    "skill_creator"
+  ],
+  "skills": {
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "computedHash": "d31e234f0c90694a670222cdd1dafa853e051d7066beda389f1097c22dadd461"
+    }
+  }
 }
