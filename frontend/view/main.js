@@ -850,6 +850,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const skillInstallUrl = document.getElementById('skill-install-url');
     const skillInstallBtn = document.getElementById('skill-install-btn');
+    const skillFindInput = document.getElementById('skill-find-input');
+    const skillFindBtn = document.getElementById('skill-find-btn');
     const refreshSkillsBtn = document.getElementById('refresh-skills-btn');
     const skillsListContainer = document.getElementById('skills-list-container');
 
@@ -918,6 +920,36 @@ document.addEventListener('DOMContentLoaded', () => {
             skillInstallBtn.innerHTML = '<i class="fas fa-download"></i> 安装';
             skillInstallUrl.value = '';
             loadSkillsList();
+        });
+    }
+
+    if (skillFindBtn) {
+        skillFindBtn.addEventListener('click', async () => {
+            const query = skillFindInput.value.trim();
+            if (!query) return alert('请输入搜索关键词');
+
+            skillFindBtn.disabled = true;
+            skillFindBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 搜索中...';
+
+            skillsListContainer.innerHTML = '<p class="loading-text">正在搜索云端技能...</p>';
+
+            // We'll use the handle_command bridge to invoke npx skills find via the CLI
+            // This is a bit of a hack but ensures consistency with the terminal behavior
+            const command = `skills find ${query}`;
+            if (window.pywebview && window.pywebview.api) {
+                // We use terminal_input to run it as if in terminal,
+                // or we could add a dedicated API. Let's use handle_command for now.
+                window.pywebview.api.handle_command(`/sh butler_cli.py ${command}`);
+
+                // Show a message to user
+                skillsListContainer.innerHTML = '<p class="loading-text">结果将显示在终端视图中。</p>';
+                setTimeout(() => {
+                    switchView('terminal');
+                }, 1000);
+            }
+
+            skillFindBtn.disabled = false;
+            skillFindBtn.innerHTML = '<i class="fas fa-search"></i> 发现';
         });
     }
 
