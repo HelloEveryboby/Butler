@@ -302,6 +302,19 @@ class ModernBridge:
         except Exception as e:
             return f"Error uninstalling skill: {str(e)}"
 
+    def get_ui_skills(self):
+        """Returns a list of skills that have a frontend UI."""
+        ui_skills = []
+        for s_id, manifest in self.jarvis.skill_manager.manifests.items():
+            if manifest.get('has_frontend'):
+                ui_skills.append({
+                    "id": s_id,
+                    "name": manifest.get('name', s_id),
+                    "icon": manifest.get('icon', 'fa-puzzle-piece'),
+                    "frontend_path": manifest.get('frontend_path')
+                })
+        return ui_skills
+
     def get_quota_report(self):
         """Returns the current API quota usage report."""
         from package.core_utils.quota_manager import quota_manager

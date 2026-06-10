@@ -28,7 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
         media: document.getElementById('view-media'),
         files: document.getElementById('view-files'),
         memos: document.getElementById('view-memos'),
-        settings: document.getElementById('view-settings')
+        settings: document.getElementById('view-settings'),
+        skillHost: document.getElementById('view-skill-host')
     };
 
     const viewTitle = document.getElementById('current-view-title');
@@ -70,14 +71,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // View Switching Logic
-    function switchView(viewName) {
+    function switchView(viewName, skillInfo = null) {
         Object.keys(views).forEach(key => {
             views[key].classList.remove('active');
-            navItems[key].classList.remove('active');
+            if (navItems[key]) navItems[key].classList.remove('active');
         });
 
+        // Clear active from dynamic skill nav items
+        document.querySelectorAll('.dynamic-skill-nav-item').forEach(el => el.classList.remove('active'));
+
         views[viewName].classList.add('active');
-        navItems[viewName].classList.add('active');
+        if (navItems[viewName]) navItems[viewName].classList.add('active');
 
         const titles = {
             chat: '智能助手',
@@ -86,9 +90,23 @@ document.addEventListener('DOMContentLoaded', () => {
             media: '多媒体中心',
             files: '文件管理',
             memos: '备忘录',
-            settings: '系统设置'
+            settings: '系统设置',
+            skillHost: '扩展功能'
         };
-        viewTitle.innerText = titles[viewName];
+
+        if (viewName === 'skillHost' && skillInfo) {
+            viewTitle.innerText = skillInfo.name;
+            const iframe = document.getElementById('skill-iframe');
+            // We use a file:// URL or similar depending on how pywebview handles local files
+            // For skills, we might need a custom protocol or just the absolute path
+            iframe.src = 'file://' + skillInfo.frontend_path;
+
+            // Mark the dynamic nav item as active
+            const dynamicNavItem = document.getElementById('nav-skill-' + skillInfo.id);
+            if (dynamicNavItem) dynamicNavItem.classList.add('active');
+        } else {
+            viewTitle.innerText = titles[viewName];
+        }
 
         if (viewName === 'terminal') {
             fitTerminal();
@@ -509,6 +527,52 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
     }
+
+    // --- Iframe Communication Proxy ---
+    window.addEventListener('message', async (event) => {
+        if (event.data && event.data.type === 'skill_call') {
+            const { skill_id, action, params, requestId } = event.data;
+            if (window.pywebview && window.pywebview.api) {
+                const result = await window.pywebview.api.call_skill(skill_id, action, params);
+                event.source.postMessage({ requestId, result }, '*');
+            }
+        }
+    });
+
+    // --- Dynamic Skill Loading ---
+    async function loadDynamicSkills() {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.get_ui_skills) {
+            const skills = await window.pywebview.api.get_ui_skills();
+            renderDynamicSkills(skills);
+        }
+    }
+
+    function renderDynamicSkills(skills) {
+        const container = document.getElementById('dynamic-skills-nav');
+        if (!container) return;
+        container.innerHTML = '';
+
+        skills.forEach(skill => {
+            const navItem = document.createElement('div');
+            navItem.className = 'nav-item dynamic-skill-nav-item';
+            navItem.id = 'nav-skill-' + skill.id;
+            navItem.title = skill.name;
+
+            // Use provided icon or default
+            const iconClass = skill.icon.startsWith('fa-') ? skill.icon : 'fa-puzzle-piece';
+
+            navItem.innerHTML = `
+                <i class="fas ${iconClass}"></i>
+                <span>${skill.name}</span>
+            `;
+
+            navItem.onclick = () => switchView('skillHost', skill);
+            container.appendChild(navItem);
+        });
+    }
+
+    // Initial load of dynamic skills
+    setTimeout(loadDynamicSkills, 1000);
 
     // Init
     window.addEventListener('resize', fitTerminal);

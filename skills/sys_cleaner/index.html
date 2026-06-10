@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glass-panel">
+        <div class="header">
+            <h2>SysCleaner <span class="pro-badge">PRO</span></h2>
+            <div id="status-indicator" class="status-idle">
+                <span class="status-dot"></span> <span id="status-text">系统就绪</span>
+            </div>
+        </div>
+
+        <div class="action-zone">
+            <button id="btn-monitor" class="btn btn-primary" onclick="toggleMonitor()">
+                ⚡ 开启安装监视
+            </button>
+        </div>
+
+        <div class="log-container">
+            <div class="log-header">增量分析日志 (.blg)</div>
+            <div id="log-output" class="log-body">
+                等待捕获系统变更...
+            </div>
+        </div>
+
+        <div class="footer-zone">
+            <button id="btn-clean" class="btn btn-danger" onclick="requestClean()" disabled>
+                🛡️ 强力清除残留 (需授权)
+            </button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
