@@ -65,7 +65,6 @@
 
 应用程序需要将自定义数据文件放置在 `butler/` 包目录中。
 
-1.  **启动声音**：将您想要的启动音效文件放在 `butler/resources/` 目录中。应用程序会查找 `butler/resources/butler.wav`。
 
 ## 5. 运行应用程序
 

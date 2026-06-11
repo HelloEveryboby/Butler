@@ -6,9 +6,9 @@ setup(
     description="一种基于Python的高级智能助手系统",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    author="PAYDAY3",
+    author="HelloEveryboby",
     author_email="error123456ew@outlook.com",
-    url="https://github.com/PAYDAY3/Butler",
+    url="https://github.com/HelloEveryboby/Butler",
     packages=find_packages(),
     install_requires=[
         "pyttsx3",
@@ -53,9 +53,9 @@ setup(
     license="MIT",
     keywords="voice assistant, AI, home automation, Python",
     project_urls={
-        "Documentation": "https://github.com/PAYDAY3/Butler/wiki",
-        "Source": "https://github.com/PAYDAY3/Butler",
-        "Tracker": "https://github.com/PAYDAY3/Butler/issues",
+        "Documentation": "https://github.com/HelloEveryboby/Butler/wiki",
+        "Source": "https://github.com/HelloEveryboby/Butler",
+        "Tracker": "https://github.com/HelloEveryboby/Butler/issues",
     },
     entry_points={
         'console_scripts': [
