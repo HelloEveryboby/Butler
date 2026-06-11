@@ -97,7 +97,7 @@ def music_player():
         global current_song_index
         while True:
             try:
-                # 模拟语音输入，因为 jarvis.jarvis.takecommand 不存在
+                # 模拟语音输入，因为 butler.butler.takecommand 不存在
                 print("语音输入模式暂不可用，请使用文字模式。")
                 return
                 command = None # takecommand()

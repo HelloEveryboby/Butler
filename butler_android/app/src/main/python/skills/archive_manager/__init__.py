@@ -19,7 +19,7 @@ class ArchiveManager:
         self.cache_dir = os.path.join(self.project_root, "data", "archive_cache")
         # 由于 Skill 是无状态的加载模式，但我们需要追踪文件，
         # 这里可以使用一个简单的进程级单例或者持久化状态。
-        # 考虑到 Jarvis 的长期运行，我们使用类变量。
+        # 考虑到 Butler 的长期运行，我们使用类变量。
         if not hasattr(ArchiveManager, '_tracked_files'):
             ArchiveManager._tracked_files: Dict[str, Dict] = {}
 

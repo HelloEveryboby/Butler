@@ -1,17 +1,17 @@
 import os, sys, json
-from butler.butler_app import Jarvis
-_jarvis = None
+from butler.butler_app import Butler
+_butler = None
 def initialize():
-    global _jarvis
-    if not _jarvis:
-        _jarvis = Jarvis(root=None, usb_screen=None, headless=True)
-        _jarvis.main()
+    global _butler
+    if not _butler:
+        _butler = Butler(root=None, usb_screen=None, headless=True)
+        _butler.main()
 def process_message(message):
-    if _jarvis: _jarvis.handle_user_command(message)
+    if _butler: _butler.handle_user_command(message)
     return "OK"
 def call_plugin(skill_id, action, params):
-    if _jarvis: return json.dumps(_jarvis.skill_manager.execute(skill_id, action, **params))
+    if _butler: return json.dumps(_butler.skill_manager.execute(skill_id, action, **params))
     return "{}"
 def cleanup():
-    global _jarvis
-    if _jarvis: _jarvis.running = False
+    global _butler
+    if _butler: _butler.running = False

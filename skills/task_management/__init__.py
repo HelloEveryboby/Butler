@@ -34,7 +34,7 @@ def handle_request(action, **kwargs):
     Handles task management based on the operation and task details.
     Operations: add, view, complete, waiting
     """
-    jarvis_app = kwargs.get("jarvis_app")
+    butler_app = kwargs.get("butler_app")
     entities = kwargs.get("entities", {})
 
     operation = action or entities.get("operation", "view")
@@ -42,8 +42,8 @@ def handle_request(action, **kwargs):
 
     if operation == "view":
         content = read_tasks()
-        if jarvis_app:
-            jarvis_app.ui_print(content, tag="system_message")
+        if butler_app:
+            butler_app.ui_print(content, tag="system_message")
         return f"这是您当前的任务列表：\n{content}"
 
     elif operation == "add":

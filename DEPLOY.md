@@ -1,4 +1,4 @@
-# Butler (Jarvis) 部署指南
+# Butler (Butler) 部署指南
 
 本指南提供了从源代码设置和运行 Butler（原名 Jarvis）语音助手应用程序的说明。该项目有多个复杂的依赖项，请务必仔细按照步骤操作。
 
@@ -65,7 +65,6 @@
 
 应用程序需要将自定义数据文件放置在 `butler/` 包目录中。
 
-1.  **启动声音**：将您想要的启动音效文件放在 `butler/resources/` 目录中。应用程序会查找 `butler/resources/jarvis.wav`。
 
 ## 5. 运行应用程序
 

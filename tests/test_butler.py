@@ -6,22 +6,22 @@ from unittest.mock import MagicMock, patch
 import sys
 
 
-from butler.butler_app import Jarvis
+from butler.butler_app import Butler
 
 class TestButler(unittest.TestCase):
 
     def setUp(self):
-        """Set up a mock root for the Jarvis instance."""
+        """Set up a mock root for the Butler instance."""
         self.mock_root = MagicMock()
 
-    @patch.object(Jarvis, '_initialize_long_memory')
+    @patch.object(Butler, '_initialize_long_memory')
     def test_data_storage_persistence(self, mock_init_long_memory):
         """
-        Tests that data saved using the DataStorageManager persists across different Jarvis instances.
+        Tests that data saved using the DataStorageManager persists across different Butler instances.
         """
         from butler.data_storage import data_storage_manager
         from butler.core.extension_manager import extension_manager
-        # 1. Setup mock and first Jarvis instance
+        # 1. Setup mock and first Butler instance
         mock_init_long_memory.return_value = None
 
         # Setup mock storage
@@ -32,7 +32,7 @@ class TestButler(unittest.TestCase):
         with patch.object(data_storage_manager, 'save', side_effect=mock_save), \
              patch.object(data_storage_manager, 'load', side_effect=mock_load):
 
-            jarvis1 = Jarvis(self.mock_root)
+            butler1 = Butler(self.mock_root)
             user_profile_plugin1 = extension_manager.plugin_manager.get_plugin("UserProfilePlugin")
             self.assertIsNotNone(user_profile_plugin1, "UserProfilePlugin should be loaded")
 
@@ -44,8 +44,8 @@ class TestButler(unittest.TestCase):
             self.assertTrue(save_result.success)
             self.assertIn(f"Okay, I've remembered your name is {user_name}", save_result.result)
 
-            # 3. Create a new Jarvis instance to simulate a restart
-            jarvis2 = Jarvis(self.mock_root)
+            # 3. Create a new Butler instance to simulate a restart
+            butler2 = Butler(self.mock_root)
             user_profile_plugin2 = extension_manager.plugin_manager.get_plugin("UserProfilePlugin")
             self.assertIsNotNone(user_profile_plugin2, "UserProfilePlugin should be loaded in the new instance")
 
