@@ -17,9 +17,9 @@ class StandaloneManager:
     Manages Butler's hardware lifecycle on standalone media (Dev Boards, USB sticks).
     Specifically handles detection of host connections and display availability via a data cable.
     """
-    def __init__(self, jarvis_app=None):
+    def __init__(self, butler_app=None):
         self.logger = LogManager.get_logger(__name__)
-        self.jarvis = jarvis_app
+        self.butler = butler_app
         self._running = False
         self._monitor_thread = None
 
@@ -48,9 +48,9 @@ class StandaloneManager:
         """Monitors hardware connections and display status."""
         while self._running:
             try:
-                if self.jarvis and hasattr(self.jarvis, 'sysutil'):
+                if self.butler and hasattr(self.butler, 'sysutil'):
                     # 1. Check for Host Connections (Serial/USB)
-                    conn_info = self.jarvis.sysutil.call("check_connections", {})
+                    conn_info = self.butler.sysutil.call("check_connections", {})
                     new_conn_status = "Connected" if (conn_info and conn_info.get("connection_found")) else "Disconnected"
 
                     if new_conn_status != self.connection_status:
@@ -59,7 +59,7 @@ class StandaloneManager:
                         self._on_connection_change(new_conn_status)
 
                     # 2. Check for Display Availability
-                    display_info = self.jarvis.sysutil.call("detect_displays", {})
+                    display_info = self.butler.sysutil.call("detect_displays", {})
                     new_display_state = display_info.get("detected", False) if display_info else False
 
                     if new_display_state != self.display_detected:
@@ -78,16 +78,16 @@ class StandaloneManager:
             msg = f"检测到数据线连接。可用设备: {', '.join(self.detected_devices)}"
             self.logger.info(msg)
             # Notify the main app
-            if self.jarvis:
-                self.jarvis.ui_print(msg, tag='system_message')
+            if self.butler:
+                self.butler.ui_print(msg, tag='system_message')
 
     def _on_display_change(self, detected: bool):
         """Called when a screen is plugged in or unplugged."""
         self.logger.info(f"Display Detection Changed: {detected}")
-        if detected and self.jarvis:
+        if detected and self.butler:
             # Trigger the UI suggestion logic in the main app
-            if hasattr(self.jarvis, 'suggest_ui_activation'):
-                self.jarvis.suggest_ui_activation()
+            if hasattr(self.butler, 'suggest_ui_activation'):
+                self.butler.suggest_ui_activation()
 
     def get_status(self) -> Dict[str, Any]:
         return {
@@ -97,8 +97,8 @@ class StandaloneManager:
             "is_board": os.path.exists("/proc/device-tree/model") or os.uname().machine.startswith("arm")
         }
 
-def run(jarvis_app=None):
+def run(butler_app=None):
     """Entry point for the StandaloneManager service."""
-    manager = StandaloneManager(jarvis_app)
+    manager = StandaloneManager(butler_app)
     manager.start()
     return manager

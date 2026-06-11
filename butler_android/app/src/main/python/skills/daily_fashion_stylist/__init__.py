@@ -13,7 +13,7 @@ def handle_request(action, **kwargs):
     """
     处理每日穿搭 (Daily Fashion Stylist) 技能的请求。
     """
-    jarvis_app = kwargs.get("jarvis_app")
+    butler_app = kwargs.get("butler_app")
     entities = kwargs.get("entities", {})
 
     # 获取项目根目录和技能目录
@@ -22,10 +22,10 @@ def handle_request(action, **kwargs):
 
     # 1. 确定城市
     city = entities.get("city")
-    if not city and jarvis_app:
+    if not city and butler_app:
         # 尝试从 habit_manager 获取
-        city = jarvis_app.habit_manager._profile["preferences"].get("city") or \
-               jarvis_app.habit_manager._profile["preferences"].get("location")
+        city = butler_app.habit_manager._profile["preferences"].get("city") or \
+               butler_app.habit_manager._profile["preferences"].get("location")
 
     if not city:
         city = "北京"  # 默认城市
@@ -68,8 +68,8 @@ def handle_request(action, **kwargs):
 
     # 5. 获取用户画像 (Personalization)
     user_profile = ""
-    if jarvis_app:
-        user_profile = jarvis_app.habit_manager.get_profile_summary()
+    if butler_app:
+        user_profile = butler_app.habit_manager.get_profile_summary()
 
     # 6. 构造 AI 提示词
     system_instruction = (
@@ -98,12 +98,12 @@ def handle_request(action, **kwargs):
     user_prompt += "请给出今日穿搭建议。"
 
     # 7. 调用 LLM 生成回复
-    if jarvis_app and hasattr(jarvis_app, 'nlu_service'):
+    if butler_app and hasattr(butler_app, 'nlu_service'):
         try:
-            advice = jarvis_app.nlu_service.ask_llm(user_prompt, system_prompt=system_instruction)
+            advice = butler_app.nlu_service.ask_llm(user_prompt, system_prompt=system_instruction)
             return advice
         except Exception as e:
             logger.error(f"LLM 调用失败: {e}")
             return "抱歉，生成穿搭建议时遇到了点问题。请稍后再试。"
     else:
-        return "Jarvis NLU 服务不可用，无法生成建议。"
+        return "Butler NLU 服务不可用，无法生成建议。"

@@ -1,4 +1,4 @@
-# Butler (Jarvis) Deployment Guide
+# Butler (Butler) Deployment Guide
 
 This comprehensive guide provides all the necessary steps to set up, configure, and run the Butler (formerly Jarvis) voice assistant application from the source code.
 
@@ -108,11 +108,11 @@ The application requires API keys for its core AI services.
 
 The application requires a startup sound effect.
 
--   **Action Required**: Place a startup sound file named `jarvis.wav` inside the `butler/resources/` directory. If the `resources` directory does not exist, you must create it first.
+-   **Action Required**: Place a startup sound file named `butler.wav` inside the `butler/resources/` directory. If the `resources` directory does not exist, you must create it first.
     ```bash
     mkdir -p butler/resources
     # Now, move your sound file to this directory
-    # mv /path/to/your/jarvis.wav butler/resources/
+    # mv /path/to/your/butler.wav butler/resources/
     ```
 
 ---
@@ -149,7 +149,7 @@ For easier distribution, you can build a standalone executable using `PyInstalle
     ```
 
 2.  **Run the build command**:
-    Make sure you have already placed the `jarvis.wav` file in the correct directory as described in Section 5.
+    Make sure you have already placed the `butler.wav` file in the correct directory as described in Section 5.
     ```bash
     pyinstaller --name Butler --onefile --add-data "butler/resources:butler/resources" butler.butler_app.py
     ```

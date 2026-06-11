@@ -9,7 +9,7 @@ MUSIC_LIBRARY_FILE = PROJECT_ROOT / "music_library.json"
 
 logger = logging.getLogger(__name__)
 
-def get_playlist(entities=None, jarvis_app=None, **kwargs):
+def get_playlist(entities=None, butler_app=None, **kwargs):
     """获取播放列表。"""
     if not MUSIC_LIBRARY_FILE.exists():
         # Build initial library if missing
@@ -32,7 +32,7 @@ def get_playlist(entities=None, jarvis_app=None, **kwargs):
         logger.error(f"Failed to load music library: {e}")
         return []
 
-def update_order(entities=None, jarvis_app=None, **kwargs):
+def update_order(entities=None, butler_app=None, **kwargs):
     """更新并保存新的播放顺序。"""
     new_order = entities.get("new_id_list") if entities else kwargs.get("new_id_list")
     if not new_order:
@@ -55,13 +55,13 @@ def update_order(entities=None, jarvis_app=None, **kwargs):
         logger.error(f"Failed to update music order: {e}")
         return {"success": False, "error": str(e)}
 
-def play(entities=None, jarvis_app=None, **kwargs):
+def play(entities=None, butler_app=None, **kwargs):
     # Logic to interface with backend audio driver
     index = entities.get("index", 0) if entities else kwargs.get("index", 0)
     # Trigger audio driver here
     return {"status": "playing", "index": index}
 
-def pause(entities=None, jarvis_app=None, **kwargs):
+def pause(entities=None, butler_app=None, **kwargs):
     return {"status": "paused"}
 
 def build_library():
@@ -81,14 +81,14 @@ def build_library():
     with open(MUSIC_LIBRARY_FILE, "w", encoding='utf-8') as f:
         json.dump(found, f, ensure_ascii=False, indent=2)
 
-def run(action, entities=None, jarvis_app=None, **kwargs):
+def run(action, entities=None, butler_app=None, **kwargs):
     """Entry point for the skill."""
     if action == "get_playlist":
-        return get_playlist(entities, jarvis_app, **kwargs)
+        return get_playlist(entities, butler_app, **kwargs)
     elif action == "update_order":
-        return update_order(entities, jarvis_app, **kwargs)
+        return update_order(entities, butler_app, **kwargs)
     elif action == "play":
-        return play(entities, jarvis_app, **kwargs)
+        return play(entities, butler_app, **kwargs)
     elif action == "pause":
-        return pause(entities, jarvis_app, **kwargs)
+        return pause(entities, butler_app, **kwargs)
     return {"error": f"Unknown action: {action}"}

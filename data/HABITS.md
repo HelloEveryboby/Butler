@@ -1,6 +1,6 @@
 # User Habits & Coordination Profile (HABITS.md)
 
-> 这是 Jarvis 自动生成的记忆与偏好文件。它记录了您的使用习惯，帮助我们配合得更默契。
+> 这是 Butler 自动生成的记忆与偏好文件。它记录了您的使用习惯，帮助我们配合得更默契。
 
 ## 👤 个人偏好 (Preferences)
 - **document_format**: Microsoft Word

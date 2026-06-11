@@ -10,8 +10,8 @@ class SelfHealing:
     Butler Self-Healing System: Analyzes failures and suggests fixes using LLM.
     """
 
-    def __init__(self, jarvis_app):
-        self.jarvis = jarvis_app
+    def __init__(self, butler_app):
+        self.butler = butler_app
 
     def analyze_failure(self, error_msg: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Uses LLM to analyze the error and provide a structured self-healing strategy."""
@@ -30,7 +30,7 @@ class SelfHealing:
         )
 
         try:
-            response = self.jarvis.nlu_service.ask_llm(prompt, use_habit=False)
+            response = self.butler.nlu_service.ask_llm(prompt, use_habit=False)
             import re
             json_match = re.search(r"(\{.*\})", response, re.DOTALL)
             if json_match:
@@ -40,4 +40,4 @@ class SelfHealing:
 
         return {"strategy": "abort", "explanation": "无法自动修复。"}
 
-self_healing = None # Initialized in Jarvis
+self_healing = None # Initialized in Butler

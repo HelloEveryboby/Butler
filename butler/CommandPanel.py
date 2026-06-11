@@ -549,7 +549,7 @@ class CommandPanel(tk.Frame):
                 self.command_callback("manual_action", {"action": "left_click", "coordinate": (real_x, real_y)})
 
     def manual_action(self, action_type):
-        """向 Jarvis 发送手动操作命令。"""
+        """向 Butler 发送手动操作命令。"""
         if self.command_callback:
             if action_type == "type":
                 # Prompt for text in a simple dialog or just use input entry?

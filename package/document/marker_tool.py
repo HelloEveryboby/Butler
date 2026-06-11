@@ -305,7 +305,7 @@ def run(*args, **kwargs):
     parser.add_argument("-p", "--prompt", help="Custom prompt for conversion")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
 
-    # In Jarvis, args might be passed as a list
+    # In Butler, args might be passed as a list
     if args and isinstance(args[0], list):
         parsed_args = parser.parse_args(args[0])
     else:

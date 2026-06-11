@@ -5,7 +5,7 @@ import threading
 logger = logging.getLogger(__name__)
 
 class EventBus:
-    """A simple internal pub/sub system for decoupling Jarvis components."""
+    """A simple internal pub/sub system for decoupling Butler components."""
     def __init__(self):
         self._subscribers = collections.defaultdict(list)
         self._lock = threading.Lock()
@@ -16,6 +16,10 @@ class EventBus:
             if callback not in self._subscribers[event_type]:
                 self._subscribers[event_type].append(callback)
                 logger.debug(f"Subscribed {callback} to {event_type}")
+
+    def on(self, event_type, callback):
+        """Alias for subscribe."""
+        self.subscribe(event_type, callback)
 
     def unsubscribe(self, event_type, callback):
         """Unsubscribe a callback from a specific event type."""

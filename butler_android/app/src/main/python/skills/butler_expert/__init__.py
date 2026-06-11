@@ -7,7 +7,7 @@ logger = logging.getLogger("ButlerExpertSkill")
 BUTLER_KNOWLEDGE = {
     "intro": {
         "title": "项目核心定位",
-        "content": "Butler 是一个功能丰富的 Python 智能助手系统。它采用模块化架构设计，不仅是一个对话式 AI，更是一个集成了强大算法库、可扩展插件系统和多种交互模式的全能型工具平台。它的核心编排器是 Jarvis 类，负责管理信息流和协调各组件。"
+        "content": "Butler 是一个功能丰富的 Python 智能助手系统。它采用模块化架构设计，不仅是一个对话式 AI，更是一个集成了强大算法库、可扩展插件系统和多种交互模式的全能型工具平台。它的核心编排器是 Butler 类，负责管理信息流和协调各组件。"
     },
     "modules": {
         "ai_dialogue": {
@@ -41,7 +41,7 @@ BUTLER_KNOWLEDGE = {
     },
     "workflow": {
         "title": "架构与工作流",
-        "content": "1. 输入 (Input)：通过 GUI、语音或 Web UI 输入命令。\n2. 路由 (Routing)：Jarvis 使用 DeepSeek API 执行自然语言理解，识别意图和实体。\n3. 执行 (Execution)：根据意图路由到相应的模块（Jarvis 直接处理、搜索向量数据库、或通过 PluginManager 调用插件/工具）。\n4. 响应 (Response)：将结果返回给用户。"
+        "content": "1. 输入 (Input)：通过 GUI、语音或 Web UI 输入命令。\n2. 路由 (Routing)：Butler 使用 DeepSeek API 执行自然语言理解，识别意图和实体。\n3. 执行 (Execution)：根据意图路由到相应的模块（Butler 直接处理、搜索向量数据库、或通过 PluginManager 调用插件/工具）。\n4. 响应 (Response)：将结果返回给用户。"
     },
     "troubleshooting": {
         "api": {

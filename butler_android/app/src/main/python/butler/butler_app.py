@@ -66,7 +66,7 @@ from butler.core.hybrid_link import HybridLinkClient
 from butler.core.runner_server import RunnerServer
 from package.device.standalone_manager import StandaloneManager
 
-class Jarvis:
+class Butler:
     def __init__(self, root=None, usb_screen=None, headless=False):
         self.root = root
         self.usb_screen = usb_screen
@@ -399,13 +399,13 @@ class Jarvis:
 
                 if match_type == 'intent':
                     self.ui_print(f"本地命中意图: {intent_id}", tag='system_message')
-                    handler_args = {"jarvis_app": self, "entities": entities, "programs": extension_manager.packages}
+                    handler_args = {"butler_app": self, "entities": entities, "programs": extension_manager.packages}
                     result = intent_registry.dispatch(intent_id, **handler_args)
                     if result: self.speak(str(result))
                     return
                 elif match_type == 'skill':
                     self.ui_print(f"本地命中技能: {intent_id}", tag='system_message')
-                    result = self.skill_manager.execute(intent_id, entities.get("operation") or "run", entities=entities, jarvis_app=self)
+                    result = self.skill_manager.execute(intent_id, entities.get("operation") or "run", entities=entities, butler_app=self)
                     if result: self.speak(str(result))
                     return
 
@@ -468,7 +468,7 @@ class Jarvis:
         if skill_id:
             nlu_result = self.nlu_service.extract_intent(legacy_command, self.long_memory.get_recent_history(10))
             entities = nlu_result.get("entities", {})
-            result = self.skill_manager.execute(skill_id, entities.get("operation"), entities=entities, jarvis_app=self)
+            result = self.skill_manager.execute(skill_id, entities.get("operation"), entities=entities, butler_app=self)
             self.speak(str(result))
             return
 
@@ -480,7 +480,7 @@ class Jarvis:
         else:
             entities = {}
 
-        handler_args = {"jarvis_app": self, "entities": entities, "programs": extension_manager.packages}
+        handler_args = {"butler_app": self, "entities": entities, "programs": extension_manager.packages}
         if matched_intent in intent_registry._intents:
             result = intent_registry.dispatch(matched_intent, **handler_args)
             if result is not None:
@@ -614,7 +614,7 @@ class Jarvis:
             from package.core_utils.autonomous_switch import AutonomousSwitch
             AutonomousSwitch().start(background=True)
         except Exception: pass
-        self.speak("Jarvis 已启动并就绪")
+        self.speak("Butler 已启动并就绪")
         threading.Thread(target=self._update_ui_loop, daemon=True).start()
 
     def suggest_ui_activation(self):
@@ -663,7 +663,7 @@ class Jarvis:
     def _cleanup_temp_files(self):
         temp_dir = tempfile.gettempdir()
         for f in os.listdir(temp_dir):
-            if f.startswith("jarvis_temp_"):
+            if f.startswith("butler_temp_"):
                 try:
                     path = os.path.join(temp_dir, f)
                     if os.path.isfile(path): os.remove(path)
@@ -758,7 +758,7 @@ class Jarvis:
 
             # Skill Management Tools
             elif intent == "skill_install" or intent == "skill_import":
-                output = self.skill_manager.execute("manage_skills", "install" if intent == "skill_install" else "import", entities=entities, jarvis_app=self)
+                output = self.skill_manager.execute("manage_skills", "install" if intent == "skill_install" else "import", entities=entities, butler_app=self)
 
             # Team Tools
             elif intent == "spawn_teammate":
@@ -807,7 +807,7 @@ class Jarvis:
                 # Handle via legacy skill/extension system or new SKILL.md scripts
                 skill_id = intent if intent in self.skill_manager.manifests else self.skill_manager.match_skill(command)
                 if skill_id:
-                    output = self.skill_manager.execute(skill_id, entities.get("operation") or entities.get("action") or "run", entities=entities, jarvis_app=self)
+                    output = self.skill_manager.execute(skill_id, entities.get("operation") or entities.get("action") or "run", entities=entities, butler_app=self)
                 else:
                     output = extension_manager.execute(intent, command=command, args=entities)
 
@@ -851,8 +851,8 @@ def main():
     args = parser.parse_args()
     usb_screen = USBScreen(40, 8)
     if args.headless:
-        jarvis = Jarvis(None, usb_screen, headless=True); jarvis.main()
-        while jarvis.running: time.sleep(1)
+        butler = Butler(None, usb_screen, headless=True); butler.main()
+        while butler.running: time.sleep(1)
         return
 
     # Show config wizard if in GUI mode and keys are missing
@@ -865,11 +865,11 @@ def main():
             modern_app.main(); return
         except Exception: pass
 
-    root = tk.Tk(); root.title("Jarvis 助手 [管理模式]")
-    jarvis = Jarvis(root, usb_screen, headless=False)
+    root = tk.Tk(); root.title("Butler 助手 [管理模式]")
+    butler = Butler(root, usb_screen, headless=False)
     all_tools = {t['name']: t.get('path', t.get('module')) for t in extension_manager.get_all_tools()}
-    panel = CommandPanel(root, program_mapping=jarvis.program_mapping, programs=all_tools, command_callback=jarvis.panel_command_handler)
+    panel = CommandPanel(root, program_mapping=butler.program_mapping, programs=all_tools, command_callback=butler.panel_command_handler)
     panel.pack(fill=tk.BOTH, expand=True)
-    jarvis.main(); root.mainloop()
+    butler.main(); root.mainloop()
 
 if __name__ == "__main__": main()

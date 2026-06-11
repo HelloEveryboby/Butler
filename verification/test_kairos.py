@@ -42,17 +42,17 @@ def test_cron_scheduler():
 
 def test_dream_engine():
     print("\n--- Testing DreamEngine ---")
-    # We need a mock jarvis app with nlu_service
+    # We need a mock butler app with nlu_service
     class MockNLU:
         def ask_llm(self, prompt, history):
             return "Consolidated Memory: User likes efficiency and low power."
 
-    class MockJarvis:
+    class MockButler:
         def __init__(self):
             self.nlu_service = MockNLU()
 
-    jarvis = MockJarvis()
-    dream_engine = DreamEngine(jarvis)
+    butler = MockButler()
+    dream_engine = DreamEngine(butler)
 
     print(f"Should Dream: {dream_engine.should_dream()}")
     # Force a dream
@@ -74,12 +74,12 @@ def test_dream_engine():
 
 def test_proactive_agent():
     print("\n--- Testing ProactiveAgent ---")
-    class MockJarvis:
+    class MockButler:
         def __init__(self):
             self.long_memory = type('obj', (object,), {'logs': type('obj', (object,), {'add_daily_log': lambda x: print(f"Log: {x}")})})
 
-    jarvis = MockJarvis()
-    agent = ProactiveAgent(jarvis)
+    butler = MockButler()
+    agent = ProactiveAgent(butler)
     print(f"Last Activity: {agent.last_activity}")
     agent.update_activity()
     print(f"Updated Activity: {agent.last_activity}")

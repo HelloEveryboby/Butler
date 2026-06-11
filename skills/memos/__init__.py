@@ -130,7 +130,7 @@ def handle_request(action: str, **kwargs):
     """
     # 获取单例
     memos = MemosSkill()
-    jarvis_app = kwargs.get("jarvis_app")
+    butler_app = kwargs.get("butler_app")
 
     if action == "add":
         content = kwargs.get("content", "")
@@ -144,9 +144,9 @@ def handle_request(action: str, **kwargs):
         result = memos.add_memo(content, tags, files, base64_files)
 
         # 如果是从对话调用的，可能需要渲染卡片到 UI
-        if jarvis_app and result and "id" in result:
+        if butler_app and result and "id" in result:
              # 在对话流中渲染卡片 (针对 bcli 方案 A)
-             jarvis_app.ui_print(content, tag="memo_card", response_id=result.get("id"))
+             butler_app.ui_print(content, tag="memo_card", response_id=result.get("id"))
 
         return f"备忘录已保存。ID: {result.get('id')}" if result and "id" in result else "保存失败。"
 

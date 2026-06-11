@@ -12,8 +12,8 @@ class WorkflowEngine:
     Supports sequential execution, simple branching, and state persistence.
     """
 
-    def __init__(self, jarvis_app):
-        self.jarvis = jarvis_app
+    def __init__(self, butler_app):
+        self.butler = butler_app
         self.active_workflows = {}
 
     def create_workflow(self, name: str, steps: List[Dict[str, Any]]) -> str:
@@ -47,7 +47,7 @@ class WorkflowEngine:
 
         logger.info(f"Executing workflow {workflow_id} step {idx}: {step.get('intent')}")
 
-        # Execute the intent via Jarvis
+        # Execute the intent via Butler
         # We simulate a user command for the step
         intent = step.get("intent")
         entities = step.get("entities", {})
@@ -55,10 +55,10 @@ class WorkflowEngine:
         # Merge context into entities
         entities.update(wf["context"])
 
-        # Use Jarvis's internal dispatching or a direct skill call
+        # Use Butler's internal dispatching or a direct skill call
         # For simplicity, we use the skill manager if it looks like a skill
         try:
-            result = self.jarvis.skill_manager.execute(intent, entities.get("action", "run"), entities=entities, jarvis_app=self.jarvis)
+            result = self.butler.skill_manager.execute(intent, entities.get("action", "run"), entities=entities, butler_app=self.butler)
             wf["context"][f"step_{idx}_result"] = result
             wf["current_step"] += 1
 
@@ -67,7 +67,7 @@ class WorkflowEngine:
                 event_bus.emit("workflow_next", workflow_id)
             else:
                 wf["status"] = "completed"
-                self.jarvis.ui_print(f"✅ 工作流 '{wf['name']}' 已完成。", tag='system_message')
+                self.butler.ui_print(f"✅ 工作流 '{wf['name']}' 已完成。", tag='system_message')
 
             return result
         except Exception as e:
@@ -75,4 +75,4 @@ class WorkflowEngine:
             wf["error"] = str(e)
             return f"Step failed: {e}"
 
-workflow_engine = None # Initialized in Jarvis
+workflow_engine = None # Initialized in Butler
