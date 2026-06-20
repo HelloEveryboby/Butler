@@ -1,4 +1,6 @@
 import heapq
+import importlib
+import contextlib
 from collections import deque
 
 try:
@@ -545,3 +547,96 @@ def k_means_clustering(data, n_clusters, random_state=None):
     kmeans.fit(data)
 
     return kmeans.labels_, kmeans.cluster_centers_
+
+# 8. LDST (Lightweight Dynamic Shadow-Topology Tree) Algorithm
+class LDSTResolver:
+    """
+    轻量级动态双向影子依赖拓扑树解析器。
+    用于在 "One Folder = One Skill" 架构下动态解析技能间的依赖关系。
+    """
+    def __init__(self, manifests):
+        self.manifests = manifests
+
+    def resolve(self, target_skill_id):
+        """
+        反向解析出执行顺序 (拓扑排序)。
+        """
+        order = []
+        visited = {} # 0: 未访问, 1: 访问中(有环), 2: 已完成
+
+        def dfs(name):
+            state = visited.get(name, 0)
+            if state == 1:
+                raise Exception(f"💥 检测到循环依赖：阻止了 {name} 的无休止调用！")
+            if state == 2:
+                return
+
+            visited[name] = 1 # 标记为正在访问
+
+            skill = self.manifests.get(name)
+            if not skill:
+                raise Exception(f"❌ 未找到技能模块: {name}")
+
+            # 反向解析：为了满足当前技能的 Requires，去寻找满足 Provides 的上游技能
+            requires = skill.get('requires', {})
+            # 如果 requires 是列表（旧版），转换为字典以统一处理
+            if isinstance(requires, list):
+                requires = {req: True for req in requires}
+
+            for req_key in requires:
+                provider_found = False
+                for potential_id, potential_meta in self.manifests.items():
+                    provides = potential_meta.get('provides', [])
+                    if req_key in provides:
+                        provider_found = True
+                        dfs(potential_id)
+
+                # 注意：有些依赖可能是系统环境(如 os.platform)，不一定由技能提供
+                # 这里我们主要解析技能间的依赖
+                if not provider_found:
+                    # 如果没有技能能提供，可能是环境变量，暂时跳过或记录日志
+                    pass
+
+            visited[name] = 2 # 标记为完成
+            order.append(name)
+
+        dfs(target_skill_id)
+        return order
+
+# 9. DWT (Dynamic Watermark Throttle) Implementation
+class DWTThrottle:
+    """
+    协程级动态水位压制器。
+    用于在执行密集循环时，根据系统资源占用情况动态调整执行速率。
+    """
+    def __init__(self):
+        try:
+            import psutil
+            self.psutil = psutil
+        except ImportError:
+            self.psutil = None
+
+    def get_current_watermark(self):
+        """获取当前 CPU 占用率作为水位线"""
+        if self.psutil:
+            return self.psutil.cpu_percent(interval=None)
+        return 0
+
+    @contextlib.contextmanager
+    def monitor(self):
+        """
+        上下文管理器，用于在循环中注入压制逻辑。
+        """
+        import time
+        watermark = self.get_current_watermark()
+        if watermark > 85:
+            time.sleep(0.1)  # 红区：大幅减速
+        elif watermark > 60:
+            time.sleep(0.01) # 黄区：轻微压制
+
+        try:
+            yield
+        finally:
+            pass
+
+dwt_throttle = DWTThrottle()

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -19,15 +20,17 @@ import (
 
 	"github.com/go-vgo/robotgo"
 	"github.com/gorilla/websocket"
+	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/vova616/screenshot"
 )
 
 // --- 协议定义 ---
 type Message struct {
-	Type    string `json:"type"`    // cmd, shell, file_ls, screenshot, input, sys_info, ping, pong, register, sleep
-	Payload string `json:"payload"` // 指令内容或路径
-	Token   string `json:"token"`
-	RunnerID string `json:"runner_id,omitempty"`
+	Type               string                 `json:"type"`    // cmd, shell, file_ls, screenshot, input, sys_info, ping, pong, register, sleep
+	Payload            string                 `json:"payload"` // 指令内容或路径
+	Token              string                 `json:"token"`
+	RunnerID           string                 `json:"runner_id,omitempty"`
+	BlackboardSnapshot map[string]interface{} `json:"blackboard_snapshot,omitempty"`
 }
 
 type Response struct {
@@ -38,12 +41,40 @@ type Response struct {
 }
 
 var (
-	serverURL = flag.String("server", "ws://localhost:8000/ws/butler", "Butler server WebSocket URL")
-	authToken = flag.String("token", "", "Authentication token (REQUIRED)")
-	runnerID  = flag.String("id", "default_runner", "Unique ID for this runner")
+	serverURL  = flag.String("server", "ws://localhost:8000/ws/butler", "Butler server WebSocket URL")
+	authToken  = flag.String("token", "", "Authentication token (REQUIRED)")
+	runnerID   = flag.String("id", "default_runner", "Unique ID for this runner")
 	isSleeping = false
-	mu        sync.Mutex
+	mu         sync.Mutex
+	blackboard = make(map[string]interface{})
 )
+
+// --- DWT (Dynamic Watermark Throttle) ---
+
+func getCPUUsage() float64 {
+	percent, err := cpu.Percent(0, false)
+	if err != nil || len(percent) == 0 {
+		return 0
+	}
+	return percent[0]
+}
+
+func executeWithThrottle(ctx context.Context, task func()) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			usage := getCPUUsage()
+			if usage > 85 {
+				time.Sleep(100 * time.Millisecond) // 红区
+			} else if usage > 60 {
+				time.Sleep(10 * time.Millisecond) // 黄区
+			}
+			task()
+		}
+	}
+}
 
 func main() {
 	flag.Parse()
@@ -113,8 +144,25 @@ func connect() error {
 		}
 		mu.Unlock()
 
+		// 更新本地影子黑板
+		if msg.BlackboardSnapshot != nil {
+			mu.Lock()
+			for k, v := range msg.BlackboardSnapshot {
+				blackboard[k] = v
+			}
+			mu.Unlock()
+		}
+
 		// 核心指令分发
-		go handleTask(c, msg)
+		go func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			executeWithThrottle(ctx, func() {
+				handleTask(c, msg)
+				cancel() // 执行完一次任务后退出 throttle 循环
+			})
+		}()
 	}
 }
 

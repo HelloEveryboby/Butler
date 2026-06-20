@@ -14,6 +14,8 @@ from typing import Dict, Any, List, Optional, Callable
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from butler.core.task_manager import task_manager
+from butler.core.algorithms import LDSTResolver
+from butler.core.blackboard import blackboard
 
 logger = logging.getLogger("SkillManager")
 
@@ -187,6 +189,11 @@ class SkillManager:
 
         # 如果至少加载了其中一个
         if skill_id in manifests:
+            # 确保关键字段存在 (LDST & Risk)
+            manifests[skill_id].setdefault('provides', [])
+            manifests[skill_id].setdefault('requires', {})
+            manifests[skill_id].setdefault('risk', 'low')
+
             # 探测执行优先级：Binary > Python
             self._try_load_binary_entry(skill_id, manifests)
             if not manifests[skill_id].get('has_binary'):
@@ -268,6 +275,11 @@ class SkillManager:
                 manifests[skill_id]['format'] = 'SKILL.md'
             else:
                 manifests[skill_id].update(metadata)
+
+            # Ensure LDST and Risk metadata are present
+            manifests[skill_id].setdefault('provides', metadata.get('provides', []))
+            manifests[skill_id].setdefault('requires', metadata.get('requires', {}))
+            manifests[skill_id].setdefault('risk', metadata.get('risk', 'low'))
 
             contents[skill_id] = body
             return True
@@ -384,9 +396,41 @@ class SkillManager:
 
         return False
 
+    def _check_risk_escalation(self, execution_chain: List[str]) -> str:
+        """
+        检查执行链中的风险等级并进行提权。
+        返回最高风险等级 ('low' 或 'high')。
+        """
+        max_risk = "low"
+        high_risk_provides_patterns = ["net.exploit", "system.registry.deleted", "file.deleted", "auth.privilege.escalated"]
+
+        for s_id in execution_chain:
+            meta = self.manifests.get(s_id, {})
+            risk = meta.get('risk', 'low')
+
+            # 1. 显式声明提权
+            if risk == "high":
+                max_risk = "high"
+                break
+
+            # 2. Requires 提权 (Admin/Root)
+            requires = meta.get('requires', {})
+            if isinstance(requires, dict):
+                if any(v in ["admin", "root"] for v in requires.values()):
+                    max_risk = "high"
+                    break
+
+            # 3. Provides 提权 (正则匹配敏感操作)
+            provides = meta.get('provides', [])
+            if any(any(pattern in p for pattern in high_risk_provides_patterns) for p in provides):
+                max_risk = "high"
+                break
+
+        return max_risk
+
     def execute(self, skill_id: str, action: str, **kwargs):
         """
-        Stage 3: 执行接口。支持 Binary, Python handle_request 和 allowed-tools 脚本执行。
+        Stage 3: 执行接口。支持 LDST 影子链解析、ESB 黑板快照下发。
         """
         # 系统内部管理动作
         if skill_id in ["manage_skills", "skill_manager"]:
@@ -395,7 +439,63 @@ class SkillManager:
         if skill_id not in self.manifests:
             return f"Error: 技能 '{skill_id}' 未发现。"
 
+        # --- LDST 影子链解析 ---
+        try:
+            resolver = LDSTResolver(self.manifests)
+            execution_chain = resolver.resolve(skill_id)
+            logger.info(f"LDST Execution Chain resolved: {execution_chain}")
+        except Exception as e:
+            return str(e)
+
+        # --- 风险分级与确认 ---
+        max_risk = self._check_risk_escalation(execution_chain)
+        if max_risk == "high" and not kwargs.get("force_execute"):
+            return {
+                "status": "pending_confirmation",
+                "risk": "high",
+                "chain": execution_chain,
+                "message": f"⚠️ Butler 提示：执行 '{skill_id}' 涉及高风险影子链 {execution_chain}，是否允许执行？"
+            }
+
+        # --- 影子链执行包装器 (处理同步/异步) ---
+        def chain_execution_wrapper(**kwargs):
+            last_result = None
+            for current_skill_id in execution_chain:
+                # 强制链条内的子任务同步执行，以便数据接力
+                sub_kwargs = kwargs.copy()
+                sub_kwargs["async_mode"] = False
+
+                last_result = self._execute_single_skill(current_skill_id, action if current_skill_id == skill_id else "run", **sub_kwargs)
+
+                # 如果是中间节点，将其 Output 写入黑板以便下游使用
+                meta = self.manifests[current_skill_id]
+                provides = meta.get('provides', [])
+                if provides and isinstance(last_result, dict):
+                    for p_key in provides:
+                        if p_key in last_result:
+                            blackboard.write(p_key, last_result[p_key])
+            return last_result
+
+        run_async = kwargs.get("async_mode", False)
+        if run_async:
+            logger.info(f"Scheduling LDST shadow chain execution (ASYNC): {execution_chain}")
+            return task_manager.submit(
+                chain_execution_wrapper,
+                name=f"LDSTChain:{skill_id}",
+                **kwargs
+            )
+        else:
+            return chain_execution_wrapper(**kwargs)
+
+    def _execute_single_skill(self, skill_id: str, action: str, **kwargs):
+        """执行单个技能（原 execute 核心逻辑）"""
         manifest = self.manifests[skill_id]
+
+        # 注入 ESB 快照 (Requires)
+        requires = manifest.get('requires', {})
+        if isinstance(requires, dict):
+            req_keys = list(requires.keys())
+            kwargs["blackboard_snapshot"] = blackboard.get_snapshot_payload(req_keys)
 
         # 1. 优先执行二进制 (Binary Execution)
         if manifest.get('has_binary') and action == "run":
@@ -411,12 +511,11 @@ class SkillManager:
                 return f"Error: 技能 '{skill_id}' 的 Python 环境加载失败。"
 
         if skill_id not in self.loaded_skills:
-            # 如果没有 handle_request，但有 SKILL.md，可能是纯指令技能
             if skill_id in self.skill_contents:
-                return f"技能 '{skill_id}' 为纯指令集模式，请参考其 SKILL.md 指引。"
+                return f"技能 '{skill_id}' 为纯指令集模式。"
             return f"Error: 技能 '{skill_id}' 无法执行 (缺少入口)。"
 
-        # 注入配置信息
+        # 注入配置与元数据
         kwargs["config"] = self.configs.get(skill_id, {})
         kwargs["manifest"] = self.manifests.get(skill_id, {})
 
@@ -430,25 +529,12 @@ class SkillManager:
                 return result
             except Exception as e:
                 logger.error(f"Execution error in skill '{skill_id}': {e}", exc_info=True)
-                msg = f"⚠️ 技能执行出错: {str(e)}"
-                if jarvis_app and kwargs.get("_async"):
-                    jarvis_app.speak(msg)
-                return msg
+                return f"⚠️ 技能执行出错: {str(e)}"
 
         run_async = kwargs.get("async_mode", False)
-
         if run_async:
-            logger.info(f"Scheduling skill execution (ASYNC): {skill_id} -> {action}")
-            kwargs["_async"] = True
-            task_id = task_manager.submit(
-                skill_wrapper,
-                action,
-                name=f"Skill:{skill_id}:{action}",
-                **kwargs
-            )
-            return f"任务已提交 (ID: {task_id})，正在后台处理..."
+            return task_manager.submit(skill_wrapper, action, name=f"Skill:{skill_id}", **kwargs)
         else:
-            logger.info(f"Executing skill (SYNC): {skill_id} -> {action}")
             return skill_wrapper(action, **kwargs)
 
     def _manage_skills(self, action, **kwargs):
