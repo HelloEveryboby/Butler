@@ -5,11 +5,11 @@ import inspect
 import ast
 from typing import Type, Optional, List, Dict
 from .plugin_interface import AbstractPlugin, PluginResult
-from package.core_utils.log_manager import LogManager
+from utils.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
 
-from butler.data_storage import DataStorageManager
+from core.data_storage import DataStorageManager
 
 class PluginManager:
     def __init__(self, plugin_package: str, data_storage_manager: DataStorageManager):

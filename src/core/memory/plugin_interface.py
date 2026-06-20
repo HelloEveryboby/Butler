@@ -3,9 +3,9 @@ from datetime import datetime
 from typing import Any, Optional, Dict, List
 import logging
 import os
-from butler.data_storage import DataStorageManager
-from package.core_utils.log_manager import LogManager
-from butler.core.hybrid_link import HybridLinkClient
+from core.data_storage import DataStorageManager
+from utils.core_utils.log_manager import LogManager
+from core.hybrid_link import HybridLinkClient
 
 class PluginResult:
     def __init__(self):
