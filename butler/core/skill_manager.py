@@ -791,6 +791,10 @@ class SkillManager:
             process.wait()
             stdout_thread.join(timeout=2.0)
 
+            # 关闭未关闭的流
+            process.stdout.close()
+            process.stderr.close()
+
             if process.returncode != 0:
                 logger.error(f"子进程 {skill_id} 异常退出 ({process.returncode}): {stderr}")
                 return f"Error: 技能执行失败 ({process.returncode}): {stderr}"
