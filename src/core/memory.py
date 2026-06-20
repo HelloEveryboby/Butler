@@ -10,8 +10,8 @@ import re
 from abc import ABCMeta, abstractmethod
 from typing import List, Dict, Optional, Tuple, Any
 
-from utils.core_utils.log_manager import LogManager
-from utils.core_utils.embedding_utils import get_embedding
+from package.core_utils.log_manager import LogManager
+from package.core_utils.embedding_utils import get_embedding
 
 # 可选依赖项处理
 try:
@@ -23,7 +23,7 @@ try:
     import redis
     from redisvl.index import SearchIndex
     from redisvl.query import VectorQuery
-    from core.redis_client import redis_client
+    from butler.redis_client import redis_client
 except ImportError:
     redis = None
     SearchIndex = None
@@ -37,7 +37,7 @@ except ImportError:
 
 # BHL 协议客户端，用于混合记忆查询
 try:
-    from core.hybrid_link import HybridLinkClient
+    from butler.core.hybrid_link import HybridLinkClient
 except (ImportError, ModuleNotFoundError):
     HybridLinkClient = None
 
