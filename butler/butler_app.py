@@ -469,7 +469,10 @@ class Jarvis:
             nlu_result = self.nlu_service.extract_intent(legacy_command, self.long_memory.get_recent_history(10))
             entities = nlu_result.get("entities", {})
             result = self.skill_manager.execute(skill_id, entities.get("operation"), entities=entities, jarvis_app=self)
-            self.speak(str(result))
+            if isinstance(result, dict) and result.get("status") == "pending_confirmation":
+                self.speak(result["message"])
+            else:
+                self.speak(str(result))
             return
 
         matched_intent = intent_registry.match_intent_locally(legacy_command)
@@ -808,6 +811,9 @@ class Jarvis:
                 skill_id = intent if intent in self.skill_manager.manifests else self.skill_manager.match_skill(command)
                 if skill_id:
                     output = self.skill_manager.execute(skill_id, entities.get("operation") or entities.get("action") or "run", entities=entities, jarvis_app=self)
+                    if isinstance(output, dict) and output.get("status") == "pending_confirmation":
+                        self.speak(output["message"])
+                        break # Stop chain and wait for user confirmation/force
                 else:
                     output = extension_manager.execute(intent, command=command, args=entities)
 
