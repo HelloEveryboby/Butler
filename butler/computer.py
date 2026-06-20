@@ -73,7 +73,7 @@ def chunks(s: str, chunk_size: int) -> list[str]:
 # 平滑移动鼠标函数
 def smooth_move_to(x, y, duration=1.2):
     """实现鼠标平滑移动到目标位置
-    
+
     参数:
         x, y: 目标坐标
         duration: 移动持续时间(秒)
@@ -81,40 +81,40 @@ def smooth_move_to(x, y, duration=1.2):
     start_x, start_y = pyautogui.position()  # 获取起始位置
     dx = x - start_x
     dy = y - start_y
-    
+
     start_time = time.time()
-    
+
     # 使用缓动函数实现平滑移动
     while True:
         elapsed_time = time.time() - start_time
         if elapsed_time > duration:
             break
-            
+
         t = elapsed_time / duration
         # 使用正弦缓动函数 (easeInOutSine)
         eased_t = (1 - math.cos(t * math.pi)) / 2
-        
+
         # 计算中间位置
         target_x = start_x + dx * eased_t
         target_y = start_y + dy * eased_t
         pyautogui.moveTo(target_x, target_y)
-    
+
     # 确保到达目标位置
     pyautogui.moveTo(x, y)
 
 # 计算机工具类
 class ComputerTool(BaseDeepSeekTool):
     """DeepSeek计算机交互工具
-    
+
     允许代理通过DeepSeek API控制主显示器的屏幕、键盘和鼠标
     """
-    
+
     name: Literal["computer"] = "computer"  # 工具名称
     api_type: Literal["computer_20241022"] = "computer_20241022"  # API类型
     width: int  # 屏幕宽度
     height: int  # 屏幕高度
     display_num: None  # 显示器编号（简化为主显示器）
-    
+
     # 配置参数
     _screenshot_delay = 2.0  # 截图延迟(秒)
     _scaling_enabled = True   # 启用坐标缩放
@@ -150,7 +150,7 @@ class ComputerTool(BaseDeepSeekTool):
         **kwargs,
     ):
         """执行计算机操作
-        
+
         参数:
             action: 操作类型
             text: 文本内容（用于键盘输入）
@@ -164,23 +164,23 @@ class ComputerTool(BaseDeepSeekTool):
             x, y = self.scale_coordinates(
                 ScalingSource.API, coordinate[0], coordinate[1]
             )
-            
+
             if action == "mouse_move":
                 smooth_move_to(x, y)  # 平滑移动鼠标
             elif action == "left_click_drag":
                 smooth_move_to(x, y)
                 pyautogui.dragTo(x, y, button="left")  # 左键拖拽
-        
+
         # 键盘操作
         elif action in ("key", "type"):
             if text is None:
                 raise ToolError(f"{action}操作需要文本参数")
-                
+
             if action == "key":
                 # macOS特殊处理
                 if platform.system() == "Darwin":
                     text = text.replace("super+", "command+")
-                
+
                 # 按键名称标准化
                 def normalize_key(key):
                     """标准化按键名称"""
@@ -192,9 +192,9 @@ class ComputerTool(BaseDeepSeekTool):
                         "return": "enter",
                     }
                     return key_map.get(key, key)
-                
+
                 keys = [normalize_key(k) for k in text.split("+")]
-                
+
                 # 组合键处理
                 if len(keys) > 1:
                     if "darwin" in platform.system().lower():
@@ -216,11 +216,11 @@ class ComputerTool(BaseDeepSeekTool):
                         pyautogui.hotkey(*keys)  # 其他系统直接使用hotkey
                 else:
                     pyautogui.press(keys[0])  # 单键按下
-            
+
             elif action == "type":
                 # 模拟真实打字
                 pyautogui.write(text, interval=TYPING_DELAY_MS / 1000)
-        
+
         # 鼠标点击操作
         elif action in ("left_click", "right_click", "double_click", "middle_click"):
             time.sleep(0.1)  # 短暂延迟
@@ -229,28 +229,28 @@ class ComputerTool(BaseDeepSeekTool):
                 "right_click": "right",
                 "middle_click": "middle",
             }
-            
+
             if action == "double_click":
                 pyautogui.click()  # 双击
                 time.sleep(0.1)
                 pyautogui.click()
             else:
                 pyautogui.click(button=button_map.get(action, "left"))  # 单次点击
-        
+
         # 截屏操作
         elif action == "screenshot":
             return await self.screenshot()
-        
+
         # 获取光标位置
         elif action == "cursor_position":
             x, y = pyautogui.position()
             # 缩放坐标返回
             x, y = self.scale_coordinates(ScalingSource.COMPUTER, x, y)
             return ToolResult(output=f"X={x},Y={y}")
-        
+
         else:
             raise ToolError(f"无效操作: {action}")
-        
+
         # 操作后截屏（光标位置操作除外）
         if action != "cursor_position":
             return await self.screenshot()
@@ -259,11 +259,11 @@ class ComputerTool(BaseDeepSeekTool):
         """截取屏幕并返回base64编码的图像"""
         temp_dir = Path(tempfile.gettempdir())
         path = temp_dir / f"screenshot_{uuid4().hex}.png"  # 生成唯一文件名
-        
+
         # 截屏并保存
         screenshot = pyautogui.screenshot()
         screenshot.save(str(path))
-        
+
         # 缩放处理
         if self._scaling_enabled:
             x, y = self.scale_coordinates(
@@ -274,7 +274,7 @@ class ComputerTool(BaseDeepSeekTool):
             with Image.open(path) as img:
                 img = img.resize((x, y), Image.Resampling.LANCZOS)
                 img.save(path)
-        
+
         # 返回base64编码
         if path.exists():
             base64_image = base64.b64encode(path.read_bytes()).decode()
@@ -284,24 +284,24 @@ class ComputerTool(BaseDeepSeekTool):
 
     async def shell(self, command: str, take_screenshot=True) -> ToolResult:
         """执行Shell命令并返回结果
-        
+
         参数:
             command: 要执行的命令
             take_screenshot: 是否在命令执行后截屏
         """
         _, stdout, stderr = await run(command)
         base64_image = None
-        
+
         if take_screenshot:
             # 延迟后截屏
             await asyncio.sleep(self._screenshot_delay)
             base64_image = (await self.screenshot()).base64_image
-        
+
         return ToolResult(output=stdout, error=stderr, base64_image=base64_image)
 
     def scale_coordinates(self, source: ScalingSource, x: int, y: int):
         """坐标缩放处理
-        
+
         参数:
             source: 坐标来源
             x, y: 原始坐标
@@ -310,25 +310,25 @@ class ComputerTool(BaseDeepSeekTool):
         """
         if not self._scaling_enabled:
             return x, y
-        
+
         # 计算屏幕宽高比
         ratio = self.width / self.height
         target_dimension = None
-        
+
         # 查找匹配的目标分辨率
         for dimension in MAX_SCALING_TARGETS.values():
             if abs(dimension["width"] / dimension["height"] - ratio) < 0.02:
                 if dimension["width"] < self.width:
                     target_dimension = dimension
                 break
-        
+
         if target_dimension is None:
             return x, y
-        
+
         # 计算缩放因子
         x_scaling_factor = target_dimension["width"] / self.width
         y_scaling_factor = target_dimension["height"] / self.height
-        
+
         if source == ScalingSource.API:
             # API坐标 -> 计算机坐标（放大）
             if x > self.width or y > self.height:
