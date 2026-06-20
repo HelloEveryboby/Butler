@@ -20,28 +20,51 @@ from butler.core.blackboard import blackboard
 logger = logging.getLogger("SkillManager")
 
 class SkillEventHandler(FileSystemEventHandler):
-    """监听 skills 目录变化的处理器"""
+    """监听 skills 目录变化的处理器 (支持热插拔与防抖)"""
     def __init__(self, manager):
         self.manager = manager
-        self._debounce_timer = None
+        self._timers = {} # skill_path -> timer
 
-    def on_any_event(self, event):
+    def on_modified(self, event):
+        self._handle_change(event)
+
+    def on_created(self, event):
+        self._handle_change(event)
+
+    def on_deleted(self, event):
+        self._handle_change(event)
+
+    def _handle_change(self, event):
+        src_path = Path(event.src_path)
+
+        # 确定技能根目录
         if event.is_directory:
-            # 过滤掉一些不需要关注的目录
-            if any(x in event.src_path for x in ["__pycache__", ".git"]):
-                return
-            self._trigger_reload()
+            skill_dir = src_path
         else:
-            # 关键文件变化
-            filename = os.path.basename(event.src_path)
-            if filename in ["SKILL.md", "manifest.json", "config.yaml", "requirements.txt"]:
-                self._trigger_reload()
+            skill_dir = src_path.parent
 
-    def _trigger_reload(self):
-        if self._debounce_timer:
-            self._debounce_timer.cancel()
-        self._debounce_timer = threading.Timer(1.0, self.manager.load_skills)
-        self._debounce_timer.start()
+        if skill_dir == self.manager.skills_dir:
+            return # 忽略根目录自身的变动
+
+        if any(x in str(skill_dir) for x in ["__pycache__", ".git", ".lib"]):
+            return
+
+        # 只对关键文件变动或目录创建触发加载
+        if not event.is_directory:
+            filename = src_path.name
+            if filename not in ["SKILL.md", "manifest.json", "config.yaml", "requirements.txt", "main.py"] and not filename.endswith(".zip"):
+                return
+
+        self._trigger_load(skill_dir)
+
+    def _trigger_load(self, skill_dir):
+        skill_path_str = str(skill_dir)
+        if skill_path_str in self._timers:
+            self._timers[skill_path_str].cancel()
+
+        timer = threading.Timer(0.8, self.manager.load_and_register_skill, args=[skill_dir])
+        self._timers[skill_path_str] = timer
+        timer.start()
 
 class SkillManager:
     """
@@ -116,23 +139,94 @@ class SkillManager:
 
         return extension
 
-    def _handle_zip_skills(self):
-        """处理 skills 目录下的 .zip 技能包，自动解压"""
+    def _extract_zip_skill(self, zip_path: Path):
+        """解压单个 ZIP 技能包"""
         import zipfile
-        import shutil
+        skill_name = zip_path.stem
+        target_dir = self.skills_dir / skill_name
+
+        if not target_dir.exists():
+            logger.info(f"📦 Detecting and extracting zip skill: {zip_path.name}")
+            try:
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(target_dir)
+                zip_path.unlink()
+                return target_dir
+            except Exception as e:
+                logger.error(f"Failed to extract zip skill {zip_path.name}: {e}")
+        return None
+
+    def _handle_zip_skills(self):
+        """处理 skills 目录下的所有 .zip 技能包"""
         for item in self.skills_dir.iterdir():
             if item.suffix == ".zip":
-                skill_name = item.stem
-                target_dir = self.skills_dir / skill_name
-                if not target_dir.exists():
-                    logger.info(f"Detected new zip skill: {item.name}, extracting...")
-                    try:
-                        with zipfile.ZipFile(item, 'r') as zip_ref:
-                            zip_ref.extractall(target_dir)
-                        # 解压成功后移除 zip 文件以防重复触发
-                        item.unlink()
-                    except Exception as e:
-                        logger.error(f"Failed to extract zip skill {item.name}: {e}")
+                self._extract_zip_skill(item)
+
+    def _wait_for_file_ready(self, file_path, max_retries=10, delay=0.2):
+        """确保文件完全写入磁盘后再放行 (处理大文件或慢速拷贝)"""
+        import os
+        last_size = -1
+        for _ in range(max_retries):
+            if not os.path.exists(file_path):
+                time.sleep(delay)
+                continue
+            try:
+                current_size = os.path.getsize(file_path)
+                # 如果文件大小在指定时间内不再变化，且大于 0，说明写入完成
+                if current_size == last_size and current_size > 0:
+                    # 尝试以追加模式打开，测试文件是否被操作系统释放
+                    with open(file_path, "a"):
+                        return True
+                last_size = current_size
+            except (IOError, OSError):
+                # 文件仍被独占锁死，继续等待
+                pass
+            time.sleep(delay)
+        return False
+
+    def load_and_register_skill(self, skill_dir_path):
+        """增量加载并注册单个技能，支持运行时热插拔 (支持文件夹与 ZIP)"""
+        skill_path = Path(skill_dir_path)
+
+        # 处理 ZIP 文件
+        if skill_path.suffix == ".zip":
+            if not self._wait_for_file_ready(str(skill_path)):
+                return
+            extracted_dir = self._extract_zip_skill(skill_path)
+            if extracted_dir:
+                skill_path = extracted_dir
+            else:
+                return
+
+        skill_dir = skill_path
+        skill_id = skill_dir.name
+
+        if not skill_dir.exists():
+            # 处理删除逻辑
+            logger.info(f"🗑️ 检测到技能目录删除: {skill_id}")
+            self.manifests.pop(skill_id, None)
+            self.configs.pop(skill_id, None)
+            self.skill_contents.pop(skill_id, None)
+            self.loaded_skills.pop(skill_id, None)
+            return
+
+        # 稳定性保障：如果是新拖入的，检查核心元数据文件是否就绪
+        skill_md = skill_dir / "SKILL.md"
+        if skill_md.exists():
+            if not self._wait_for_file_ready(str(skill_md)):
+                logger.warning(f"Skill {skill_id} SKILL.md is not ready, skipping.")
+                return
+
+        logger.info(f"✨ 正在热加载技能: {skill_id}")
+
+        # 发现并加载
+        success = self._discover_skill(skill_id, self.manifests, self.configs, self.skill_contents)
+
+        if success:
+            logger.info(f"✅ 技能 [{skill_id}] 热加载/更新成功！")
+            # 如果该技能之前已加载过 Python 模块，可能需要考虑重新加载（此处暂不强制，通常由子进程方案解决）
+        else:
+            logger.error(f"❌ 技能 [{skill_id}] 热加载失败 (未发现有效元数据)")
 
     def load_skills(self):
         """
@@ -160,9 +254,6 @@ class SkillManager:
         self.manifests = new_manifests
         self.configs = new_configs
         self.skill_contents = new_skill_contents
-
-        # 清理已加载的模块状态（可选，如果需要强制重载 Python 模块）
-        # self.loaded_skills.clear()
 
         logger.info(f"Skill Stage 1 complete: Discovered {len(self.manifests)} skills.")
 
@@ -345,18 +436,28 @@ class SkillManager:
                 return True
         return False
 
-    def _ensure_dependencies(self, skill_id: str):
-        """自动检查并安装依赖 (requirements.txt)"""
+    def _ensure_dependencies(self, skill_id: str, target_lib: bool = False):
+        """
+        自动检查并安装依赖 (requirements.txt)。
+        :param target_lib: 是否安装到技能目录下的 .lib 文件夹中 (用于进程隔离)
+        """
         skill_path = self.skills_dir / skill_id
         req_path = skill_path / "requirements.txt"
 
-        if req_path.exists() and str(skill_path) not in self.installed_deps:
-            logger.info(f"Installing dependencies for skill '{skill_id}'...")
+        # 记录安装状态的 key (如果是 target_lib，则区分开)
+        dep_key = f"{skill_path}_lib" if target_lib else str(skill_path)
+
+        if req_path.exists() and dep_key not in self.installed_deps:
+            logger.info(f"Installing dependencies for skill '{skill_id}' (target_lib={target_lib})...")
             try:
-                # 使用 sys.executable 确保安装到当前 Python 环境
-                subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(req_path)],
-                               check=True, capture_output=True)
-                self.installed_deps.add(str(skill_path))
+                args = [sys.executable, "-m", "pip", "install", "-r", str(req_path)]
+                if target_lib:
+                    lib_dir = skill_path / ".lib"
+                    lib_dir.mkdir(exist_ok=True)
+                    args.extend(["--target", str(lib_dir)])
+
+                subprocess.run(args, check=True, capture_output=True)
+                self.installed_deps.add(dep_key)
                 return True
             except subprocess.CalledProcessError as e:
                 logger.error(f"Failed to install deps for {skill_id}: {e.stderr.decode()}")
@@ -488,7 +589,7 @@ class SkillManager:
             return chain_execution_wrapper(**kwargs)
 
     def _execute_single_skill(self, skill_id: str, action: str, **kwargs):
-        """执行单个技能（原 execute 核心逻辑）"""
+        """执行单个技能（支持进程隔离与向下兼容）"""
         manifest = self.manifests[skill_id]
 
         # 注入 ESB 快照 (Requires)
@@ -505,10 +606,19 @@ class SkillManager:
         if action.startswith("scripts/"):
             return self._execute_allowed_script(skill_id, action, **kwargs)
 
-        # 3. 确保 Python 运行时已加载（如果存在）
+        # 3. Python 技能执行
         if manifest.get('has_python'):
-            if not self._load_python_runtime(skill_id):
-                return f"Error: 技能 '{skill_id}' 的 Python 环境加载失败。"
+            # 确定隔离模式：显式声明 isolation: process 或存在 LDST 路由前缀
+            isolation = manifest.get('isolation') == 'process' or \
+                        any(str(p).startswith(('system.', 'net.', 'file.')) for p in manifest.get('provides', []))
+
+            if isolation:
+                return self._execute_python_subprocess(skill_id, action, **kwargs)
+            else:
+                # 向下兼容：主进程加载，但给予警告
+                logger.warning(f"⚠️ 警告: 技能 [{skill_id}] 正在以非隔离模式运行，强烈建议重构。")
+                if not self._load_python_runtime(skill_id):
+                    return f"Error: 技能 '{skill_id}' 的 Python 环境加载失败。"
 
         if skill_id not in self.loaded_skills:
             if skill_id in self.skill_contents:
@@ -630,6 +740,112 @@ class SkillManager:
     def get_skill_instruction(self, skill_id: str) -> Optional[str]:
         """获取技能的完整指令 (Stage 2)"""
         return self.skill_contents.get(skill_id)
+
+    def _execute_python_subprocess(self, skill_id: str, action: str, **kwargs):
+        """在独立子进程中执行 Python 技能，并通过 JSON-RPC 通信 (加强鲁棒性版)"""
+        manifest = self.manifests[skill_id]
+        skill_path = (self.skills_dir / skill_id).resolve()
+        entry_file = Path(manifest.get('entry_file')).resolve()
+
+        # 准备依赖环境
+        self._ensure_dependencies(skill_id, target_lib=True)
+
+        # 构建环境变量
+        skill_env = os.environ.copy()
+        local_lib = (skill_path / ".lib").resolve()
+        # 确保项目根目录也在 PYTHONPATH 中，以便子进程可以导入 butler.core.skill_sdk
+        project_root = str(self.project_root)
+        skill_env["PYTHONPATH"] = f"{local_lib}{os.pathsep}{project_root}{os.pathsep}{skill_env.get('PYTHONPATH', '')}"
+
+        # 构建执行参数 (JSON 格式)
+        payload = {
+            "action": action,
+            "config": self.configs.get(skill_id, {}),
+            "manifest": manifest,
+            "kwargs": {k: v for k, v in kwargs.items() if k not in ['jarvis_app']}
+        }
+
+        try:
+            logger.info(f"🚀 [隔离执行] 正在启动技能子进程: {skill_id} (Path: {skill_path})")
+            process = subprocess.Popen(
+                [sys.executable, str(entry_file)],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=skill_env,
+                cwd=str(skill_path), # 设置工作目录为技能目录
+                text=True,
+                bufsize=1
+            )
+
+            # 向子进程发送初始载荷
+            process.stdin.write(json.dumps(payload) + "\n")
+            process.stdin.flush()
+            process.stdin.close() # 发送完载荷后关闭 stdin
+
+            final_result = []
+            output_buffer = []
+            jarvis_app = kwargs.get("jarvis_app")
+
+            def handle_stdout():
+                for line in iter(process.stdout.readline, ''):
+                    line = line.strip()
+                    if not line: continue
+
+                    is_rpc = False
+                    try:
+                        # 尝试解析为 JSON-RPC (必须是严格的 JSON 对象)
+                        if line.startswith('{') and line.endswith('}'):
+                            msg = json.loads(line)
+                            if isinstance(msg, dict) and "action" in msg:
+                                act = msg.get("action")
+                                pld = msg.get("payload", {})
+                                if act == "speak" and jarvis_app:
+                                    jarvis_app.speak(pld.get("text", ""))
+                                elif act == "ui_print" and jarvis_app:
+                                    jarvis_app.ui_print(pld.get("text", ""), tag=pld.get("tag", "ai_response"))
+                                elif act == "blackboard_write":
+                                    key = pld.get("key")
+                                    val = pld.get("value")
+                                    ttl = pld.get("ttl", 60.0)
+                                    if key:
+                                        blackboard.write(key, val, ttl)
+                                elif act == "result":
+                                    final_result.append(pld)
+                                is_rpc = True
+                    except Exception as e:
+                        logger.debug(f"RPC parse error: {e}")
+
+                    if not is_rpc:
+                        # 普通打印输出
+                        logger.info(f"[{skill_id}] {line}")
+                        output_buffer.append(line)
+
+            # 启动 stdout 监听线程
+            stdout_thread = threading.Thread(target=handle_stdout, daemon=True)
+            stdout_thread.start()
+
+            # 读取 stderr 并等待进程结束 (避免与 stdout_thread 竞争)
+            stderr = process.stderr.read()
+            process.wait()
+            stdout_thread.join(timeout=2.0)
+
+            # 关闭未关闭的流
+            process.stdout.close()
+            process.stderr.close()
+
+            if process.returncode != 0:
+                logger.error(f"子进程 {skill_id} 异常退出 ({process.returncode}): {stderr}")
+                return f"Error: 技能执行失败 ({process.returncode}): {stderr}"
+
+            # 优先返回正式的 result 载荷，否则返回汇总的 stdout 内容
+            if final_result:
+                return final_result[0]
+            return "\n".join(output_buffer) if output_buffer else "Success"
+
+        except Exception as e:
+            logger.error(f"启动技能子进程失败: {e}", exc_info=True)
+            return f"Error: 无法启动子进程: {e}"
 
     def _execute_binary(self, skill_id: str, **kwargs):
         """执行二进制程序"""
