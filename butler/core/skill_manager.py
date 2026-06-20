@@ -31,6 +31,9 @@ class SkillEventHandler(FileSystemEventHandler):
     def on_created(self, event):
         self._handle_change(event)
 
+    def on_deleted(self, event):
+        self._handle_change(event)
+
     def _handle_change(self, event):
         src_path = Path(event.src_path)
 
@@ -49,7 +52,7 @@ class SkillEventHandler(FileSystemEventHandler):
         # 只对关键文件变动或目录创建触发加载
         if not event.is_directory:
             filename = src_path.name
-            if filename not in ["SKILL.md", "manifest.json", "config.yaml", "requirements.txt", "main.py"]:
+            if filename not in ["SKILL.md", "manifest.json", "config.yaml", "requirements.txt", "main.py"] and not filename.endswith(".zip"):
                 return
 
         self._trigger_load(skill_dir)
@@ -136,23 +139,28 @@ class SkillManager:
 
         return extension
 
-    def _handle_zip_skills(self):
-        """处理 skills 目录下的 .zip 技能包，自动解压"""
+    def _extract_zip_skill(self, zip_path: Path):
+        """解压单个 ZIP 技能包"""
         import zipfile
-        import shutil
+        skill_name = zip_path.stem
+        target_dir = self.skills_dir / skill_name
+
+        if not target_dir.exists():
+            logger.info(f"📦 Detecting and extracting zip skill: {zip_path.name}")
+            try:
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(target_dir)
+                zip_path.unlink()
+                return target_dir
+            except Exception as e:
+                logger.error(f"Failed to extract zip skill {zip_path.name}: {e}")
+        return None
+
+    def _handle_zip_skills(self):
+        """处理 skills 目录下的所有 .zip 技能包"""
         for item in self.skills_dir.iterdir():
             if item.suffix == ".zip":
-                skill_name = item.stem
-                target_dir = self.skills_dir / skill_name
-                if not target_dir.exists():
-                    logger.info(f"Detected new zip skill: {item.name}, extracting...")
-                    try:
-                        with zipfile.ZipFile(item, 'r') as zip_ref:
-                            zip_ref.extractall(target_dir)
-                        # 解压成功后移除 zip 文件以防重复触发
-                        item.unlink()
-                    except Exception as e:
-                        logger.error(f"Failed to extract zip skill {item.name}: {e}")
+                self._extract_zip_skill(item)
 
     def _wait_for_file_ready(self, file_path, max_retries=10, delay=0.2):
         """确保文件完全写入磁盘后再放行 (处理大文件或慢速拷贝)"""
@@ -177,9 +185,30 @@ class SkillManager:
         return False
 
     def load_and_register_skill(self, skill_dir_path):
-        """增量加载并注册单个技能，支持运行时热插拔"""
-        skill_dir = Path(skill_dir_path)
+        """增量加载并注册单个技能，支持运行时热插拔 (支持文件夹与 ZIP)"""
+        skill_path = Path(skill_dir_path)
+
+        # 处理 ZIP 文件
+        if skill_path.suffix == ".zip":
+            if not self._wait_for_file_ready(str(skill_path)):
+                return
+            extracted_dir = self._extract_zip_skill(skill_path)
+            if extracted_dir:
+                skill_path = extracted_dir
+            else:
+                return
+
+        skill_dir = skill_path
         skill_id = skill_dir.name
+
+        if not skill_dir.exists():
+            # 处理删除逻辑
+            logger.info(f"🗑️ 检测到技能目录删除: {skill_id}")
+            self.manifests.pop(skill_id, None)
+            self.configs.pop(skill_id, None)
+            self.skill_contents.pop(skill_id, None)
+            self.loaded_skills.pop(skill_id, None)
+            return
 
         # 稳定性保障：如果是新拖入的，检查核心元数据文件是否就绪
         skill_md = skill_dir / "SKILL.md"
@@ -724,7 +753,9 @@ class SkillManager:
         # 构建环境变量
         skill_env = os.environ.copy()
         local_lib = (skill_path / ".lib").resolve()
-        skill_env["PYTHONPATH"] = f"{local_lib}{os.pathsep}{skill_env.get('PYTHONPATH', '')}"
+        # 确保项目根目录也在 PYTHONPATH 中，以便子进程可以导入 butler.core.skill_sdk
+        project_root = str(self.project_root)
+        skill_env["PYTHONPATH"] = f"{local_lib}{os.pathsep}{project_root}{os.pathsep}{skill_env.get('PYTHONPATH', '')}"
 
         # 构建执行参数 (JSON 格式)
         payload = {
@@ -760,6 +791,8 @@ class SkillManager:
                 for line in iter(process.stdout.readline, ''):
                     line = line.strip()
                     if not line: continue
+
+                    is_rpc = False
                     try:
                         # 尝试解析为 JSON-RPC (必须是严格的 JSON 对象)
                         if line.startswith('{') and line.endswith('}'):
@@ -771,14 +804,20 @@ class SkillManager:
                                     jarvis_app.speak(pld.get("text", ""))
                                 elif act == "ui_print" and jarvis_app:
                                     jarvis_app.ui_print(pld.get("text", ""), tag=pld.get("tag", "ai_response"))
+                                elif act == "blackboard_write":
+                                    key = pld.get("key")
+                                    val = pld.get("value")
+                                    ttl = pld.get("ttl", 60.0)
+                                    if key:
+                                        blackboard.write(key, val, ttl)
                                 elif act == "result":
                                     final_result.append(pld)
-                                continue # 如果是 JSON-RPC 命令，则不存入普通输出缓冲
+                                is_rpc = True
+                    except Exception as e:
+                        logger.debug(f"RPC parse error: {e}")
 
+                    if not is_rpc:
                         # 普通打印输出
-                        logger.info(f"[{skill_id}] {line}")
-                        output_buffer.append(line)
-                    except Exception:
                         logger.info(f"[{skill_id}] {line}")
                         output_buffer.append(line)
 
