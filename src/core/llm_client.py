@@ -3,10 +3,10 @@ import json
 import requests
 import logging
 from typing import Dict, Any, List, Optional
-from package.core_utils.log_manager import LogManager
-from package.core_utils.config_loader import config_loader
-from package.core_utils.quota_manager import quota_manager
-from butler.core.habit_manager import habit_manager
+from utils.logger import LogManager
+from config.config import config_loader
+from utils.core_utils.quota_manager import quota_manager
+from core.habit_manager import habit_manager
 
 logger = LogManager.get_logger(__name__)
 

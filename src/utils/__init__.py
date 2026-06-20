@@ -5,7 +5,7 @@ from .core_utils.log_manager import LogManager
 getLogger = LogManager.get_logger
 
 # 动态映射以保持向后兼容性
-# 这允许 'from package.core_utils.log_manager import LogManager' 继续工作
+# 这允许 'from utils.logger import LogManager' 继续工作
 mapping = {
     "package.log_manager": "package.core_utils.log_manager",
     "package.embedding_utils": "package.core_utils.embedding_utils",

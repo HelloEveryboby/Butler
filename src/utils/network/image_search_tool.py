@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import os
 import json
-from package.core_utils.log_manager import LogManager
+from utils.logger import LogManager
 import urllib.parse
 
 logger = LogManager.get_logger(__name__)

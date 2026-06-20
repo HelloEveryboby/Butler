@@ -4,8 +4,8 @@ import platform
 import shutil
 from pathlib import Path
 from typing import List, Tuple
-from package.core_utils.log_manager import LogManager
-from butler.core.constants import PROJECT_ROOT
+from utils.logger import LogManager
+from utils.constants import PROJECT_ROOT
 
 logger = LogManager.get_logger("EnvironmentCheck")
 

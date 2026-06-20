@@ -1,7 +1,7 @@
 import os
 import shutil
 from typing import List, Tuple
-from package.core_utils.log_manager import LogManager
+from utils.logger import LogManager
 
 logger = LogManager.get_logger(__name__)
 

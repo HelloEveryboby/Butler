@@ -1,7 +1,7 @@
 import requests
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 from ftplib import FTP
-from package.core_utils.log_manager import LogManager
+from utils.logger import LogManager
 
 # 配置日志记录
 logging = LogManager.get_logger(__name__)

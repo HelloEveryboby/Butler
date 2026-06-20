@@ -16,7 +16,7 @@ from typing import Optional
 from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
-from package.core_utils.log_manager import LogManager
+from utils.logger import LogManager
 
 class SecureVault:
     """管理 6 位核心码的内存存储"""

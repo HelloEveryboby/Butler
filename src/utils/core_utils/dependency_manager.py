@@ -11,8 +11,8 @@ import zipfile
 import tarfile
 import platform
 import shutil
-from package.core_utils.log_manager import LogManager
-from package.core_utils.config_loader import config_loader
+from utils.logger import LogManager
+from config.config import config_loader
 
 logger = LogManager.get_logger(__name__)
 

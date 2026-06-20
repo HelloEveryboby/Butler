@@ -46,8 +46,8 @@ try:
 except ImportError:
     BAIDU_OCR_AVAILABLE = False
 
-from package.core_utils.log_manager import LogManager
-from package.core_utils.config_loader import config_loader
+from utils.logger import LogManager
+from config.config import config_loader
 
 logger = LogManager.get_logger(__name__)
 
@@ -305,7 +305,7 @@ def run(*args, **kwargs):
     parser.add_argument("-p", "--prompt", help="Custom prompt for conversion")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
 
-    # In Jarvis, args might be passed as a list
+    # In Butler, args might be passed as a list
     if args and isinstance(args[0], list):
         parsed_args = parser.parse_args(args[0])
     else:

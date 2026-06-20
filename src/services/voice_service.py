@@ -8,9 +8,9 @@ import struct
 import io
 from typing import Optional, Callable, Dict, Any
 from dotenv import load_dotenv
-from package.core_utils.log_manager import LogManager
-from package.core_utils.config_loader import config_loader
-from butler.core.asset_loader import asset_loader
+from utils.logger import LogManager
+from config.config import config_loader
+from utils.asset_loader import asset_loader
 
 logger = LogManager.get_logger(__name__)
 

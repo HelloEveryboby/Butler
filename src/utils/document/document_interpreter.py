@@ -43,9 +43,9 @@ except ImportError:
     except ImportError:
         MARKITDOWN_AVAILABLE = False
 
-from package.core_utils.log_manager import LogManager
-from package.core_utils.config_loader import config_loader
-from package.core_utils.quota_manager import quota_manager
+from utils.logger import LogManager
+from config.config import config_loader
+from utils.core_utils.quota_manager import quota_manager
 
 logger = LogManager.get_logger(__name__)
 

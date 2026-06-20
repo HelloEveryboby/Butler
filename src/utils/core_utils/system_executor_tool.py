@@ -18,7 +18,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from butler.core.hybrid_link import HybridLinkClient
+from core.hybrid_link import HybridLinkClient
 
 def on_bhl_event(event: Dict[str, Any]):
     """处理来自 BHL 模块的异步通知事件。"""
@@ -35,7 +35,7 @@ def run(*args, **kwargs):
     """
     系统审计工具主入口。
     """
-    from butler.core.extension_manager import extension_manager
+    from services.extension_manager import extension_manager
 
     print("\n" + "💎"*30)
     print("      Butler 专业级系统执行与调度引擎")

@@ -1,6 +1,6 @@
 import json
 import logging
-from butler.core.event_bus import event_bus
+from utils.event_bus import event_bus
 
 logger = logging.getLogger("SensingAPI")
 
@@ -10,8 +10,8 @@ class SensingAPI:
     解析符合规范的 JSON 传感数据并触发系统响应。
     规范格式: {"sensor": "distance", "value": 30, "unit": "cm"}
     """
-    def __init__(self, jarvis):
-        self.jarvis = jarvis
+    def __init__(self, butler):
+        self.butler = butler
 
     def process_sensor_data(self, data_str):
         try:
@@ -37,12 +37,12 @@ class SensingAPI:
     def _handle_noise(self, value):
         # 当环境嘈杂时，自动增大提醒音量
         if value > 70:
-            self.jarvis.ui_print("环境较嘈杂，已自动提高提醒音量。", tag='system_message')
-            # self.jarvis.hardware.set_volume(80)
+            self.butler.ui_print("环境较嘈杂，已自动提高提醒音量。", tag='system_message')
+            # self.butler.hardware.set_volume(80)
 
 sensing_api = None
 
-def init_sensing_api(jarvis):
+def init_sensing_api(butler):
     global sensing_api
-    sensing_api = SensingAPI(jarvis)
+    sensing_api = SensingAPI(butler)
     return sensing_api

@@ -3,10 +3,10 @@ import sys
 import importlib.util
 import logging
 from typing import Dict, List, Any, Optional
-from butler.core.memory.PluginManager import PluginManager
-from butler.code_execution_manager import CodeExecutionManager
-from butler.data_storage import data_storage_manager
-from package.core_utils.log_manager import LogManager
+from core.memory.PluginManager import PluginManager
+from core.code_execution_manager import CodeExecutionManager
+from models.data_storage import data_storage_manager
+from utils.logger import LogManager
 
 logger = LogManager.get_logger(__name__)
 

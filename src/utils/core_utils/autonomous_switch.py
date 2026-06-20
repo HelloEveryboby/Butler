@@ -20,8 +20,8 @@ import threading
 import psutil
 from collections import defaultdict
 from pathlib import Path
-from package.core_utils.log_manager import LogManager
-from package.core_utils.health_monitor import HealthMonitor
+from utils.logger import LogManager
+from utils.core_utils.health_monitor import HealthMonitor
 
 # 获取日志记录器
 logger = LogManager.get_logger("autonomous_switch")
@@ -57,7 +57,7 @@ class AutonomousSwitch:
 
         # 尝试加载资源管理器
         try:
-            from butler.resource_manager import ResourceManager
+            from core.resource_manager import ResourceManager
             self.res_mgr = ResourceManager()
         except ImportError:
             self.res_mgr = None

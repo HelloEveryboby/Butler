@@ -1,8 +1,8 @@
 import tkinter as tk
 from tkinter import messagebox, filedialog
 import os
-from package.core_utils.log_manager import LogManager
-from package.network.image_search_tool import ImageSearchTool
+from utils.logger import LogManager
+from utils.network.image_search_tool import ImageSearchTool
 
 logger = LogManager.get_logger(__name__)
 

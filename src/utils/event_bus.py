@@ -5,7 +5,7 @@ import threading
 logger = logging.getLogger(__name__)
 
 class EventBus:
-    """A simple internal pub/sub system for decoupling Jarvis components."""
+    """A simple internal pub/sub system for decoupling Butler components."""
     def __init__(self):
         self._subscribers = collections.defaultdict(list)
         self._lock = threading.Lock()

@@ -1,4 +1,4 @@
-from butler.core.event_bus import event_bus
+from utils.event_bus import event_bus
 
 class ProgressTracker:
     """

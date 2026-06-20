@@ -1,6 +1,6 @@
 import os
 import datetime
-from butler.core.intent_dispatcher import register_intent
+from core.agent import register_intent
 
 TASKS_FILE = "TASKS.md"
 TASKS_TEMPLATE = """# Tasks

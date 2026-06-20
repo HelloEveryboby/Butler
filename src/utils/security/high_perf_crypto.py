@@ -9,8 +9,8 @@ import sys
 import json
 import logging
 from typing import Dict, Any, Optional
-from butler.core.hybrid_link import HybridLinkClient
-from package.core_utils.log_manager import LogManager
+from core.hybrid_link import HybridLinkClient
+from utils.logger import LogManager
 
 # 初始化日志
 logger = LogManager.get_logger(__name__)

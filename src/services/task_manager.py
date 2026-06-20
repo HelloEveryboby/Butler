@@ -6,8 +6,8 @@ import json
 import os
 from pathlib import Path
 from typing import Callable, Any, Dict, Optional, List
-from package.core_utils.log_manager import LogManager
-from butler.core.constants import DATA_DIR
+from utils.logger import LogManager
+from utils.constants import DATA_DIR
 
 logger = LogManager.get_logger("TaskManager")
 

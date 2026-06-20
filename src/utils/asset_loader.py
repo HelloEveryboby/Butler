@@ -1,5 +1,5 @@
 from pathlib import Path
-from butler.core.constants import PROJECT_ROOT, DATA_DIR
+from utils.constants import PROJECT_ROOT, DATA_DIR
 
 class AssetLoader:
     """

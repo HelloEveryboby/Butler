@@ -14,7 +14,7 @@ if project_root not in sys.path:
 
 try:
     from markitdown.markitdown_app import convert
-    from butler.core.hybrid_link import HybridLinkClient
+    from core.hybrid_link import HybridLinkClient
 except ImportError as e:
     print(f"[-] 导入依赖失败: {e}")
     pass

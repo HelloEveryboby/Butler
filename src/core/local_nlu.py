@@ -1,8 +1,8 @@
 import re
 import logging
 from typing import Dict, Any, Optional, Tuple
-from butler.core.intent_dispatcher import intent_registry
-from butler.core.skill_manager import SkillManager
+from core.agent import intent_registry
+from services.plugin_service import SkillManager
 
 logger = logging.getLogger("LocalNLU")
 
@@ -83,7 +83,7 @@ class LocalNLU:
 
 # 辅助函数用于快速测试
 if __name__ == "__main__":
-    from butler.core.skill_manager import SkillManager
+    from services.plugin_service import SkillManager
     sm = SkillManager()
     sm.load_skills()
     nlu = LocalNLU(sm)

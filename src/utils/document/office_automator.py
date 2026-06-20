@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from docx import Document
 from pypdf import PdfReader, PdfWriter
-from package.core_utils.log_manager import LogManager
+from utils.logger import LogManager
 import platform
 import subprocess
 

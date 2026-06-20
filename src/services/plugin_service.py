@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Callable
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from butler.core.task_manager import task_manager
+from core.task_manager import task_manager
 
 logger = logging.getLogger("SkillManager")
 
@@ -191,35 +191,8 @@ class SkillManager:
             self._try_load_binary_entry(skill_id, manifests)
             if not manifests[skill_id].get('has_binary'):
                 self._try_load_python_entry(skill_id, manifests)
-
-            # 探测前端入口
-            self._try_load_frontend_entry(skill_id, manifests)
             return True
 
-        return False
-
-    def _try_load_frontend_entry(self, skill_id: str, manifests: dict):
-        """探测前端 UI 入口 (index.html)"""
-        skill_path = self.skills_dir / skill_id
-
-        # 1. 如果 SKILL.md 中明确指定了 frontend
-        frontend_file = manifests[skill_id].get('frontend')
-        if frontend_file:
-            frontend_path = skill_path / frontend_file
-            if frontend_path.exists():
-                manifests[skill_id]['has_frontend'] = True
-                manifests[skill_id]['frontend_path'] = str(frontend_path)
-                return True
-
-        # 2. 自动探测约定位置: ui/index.html 或 index.html
-        for rel_path in ["ui/index.html", "index.html"]:
-            frontend_path = skill_path / rel_path
-            if frontend_path.exists():
-                manifests[skill_id]['has_frontend'] = True
-                manifests[skill_id]['frontend_path'] = str(frontend_path)
-                # 同时也更新 manifests 中的 frontend 字段
-                manifests[skill_id]['frontend'] = rel_path
-                return True
         return False
 
     def _load_from_config_yaml(self, skill_id: str, file_path: Path, manifests: dict, configs: dict):

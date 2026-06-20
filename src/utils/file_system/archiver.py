@@ -6,12 +6,12 @@ import threading
 
 # Handle import for both standalone and package modes
 try:
-    from package.core_utils.log_manager import LogManager
+    from utils.logger import LogManager
 except ModuleNotFoundError:
     import sys
     # Add the project root to the Python path
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-    from package.core_utils.log_manager import LogManager
+    from utils.logger import LogManager
 
 logger = LogManager.get_logger(__name__)
 

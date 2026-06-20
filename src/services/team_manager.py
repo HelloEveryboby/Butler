@@ -4,10 +4,10 @@ import time
 import os
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from butler.core.constants import TEAM_DIR, DATA_DIR
-from butler.core.message_bus import message_bus
-from butler.core.task_manager import task_manager
-from package.core_utils.log_manager import LogManager
+from utils.constants import TEAM_DIR, DATA_DIR
+from services.chat_service import message_bus
+from services.task_manager import task_manager
+from utils.logger import LogManager
 
 logger = LogManager.get_logger("TeamManager")
 
@@ -85,8 +85,8 @@ class TeamManager:
 
     def _teammate_loop(self, name: str, role: str, initial_prompt: str):
         """Teammate autonomous execution loop."""
-        from butler.core.nlu_service import NLUService
-        from package.core_utils.config_loader import config_loader
+        from core.llm_client import NLUService
+        from config.config import config_loader
 
         # Initialize isolated NLU for teammate if needed, or use app's
         nlu = self.jarvis_app.nlu_service if self.jarvis_app else None

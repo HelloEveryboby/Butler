@@ -1,6 +1,6 @@
 import os
 import hashlib
-from package.core_utils.log_manager import LogManager
+from utils.logger import LogManager
 
 logger = LogManager.get_logger(__name__)
 

@@ -7,7 +7,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from package.document.memory_tools import memory_tools
+from utils.document.memory_tools import memory_tools
 
 def run(intent=None, entities=None, **kwargs):
     """

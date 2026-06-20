@@ -5,8 +5,8 @@ import datetime
 import threading
 import random
 from pathlib import Path
-from package.core_utils.log_manager import LogManager
-from butler.core.battery_manager import battery_manager
+from utils.logger import LogManager
+from services.battery_manager import battery_manager
 
 logger = LogManager.get_logger("cron_scheduler")
 
@@ -133,7 +133,7 @@ class CronScheduler:
                         continue
 
                     # 执行任务 (触发事件总线)
-                    from butler.core.event_bus import event_bus
+                    from utils.event_bus import event_bus
                     logger.info(f"触发定时任务: {task_id}")
                     event_bus.emit(f"cron:{task_id}")
 

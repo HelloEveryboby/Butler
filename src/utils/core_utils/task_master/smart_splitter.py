@@ -1,8 +1,8 @@
 import os
 import json
 import requests
-from package.core_utils.config_loader import config_loader
-from package.core_utils.quota_manager import quota_manager
+from config.config import config_loader
+from utils.core_utils.quota_manager import quota_manager
 
 class SmartSplitter:
     """

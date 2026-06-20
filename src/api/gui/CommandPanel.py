@@ -4,9 +4,9 @@ import sys
 import os
 import json
 import re
-from package.core_utils.log_manager import LogManager
-from butler.core.asset_loader import asset_loader
-from butler.core.event_bus import event_bus
+from utils.logger import LogManager
+from utils.asset_loader import asset_loader
+from utils.event_bus import event_bus
 from queue import Queue
 
 # 用于语法高亮显示的 Pygments
@@ -549,7 +549,7 @@ class CommandPanel(tk.Frame):
                 self.command_callback("manual_action", {"action": "left_click", "coordinate": (real_x, real_y)})
 
     def manual_action(self, action_type):
-        """向 Jarvis 发送手动操作命令。"""
+        """向 Butler 发送手动操作命令。"""
         if self.command_callback:
             if action_type == "type":
                 # Prompt for text in a simple dialog or just use input entry?

@@ -1,7 +1,7 @@
 import os
 import re
-from package.document.document_interpreter import DocumentInterpreter
-from package.core_utils.log_manager import LogManager
+from utils.document.document_interpreter import DocumentInterpreter
+from utils.logger import LogManager
 
 logger = LogManager.get_logger(__name__)
 

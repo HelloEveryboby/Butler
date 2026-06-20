@@ -8,9 +8,9 @@ import sys
 import json
 import time
 from typing import List, Dict, Any, Optional
-from package.core_utils.log_manager import LogManager
-from package.core_utils.embedding_utils import get_embedding
-from package.core_utils.config_loader import config_loader
+from utils.logger import LogManager
+from utils.core_utils.embedding_utils import get_embedding
+from config.config import config_loader
 
 # Use consistent project root resolution
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

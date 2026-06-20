@@ -6,8 +6,8 @@ Butler 开发效率工具集
 
 import os
 from typing import List, Dict, Any, Optional
-from butler.core.hybrid_link import HybridLinkClient
-from butler.core.extension_manager import extension_manager
+from core.hybrid_link import HybridLinkClient
+from services.extension_manager import extension_manager
 
 class DevTools:
     def __init__(self):

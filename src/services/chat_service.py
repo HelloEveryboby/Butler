@@ -4,8 +4,8 @@ import os
 import threading
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from butler.core.constants import INBOX_DIR
-from package.core_utils.log_manager import LogManager
+from core.constants import INBOX_DIR
+from utils.logger import LogManager
 
 logger = LogManager.get_logger("MessageBus")
 

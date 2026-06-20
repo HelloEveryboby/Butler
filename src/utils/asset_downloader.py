@@ -1,9 +1,9 @@
 import os
 import urllib.request
 from pathlib import Path
-from butler.core.constants import DATA_DIR
-from package.core_utils.log_manager import LogManager
-from package.core_utils.config_loader import config_loader
+from utils.constants import DATA_DIR
+from utils.logger import LogManager
+from config.config import config_loader
 
 logger = LogManager.get_logger(__name__)
 
@@ -11,7 +11,7 @@ logger = LogManager.get_logger(__name__)
 ESSENTIAL_ASSETS = [
     "assets/settings_icon.png",
     "audio/activate.wav",
-    "audio/jarvis.wav"
+    "audio/butler.wav"
 ]
 
 def download_essential_assets():

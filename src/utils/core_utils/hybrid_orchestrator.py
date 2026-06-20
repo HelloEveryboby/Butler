@@ -19,7 +19,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from butler.core.hybrid_link import HybridLinkClient
+from core.hybrid_link import HybridLinkClient
 
 def on_bhl_event(event: Dict[str, Any]):
     """
@@ -35,7 +35,7 @@ def run(*args, **kwargs):
     混合系统编排器的主入口函数。
     """
     # 延迟导入以避免某些环境下的预加载问题
-    from butler.core.extension_manager import extension_manager
+    from services.extension_manager import extension_manager
 
     print("\n" + "="*60)
     print("      Butler 混合链接系统 (Hybrid-Link V2.0)")

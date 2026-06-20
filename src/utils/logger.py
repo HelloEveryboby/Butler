@@ -49,7 +49,7 @@ class LogManager:
         if cls._configured:
             return
 
-        from butler.core.constants import LOGS_DIR
+        from utils.constants import LOGS_DIR
         cls._log_dir = str(LOGS_DIR)
 
         root_logger = logging.getLogger()

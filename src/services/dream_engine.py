@@ -2,9 +2,9 @@ import os
 import time
 import datetime
 from pathlib import Path
-from package.core_utils.log_manager import LogManager
-from butler.core.battery_manager import battery_manager
-from butler.core.memory.memory_engine import hybrid_memory_manager
+from utils.logger import LogManager
+from services.battery_manager import battery_manager
+from core.memory import hybrid_memory_manager
 
 logger = LogManager.get_logger("dream_engine")
 
@@ -14,7 +14,7 @@ class DreamEngine:
     后台整合碎片化记忆，将其转化为结构化的持久知识 (MEMORY.md)。
     """
     def __init__(self, jarvis_app=None):
-        self.jarvis = jarvis_app
+        self.butler = jarvis_app
         self.memory_dir = Path(hybrid_memory_manager.log_dir)
         self.memory_md = Path(hybrid_memory_manager.long_term_file)
         self.lock_file = self.memory_dir / ".dream_lock"
@@ -51,7 +51,7 @@ class DreamEngine:
                 return
 
             # 2. 整合记忆
-            if self.jarvis and hasattr(self.jarvis, 'nlu_service'):
+            if self.butler and hasattr(self.butler, 'nlu_service'):
                 consolidation = self._consolidate(signals)
 
                 # 3. 写入并修剪 MEMORY.md
@@ -90,7 +90,7 @@ class DreamEngine:
             "3. 如果有重复的信息，请合并。\n"
             "4. 保持语言简洁（中文）。"
         )
-        response = self.jarvis.nlu_service.ask_llm(prompt, [])
+        response = self.butler.nlu_service.ask_llm(prompt, [])
         return response
 
     def _update_and_prune_memory_md(self, new_knowledge):

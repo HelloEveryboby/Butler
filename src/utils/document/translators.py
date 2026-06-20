@@ -3,9 +3,9 @@ import requests
 import uuid
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from package.core_utils.config_loader import config_loader
+from config.config import config_loader
 import json
-from package.core_utils.quota_manager import quota_manager
+from utils.core_utils.quota_manager import quota_manager
 
 def load_api_key():
     return config_loader.get("api.deepseek.key")

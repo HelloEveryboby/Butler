@@ -80,7 +80,7 @@ class ProgramManager:
         self.jarvis_frame = ttk.Frame(self.root, padding="10")
         self.jarvis_frame.pack(fill=tk.X)
 
-        self.jarvis = None
+        self.butler = None
 
         self.voice_button = ttk.Button(self.jarvis_frame, text="语音控制", command=self.voice_control)
         self.voice_button.pack(side=tk.LEFT, padx=5)
@@ -241,7 +241,7 @@ class ProgramManager:
 
     def voice_control(self):
         """启动语音控制"""
-        command = self.jarvis.takecommand()
+        command = self.butler.takecommand()
         self.command_entry.delete(0, tk.END)
         self.command_entry.insert(0, command)
         self.execute_command()
@@ -250,7 +250,7 @@ class ProgramManager:
         """执行Jarvis命令"""
         command = self.command_entry.get()
         if command:
-            result = self.jarvis.execute(command)
+            result = self.butler.execute(command)
             messagebox.showinfo("Jarvis执行结果", result)
         else:
             messagebox.showwarning("警告", "请输入命令")

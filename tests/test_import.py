@@ -1,15 +1,21 @@
-import unittest
-import traceback
-from unittest.mock import MagicMock, patch
 import sys
+import unittest
+from unittest.mock import MagicMock, patch
+from pathlib import Path
 
 class TestImport(unittest.TestCase):
-    def test_can_import_main(self):
-        """
-        A minimal test to identify the root cause of the import failure.
-        This test now mocks dependencies that are not available in the
-        headless test environment.
-        """
+    def test_can_import_butler(self):
+        project_root = Path(__file__).resolve().parent.parent
+        src_path = project_root / "src"
+        if str(src_path) not in sys.path:
+            sys.path.insert(0, str(src_path))
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+
+        # Mock pydantic.ValidationError properly so it's a type
+        class MockValidationError(Exception):
+            pass
+
         MOCK_MODULES = {
             'tkinter': MagicMock(),
             'requests': MagicMock(),
@@ -20,46 +26,31 @@ class TestImport(unittest.TestCase):
             'numpy': MagicMock(),
             'cv2': MagicMock(),
             'sklearn': MagicMock(),
-            'sklearn.feature_extraction': MagicMock(),
-            'sklearn.feature_extraction.text': MagicMock(),
-            'sklearn.metrics': MagicMock(),
-            'sklearn.metrics.pairwise': MagicMock(),
-            'sklearn.cluster': MagicMock(),
             'pypinyin': MagicMock(),
             'pyttsx3': MagicMock(),
             'pygame': MagicMock(),
             'pydub': MagicMock(),
-            'pydub.playback': MagicMock(),
             'instructor': MagicMock(),
             'pandas': MagicMock(),
-            'markdownify': MagicMock(),
-            'docx': MagicMock(),
-            'pptx': MagicMock(),
-            'pdfplumber': MagicMock(),
-            'openpyxl': MagicMock(),
-            'pytesseract': MagicMock(),
-            'ebooklib': MagicMock(),
-            'bs4': MagicMock(),
-            'tabulate': MagicMock(),
+            'yaml': MagicMock(),
+            'pydantic': MagicMock(),
+            'pydantic.ValidationError': MockValidationError,
+            'mss': MagicMock(),
             'PIL': MagicMock(),
-            'PIL.ExifTags': MagicMock(),
-            'tqdm': MagicMock(),
-            'openai': MagicMock(),
+            'pyautogui': MagicMock(),
             'redis': MagicMock(),
             'psutil': MagicMock(),
-            'redisvl': MagicMock(),
-            'redisvl.index': MagicMock(),
-            'redisvl.schema': MagicMock(),
-            'redisvl.query': MagicMock(),
-            'redisvl.query.filter': MagicMock(),
+            'websockets': MagicMock(),
         }
+
         with patch.dict(sys.modules, MOCK_MODULES):
             try:
-                from butler.butler_app import main
-                print("Successfully imported butler.butler_app")
+                from Butler import Butler
+                print("Successfully imported Butler class")
             except Exception as e:
+                import traceback
                 traceback.print_exc()
-                self.fail(f"Failed to import butler.butler_app: {e}")
+                self.fail(f"Failed to import Butler: {e}")
 
 if __name__ == "__main__":
     unittest.main()

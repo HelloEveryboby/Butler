@@ -3,7 +3,7 @@ import requests
 import tempfile
 import time
 from bs4 import BeautifulSoup
-from package.core_utils.config_loader import config_loader
+from config.config import config_loader
 
 def text_to_speech(text):
     # 配置 Baidu Speech 服务的 API Key 等

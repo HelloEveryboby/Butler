@@ -7,7 +7,7 @@ import base64
 import functools
 import argparse
 from typing import Dict, Any, Optional
-from package.core_utils.log_manager import LogManager
+from utils.logger import LogManager
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Random import get_random_bytes
 

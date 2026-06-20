@@ -23,8 +23,8 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
-from package.core_utils.log_manager import LogManager
-from package.security.crypto_core import SymmetricCrypto
+from utils.logger import LogManager
+from utils.security.crypto_core import SymmetricCrypto
 
 # 初始化日志
 logging = LogManager.get_logger(__name__)

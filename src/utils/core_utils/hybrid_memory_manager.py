@@ -1,5 +1,5 @@
 import os
-from butler.core.memory.memory_engine import hybrid_memory_manager
+from core.memory import hybrid_memory_manager
 
 # This is a bridge for legacy code
 # 将此类作为旧代码的桥梁，实际逻辑已迁移至 butler.core.memory.memory_engine

@@ -3,7 +3,7 @@ import threading
 import queue
 import os
 import time
-from package.core_utils.log_manager import LogManager
+from utils.logger import LogManager
 import concurrent.futures
 
 logging = LogManager.get_logger(__name__)

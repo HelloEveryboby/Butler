@@ -8,7 +8,7 @@ import argparse
 import sys
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
-from package.core_utils.log_manager import LogManager
+from utils.logger import LogManager
 
 # 日志配置
 logger = LogManager.get_logger(__name__)

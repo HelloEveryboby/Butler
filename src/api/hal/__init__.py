@@ -1,6 +1,6 @@
 import platform
-from butler.hal.base import BaseHAL
-from butler.hal.drivers.pc.driver import PCAudio, PCDisplay
+from api.hal.base import BaseHAL
+from api.hal.drivers.pc.driver import PCAudio, PCDisplay
 
 class HAL(BaseHAL):
     _instance = None

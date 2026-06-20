@@ -2,7 +2,7 @@ import json
 import os
 import time
 import shutil
-from package.core_utils.log_manager import LogManager
+from utils.logger import LogManager
 from PIL import Image
 import zipfile
 import tarfile

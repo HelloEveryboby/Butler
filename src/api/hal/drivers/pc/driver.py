@@ -1,7 +1,7 @@
 import time
 import os
-from butler.hal.base import BaseAudio, BaseDisplay
-from package.core_utils.log_manager import LogManager
+from api.hal.base import BaseAudio, BaseDisplay
+from utils.logger import LogManager
 
 logger = LogManager.get_logger("PCAudio")
 
