@@ -27,13 +27,13 @@ class APIValidator:
         'BAIDU_APP_ID': {
             'name': 'Baidu Speech API',
             'required': False,
-            'timeout': 5,
+            'timeout': 10,
             'func': 'validate_baidu'
         },
         'PICOVOICE_ACCESS_KEY': {
             'name': 'Picovoice Leopard',
             'required': False,
-            'timeout': 5,
+            'timeout': 10,
             'func': 'validate_picovoice'
         }
     }
@@ -104,10 +104,10 @@ class APIValidator:
             return {'valid': False, 'error': error_msg, 'provider': 'DeepSeek'}
     
     @staticmethod
-    def validate_baidu(app_id: str) -> Dict[str, Any]:
+    def validate_baidu(app_id: str, api_key: str = None, secret_key: str = None) -> Dict[str, Any]:
         """验证 Baidu API 配置
         
-        简单检查 App ID 格式
+        如果提供了 API Key 和 Secret Key，则尝试获取 Access Token 进行深度验证
         """
         try:
             if not app_id:
@@ -116,15 +116,34 @@ class APIValidator:
             if len(app_id) < 5:
                 return {'valid': False, 'error': 'App ID 格式无效（太短）', 'provider': 'Baidu'}
             
-            if not app_id.isalnum():
-                return {'valid': False, 'error': 'App ID 只能包含字母数字', 'provider': 'Baidu'}
-            
+            # 如果提供了三要素，进行深度验证
+            if api_key and secret_key:
+                try:
+                    url = f"https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id={api_key}&client_secret={secret_key}"
+                    response = requests.get(url, timeout=10)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if 'access_token' in data:
+                            logger.info("🔑 Baidu API 验证成功")
+                            return {
+                                'valid': True,
+                                'error': None,
+                                'provider': 'Baidu',
+                                'note': 'Access Token 获取成功，API 配置有效'
+                            }
+                        else:
+                            return {'valid': False, 'error': f"验证失败: {data.get('error_description', '未知错误')}", 'provider': 'Baidu'}
+                    else:
+                        return {'valid': False, 'error': f"HTTP 错误: {response.status_code}", 'provider': 'Baidu'}
+                except Exception as e:
+                    return {'valid': False, 'error': f"深度验证失败: {str(e)[:50]}", 'provider': 'Baidu'}
+
             logger.info("🔑 Baidu App ID 格式有效")
             return {
                 'valid': True,
                 'error': None,
                 'provider': 'Baidu',
-                'note': '全量验证需要实际 API 调用，简化检查已首先执行'
+                'note': 'App ID 格式正确（未提供 API Key 进行深度验证）'
             }
         except Exception as e:
             return {'valid': False, 'error': str(e), 'provider': 'Baidu'}
@@ -173,26 +192,30 @@ class APIValidator:
     
     @classmethod
     def validate_all(cls, config: Dict[str, str]) -> Dict[str, Dict[str, Any]]:
-        """验证所有配置的 API 密钥
-        
-        Args:
-            config: {'API_KEY_NAME': 'value', ...}
-            
-        Returns:
-            {'API_KEY_NAME': {'valid': bool, 'error': str, ...}, ...}
-        """
+        """验证所有配置的 API 密钥"""
         results = {}
         
         for key_name, validator_config in cls.VALIDATORS.items():
-            if key_name in config and config[key_name]:
+            value = config.get(key_name)
+            if value:
                 validator_func = getattr(cls, validator_config['func'])
-                results[key_name] = validator_func(config[key_name])
+
+                # Baidu 需要特殊处理多参数
+                if key_name == 'BAIDU_APP_ID':
+                    results[key_name] = validator_func(
+                        value,
+                        config.get('BAIDU_API_KEY'),
+                        config.get('BAIDU_SECRET_KEY')
+                    )
+                else:
+                    results[key_name] = validator_func(value)
             else:
-                if validator_config['required']:
+                if validator_config.get('required', False):
                     results[key_name] = {
                         'valid': False,
-                        'error': '密钥未提供',
-                        'required': True
+                        'error': '必需的密钥未提供',
+                        'required': True,
+                        'provider': validator_config['name']
                     }
         
         return results
