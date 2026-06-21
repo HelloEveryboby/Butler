@@ -400,13 +400,23 @@ class SkillManager:
         return False
 
     def _try_load_python_entry(self, skill_id: str, manifests: dict):
-        """尝试加载 Python 入口点 (main.py 或 __init__.py)"""
+        """尝试加载 Python 入口点 (自定义、main.py 或 __init__.py)"""
         skill_path = self.skills_dir / skill_id
         entry_file = None
-        if (skill_path / "main.py").exists():
-            entry_file = skill_path / "main.py"
-        elif (skill_path / "__init__.py").exists():
-            entry_file = skill_path / "__init__.py"
+
+        # 1. 优先检查 manifest 中指定的 python_entry
+        custom_entry = manifests[skill_id].get('python_entry')
+        if custom_entry:
+            custom_path = skill_path / custom_entry
+            if custom_path.exists():
+                entry_file = custom_path
+
+        # 2. 默认探测
+        if not entry_file:
+            if (skill_path / "main.py").exists():
+                entry_file = skill_path / "main.py"
+            elif (skill_path / "__init__.py").exists():
+                entry_file = skill_path / "__init__.py"
 
         if entry_file:
             # 标记该技能需要 Python 运行时环境
