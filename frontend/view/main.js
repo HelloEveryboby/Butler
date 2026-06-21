@@ -151,9 +151,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const isSidebarHidden = localStorage.getItem('butler-sidebar-hidden') === 'true';
     if (isSidebarHidden) appContainer.classList.add('sidebar-hidden');
 
+    const sidebarSpring = new SpringPhysics(180, 24);
+    const sidebar = document.querySelector('.sidebar');
+
+    // Set initial position
+    if (isSidebarHidden) {
+        sidebarSpring.setCurrent(-260);
+        sidebarSpring.target = -260;
+        sidebar.style.transform = 'translateX(-260px)';
+    }
+
+    sidebarSpring.onUpdate(x => {
+        sidebar.style.transform = `translateX(${x}px)`;
+        // Adjust main content margin if needed or use absolute positioning
+    });
+
     sidebarToggle.addEventListener('click', () => {
+        const isHidden = !appContainer.classList.contains('sidebar-hidden');
         appContainer.classList.toggle('sidebar-hidden');
-        const isHidden = appContainer.classList.contains('sidebar-hidden');
+
+        sidebarSpring.setTarget(isHidden ? -260 : 0);
+
         localStorage.setItem('butler-sidebar-hidden', isHidden);
         // Fit terminal if active
         if (views.terminal.classList.contains('active')) fitTerminal();

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { margin: 0; background: transparent; overflow: hidden; }
+        canvas { width: 100%; height: 120px; filter: drop-shadow(0 0 8px rgba(0,255,255,0.5)); }
+    </style>
+</head>
+<body>
+    <canvas id="spectrum"></canvas>
+    <script>
+        const canvas = document.getElementById('spectrum');
+        const ctx = canvas.getContext('2d');
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.onresize = resize;
+        resize();
+
+        function draw() {
+            requestAnimationFrame(draw);
+
+            // Mock data or fetch from window.pywebview.api (Blackboard)
+            // In production, Butler pushes data via evaluate_js
+            const mockData = Array.from({length: 32}, () => Math.random() * 100);
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const barWidth = canvas.width / 32;
+
+            ctx.fillStyle = 'rgba(0, 195, 255, 0.8)';
+            mockData.forEach((val, i) => {
+                const h = (val / 100) * canvas.height;
+                ctx.fillRect(i * barWidth, canvas.height - h, barWidth - 2, h);
+            });
+        }
+        draw();
+    </script>
+</body>
+</html>
