@@ -26,7 +26,6 @@ SCHEDULED_TASKS_JSON = DATA_DIR / "scheduled_tasks.json"
 
 # Config Files
 SYSTEM_CONFIG_YAML = CONFIG_DIR / "config.yaml"
-SYSTEM_CONFIG_JSON = CONFIG_DIR / "system_config.json" # Legacy
 SKILLS_LOCK_JSON = PROJECT_ROOT / "skills-lock.json"
 
 # Ensure essential directories exist

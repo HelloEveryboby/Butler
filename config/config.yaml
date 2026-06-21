@@ -40,6 +40,16 @@ runner_server:
   port: 8000
   token: "YOUR_RUNNER_SERVER_TOKEN_HERE"
 
+# 便携模式配置
+portable_mode:
+  enabled: true
+  auto_detect_display: true
+  suggest_ui: true
+  serial_link:
+    enabled: true
+    baudrate: 115200
+    auto_connect: true
+
 # 自动资源下载与更新配置
 update_source:
   assets_base_url: "https://raw.githubusercontent.com/HelloEveryboby/Butler/main/"

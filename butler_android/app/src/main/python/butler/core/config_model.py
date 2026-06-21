@@ -37,6 +37,22 @@ class RunnerServerConfig(BaseModel):
     port: int = 8000
     token: str = "YOUR_RUNNER_SERVER_TOKEN_HERE"
 
+class SerialLinkConfig(BaseModel):
+    enabled: bool = True
+    baudrate: int = 115200
+    auto_connect: bool = True
+
+class PortableConfig(BaseModel):
+    enabled: bool = True
+    auto_detect_display: bool = True
+    suggest_ui: bool = True
+    serial_link: SerialLinkConfig = Field(default_factory=SerialLinkConfig)
+
+class UpdateSourceConfig(BaseModel):
+    assets_base_url: str = "https://raw.githubusercontent.com/HelloEveryboby/Butler/main/"
+    api_latest_release: str = "https://api.github.com/repos/HelloEveryboby/Butler/releases/latest"
+    python_runtime_urls: Dict[str, str] = Field(default_factory=dict)
+
 class ButlerConfig(BaseModel):
     api: ApiConfig = Field(default_factory=ApiConfig)
     voice: VoiceConfig = Field(default_factory=VoiceConfig)
@@ -44,6 +60,9 @@ class ButlerConfig(BaseModel):
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
     interpreter: InterpreterConfig = Field(default_factory=InterpreterConfig)
     runner_server: RunnerServerConfig = Field(default_factory=RunnerServerConfig)
+    portable_mode: PortableConfig = Field(default_factory=PortableConfig)
+    update_source: UpdateSourceConfig = Field(default_factory=UpdateSourceConfig)
 
-    class Config:
-        populate_by_name = True
+    model_config = {
+        "populate_by_name": True
+    }
