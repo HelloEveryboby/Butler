@@ -6,7 +6,7 @@ from typing import Any, Optional
 from pathlib import Path
 from dotenv import load_dotenv
 from package.core_utils.log_manager import LogManager
-from butler.core.constants import PROJECT_ROOT, SYSTEM_CONFIG_YAML, SYSTEM_CONFIG_JSON
+from butler.core.constants import PROJECT_ROOT, SYSTEM_CONFIG_YAML
 from butler.core.config_model import ButlerConfig
 from pydantic import ValidationError
 
@@ -37,7 +37,7 @@ class ConfigLoader:
         return pattern.sub(replace, content)
 
     def _load(self):
-        """Loads configuration from YAML (preferred) or JSON file."""
+        """Loads configuration from YAML file."""
         config_data = {}
 
         # 1. Try YAML
@@ -51,16 +51,7 @@ class ConfigLoader:
             except Exception as e:
                 logger.error(f"Failed to load YAML config: {e}")
 
-        # 2. Try JSON (Fallback/Migration)
-        elif SYSTEM_CONFIG_JSON.exists():
-            try:
-                with open(SYSTEM_CONFIG_JSON, 'r', encoding='utf-8') as f:
-                    config_data = json.load(f)
-                logger.info(f"Loaded config from {SYSTEM_CONFIG_JSON} (legacy)")
-            except Exception as e:
-                logger.error(f"Failed to load JSON config: {e}")
-
-        # 3. Validate with Pydantic
+        # 2. Validate with Pydantic
         try:
             self._config_obj = ButlerConfig(**config_data)
         except ValidationError as ve:
