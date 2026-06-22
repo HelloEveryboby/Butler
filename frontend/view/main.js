@@ -239,6 +239,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.type === 'media') {
                     renderMediaInChat(data);
                     return;
+                } else if (data.type === 'file_report') {
+                    renderFileReportInChat(data);
+                    return;
                 } else if (data.type === 'translation') {
                     renderTranslationInChat(data);
                     return;
@@ -369,11 +372,39 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Media and Special Components
+    function renderFileReportInChat(data) {
+        const container = document.createElement('div');
+        container.className = 'draggable-output';
+        container.draggable = true;
+        container.innerHTML = `<i class="fas fa-file-csv"></i> <span>${data.filename}</span>`;
+
+        container.ondragstart = (e) => {
+            e.dataTransfer.setData('application/json', JSON.stringify({
+                type: 'file',
+                path: data.path,
+                filename: data.filename
+            }));
+            container.style.opacity = '0.5';
+        };
+        container.ondragend = () => container.style.opacity = '1';
+
+        currentAILine.appendChild(container);
+    }
+
     function renderMediaInChat(data) {
         const container = document.createElement('div');
-        container.className = 'chat-media-item';
+        container.className = 'chat-media-item draggable-output';
+        container.draggable = true;
         container.style.marginTop = '12px';
         container.style.cursor = 'pointer';
+
+        container.ondragstart = (e) => {
+            e.dataTransfer.setData('application/json', JSON.stringify({
+                type: 'media',
+                url: data.url,
+                title: data.title
+            }));
+        };
 
         if (data.media_type === 'image') {
             const img = document.createElement('img');
@@ -591,6 +622,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial load of dynamic skills
     setTimeout(loadDynamicSkills, 1000);
+
+    // --- Drop Zone for Pipelining ---
+    const dropZone = document.createElement('div');
+    dropZone.className = 'interaction-line ai-output-line';
+    dropZone.style.border = '2px dashed rgba(255,255,255,0.2)';
+    dropZone.style.textAlign = 'center';
+    dropZone.innerHTML = '<i class="fas fa-file-import"></i> <span>将结果拖拽至此以启动联动任务</span>';
+
+    interactionFlow.appendChild(dropZone);
+
+    dropZone.ondragover = (e) => {
+        e.preventDefault();
+        dropZone.classList.add('drop-zone-active');
+    };
+    dropZone.ondragleave = () => dropZone.classList.remove('drop-zone-active');
+    dropZone.ondrop = async (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('drop-zone-active');
+        const data = JSON.parse(e.dataTransfer.getData('application/json'));
+
+        if (data.type === 'file') {
+            // 自动填充输入框并提示
+            chatInput.innerText = `帮我把这个文件发送到飞书: ${data.path}`;
+            chatInput.focus();
+        }
+    };
 
     // Init
     window.addEventListener('resize', fitTerminal);
@@ -1067,8 +1124,38 @@ document.addEventListener('DOMContentLoaded', () => {
             // Trigger specific loads
             if (target === 'settings-skills') loadSkillsList();
             if (target === 'settings-quota') loadQuotaInfo();
+            if (target === 'settings-timemachine') initTimeMachineUI();
         });
     });
+
+    function initTimeMachineUI() {
+        const slider = document.getElementById('timemachine-slider');
+        const timeDisp = document.getElementById('timemachine-time-display');
+        const snapshotDisp = document.getElementById('timemachine-snapshot-display');
+
+        slider.oninput = async () => {
+            const offset = 3600 - parseInt(slider.value);
+            const targetTs = Date.now() / 1000 - offset;
+            const date = new Date(targetTs * 1000);
+            timeDisp.innerText = offset === 0 ? "现在" : date.toLocaleString();
+
+            if (window.pywebview && window.pywebview.api) {
+                const snapshots = await window.pywebview.api.get_time_machine_range(targetTs - 60, targetTs + 60, "system_snapshot");
+                if (snapshots && snapshots.length > 0) {
+                    const latest = snapshots[snapshots.length - 1].payload;
+                    snapshotDisp.innerHTML = `
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <div>CPU 占用: ${latest.system.cpu}%</div>
+                            <div>内存占用: ${latest.system.memory}%</div>
+                            <div>活动任务: ${latest.active_tasks}</div>
+                        </div>
+                    `;
+                } else {
+                    snapshotDisp.innerText = "该时间段无快照记录。";
+                }
+            }
+        };
+    }
 
     async function loadQuotaInfo() {
         const quotaDisplay = document.getElementById('quota-display');

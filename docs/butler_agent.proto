@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package butler;
+
+service ButlerAgent {
+  rpc ExecuteTask (TaskRequest) returns (TaskResponse) {}
+  rpc GetSystemStatus (StatusRequest) returns (StatusResponse) {}
+}
+
+message TaskRequest {
+  string skill_id = 1;
+  string action = 2;
+  string payload_json = 3;
+}
+
+message TaskResponse {
+  bool success = 1;
+  string result_json = 2;
+  string error = 3;
+}
+
+message StatusRequest {}
+
+message StatusResponse {
+  double cpu_usage = 1;
+  double memory_usage = 2;
+  string hostname = 3;
+}
