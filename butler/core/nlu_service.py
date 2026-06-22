@@ -125,7 +125,17 @@ class NLUService:
         if not quota_manager.check_quota():
             return "Error: API 额度已用尽。"
 
-        if system_override:
+        # 如果存在图片，注入视觉分析指令
+        if image_b64 and not system_override:
+            vision_instruction = (
+                "\n\n--- 👁️ 视觉辅助分析模式 ---\n"
+                "用户提供了一张当前屏幕的截图。请结合图片内容进行分析：\n"
+                "1. **排障识别**: 如果图片包含错误弹窗、报错日志或 UI 异常，请精准定位问题并给出修复建议。\n"
+                "2. **上下文关联**: 图片反映了用户的操作环境，请根据 UI 状态判断用户的真实意图。\n"
+                "3. **一键修复**: 如果识别出明确的软件错误，请尝试给出自动化修复的指令或脚本建议。"
+            )
+            system_prompt = self._get_augmented_system_prompt("general_response") + vision_instruction
+        elif system_override:
             system_prompt = system_override
         else:
             system_prompt = self._get_augmented_system_prompt("general_response") if use_habit else self.prompts.get("general_response", {}).get("prompt", "")

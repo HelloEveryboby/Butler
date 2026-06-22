@@ -330,6 +330,11 @@ class ModernBridge:
             ]
         }
 
+    def get_time_machine_range(self, start, end, category=None):
+        """获取时光机历史数据"""
+        from butler.core.time_machine import time_machine
+        return time_machine.get_range(float(start), float(end), category)
+
     # --- Flash Input Support ---
     def submit_flash_command(self, command):
         """Called from flash_input.html."""

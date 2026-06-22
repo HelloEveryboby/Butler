@@ -543,6 +543,15 @@ class SkillManager:
         """
         Stage 3: 执行接口。支持 LDST 影子链解析、ESB 黑板快照下发。
         """
+        # --- 资源感知调度 (DRAS) ---
+        from butler.core.algorithms import dras_manager
+        allowed, msg = dras_manager.check_schedule_allowed()
+        if not allowed and not kwargs.get("force_execute"):
+            return {
+                "status": "pending_resource",
+                "message": msg
+            }
+
         # 系统内部管理动作
         if skill_id in ["manage_skills", "skill_manager"]:
             return self._manage_skills(action, **kwargs)
@@ -561,11 +570,13 @@ class SkillManager:
         # --- 风险分级与确认 ---
         max_risk = self._check_risk_escalation(execution_chain)
         if max_risk == "high" and not kwargs.get("force_execute"):
+            # 自动挂起并请求 UI 二次确认
+            logger.warning(f"High risk detected for chain: {execution_chain}. Suspending execution.")
             return {
                 "status": "pending_confirmation",
                 "risk": "high",
                 "chain": execution_chain,
-                "message": f"⚠️ Butler 提示：执行 '{skill_id}' 涉及高风险影子链 {execution_chain}，是否允许执行？"
+                "message": f"⚠️ **高危操作拦截**：执行 '{skill_id}' 涉及敏感操作（风险链：{execution_chain}）。\n为了您的系统安全，此任务已自动挂起。请在下方输入“允许执行”或点击确认按钮。"
             }
 
         # --- 影子链执行包装器 (处理同步/异步) ---

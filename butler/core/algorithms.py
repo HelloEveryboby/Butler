@@ -1,3 +1,4 @@
+import sys
 import heapq
 import importlib
 import contextlib
@@ -603,11 +604,11 @@ class LDSTResolver:
         dfs(target_skill_id)
         return order
 
-# 9. DWT (Dynamic Watermark Throttle) Implementation
-class DWTThrottle:
+# 9. DRAS (Dynamic Resource-Aware Scheduling) & DWT Implementation
+class DynamicResourceManager:
     """
-    协程级动态水位压制器。
-    用于在执行密集循环时，根据系统资源占用情况动态调整执行速率。
+    Butler 动态资源感知管理器 (DRAS)。
+    实现三级渐进式压制机制，确保系统在高负载下的稳定性。
     """
     def __init__(self):
         try:
@@ -616,27 +617,81 @@ class DWTThrottle:
         except ImportError:
             self.psutil = None
 
-    def get_current_watermark(self):
-        """获取当前 CPU 占用率作为水位线"""
-        if self.psutil:
-            return self.psutil.cpu_percent(interval=None)
-        return 0
+        self.high_load_start_time = None
+        self.CRITICAL_THRESHOLD = 95.0
+        self.WARNING_THRESHOLD = 85.0
+        self.THROTTLE_THRESHOLD = 60.0
+        self.STABLE_DURATION = 10.0 # 持续高负载阈值 (秒)
+
+    def get_system_stats(self):
+        if not self.psutil:
+            return {"cpu": 0, "memory": 0}
+        return {
+            "cpu": self.psutil.cpu_percent(interval=None),
+            "memory": self.psutil.virtual_memory().percent
+        }
+
+    def check_schedule_allowed(self):
+        """
+        一级抑制：判断是否允许调度新任务。
+        """
+        stats = self.get_system_stats()
+        if stats["cpu"] > self.WARNING_THRESHOLD or stats["memory"] > self.WARNING_THRESHOLD:
+            return False, f"系统负载过高 (CPU: {stats['cpu']}%, MEM: {stats['memory']}%)，任务已进入 PENDING 队列。"
+        return True, "OK"
+
+    def apply_os_priority(self, pid, level="low"):
+        """
+        二级抑制 (OS 级)：调整进程优先级。
+        """
+        if not self.psutil or not pid:
+            return
+
+        try:
+            p = self.psutil.Process(pid)
+            if sys.platform == 'win32':
+                import win32process
+                priority = win32process.BELOW_NORMAL_PRIORITY_CLASS if level == "low" else win32process.NORMAL_PRIORITY_CLASS
+                p.nice(priority)
+            else:
+                priority = 10 if level == "low" else 0
+                p.nice(priority)
+        except Exception as e:
+            print(f"Failed to adjust OS priority for PID {pid}: {e}")
 
     @contextlib.contextmanager
-    def monitor(self):
+    def cooperative_throttle(self):
         """
-        上下文管理器，用于在循环中注入压制逻辑。
+        二级抑制 (协作级)：代码注入式压制，减缓 Python 任务执行速率。
         """
         import time
-        watermark = self.get_current_watermark()
-        if watermark > 85:
-            time.sleep(0.1)  # 红区：大幅减速
-        elif watermark > 60:
-            time.sleep(0.01) # 黄区：轻微压制
+        stats = self.get_system_stats()
+        load = max(stats["cpu"], stats["memory"])
+
+        if load > self.WARNING_THRESHOLD:
+            time.sleep(0.15) # 红区：大幅让出时间片
+        elif load > self.THROTTLE_THRESHOLD:
+            time.sleep(0.02) # 黄区：轻微压制
+
+        # 三级自保检测
+        if load > self.CRITICAL_THRESHOLD:
+            if self.high_load_start_time is None:
+                self.high_load_start_time = time.time()
+            elif time.time() - self.high_load_start_time > self.STABLE_DURATION:
+                # 持续极端负载，抛出异常触发优雅停止
+                raise RuntimeError("CRITICAL_SYSTEM_LOAD: 系统负载持续超载，触发任务自保护熔断。")
+        else:
+            self.high_load_start_time = None
 
         try:
             yield
         finally:
             pass
 
-dwt_throttle = DWTThrottle()
+class DWTThrottle(DynamicResourceManager):
+    """向下兼容的 DWT 别名"""
+    def monitor(self):
+        return self.cooperative_throttle()
+
+dras_manager = DynamicResourceManager()
+dwt_throttle = dras_manager

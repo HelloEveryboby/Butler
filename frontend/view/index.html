@@ -163,20 +163,38 @@
             </section>
 
             <section id="view-workspace" class="view-container">
-                <div class="workspace-placeholder">
-                    <i class="fas fa-file-invoice"></i>
-                    <h2>全屏文档预览区</h2>
-                    <p>在文件管理器中选择一个文档进行预览</p>
-                </div>
-                <div id="document-viewer" class="hidden">
-                    <div class="viewer-header">
-                        <span id="viewer-filename">filename.pdf</span>
-                        <div class="viewer-actions">
-                            <button id="viewer-translate"><i class="fas fa-language"></i> 翻译</button>
-                            <button id="viewer-close"><i class="fas fa-times"></i></button>
+                <div class="workspace-grid">
+                    <div class="workspace-cell">
+                        <div class="workspace-placeholder">
+                            <i class="fas fa-chart-line"></i>
+                            <h3>系统监控</h3>
                         </div>
                     </div>
-                    <div id="viewer-content"></div>
+                    <div class="workspace-cell">
+                        <div class="workspace-placeholder">
+                            <i class="fas fa-tasks"></i>
+                            <h3>任务队列</h3>
+                        </div>
+                    </div>
+                    <div class="workspace-cell">
+                        <div class="workspace-placeholder">
+                            <i class="fas fa-network-wired"></i>
+                            <h3>节点拓扑</h3>
+                        </div>
+                    </div>
+                    <div class="workspace-cell">
+                        <div id="document-viewer" class="hidden" style="height: 100%; width: 100%; background: white;">
+                            <div class="viewer-header">
+                                <span id="viewer-filename" style="font-size: 12px;">filename.pdf</span>
+                                <button id="viewer-close"><i class="fas fa-times"></i></button>
+                            </div>
+                            <div id="viewer-content" style="padding: 10px; font-size: 12px; overflow: auto; height: calc(100% - 40px);"></div>
+                        </div>
+                        <div class="workspace-placeholder">
+                            <i class="fas fa-file-alt"></i>
+                            <h3>文档预览</h3>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -357,6 +375,10 @@
                             <div class="settings-icon icon-orange"><i class="fas fa-puzzle-piece"></i></div>
                             <span>技能管理</span>
                         </div>
+                        <div class="settings-nav-item" data-target="settings-timemachine">
+                            <div class="settings-icon icon-red"><i class="fas fa-history"></i></div>
+                            <span>时光机</span>
+                        </div>
                         <div class="settings-nav-item" data-target="settings-quota">
                             <div class="settings-icon icon-green"><i class="fas fa-chart-pie"></i></div>
                             <span>模型配额</span>
@@ -426,6 +448,21 @@
                             </div>
                             <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
                                 <button id="refresh-skills-btn" class="icon-btn-text"><i class="fas fa-sync"></i> 刷新列表</button>
+                            </div>
+                        </div>
+
+                        <!-- Time Machine -->
+                        <div id="settings-timemachine" class="settings-panel">
+                            <h2 class="settings-title">时光机日志回溯</h2>
+                            <div class="settings-group-card" style="padding: 20px;">
+                                <div style="margin-bottom: 20px;">
+                                    <label class="row-label">时间轴回溯 (最近 1 小时)</label>
+                                    <input type="range" id="timemachine-slider" min="0" max="3600" value="3600" style="width: 100%; margin-top: 10px;">
+                                    <div id="timemachine-time-display" style="font-size: 12px; color: var(--text-secondary); text-align: center; margin-top: 5px;">现在</div>
+                                </div>
+                                <div id="timemachine-snapshot-display" style="font-size: 13px; color: var(--text-primary); border-top: 1px solid var(--border-color); padding-top: 15px;">
+                                    拖动滑块查看历史系统快照...
+                                </div>
                             </div>
                         </div>
 
