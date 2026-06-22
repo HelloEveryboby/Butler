@@ -189,21 +189,30 @@ python -m butler.api
 
 ---
 
-## 🎨 Butler UI 2.0: 极致玻璃拟态与交互体验
+## 🌌 Butler UI 3.0: 空间矩阵交互 (Spatial Matrix Interface)
 
-Butler UI 2.0 是对系统视觉与交互层面的重大升级。我们不仅引入了全局的玻璃拟态（Glassmorphism）设计语言，还通过“灵动岛”式的组件化设计，将多媒体交互提升到了 Apple 级的质感。
+Butler UI 3.0 (Matrix Edition) 彻底颠覆了传统的单维导航，引入了 **$2 \times 2$ 多维空间矩阵**。用户可以在四个象限间流畅滑转，实现生产力与视觉审美的极致统一。
 
-### 核心亮点
-*   **全局玻璃拟态 (Universal Glassmorphism)**：全界面采用 $30\text{px}$ 高斯模糊、 $0.5\text{px}$ 物理级微距边框以及 $180\%$ 饱和度增强。
-*   **灵动岛音乐挂件 (Dynamic Island Widget)**：
-    *   **多态交互**：从静默的小光碟（Mini-Disc），到点击展开的播放胶囊（Capsule Panel），再到下拉的全局歌单。
-    *   **手势重排**：支持 1D 垂直手势拖拽重排歌单，内置中线碰撞检测算法，体验极致丝滑。
-    *   **状态同步**：前端渲染与后端 C++ 音频流实时对齐，转速与音乐律动保持一致。
-*   **物理级动效 (Damping Motion)**：全面采用 `cubic-bezier(0.16, 1, 0.3, 1)` 非线性阻尼曲线，模拟物理世界的惯性与阻尼感。
+### 🚀 核心落地矩阵
+*   **(0, 0) 智能对话与多模态排障**：支持“截图即排障”，激光扫描分析 Error 关键字，提供一键释放端口等修复方案。
+*   **(1, 0) DAG 可视化任务流水线**：采用发光实体连接线与弹簧物理反馈，拖拽技能卡片即可构建复杂的自动化 DAG 流。
+*   **(0, 1) 全局可观测时光机**：影音级状态回溯，通过时间轴滑块重现系统历史快照，报错状态全局视觉高亮。
+*   **(1, 1) 模块化技能与文件仓**：One Folder = One Skill 的抽屉式管理，集成高性能终端与备忘录透明叠加层。
+
+### 🎨 极致极客交互
+*   **空间导航**：通过 `Ctrl + 方向键` 或双指滑动在象限间平滑切换。
+*   **甩出流转 (AirDrop Pipeline)**：猛地向上甩出任务卡片，通过 P2P 管道流转至局域网内的 Android 手机。
+*   **物理动效**：基于 Hooke's Law 的弹簧物理引擎，赋予 Dock 栏与拖拽卡片 магнитной 吸附感。
 
 ### 视觉展示
-![Butler UI 2.0 - 展开状态](assets/ui_2_0/music_expanded.png)
-*图 1：灵动岛音乐胶囊展开效果*
+![Butler Matrix - 智能对话](assets/ui_2_0/matrix_chat.png)
+*图 1：(0,0) 象限 - 智能对话与多模态扫描界面*
 
-![Butler UI 2.0 - 歌单管理](assets/ui_2_0/playlist_open.png)
-*图 2：歌单下拉列表与手势重排界面*
+![Butler Matrix - DAG 流水线](assets/ui_2_0/matrix_dag.png)
+*图 2：(1,0) 象限 - DAG 任务拓扑与发光连接线*
+
+![Butler Matrix - 时光机回溯](assets/ui_2_0/matrix_timemachine.png)
+*图 3：(0,1) 象限 - 时光机状态回溯与异常高亮*
+
+![Butler Matrix - 终端叠加层](assets/ui_2_0/matrix_terminal.png)
+*图 4：(1,1) 象限 - 技能仓与终端透明 Overlay 效果*
