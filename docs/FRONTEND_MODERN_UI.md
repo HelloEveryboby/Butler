@@ -1,83 +1,68 @@
-# Butler Modern UI - 现代模式界面指南
+# Butler Spatial Matrix UI - 空间矩阵界面指南
 
-Butler 采用了一套基于 HTML/CSS/JS 的现代化**玻璃拟态 (Glassmorphism)** 设计界面。该界面受 Apple 设计风格启发，强调流式交互与简洁美感，同时保留了强大的功能扩展性。
+Butler 3.0 采用了一套革命性的**空间矩阵 (Spatial Matrix)** 设计界面。该界面基于 HTML/CSS/JS 与 3D 变换技术，将功能模块分布在 $2 \times 2$ 的多维空间中，实现极致的极客质感。
 
-![Butler UI Chat View](../assets/ui_screenshots/ui_chat.png)
+![Butler Matrix UI](../assets/ui_2_0/matrix_chat.png)
 
 ## 核心设计理念
 
-*   **无输入框流式交互**：核心交互集中在对话流中，支持多种富媒体输出。
-*   **侧边栏驱动**：通过永久侧边栏快速切换不同的工作视窗。
-*   **深色模式与透明感**：默认适配深色环境，利用高斯模糊和半透明层级提升视觉深度。
-*   **跨平台响应**：支持多种屏幕尺寸，侧边栏可收缩以获得更大操作空间。
+*   **空间象限驱动**：通过 `Ctrl + 方向键` 或双指滑动在四个功能象限间切换。
+*   **毛玻璃 Dock 栏**：底部悬浮 Dock 提供快速导航与状态指示。
+*   **物理动效 (Spring Physics)**：采用弹簧物理引擎，赋予拖拽与转场真实的阻尼感。
+*   **无感流转 (AirDrop Pipeline)**：支持任务卡片向上“甩出”跨端流转。
 
 ---
 
-## 视图说明
+## 象限说明
 
-### 1. 智能助手 (Chat)
-这是系统的默认视图，提供核心的 AI 交互功能。
-*   **交互流**：支持气泡式对话。AI 回复不仅包含文字，还支持：
-    *   **翻译卡片**：双语对照显示。
-    *   **代码块**：高亮显示并支持一键复制。
-    *   **配额报告**：直观展示 API 使用进度。
-    *   **富媒体**：图片、视频预览卡片。
-*   **多模态输入**：支持文字输入、语音触发以及文件附件上传。
+### 1. (0,0) 智能助手与多模态排障
+系统的核心对话空间。
+*   **激光扫描排障**：直接将报错截图拖入或粘贴，系统自动执行激光扫描 OCR 诊断。
+*   **一键修复卡片**：诊断完成后弹出修复按钮，如“一键释放占用端口”。
+*   **流式交互**：气泡式对话流，集成翻译、代码块与富媒体。
 
-### 2. 终端 (Terminal)
-集成高性能 `xterm.js` 终端。
-![Butler UI Terminal View](../assets/ui_screenshots/ui_terminal.png)
-*   **原生体验**：支持完整的 PTY 交互，可直接执行 Shell 命令。
-*   **无缝切换**：在 Chat 中输入的系统命令也会同步反映在终端状态中。
+### 2. (1,0) DAG 可视化任务流水线
+![Butler DAG View](../assets/ui_2_0/matrix_dag.png)
+*   **拖拽构建**：从技能仓拖入卡片，自由布局。
+*   **发光连接线**：动态贝塞尔曲线连接任务输入/输出点，具备发光呼吸特效。
+*   **弹簧吸附**：卡片接近锚点时产生物理吸附感。
 
-### 3. 全屏工作区 (Workspace)
-专为深度办公设计。
-![Butler UI Workspace View](../assets/ui_screenshots/ui_workspace.png)
-*   **文档预览**：支持 PDF、Markdown、Word 等文档的直接渲染。
-*   **专注模式**：提供无干扰的全屏阅读环境，支持在侧边进行文档翻译。
+### 3. (0,1) 全局可观测时光机
+![Butler Time Machine](../assets/ui_2_0/matrix_timemachine.png)
+*   **状态回溯**：拖动底部时光滑块，全局 UI 进入“历史回放”模式。
+*   **异常高亮**：回溯到故障发生点时，全屏呈现红色预警阴影，并自动定位报错日志。
+*   **性能指标**：实时同步历史 CPU/内存 使用率视图。
 
-### 4. 文件管理 (Files)
-内置文件浏览器。
-![Butler UI Files View](../assets/ui_screenshots/ui_files.png)
-*   **双域管理**：支持切换“本地存储”与“核心系统”路径。
-*   **快速操作**：点击文件可直接在工作区打开预览或进行相应处理。
-
-### 5. 多媒体中心 (Media)
-专为音频播放与图片查看设计。
-*   **全格式支持**：原生支持 MP3、WAV 音乐播放以及 JPG 图片查看。
-*   **智能随机播放**：集成随机算法，支持一键 Shuffle 媒体库。
-*   **格式百科**：在查看媒体时，自动展示该文件格式的由来、背景及技术特性。
-
-### 6. 系统设置 (Settings)
-![Butler UI Settings View](../assets/ui_screenshots/ui_settings.png)
-*   **外观定制**：支持深色/浅色模式切换，以及不同主题风格的选择（如 Apple Classic 或 Modern Glass）。
-*   **状态监控**：实时查看各模型 API 的配额消耗情况。
+### 4. (1,1) 模块化技能与文件仓
+![Butler Skills View](../assets/ui_2_0/matrix_terminal.png)
+*   **技能抽屉**：One Folder = One Skill 的卡片化管理。
+*   **透明 Overlay**：
+    *   **终端 (Terminal)**：高性能 `xterm.js` 叠加层，支持 PTY 交互。
+    *   **备忘录 (Memos)**：毛玻璃半透明浮窗记录灵感。
+*   **文件浏览器**：集成在侧边，支持拖拽文件进入流水线。
 
 ---
 
-## 特色功能
+## 特色交互
 
-### 状态指示灯
-位于界面右上角，直观显示系统运行状态：
-*   **连接状态 (Green)**：后端 WebSocket 连通性。
-*   **思考状态 (Blue)**：AI 正在处理请求。
-*   **语音状态 (Red)**：麦克风监听状态。
+### AirDrop 甩出流转
+在任意可交互卡片上执行“向上快速滑动”或 `Shift + 点击`，卡片会伴随流光特效消失，并自动投递至局域网内的 Android 手机。
 
-### 背景定制
-点击顶部头部的图片图标，用户可以上传自定义图片作为界面背景。背景将自动应用高斯模糊效果，并持久化存储在本地浏览器缓存中。
-
-### 独立侧边栏
-点击左上角的切换图标，可以收缩侧边栏进入“极简模式”，为代码查看或文档阅读腾出空间。
+### 悬浮 Dock
+位于屏幕底部的磨砂玻璃条：
+*   **左侧图标**：象限快速跳转。
+*   **活动点 (Dock Dot)**：指示当前所在的象限。
+*   **右侧设置**：一键开启系统配置面板。
 
 ---
 
 ## 开发者说明
 
-该前端通过 `pywebview` 与 Python 后端进行双向通信：
-*   **Python -> JS**: 通过执行脚本推送流式 AI 响应、终端输出及系统通知。
-*   **JS -> Python**: 通过 `window.pywebview.api` 调用后端定义的处理函数（如 `handle_command`, `list_files` 等）。
-
+该前端通过 `pywebview` 与 Python 后端进行双向通信。
 代码位置：
-*   `frontend/view/index.html`: 结构
-*   `frontend/view/style.css`: 样式
-*   `frontend/view/main.js`: 逻辑
+*   `frontend/view/index.html`: 矩阵结构
+*   `frontend/view/style.css`: 玻璃拟态与 3D 变换
+*   `frontend/view/matrix_controller.js`: 空间导航逻辑
+*   `frontend/view/main.js`: 业务逻辑与桥接
+*   `frontend/view/dag_engine.js`: DAG 渲染引擎
+*   `frontend/view/time_machine_ui.js`: 时光机回溯逻辑

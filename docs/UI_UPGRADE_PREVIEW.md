@@ -1,28 +1,32 @@
-# Butler UI Upgrade Preview
+# Butler UI Upgrade Preview - Matrix Edition
 
-This document showcases the latest visual and interactive improvements to the Butler personal assistant system.
+This document showcases the revolutionary 2x2 Spatial Matrix UI implemented in Butler 3.0.
 
-## 1. Flash Input (P1)
-**Global Hotkey:** `Alt + Space`
+## 1. Spatial Navigation
+The entire workspace is now a 3D matrix. You can glide between quadrants using gestures or shortcuts.
 
-The Flash Input is a lightweight, frameless, and translucent window designed for "Write and Run" interaction. It allows users to quickly record notes or execute commands without switching to the main browser UI.
+![Matrix View](../assets/ui_2_0/matrix_chat.png)
 
-![Flash Input Preview](../assets/ui_screenshots/flash_input_preview.png)
+## 2. Screenshot Debugger (P1)
+**Feature:** Laser Scan & One-click Fix.
+Paste any error screenshot to trigger local OCR diagnosis and instant repair cards.
 
-## 2. Spatial Card Layout (P2)
-*Coming Soon* - An interactive knowledge network for memos using `vis-network`.
+![Debugger](../assets/ui_2_0/matrix_chat.png)
 
-## 3. Memory Heatmap (P2)
-*Coming Soon* - A visual representation of knowledge accumulation and review frequency.
+## 3. DAG Pipeline Editor (P1)
+**Feature:** Spring Data Flow.
+Connect skills with glowing Bezier lines and magnetic suction effects.
 
-## 3. Focus Mode (P2)
-**Command:** `/focus [minutes]`
+![DAG Editor](../assets/ui_2_0/matrix_dag.png)
 
-A full-screen immersive mode that silences distractions, broadcasts a "Busy" status to all connected devices, and displays a countdown timer.
+## 4. Time Machine Observability (P1)
+**Feature:** State Playback.
+Scrub through the system's history to see exactly when and why an error occurred with visual highlighting.
 
-![Focus Mode Preview](../assets/ui_screenshots/focus_mode_preview.png)
+![Time Machine](../assets/ui_2_0/matrix_timemachine.png)
 
-## 4. Ebbinghaus Review & Heatmap (P2)
-Integrated into the Memos view, the Heatmap tracks your knowledge accumulation. Memos tagged with `#Review` automatically enter the Ebbinghaus repetition cycle.
+## 5. Unified Skills Drawer & Terminal
+**Feature:** Transparent Overlays.
+Access the full power of the system terminal and your personal memos without leaving the spatial flow.
 
-![Heatmap Preview](../assets/ui_screenshots/spatial_memos.png)
+![Terminal Overlay](../assets/ui_2_0/matrix_terminal.png)
