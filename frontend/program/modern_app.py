@@ -335,6 +335,11 @@ class ModernBridge:
         from butler.core.time_machine import time_machine
         return time_machine.get_range(float(start), float(end), category)
 
+    def get_realtime_metrics(self):
+        """获取实时系统指标供热力图背景使用"""
+        from butler.core.algorithms import dras_manager
+        return dras_manager.get_system_stats()
+
     # --- Flash Input Support ---
     def submit_flash_command(self, command):
         """Called from flash_input.html."""

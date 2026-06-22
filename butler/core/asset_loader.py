@@ -10,7 +10,7 @@ class AssetLoader:
         # 定位项目根目录
         self.project_root = PROJECT_ROOT
         self.external_flash_base = DATA_DIR / "external_flash"
-        self.frontend_view_base = PROJECT_ROOT / "frontend" / "view"
+        self.frontend_view_base = PROJECT_ROOT / "frontend"
 
     def get_ui_path(self) -> str:
         """获取 UI 入口 index.html 的物理路径"""

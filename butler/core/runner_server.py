@@ -69,6 +69,18 @@ class RunnerServer:
             if runner_id in self.runners:
                 del self.runners[runner_id]
 
+    async def _broadcast_metrics_coro(self, stats: Dict[str, Any]):
+        """Internal coroutine for broadcasting metrics."""
+        if not self.runners: return
+        msg = json.dumps({"type": "metrics", "data": stats})
+        # Use asyncio.wait to handle all sends in parallel
+        await asyncio.gather(*(r.send(msg) for r in self.runners.values()), return_exceptions=True)
+
+    def broadcast_metrics(self, stats: Dict[str, Any]):
+        """Thread-safe way to broadcast metrics to all connected clients."""
+        if self._loop and self.runners:
+            asyncio.run_coroutine_threadsafe(self._broadcast_metrics_coro(stats), self._loop)
+
     def start(self):
         """Starts the server in a background thread."""
         if not self.token:
