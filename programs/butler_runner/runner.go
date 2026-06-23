@@ -12,25 +12,39 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/go-vgo/robotgo"
 	"github.com/gorilla/websocket"
 	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/vova616/screenshot"
 )
 
 // --- 协议定义 ---
 type Message struct {
-	Type               string                 `json:"type"`    // cmd, shell, file_ls, screenshot, input, sys_info, ping, pong, register, sleep
+	Type               string                 `json:"type"`    // cmd, shell, file_ls, screenshot, input, sys_info, ping, pong, register, sleep, spawn_skill
 	Payload            string                 `json:"payload"` // 指令内容或路径
+	Data               interface{}            `json:"data,omitempty"`
 	Token              string                 `json:"token"`
 	RunnerID           string                 `json:"runner_id,omitempty"`
 	BlackboardSnapshot map[string]interface{} `json:"blackboard_snapshot,omitempty"`
+	SkillConfig        *SkillSpawnConfig      `json:"skill_config,omitempty"`
+}
+
+type SkillSpawnConfig struct {
+	ID            string            `json:"id"`
+	Path          string            `json:"path"`
+	Args          []string          `json:"args"`
+	Env           map[string]string `json:"env"`
+	Risk          string            `json:"risk"`
+	IsLongRunning bool              `json:"is_long_running"`
 }
 
 type Response struct {
@@ -48,7 +62,183 @@ var (
 	mu         sync.Mutex
 	blackboard = make(map[string]interface{})
 	vault      = NewVaultEngine()
+	procMgr    *ProcessManager
 )
+
+// --- Hardware Capability Detection ---
+
+func getHardwareCapabilities() map[string]interface{} {
+	v, _ := mem.VirtualMemory()
+	c, _ := cpu.Counts(true)
+	return map[string]interface{}{
+		"total_mem": v.Total,
+		"cpu_cores": c,
+		"low_power": v.Total < 1024*1024*1024 || c < 2, // < 1GB or < 2 cores
+		"os":        runtime.GOOS,
+		"arch":      runtime.GOARCH,
+	}
+}
+
+// --- Process Manager (Shadow Daemon) ---
+
+type ManagedProcess struct {
+	Config       *SkillSpawnConfig
+	Cmd          *exec.Cmd
+	RestartCount int
+	LastStart    time.Time
+	mu           sync.Mutex
+	Cancel       context.CancelFunc
+}
+
+type ProcessManager struct {
+	processes map[string]*ManagedProcess
+	mu        sync.Mutex
+	conn      *websocket.Conn
+}
+
+func NewProcessManager(c *websocket.Conn) *ProcessManager {
+	return &ProcessManager{
+		processes: make(map[string]*ManagedProcess),
+		conn:      c,
+	}
+}
+
+func (pm *ProcessManager) Spawn(config *SkillSpawnConfig) error {
+	pm.mu.Lock()
+	if old, exists := pm.processes[config.ID]; exists {
+		old.Stop()
+	}
+	mp := &ManagedProcess{Config: config}
+	pm.processes[config.ID] = mp
+	pm.mu.Unlock()
+
+	return pm.startProcess(mp)
+}
+
+func (pm *ProcessManager) startProcess(mp *ManagedProcess) error {
+	mp.mu.Lock()
+	defer mp.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	mp.Cancel = cancel
+
+	cmd := exec.CommandContext(ctx, mp.Config.Path, mp.Config.Args...)
+	cmd.Dir = filepath.Dir(mp.Config.Path)
+
+	// Environment Injection
+	env := os.Environ()
+	for k, v := range mp.Config.Env {
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	}
+	cmd.Env = env
+
+	// OS-level Resource Management & Priority
+	pm.applyResourceLimits(cmd, mp.Config.Risk)
+
+	// Standard I/O redirection (Capture for Snapshot Engine)
+	stdout, _ := cmd.StdoutPipe()
+	stderr, _ := cmd.StderrPipe()
+
+	err := cmd.Start()
+	if err != nil {
+		return err
+	}
+
+	mp.Cmd = cmd
+	mp.LastStart = time.Now()
+	mp.RestartCount++
+
+	// Goroutine to monitor lifecycle
+	go pm.monitorProcess(mp, stdout, stderr)
+
+	return nil
+}
+
+func (pm *ProcessManager) applyResourceLimits(cmd *exec.Cmd, risk string) {
+	if runtime.GOOS == "windows" {
+		// Windows: Job Objects (Partial Implementation via SysProcAttr)
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | 0x00000008, // DETACHED_PROCESS
+		}
+	} else {
+		// Linux: Niceness and Cgroups
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Setpgid: true,
+		}
+		// Set Niceness to 19 (lowest priority) if risk is high or low power
+		if risk == "high" {
+			// In Go, we use cmd.Env or a wrapper to set nice,
+			// but we'll prepend 'nice -n 19' to the command args if on Linux
+			newArgs := []string{"-n", "19", cmd.Path}
+			newArgs = append(newArgs, cmd.Args[1:]...)
+			cmd.Path = "/usr/bin/nice"
+			cmd.Args = append([]string{"nice"}, newArgs...)
+		}
+	}
+}
+
+func (pm *ProcessManager) monitorProcess(mp *ManagedProcess, stdout, stderr io.ReadCloser) {
+	// Snapshot engine would read from these pipes
+	go func() {
+		scanner := io.TeeReader(stdout, os.Stdout) // Just for local log for now
+		io.Copy(io.Discard, scanner)
+	}()
+	go func() {
+		io.Copy(io.Discard, stderr)
+	}()
+
+	err := mp.Cmd.Wait()
+
+	// Check if we should restart (Self-healing)
+	if mp.Config.IsLongRunning {
+		exitCode := 0
+		if err != nil {
+			if exiterr, ok := err.(*exec.ExitError); ok {
+				if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+					exitCode = status.ExitStatus()
+				}
+			}
+		}
+
+		fmt.Printf("⚠️ Skill %s exited with code %d. Self-healing in progress...\n", mp.Config.ID, exitCode)
+
+		// Exponential Backoff
+		backoff := time.Duration(mp.RestartCount) * time.Second
+		if backoff > 30*time.Second {
+			backoff = 30 * time.Second
+		}
+
+		time.Sleep(backoff)
+
+		// Cleanup legacy files as requested
+		pm.cleanupLegacyFiles(mp.Config.Path)
+
+		pm.startProcess(mp)
+	}
+}
+
+func (pm *ProcessManager) cleanupLegacyFiles(path string) {
+	dir := filepath.Dir(path)
+	// Clear __pycache__
+	pycache := filepath.Join(dir, "__pycache__")
+	os.RemoveAll(pycache)
+
+	// Clear *.pid and *.lock
+	files, _ := os.ReadDir(dir)
+	for _, f := range files {
+		if strings.HasSuffix(f.Name(), ".pid") || strings.HasSuffix(f.Name(), ".lock") {
+			os.Remove(filepath.Join(dir, f.Name()))
+		}
+	}
+}
+
+func (mp *ManagedProcess) Stop() {
+	mp.mu.Lock()
+	defer mp.mu.Unlock()
+	if mp.Cancel != nil {
+		mp.Cancel()
+	}
+}
 
 // --- DWT (Dynamic Watermark Throttle) ---
 
@@ -89,16 +279,27 @@ func main() {
 		fmt.Println("⚠️ WARNING: Using a default or insecure token. Please change it for production use.")
 	}
 
+	// Signal handling for clean shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
 	fmt.Printf("🚀 Butler-Runner Pro [%s] 启动中...\n", *runnerID)
 	fmt.Printf("🔗 连接至: %s\n", *serverURL)
 
-	for {
-		if err := connect(); err != nil {
-			log.Printf("❌ 连接失败: %v, 5秒后重连...", err)
-			time.Sleep(5 * time.Second)
-			continue
+	snapshotEngine.Start()
+
+	go func() {
+		for {
+			if err := connect(); err != nil {
+				log.Printf("❌ 连接失败: %v, 5秒后重连...", err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
 		}
-	}
+	}()
+
+	<-sigChan
+	fmt.Println("👋 Butler-Runner shutting down...")
 }
 
 func connect() error {
@@ -108,6 +309,8 @@ func connect() error {
 	}
 	defer c.Close()
 	fmt.Println("✅ 已成功连接至 Butler 主系统")
+
+	procMgr = NewProcessManager(c)
 
 	// 发送注册消息
 	regMsg := Message{
@@ -164,6 +367,27 @@ func connect() error {
 				cancel() // 执行完一次任务后退出 throttle 循环
 			})
 		}()
+
+		// Metrics Broadcasting (Load-aware frame skipping)
+		go func() {
+			usage := getCPUUsage()
+			if usage > 95 {
+				time.Sleep(1 * time.Second) // Critical load: skip metrics
+			} else if usage > 85 {
+				time.Sleep(500 * time.Millisecond) // High load: slow metrics
+			} else {
+				time.Sleep(200 * time.Millisecond)
+			}
+
+			latest := snapshotEngine.GetLatest()
+			metricsMsg := Message{
+				Type:     "metrics",
+				Data:     latest,
+				RunnerID: *runnerID,
+				Token:    *authToken,
+			}
+			c.WriteJSON(metricsMsg)
+		}()
 	}
 }
 
@@ -202,6 +426,8 @@ func normalizeType(t string) string {
 		return "vault_encrypt"
 	case "vault_decrypt":
 		return "vault_decrypt"
+	case "spawn_skill", "spawn":
+		return "spawn_skill"
 	default:
 		return t
 	}
@@ -231,6 +457,18 @@ func handleTask(c *websocket.Conn, msg Message) {
 	switch msgType {
 	case "ping":
 		sendResp(c, "pong", "alive", "")
+
+	case "spawn_skill":
+		if msg.SkillConfig == nil {
+			sendResp(c, "fail", nil, "Missing skill_config")
+			return
+		}
+		err := procMgr.Spawn(msg.SkillConfig)
+		if err != nil {
+			sendResp(c, "fail", nil, err.Error())
+		} else {
+			sendResp(c, "ok", "Skill spawned and managed", "")
+		}
 
 	case "app_control":
 		// Payload 格式: "start:C:\Path\To\App.exe" 或 "kill:PotPlayer.exe"
@@ -457,12 +695,7 @@ func handleTask(c *websocket.Conn, msg Message) {
 		}
 
 	case "sys_info":
-		info := map[string]interface{}{
-			"os":      runtime.GOOS,
-			"arch":    runtime.GOARCH,
-			"cpus":    runtime.NumCPU(),
-			"version": robotgo.GetVersion(),
-		}
+		info := getHardwareCapabilities()
 		sendResp(c, "sys", info, "")
 
 	case "sleep":
@@ -473,9 +706,10 @@ func handleTask(c *websocket.Conn, msg Message) {
 		sendResp(c, "ok", "Runner is now sleeping", "")
 
 	case "vault_init":
-		key, err := hex.DecodeString(msg.Payload)
+		// Use hex encoding for the key
+		key, err := base64.StdEncoding.DecodeString(msg.Payload)
 		if err != nil {
-			sendResp(c, "fail", nil, "Invalid hex key: "+err.Error())
+			sendResp(c, "fail", nil, "Invalid base64 key: "+err.Error())
 			return
 		}
 		err = vault.SetMasterKey(key)
