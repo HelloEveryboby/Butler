@@ -105,6 +105,11 @@ def main():
     skills_parser.add_argument("op", choices=["add", "remove", "list", "find"], help="操作类型")
     skills_parser.add_argument("extra_args", nargs=argparse.REMAINDER, help="npx skills 的原生参数")
 
+    # 13. 自动化测试 (Test)
+    test_parser = subparsers.add_parser("test", help="云端自动化测试与报告生成")
+    test_parser.add_argument("--dir", default="tests", help="测试目录 (默认: tests)")
+    test_parser.add_argument("--no-cov", action="store_true", help="禁用代码覆盖率统计")
+
     # --- 动态加载自定义技能 ---
     try:
         from butler.core.skill_manager import SkillManager
@@ -228,6 +233,10 @@ def main():
             cmd = ["npx", "-y", "skills", args.op] + args.extra_args
             print(f"🚀 执行命令: {' '.join(cmd)}")
             subprocess.run(cmd)
+
+        elif args.command == "test":
+            from package.core_utils.test_runner import run_tests
+            run_tests(test_dir=args.dir, include_coverage=not args.no_cov)
 
         # --- 处理动态技能调用 ---
         elif skill_manager and args.command in skill_manager.manifests:

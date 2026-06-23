@@ -82,3 +82,27 @@ butler
 pyinstaller --name Butler --onefile --add-data "butler/resources:butler/resources" butler.butler_app.py
 ```
 **注意**：在运行此命令之前，必须确保所需的数据文件（如第 4 节所述）已就绪。可执行文件将在 `dist` 目录中生成。
+
+## 7. 自动化测试与报告生成
+
+Butler 支持在云端或远程服务器一键运行自动化测试并生成详细报告。
+
+### CLI 模式
+直接在项目根目录下运行：
+```bash
+python butler_cli.py test
+```
+- 默认运行 `tests/` 目录下的所有测试。
+- 使用 `--dir <目录>` 指定特定测试目录。
+- 使用 `--no-cov` 禁用覆盖率统计。
+
+### Docker 模式 (推荐用于云端)
+使用专用的测试配置运行：
+```bash
+docker-compose -f docker-compose.test.yml up --build
+```
+
+### 报告查看
+测试完成后，报告将生成在：
+- **HTML 详细报告**: `data/reports/report.html`
+- **代码覆盖率报告**: `data/reports/coverage/index.html`

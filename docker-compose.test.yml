@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  butler-test:
+    build: .
+    container_name: butler-test-runner
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./tests:/app/tests
+    env_file:
+      - .env
+    command: ["python", "butler_cli.py", "test"]

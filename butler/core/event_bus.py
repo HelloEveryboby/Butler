@@ -17,6 +17,10 @@ class EventBus:
                 self._subscribers[event_type].append(callback)
                 logger.debug(f"Subscribed {callback} to {event_type}")
 
+    def on(self, event_type, callback):
+        """Alias for subscribe."""
+        self.subscribe(event_type, callback)
+
     def unsubscribe(self, event_type, callback):
         """Unsubscribe a callback from a specific event type."""
         with self._lock:

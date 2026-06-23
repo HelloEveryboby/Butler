@@ -149,6 +149,12 @@ memos.json
 lib_external/
 runtime/
 
+# Butler data and state
+data/reports/
+data/scheduled_tasks.json
+data/.cron_lock
+.env_ready
+
 # Butler build artifacts
 programs/*/hello_*
 programs/**/*.class
