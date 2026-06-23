@@ -3,7 +3,10 @@ package mobile
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -17,16 +20,18 @@ type ButlerEventListener interface {
 	OnMetricsUpdate(jsonMetrics string)
 	OnDrasStateChanged(cpuUsage float64, throttleActive bool)
 	OnClusterDiscovered(deviceName string, ipAddress string)
+	OnThrottlingTriggered(active bool)
 }
 
 type Runner struct {
-	serverURL string
-	token     string
-	id        string
-	conn      *websocket.Conn
-	mu        sync.Mutex
-	listener  ButlerEventListener
-	running   bool
+	serverURL   string
+	token       string
+	id          string
+	conn        *websocket.Conn
+	mu          sync.Mutex
+	listener    ButlerEventListener
+	running     bool
+	isThrottled bool
 }
 
 type Message struct {
@@ -72,6 +77,8 @@ func (r *Runner) Start(configJSON string, l ButlerEventListener) {
 	go r.runLoop()
 	// High-frequency metrics simulation/reporting
 	go r.metricsLoop()
+	// Watch for child process signals (SIGCHLD)
+	go r.watchChildProcesses()
 }
 
 func (r *Runner) Stop() {
@@ -111,12 +118,52 @@ func (r *Runner) metricsLoop() {
 			"cpu":       25.5, // Mock data, would be real in production
 			"mem":       42.1,
 			"net":       12.8,
+			"throttled": r.isThrottled,
 		}
 		data, _ := json.Marshal(metrics)
 		if r.listener != nil {
 			r.listener.OnMetricsUpdate(string(data))
 		}
 		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+// UpdateSystemState is called by Java with thermal and battery info
+func (r *Runner) UpdateSystemState(temp float64, battery int, isCharging bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Mobile-specific DRAS: Thermal and Battery thresholds
+	shouldThrottle := !isCharging && (temp > 42.0 || battery < 20)
+
+	if shouldThrottle != r.isThrottled {
+		r.isThrottled = shouldThrottle
+		if r.listener != nil {
+			r.listener.OnThrottlingTriggered(r.isThrottled)
+		}
+	}
+}
+
+func (r *Runner) watchChildProcesses() {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGCHLD)
+
+	for {
+		r.mu.Lock()
+		if !r.running {
+			r.mu.Unlock()
+			break
+		}
+		r.mu.Unlock()
+
+		select {
+		case <-sigChan:
+			// Capture Python sub-process or Skill exit
+			r.emitLog("[Watchdog] Child process state changed. Running state clearing...")
+			// Implementation would include clearing file locks etc.
+		case <-time.After(1 * time.Second):
+			// Just a heartbeat to check if r.running changed
+		}
 	}
 }
 
