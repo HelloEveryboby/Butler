@@ -4,63 +4,87 @@ import json
 import ctypes
 import logging
 import gc
+import asyncio
+import signal
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("SkillSDK")
 
-def scrub_env(key: str):
+# Global throttle interval for DRAS (Mobile Active Throttling)
+_throttle_interval = 0.0
+
+def _handle_sigusr1(signum, frame):
+    """Signal handler for SIGUSR1 sent by Go Kernel for thermal/battery throttling."""
+    global _throttle_interval
+    logger.warning("Mobile DRAS: SIGUSR1 received. Throttling active.")
+    _throttle_interval = 0.05 # Inject 50ms sleep into every task loop
+
+def setup_mobile_dras():
+    if sys.platform != 'win32':
+        try:
+            signal.signal(signal.SIGUSR1, _handle_sigusr1)
+            # Patch the default event loop to inject throttling
+            _inject_event_loop_throttling()
+        except Exception as e:
+            logger.debug(f"Failed to setup DRAS: {e}")
+
+def _inject_event_loop_throttling():
     """
-    物理级内存擦除：直接改写环境变量所在的内存空间。
+    Monkey-patch asyncio.BaseEventLoop._run_once to inject micro-sleeps
+    when DRAS throttling is active. This ensures ALL async tasks are slowed down.
     """
-    if key not in os.environ:
-        return
+    loop = asyncio.get_event_loop()
+    if not hasattr(loop, "_original_run_once"):
+        loop._original_run_once = loop._run_once
 
-    val = os.environ[key]
-    if not val:
-        return
+        def throttled_run_once():
+            if _throttle_interval > 0:
+                time.sleep(_throttle_interval)
+            loop._original_run_once()
 
-    try:
-        # 在 Python 中，os.environ 映射到 C 层的 environ
-        # 我们尝试通过 ctypes 找到该字符串的地址并清零
-        # 注意：这在某些平台上可能由于内存保护而失败，但在 Headless Linux 上通常有效
-        if sys.platform == 'win32':
-            # Windows 上的实现略有不同
-            pass
-        else:
-            libc = ctypes.CDLL("libc.so.6")
-            # 找到 getenv 返回的原始指针
-            libc.getenv.restype = ctypes.c_void_p
-            ptr = libc.getenv(key.encode('utf-8'))
-            if ptr:
-                # 覆盖内存为 0
-                ctypes.memset(ptr, 0, len(val))
-    except Exception as e:
-        logger.debug(f"Scrub memory failed for {key}: {e}")
+        loop._run_once = throttled_run_once
+        logger.info("Mobile DRAS: Event loop throttling injected.")
 
-    # 应用层同步删除
-    if key in os.environ:
-        del os.environ[key]
-    gc.collect()
+class NativeOCR:
+    """Bridges to Android ML Kit via Chaquopy Java Bridge."""
+    @staticmethod
+    def recognize_text(image_path: str) -> str:
+        try:
+            from java import jclass
+            # ML Kit Text Recognition usage via Chaquopy
+            TextRecognition = jclass("com.google.mlkit.vision.text.TextRecognition")
+            TextRecognizerOptions = jclass("com.google.mlkit.vision.text.latin.TextRecognizerOptions")
+            InputImage = jclass("com.google.mlkit.vision.common.InputImage")
+            File = jclass("java.io.File")
+
+            recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            image = InputImage.fromFilePath(jclass("com.chaquo.python.Python").getPlatform().getApplication(),
+                                           jclass("android.net.Uri").fromFile(File(image_path)))
+
+            # This would be an async Task in Java, Chaquopy handles the wait if we call .getResult()
+            # Note: In a real implementation, we'd handle the Task completion listener
+            return "ML Kit OCR Processed (Requires Task handling in production)"
+        except ImportError:
+            return "ML Kit not available (non-Android)"
+        except Exception as e:
+            return f"OCR Error: {str(e)}"
 
 class SkillSDK:
-    """
-    Skill 开发工具包，提供统一的 IPC 与安全接口。
-    """
     @staticmethod
-    def get_input():
-        """读取 Go 内核下发的初始载荷"""
+    def get_input() -> Dict[str, Any]:
         line = sys.stdin.readline()
-        if not line:
-            return {}
-        return json.loads(line)
+        return json.loads(line) if line else {}
 
     @staticmethod
-    def send_result(data: any):
-        """向 Go 内核发送执行结果"""
-        msg = {
-            "action": "result",
-            "payload": data
-        }
-        print(json.dumps(msg), flush=True)
+    async def task_wrapper(coro):
+        """Wrapper for skill tasks to inject DRAS throttling."""
+        if _throttle_interval > 0:
+            await asyncio.sleep(_throttle_interval)
+        return await coro
+
+    @staticmethod
+    def send_result(data: Any):
+        print(json.dumps({"action": "result", "payload": data}), flush=True)
 
     @staticmethod
     def speak(text: str):
@@ -73,25 +97,27 @@ class SkillSDK:
         print(json.dumps(msg), flush=True)
 
     @staticmethod
-    def push_snapshot(state: dict):
-        """推送当前状态快照到时序总线"""
-        msg = {"action": "snapshot_push", "payload": state}
+    def set_result(data: Any):
+        """Alias for send_result used by some skills."""
+        SkillSDK.send_result(data)
+
+    @staticmethod
+    def write_blackboard(key: str, value: Any, ttl: float = 60.0):
+        """Write to Ephemeral Sandbox Blackboard."""
+        msg = {
+            "action": "blackboard_write",
+            "payload": {"key": key, "value": value, "ttl": ttl}
+        }
         print(json.dumps(msg), flush=True)
 
     @staticmethod
     def cleanup():
-        """强制清理敏感环境变量"""
-        for key in list(os.environ.keys()):
-            if key.startswith("VAULT_") or key == "BUTLER_TOKEN":
-                scrub_env(key)
+        from butler.core.vault_wiper import wipe_all_sensitive
+        wipe_all_sensitive()
         gc.collect()
 
-# Helper for platform native OCR (Placeholder for logic)
-def native_ocr(image_path):
-    if sys.platform == 'win32':
-        # logic for Windows.Media.Ocr
-        return "Windows Native OCR Result"
-    elif sys.platform == 'darwin':
-        # logic for Apple Vision
-        return "Apple Vision OCR Result"
-    return "Generic OCR Result"
+# Initialize mobile DRAS on import
+setup_mobile_dras()
+
+# Export sdk instance for legacy/test compatibility
+sdk = SkillSDK()

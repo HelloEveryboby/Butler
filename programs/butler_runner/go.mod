@@ -5,6 +5,7 @@ go 1.24.3
 require (
 	github.com/go-vgo/robotgo v1.0.1
 	github.com/gorilla/websocket v1.5.3
+	github.com/shirou/gopsutil/v4 v4.26.5
 	github.com/vova616/screenshot v0.0.0-20220801010501-56c10359473c
 )
 
@@ -21,7 +22,6 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/robotn/xgb v0.10.0 // indirect
 	github.com/robotn/xgbutil v0.10.0 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.5 // indirect
 	github.com/tailscale/win v0.0.0-20250627215312-f4da2b8ee071 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
