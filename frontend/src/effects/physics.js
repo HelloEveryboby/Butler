@@ -1,6 +1,7 @@
 /**
  * Lightweight Spring Physics Engine for Butler UI.
  * Zero-dependency implementation of Hooke's Law with Damping.
+ * Optimized for StateMatrix synchronization.
  */
 class SpringPhysics {
     constructor(stiffness = 170, damping = 26, mass = 1) {
@@ -13,11 +14,14 @@ class SpringPhysics {
         this.target = 0;  // Target position
 
         this.listeners = [];
+        this.animating = false;
     }
 
     setTarget(v) {
         this.target = v;
-        this.start();
+        if (!this.animating) {
+            this.start();
+        }
     }
 
     setCurrent(v) {
@@ -25,17 +29,16 @@ class SpringPhysics {
     }
 
     start() {
-        if (this.animating) return;
         this.animating = true;
         this.lastTime = performance.now();
-        this.update();
+        this.updateFrame();
     }
 
-    update() {
+    updateFrame() {
         if (!this.animating) return;
 
         const now = performance.now();
-        const dt = (now - this.lastTime) / 1000; // to seconds
+        const dt = Math.min((now - this.lastTime) / 1000, 0.1); // caps dt to avoid huge jumps
         this.lastTime = now;
 
         // 4 lines of Spring Physics (Hooke's Law + Damping)
@@ -50,15 +53,14 @@ class SpringPhysics {
         this.listeners.forEach(fn => fn(this.x));
 
         // Stop condition: low velocity and close to target
-        if (Math.abs(this.v) < 0.01 && Math.abs(this.x - this.target) < 0.01) {
+        if (Math.abs(this.v) < 0.001 && Math.abs(this.x - this.target) < 0.001) {
             this.x = this.target;
             this.v = 0;
             this.animating = false;
-            this.listeners.forEach(fn => fn(this.x));
             return;
         }
 
-        requestAnimationFrame(() => this.update());
+        requestAnimationFrame(() => this.updateFrame());
     }
 
     onUpdate(fn) {
@@ -66,6 +68,4 @@ class SpringPhysics {
     }
 }
 
-// Example: Apply spring to sidebar or modal
-// const sidebarSpring = new SpringPhysics(200, 20);
-// sidebarSpring.onUpdate(x => sidebar.style.transform = `translateX(${x}px)`);
+window.SpringPhysics = SpringPhysics;

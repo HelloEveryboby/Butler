@@ -47,6 +47,7 @@ var (
 	isSleeping = false
 	mu         sync.Mutex
 	blackboard = make(map[string]interface{})
+	vault      = NewVaultEngine()
 )
 
 // --- DWT (Dynamic Watermark Throttle) ---
@@ -195,6 +196,12 @@ func normalizeType(t string) string {
 		return "sys_info"
 	case "sleep", "睡眠", "歇":
 		return "sleep"
+	case "vault_init", "vault_set_key":
+		return "vault_init"
+	case "vault_encrypt":
+		return "vault_encrypt"
+	case "vault_decrypt":
+		return "vault_decrypt"
 	default:
 		return t
 	}
@@ -464,6 +471,35 @@ func handleTask(c *websocket.Conn, msg Message) {
 		mu.Unlock()
 		fmt.Println("💤 进入睡眠模式...")
 		sendResp(c, "ok", "Runner is now sleeping", "")
+
+	case "vault_init":
+		key, err := hex.DecodeString(msg.Payload)
+		if err != nil {
+			sendResp(c, "fail", nil, "Invalid hex key: "+err.Error())
+			return
+		}
+		err = vault.SetMasterKey(key)
+		if err != nil {
+			sendResp(c, "fail", nil, "Vault Init failed: "+err.Error())
+		} else {
+			sendResp(c, "ok", "Vault initialized and memory pinned", "")
+		}
+
+	case "vault_encrypt":
+		res, err := vault.Encrypt([]byte(msg.Payload))
+		if err != nil {
+			sendResp(c, "fail", nil, err.Error())
+		} else {
+			sendResp(c, "ok", res, "")
+		}
+
+	case "vault_decrypt":
+		res, err := vault.Decrypt(msg.Payload)
+		if err != nil {
+			sendResp(c, "fail", nil, err.Error())
+		} else {
+			sendResp(c, "ok", string(res), "")
+		}
 
 	default:
 		sendResp(c, "error", nil, "Unknown Command Type: "+msg.Type)

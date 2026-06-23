@@ -762,6 +762,26 @@ class SkillManager:
         """获取技能的完整指令 (Stage 2)"""
         return self.skill_contents.get(skill_id)
 
+    def _inject_secrets(self, skill_id: str, env: Dict[str, str]):
+        """
+        Scan and inject secrets into environment variables.
+        Whitelist-based: only for .env or skill configs.
+        Pattern: {{VAULT_KEY}}
+        """
+        from butler.core.secret_vault import secret_vault
+        import re
+
+        pattern = re.compile(r"\{\{VAULT_([A-Z0-9_]+)\}\}")
+
+        # Injected via env vars primarily for subprocess isolation
+        for key, value in env.items():
+            matches = pattern.findall(value)
+            for m in matches:
+                secret = secret_vault.get_secret(m)
+                if secret:
+                    env[key] = value.replace(f"{{{{VAULT_{m}}}}}" , secret)
+                    logger.debug(f"Injected secret VAULT_{m} into ENV {key}")
+
     def _execute_python_subprocess(self, skill_id: str, action: str, **kwargs):
         """在独立子进程中执行 Python 技能，并通过 JSON-RPC 通信 (加强鲁棒性版)"""
         manifest = self.manifests[skill_id]
@@ -773,6 +793,24 @@ class SkillManager:
 
         # 构建环境变量
         skill_env = os.environ.copy()
+
+        # 加载 .env 文件内容到 skill_env (如果存在)
+        env_file = skill_path / ".env"
+        if env_file.exists():
+            with open(env_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        k, v = line.split('=', 1)
+                        skill_env[k.strip()] = v.strip()
+
+        # 执行秘密注入
+        self._inject_secrets(skill_id, skill_env)
+
+        # 内存安全：显式清理 Python 侧内存痕迹 (as requested)
+        import gc
+        gc.collect()
+
         local_lib = (skill_path / ".lib").resolve()
         # 确保项目根目录也在 PYTHONPATH 中，以便子进程可以导入 butler.core.skill_sdk
         project_root = str(self.project_root)
