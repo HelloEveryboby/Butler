@@ -107,7 +107,7 @@ class RunnerServer:
         except Exception as e:
             self.logger.error(f"RunnerServer loop crash: {e}")
 
-    def send_command(self, runner_id: str, cmd_type: str, payload: str):
+    def send_command(self, runner_id: str, cmd_type: str, payload: str, skill_config: dict = None):
         """Sends a command to a specific runner."""
         if runner_id not in self.runners:
             return False, f"Runner {runner_id} not connected"
@@ -118,6 +118,8 @@ class RunnerServer:
             "payload": payload,
             "token": self.token
         }
+        if skill_config:
+            msg["skill_config"] = skill_config
 
         future = asyncio.run_coroutine_threadsafe(websocket.send(json.dumps(msg)), self._loop)
         try:

@@ -549,6 +549,52 @@ def k_means_clustering(data, n_clusters, random_state=None):
 
     return kmeans.labels_, kmeans.cluster_centers_
 
+# 4. Text Similarity & Hybrid Matcher
+class HybridMatcher:
+    """
+    自适应混合路由匹配器。
+    高性能 PC 使用 TF-IDF 语义匹配，低配设备降级为 Trie/Regex。
+    """
+    def __init__(self, manifests, hardware_low_power=False):
+        self.manifests = manifests
+        self.low_power = hardware_low_power
+        self.vectorizer = None
+        if not self.low_power and TfidfVectorizer is not None:
+            self._prepare_semantic()
+
+    def _prepare_semantic(self):
+        try:
+            self.vectorizer = TfidfVectorizer()
+            docs = []
+            self.ids = []
+            for s_id, meta in self.manifests.items():
+                text = f"{meta.get('name', '')} {meta.get('description', '')} {' '.join(meta.get('keywords', []))}"
+                docs.append(text)
+                self.ids.append(s_id)
+            if docs:
+                self.matrix = self.vectorizer.fit_transform(docs)
+        except Exception:
+            self.vectorizer = None
+
+    def match(self, command):
+        if not self.vectorizer or self.low_power:
+            # --- 降维策略：静态正则与关键字匹配 ---
+            cmd_lower = command.lower()
+            for s_id, meta in self.manifests.items():
+                name = meta.get('name', s_id).lower()
+                if name in cmd_lower or s_id.lower() in cmd_lower: return s_id
+                for k in meta.get('keywords', []):
+                    if k.lower() in cmd_lower: return s_id
+            return None
+        else:
+            # --- 高性能策略：TF-IDF 语义余弦相似度 ---
+            cmd_vec = self.vectorizer.transform([command])
+            sims = cosine_similarity(cmd_vec, self.matrix)
+            idx = sims.argmax()
+            if sims[0, idx] > 0.3:
+                return self.ids[idx]
+            return None
+
 # 8. LDST (Lightweight Dynamic Shadow-Topology Tree) Algorithm
 class LDSTResolver:
     """
@@ -622,6 +668,22 @@ class DynamicResourceManager:
         self.WARNING_THRESHOLD = 85.0
         self.THROTTLE_THRESHOLD = 60.0
         self.STABLE_DURATION = 10.0 # 持续高负载阈值 (秒)
+        self.throttled = False
+        self._setup_signals()
+
+    def _setup_signals(self):
+        if sys.platform != 'win32':
+            import signal
+            try:
+                signal.signal(signal.SIGUSR1, self._handle_throttle_signal)
+            except Exception: pass
+        else:
+            # Windows Event logic would go here
+            pass
+
+    def _handle_throttle_signal(self, signum, frame):
+        print("🚨 Received SIGUSR1: Activating DRAS Throttle...")
+        self.throttled = True
 
     def get_system_stats(self):
         if not self.psutil:
@@ -668,8 +730,8 @@ class DynamicResourceManager:
         stats = self.get_system_stats()
         load = max(stats["cpu"], stats["memory"])
 
-        if load > self.WARNING_THRESHOLD:
-            time.sleep(0.15) # 红区：大幅让出时间片
+        if load > self.WARNING_THRESHOLD or self.throttled:
+            time.sleep(0.15) # 红区/强制降速：大幅让出时间片
         elif load > self.THROTTLE_THRESHOLD:
             time.sleep(0.02) # 黄区：轻微压制
 

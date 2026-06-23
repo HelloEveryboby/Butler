@@ -811,6 +811,31 @@ class SkillManager:
         import gc
         gc.collect()
 
+        # --- 铁血架构升级：委托 Go Runner (butler_runner) 执行 ---
+        from butler.core.runner_server import runner_server
+
+        runner_id = kwargs.get("target_runner", "default_runner")
+        is_long_running = manifest.get('is_long_running', False)
+
+        if runner_server.list_runners():
+            logger.info(f"🛡️ [影子执行] 委托 Go 内核 (Runner: {runner_id}) 启动技能: {skill_id}")
+
+            spawn_config = {
+                "id": skill_id,
+                "path": str(entry_file),
+                "args": [sys.executable, str(entry_file)], # Base command
+                "env": skill_env,
+                "risk": manifest.get('risk', 'low'),
+                "is_long_running": is_long_running
+            }
+
+            success, msg = runner_server.send_command(runner_id, "spawn_skill", payload="", skill_config=spawn_config)
+            if success:
+                return f"Skill {skill_id} delegated to Go Runner."
+            else:
+                logger.warning(f"委托 Go 执行失败 ({msg})，Fallback 到本地 Popen。")
+
+        # Fallback 逻辑 (或在 Headless 模式下的默认逻辑)
         local_lib = (skill_path / ".lib").resolve()
         # 确保项目根目录也在 PYTHONPATH 中，以便子进程可以导入 butler.core.skill_sdk
         project_root = str(self.project_root)
