@@ -78,6 +78,11 @@ class RunnerServer:
 
     def broadcast_metrics(self, stats: Dict[str, Any]):
         """Thread-safe way to broadcast metrics to all connected clients."""
+        # Implement DWT-aware broadcast: skip frames if system load is too high
+        cpu = stats.get("cpu", 0)
+        if cpu > 90 and time.time() % 2 < 1: # 50% frame skip in red zone
+            return
+
         if self._loop and self.runners:
             asyncio.run_coroutine_threadsafe(self._broadcast_metrics_coro(stats), self._loop)
 

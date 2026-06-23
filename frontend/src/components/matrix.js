@@ -2,26 +2,49 @@ class MatrixController {
     constructor() {
         this.container = document.querySelector('.main-content');
         this.matrix = document.getElementById('workspace-matrix');
-        this.x = 0;
-        this.y = 0;
-        this.isMoving = false;
+
+        this.physicsX = new SpringPhysics(120, 20);
+        this.physicsY = new SpringPhysics(120, 20);
 
         this.init();
     }
 
     init() {
+        // Sync Physics with StateMatrix
+        this.physicsX.onUpdate(x => {
+            window.stateMatrix.update('matrix.x', x);
+        });
+        this.physicsY.onUpdate(y => {
+            window.stateMatrix.update('matrix.y', y);
+        });
+
+        // Global Render Loop for Matrix (Centralized)
+        const render = () => {
+            const x = window.stateMatrix.get('matrix.x');
+            const y = window.stateMatrix.get('matrix.y');
+            this.matrix.style.transform = `translate(${-x * 100}vw, ${-y * 100}vh)`;
+            requestAnimationFrame(render);
+        };
+        requestAnimationFrame(render);
+
+        // Subscribe to Target changes to update Dock
+        window.stateMatrix.subscribe((state) => {
+            this.updateDock(state.matrix.targetX, state.matrix.targetY);
+        });
+
         window.addEventListener('keydown', (e) => {
             if (e.ctrlKey) {
+                const tx = window.stateMatrix.get('matrix.targetX');
+                const ty = window.stateMatrix.get('matrix.targetY');
                 switch(e.key) {
-                    case 'ArrowUp': this.moveTo(this.x, this.y - 1); break;
-                    case 'ArrowDown': this.moveTo(this.x, this.y + 1); break;
-                    case 'ArrowLeft': this.moveTo(this.x - 1, this.y); break;
-                    case 'ArrowRight': this.moveTo(this.x + 1, this.y); break;
+                    case 'ArrowUp': this.moveTo(tx, ty - 1); break;
+                    case 'ArrowDown': this.moveTo(tx, ty + 1); break;
+                    case 'ArrowLeft': this.moveTo(tx - 1, ty); break;
+                    case 'ArrowRight': this.moveTo(tx + 1, ty); break;
                 }
             }
         });
 
-        // Touch swiping logic (simplified)
         let touchStartX = 0;
         let touchStartY = 0;
         this.container.addEventListener('touchstart', e => {
@@ -33,52 +56,45 @@ class MatrixController {
             const dx = e.changedTouches[0].clientX - touchStartX;
             const dy = e.changedTouches[0].clientY - touchStartY;
             if (Math.abs(dx) > 100 || Math.abs(dy) > 100) {
+                const tx = window.stateMatrix.get('matrix.targetX');
+                const ty = window.stateMatrix.get('matrix.targetY');
                 if (Math.abs(dx) > Math.abs(dy)) {
-                    this.moveTo(this.x - Math.sign(dx), this.y);
+                    this.moveTo(tx - Math.sign(dx), ty);
                 } else {
-                    this.moveTo(this.x, this.y - Math.sign(dy));
+                    this.moveTo(tx, ty - Math.sign(dy));
                 }
             }
         }, { passive: true });
     }
 
     moveTo(nx, ny) {
-        if (nx < 0 || nx > 1 || ny < 0 || ny > 1 || this.isMoving) return;
+        if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return;
 
-        this.x = nx;
-        this.y = ny;
-        this.isMoving = true;
+        window.stateMatrix.update('matrix.targetX', nx);
+        window.stateMatrix.update('matrix.targetY', ny);
+        window.stateMatrix.update('matrix.isMoving', true);
 
-        // Final coordinate system mapping:
-        // (0,0): Smart Chat (Col 1, Row 1) -> transform(0, 0)
-        // (0,1): DAG (Col 2, Row 1)        -> transform(-100vw, 0)
-        // (1,0): Time Machine (Col 1, Row 2) -> transform(0, -100vh)
-        // (1,1): Skills (Col 2, Row 2)     -> transform(-100vw, -100vh)
+        this.physicsX.setTarget(nx);
+        this.physicsY.setTarget(ny);
 
-        // Based on the HTML IDs and Dock buttons:
-        // dock-0-0 -> (0,0)
-        // dock-0-1 -> (0,1)
-        // dock-1-0 -> (1,0)
-        // dock-1-1 -> (1,1)
-
-        // So nx is X (Column index 0 or 1), ny is Y (Row index 0 or 1).
-        const translateX = -nx * 100;
-        const translateY = -ny * 100;
-
-        this.matrix.style.transform = `translate(${translateX}vw, ${translateY}vh)`;
-
-        // Update Dock active state
-        this.updateDock();
-
-        setTimeout(() => { this.isMoving = false; }, 600);
+        // Auto-reset moving state when close
+        setTimeout(() => {
+            if (Math.abs(this.physicsX.x - nx) < 0.01 && Math.abs(this.physicsY.x - ny) < 0.01) {
+                window.stateMatrix.update('matrix.isMoving', false);
+            }
+        }, 1000);
     }
 
-    updateDock() {
+    updateDock(nx, ny) {
         const dockItems = document.querySelectorAll('.dock-item');
-        dockItems.forEach(item => item.classList.remove('active'));
-        const targetId = `dock-${this.x}-${this.y}`;
-        const target = document.getElementById(targetId);
-        if (target) target.classList.add('active');
+        dockItems.forEach(item => {
+            const id = `dock-${nx}-${ny}`;
+            if (item.id === id) {
+                item.classList.add('active');
+            } else if (item.id.startsWith('dock-')) {
+                item.classList.remove('active');
+            }
+        });
     }
 }
 

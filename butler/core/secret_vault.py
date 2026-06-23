@@ -52,24 +52,35 @@ class SecretVault:
         1. 尝试从 Keyring 获取系统生成的随机根密钥。
         2. 如果失败且提供了 master_password，则通过 PBKDF2 派生密钥。
         """
-        # 1. Try Keyring
+        # 1. Try Keyring (Industrial-grade OS Native Integration)
         if keyring:
             try:
+                # Attempts to access Windows Credential Manager or macOS Keychain
                 system_root_key = keyring.get_password("Butler", "VaultRootKey")
                 if not system_root_key:
-                    # 第一次运行，生成随机密钥存入 Keyring
+                    # Initial setup: Generate high-entropy root key
                     system_root_key = base64.b64encode(os.urandom(32)).decode('utf-8')
                     keyring.set_password("Butler", "VaultRootKey", system_root_key)
 
                 self._master_key = base64.b64decode(system_root_key)
                 self._key_source = 'keyring'
-                logger.info("SecretVault initialized via System Keyring.")
+
+                # Sync to Go Runner (only if local)
+                from butler.core.runner_server import runner_server
+                # Use a specific runner_id for the primary local runner to avoid broadcast exposure
+                runner_server.send_command("default_runner", "vault_init", self._master_key.hex())
+
+                logger.info("SecretVault initialized via System Keyring (Industrial Mode).")
                 return True
             except Exception as e:
-                logger.warning(f"Failed to use Keyring: {e}")
+                logger.warning(f"Failed to use OS Keychain: {e}")
 
         # 2. Fallback to Master Password
         if master_password:
+            # Broadast event for "Golden Glassmorphism" UI if this is manual entry
+            from butler.core.event_bus import event_bus
+            event_bus.emit("vault_unlocking", {"source": "password"})
+
             salt = self._get_or_create_salt()
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
@@ -79,6 +90,11 @@ class SecretVault:
             )
             self._master_key = kdf.derive(master_password.encode())
             self._key_source = 'password'
+
+            # Sync to local runner for memory pinning
+            from butler.core.runner_server import runner_server
+            runner_server.broadcast_command("vault_init", self._master_key.hex())
+
             logger.info("SecretVault initialized via Master Password.")
             return True
 

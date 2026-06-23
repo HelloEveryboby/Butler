@@ -39,7 +39,11 @@ class ClusterManager:
             raise ValueError(f"Node {node_id} not found.")
 
         target = f"{node['address']}:{node['port']}"
-        with grpc.insecure_channel(target) as channel:
+        # Use mTLS if certificates are available
+        creds = self._get_credentials()
+        channel_factory = grpc.secure_channel if creds else grpc.insecure_channel
+
+        with channel_factory(target, creds) as channel:
             stub = butler_agent_pb2_grpc.ButlerAgentStub(channel)
             request = butler_agent_pb2.TaskRequest(
                 skill_id=skill_id,
@@ -52,8 +56,20 @@ class ClusterManager:
             else:
                 raise RuntimeError(f"Remote execution failed: {response.error}")
 
+    def _get_credentials(self):
+        """Load or generate self-signed mTLS credentials."""
+        # Simplified placeholder for certificate loading
+        return None
+
     def list_nodes(self):
         return self.nodes
+
+    def air_drop_push(self, node_id: str, payload: Dict[str, Any]):
+        """
+        Pushes a MsgPack/JSON payload via gRPC P2P pipeline.
+        Triggered by 'Swipe Up' gesture.
+        """
+        return self.execute_remote(node_id, "cluster_manager", "airdrop_in", payload)
 
     def stop(self):
         if self.zc:

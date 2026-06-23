@@ -104,38 +104,44 @@ document.addEventListener('DOMContentLoaded', () => {
         // Mock analysis delay
         setTimeout(async () => {
             container.querySelector('.laser-line').remove();
-            container.querySelector('p').innerText = "诊断完成。";
+            container.querySelector('p').innerText = "诊断完成。检测到关键逻辑错误。";
 
             // Show Fix Card
             renderFixCard({
-                type: 'PORT_OCCUPIED',
-                title: '检测到端口 8080 被占用',
-                desc: '当前端口 8080 正被 PID 1234 (Python) 占用，导致服务器无法启动。',
-                btnText: '一键释放端口'
+                type: 'LOGIC_ERROR',
+                title: '检测到模块冲突 (butler/core/workflow_engine.py)',
+                desc: '在第 142 行发现循环引用风险，建议立即重构。',
+                btnText: '修复逻辑 (Time-Slit)',
+                filePath: 'butler/core/workflow_engine.py',
+                line: 142
             });
         }, 2500);
     }
 
     function renderFixCard(data) {
         const card = document.createElement('div');
-        card.className = 'fix-card';
+        card.className = 'fix-card glass-surface';
         card.innerHTML = `
             <div style="font-weight: 700; color: #34C759; display: flex; align-items: center; gap: 8px;">
-                <i class="fas fa-check-circle"></i> ${data.title}
+                <i class="fas fa-magic"></i> ${data.title}
             </div>
             <p style="font-size: 14px; opacity: 0.8;">${data.desc}</p>
-            <button class="fix-btn">${data.btnText}</button>
+            <button class="fix-btn apple-btn-primary">${data.btnText}</button>
         `;
 
         card.querySelector('.fix-btn').onclick = async () => {
-            card.querySelector('.fix-btn').innerText = "修复中...";
-            setTimeout(() => {
-                card.innerHTML = `
-                    <div style="color: #34C759; font-weight: 700;">
-                        <i class="fas fa-magic"></i> 修复成功！端口已释放。
-                    </div>
-                `;
-            }, 1500);
+            if (data.filePath && window.timeSlitEditor) {
+                window.timeSlitEditor.openSlit(data.filePath, data.line, card);
+            } else {
+                card.querySelector('.fix-btn').innerText = "修复中...";
+                setTimeout(() => {
+                    card.innerHTML = `
+                        <div style="color: #34C759; font-weight: 700;">
+                            <i class="fas fa-magic"></i> 修复成功！
+                        </div>
+                    `;
+                }, 1500);
+            }
         };
 
         interactionFlow.appendChild(card);
@@ -174,7 +180,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.appendChild(streamer);
 
         if (window.pywebview && window.pywebview.api) {
-            window.pywebview.api.handle_command("/airdrop-out");
+            // Contextual payload generation for AirDrop
+            const payload = {
+                type: 'asset_transfer',
+                timestamp: Date.now(),
+                content: element.innerText,
+                id: element.id || 'anonymous_card'
+            };
+
+            // Bridge call to ClusterManager gRPC pipeline
+            window.pywebview.api.call_skill('cluster_manager', 'airdrop_push', {
+                payload: payload
+            });
         }
 
         setTimeout(() => {
@@ -202,7 +219,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Settings Toggle
 window.toggleSettings = () => {
-    document.getElementById('settings-overlay').classList.toggle('hidden');
+        const overlay = document.getElementById('settings-overlay');
+        if (overlay) overlay.classList.toggle('hidden');
+    };
+
+    // Vault Unlock Event
+    window.onVaultUnlocking = (data) => {
+        const modal = document.createElement('div');
+        modal.className = 'fullscreen-notif-overlay';
+        modal.innerHTML = `
+            <div class="fullscreen-notif-card glass-surface vault-unlock-card" style="border: 1px solid #d4af37;">
+                <h2 style="color: #d4af37;"><i class="fas fa-shield-halved"></i> 密室正在解锁</h2>
+                <p>为了您的隐私安全，Butler 正在从安全内存派生密钥。</p>
+                <div class="vault-lock-animation active"><i class="fas fa-lock" style="font-size: 48px; color: #d4af37;"></i></div>
+                <div style="margin-top: 30px;" class="loading-spinner"></div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        setTimeout(() => modal.remove(), 3000);
 };
 
 // Initialize Matrix on Load
