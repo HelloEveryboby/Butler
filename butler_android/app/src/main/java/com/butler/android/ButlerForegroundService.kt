@@ -1,4 +1,4 @@
-package com.butler.app
+package com.butler.android
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -24,22 +24,23 @@ class ButlerForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val notification = createNotification("Butler Kernel is running in background")
+        val metrics = intent?.getStringExtra("metrics") ?: "Butler Kernel is active"
+        val notification = createNotification(metrics)
         startForeground(NOTIFICATION_ID, notification)
 
-        // Here we would typically ensure the Go core and Python SkillManager are active
-        Log.d("ButlerService", "Butler Foreground Service Started")
+        Log.d("ButlerService", "Butler Foreground Service Metrics Updated: $metrics")
 
         return START_STICKY
     }
 
     private fun createNotification(content: String): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Butler Service")
+            .setContentTitle("🤖 Butler Core Running")
             .setContentText(content)
             .setSmallIcon(android.R.drawable.ic_menu_info_details)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
     }
 

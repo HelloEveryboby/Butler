@@ -13,16 +13,15 @@ logger = logging.getLogger("SkillSDK")
 # Global throttle interval for DRAS (Mobile Active Throttling)
 _throttle_interval = 0.0
 
-def _handle_sigusr1(signum, frame):
-    """Signal handler for SIGUSR1 sent by Go Kernel for thermal/battery throttling."""
+def trigger_global_throttling(active: bool):
+    """Called by Java/Kotlin side via Chaquopy when thermal/battery thresholds are hit."""
     global _throttle_interval
-    logger.warning("Mobile DRAS: SIGUSR1 received. Throttling active.")
-    _throttle_interval = 0.05 # Inject 50ms sleep into every task loop
+    _throttle_interval = 0.05 if active else 0.0
+    logger.info(f"Mobile DRAS: Throttling set to {active} (interval={_throttle_interval})")
 
 def setup_mobile_dras():
     if sys.platform != 'win32':
         try:
-            signal.signal(signal.SIGUSR1, _handle_sigusr1)
             # Patch the default event loop to inject throttling
             _inject_event_loop_throttling()
         except Exception as e:
@@ -51,19 +50,30 @@ class NativeOCR:
     def recognize_text(image_path: str) -> str:
         try:
             from java import jclass
+            import time
             # ML Kit Text Recognition usage via Chaquopy
             TextRecognition = jclass("com.google.mlkit.vision.text.TextRecognition")
             TextRecognizerOptions = jclass("com.google.mlkit.vision.text.latin.TextRecognizerOptions")
             InputImage = jclass("com.google.mlkit.vision.common.InputImage")
             File = jclass("java.io.File")
+            Uri = jclass("android.net.Uri")
+            Python = jclass("com.chaquo.python.Python")
 
             recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-            image = InputImage.fromFilePath(jclass("com.chaquo.python.Python").getPlatform().getApplication(),
-                                           jclass("android.net.Uri").fromFile(File(image_path)))
+            image = InputImage.fromFilePath(Python.getPlatform().getApplication(),
+                                           Uri.fromFile(File(image_path)))
 
-            # This would be an async Task in Java, Chaquopy handles the wait if we call .getResult()
-            # Note: In a real implementation, we'd handle the Task completion listener
-            return "ML Kit OCR Processed (Requires Task handling in production)"
+            # ML Kit process returns a Task object
+            task = recognizer.process(image)
+
+            # Block until task is complete (runs in Python worker thread, doesn't block UI)
+            while not task.isComplete():
+                time.sleep(0.01)
+
+            if task.isSuccessful():
+                return task.getResult().getText()
+            else:
+                raise RuntimeError(f"ML Kit Native OCR Process Failure: {task.getException().getMessage()}")
         except ImportError:
             return "ML Kit not available (non-Android)"
         except Exception as e:

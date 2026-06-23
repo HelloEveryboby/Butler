@@ -1,4 +1,4 @@
-package com.butler.app
+package com.butler.android
 
 import android.app.Application
 import com.chaquo.python.Python

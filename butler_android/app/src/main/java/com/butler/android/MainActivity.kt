@@ -1,10 +1,16 @@
-package com.butler.app
+package com.butler.android
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
+import android.webkit.WebMessage
+import android.webkit.WebMessagePort
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -28,6 +34,8 @@ class MainActivity : AppCompatActivity() {
     private var butlerModule: PyObject? = null
     private lateinit var assetLoader: WebViewAssetLoader
     private var kernelRunner: Runner? = null
+    private var nativePort: WebMessagePort? = null
+    private var batteryReceiver: BroadcastReceiver? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,12 +81,52 @@ class MainActivity : AppCompatActivity() {
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? {
                 return assetLoader.shouldInterceptRequest(request.url)
             }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                setupWebMessageChannel()
+            }
         }
 
         // 2. Initialize and Start Go-Mobile Kernel
         startGoKernel()
 
         webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html")
+
+        // 3. Register Battery/Thermal Monitor
+        registerBatteryMonitor()
+    }
+
+    private fun setupWebMessageChannel() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            val channel = webView.createWebMessageChannel()
+            nativePort = channel[0]
+            nativePort?.setWebMessageCallback(object : WebMessagePort.WebMessageCallback() {
+                override fun onMessage(port: WebMessagePort?, message: WebMessage?) {
+                    Log.d("ButlerBridge", "Received from Web: ${message?.data}")
+                }
+            })
+            // Transfer port[1] to the web side
+            webView.postWebMessage(WebMessage("init_bridge", arrayOf(channel[1])), android.net.Uri.parse("https://appassets.androidplatform.net"))
+            Log.i("MainActivity", "WebMessagePort Channel Established")
+        }
+    }
+
+    private fun registerBatteryMonitor() {
+        val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        batteryReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+                val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+                val batteryPct = (level * 100 / scale.toFloat()).toInt()
+                val temperature = (intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0) / 10.0
+                val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+                val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+
+                kernelRunner?.updateSystemState(temperature, batteryPct, isCharging)
+            }
+        }
+        registerReceiver(batteryReceiver, filter)
     }
 
     private fun startGoKernel() {
@@ -101,9 +149,41 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 override fun OnMetricsUpdate(jsonMetrics: String) {
-                    // High-frequency injection to WebView
+                    // High-frequency zero-copy injection to WebView via WebMessagePort
                     runOnUiThread {
-                        webView.evaluateJavascript("if(window.StateMatrix) window.StateMatrix.updateFromBackend($jsonMetrics);", null)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                            nativePort?.postMessage(WebMessage(jsonMetrics))
+                        } else {
+                            webView.evaluateJavascript("if(window.StateMatrix) window.StateMatrix.updateFromBackend($jsonMetrics);", null)
+                        }
+
+                        // Update Notification with metrics summary
+                        try {
+                            val metrics = JSONObject(jsonMetrics)
+                            val cpu = metrics.optDouble("cpu", 0.0)
+                            val throttled = metrics.optBoolean("throttled", false)
+                            val serviceIntent = Intent(this@MainActivity, ButlerForegroundService::class.java).apply {
+                                putExtra("metrics", "⚡ DRAS: ${if (throttled) "Throttled" else "Healthy"} | CPU: $cpu%")
+                            }
+                            startService(serviceIntent)
+                        } catch (e: Exception) {}
+                    }
+                }
+
+                override fun OnThrottlingTriggered(active: Boolean) {
+                    Log.w("ButlerKernel", "DRAS Throttling Triggered: $active")
+                    runOnUiThread {
+                        val skillSdk = Python.getInstance().getModule("butler.core.skill_sdk")
+                        skillSdk.callAttr("trigger_global_throttling", active)
+
+                        // Push throttling state to UI
+                        val msg = JSONObject().apply {
+                            put("type", "DRAS")
+                            put("active", active)
+                        }
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                            nativePort?.postMessage(WebMessage(msg.toString()))
+                        }
                     }
                 }
 
@@ -138,5 +218,8 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         kernelRunner?.stop()
         butlerModule?.callAttr("cleanup")
+        batteryReceiver?.let {
+            unregisterReceiver(it)
+        }
     }
 }
