@@ -49,12 +49,25 @@ class MatrixController {
         this.y = ny;
         this.isMoving = true;
 
+        // Final coordinate system mapping:
+        // (0,0): Smart Chat (Col 1, Row 1) -> transform(0, 0)
+        // (0,1): DAG (Col 2, Row 1)        -> transform(-100vw, 0)
+        // (1,0): Time Machine (Col 1, Row 2) -> transform(0, -100vh)
+        // (1,1): Skills (Col 2, Row 2)     -> transform(-100vw, -100vh)
+
+        // Based on the HTML IDs and Dock buttons:
+        // dock-0-0 -> (0,0)
+        // dock-0-1 -> (0,1)
+        // dock-1-0 -> (1,0)
+        // dock-1-1 -> (1,1)
+
+        // So nx is X (Column index 0 or 1), ny is Y (Row index 0 or 1).
         const translateX = -nx * 100;
         const translateY = -ny * 100;
 
         this.matrix.style.transform = `translate(${translateX}vw, ${translateY}vh)`;
 
-        // Update Dock active state (to be implemented)
+        // Update Dock active state
         this.updateDock();
 
         setTimeout(() => { this.isMoving = false; }, 600);

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Butler AI - Next Gen Matrix</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="src/style.css">
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,56 +16,36 @@
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"></script>
     <!-- PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- Monaco Editor -->
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.36.1/min/vs/loader.js"></script>
+    <script>
+        require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.36.1/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            window.monaco_ready = true;
+        });
+    </script>
 </head>
 <body class="theme-apple matrix-mode">
-    <div id="dynamic-island">Butler</div>
+    <!-- Global Background Substrate Heatmap -->
+    <canvas id="substrate-heatmap"></canvas>
 
-    <!-- Global Music Widget (Dynamic Island Style) -->
-    <div id="music-widget" class="music-widget-visible glass-surface damping-transition">
-        <div class="music-widget-compact">
-            <div class="disc-container">
-                <div class="mini-disc" id="widget-disc">
-                    <i class="fas fa-music"></i>
-                </div>
-            </div>
-            <div class="music-info-capsule damping-transition">
-                <div class="track-scroller">
-                    <span id="widget-track-name">未在播放</span>
-                </div>
-                <div class="widget-controls">
-                    <i class="fas fa-step-backward" id="widget-prev"></i>
-                    <i class="fas fa-play" id="widget-play-pause"></i>
-                    <i class="fas fa-step-forward" id="widget-next"></i>
-                </div>
-            </div>
-            <div class="widget-menu-trigger" id="widget-list-toggle">
-                <i class="fas fa-bars"></i>
-            </div>
-        </div>
-        <div id="widget-playlist" class="widget-playlist-hidden damping-transition">
-            <div class="playlist-header">
-                <span>播放列表</span>
-                <i class="fas fa-random" title="随机播放" id="widget-shuffle"></i>
-            </div>
-            <div id="widget-playlist-items" class="playlist-items-container"></div>
-        </div>
-    </div>
+    <div id="dynamic-island">Butler</div>
 
     <!-- Floating Dock -->
     <nav class="floating-dock glass-surface damping-transition">
-        <div class="dock-item active" id="dock-0-0" onclick="matrix.moveTo(0,0)" title="智能助手与排障 (0,0)">
+        <div class="dock-item active" id="dock-0-0" onclick="matrix.moveTo(0,0)" title="智能助手 (0,0)">
             <i class="fas fa-comment-dots"></i>
             <span class="dock-dot"></span>
         </div>
-        <div class="dock-item" id="dock-1-0" onclick="matrix.moveTo(1,0)" title="DAG 任务流水线 (1,0)">
-            <i class="fas fa-project-diagram"></i>
-            <span class="dock-dot"></span>
-        </div>
-        <div class="dock-item" id="dock-0-1" onclick="matrix.moveTo(0,1)" title="时光机可观测性 (0,1)">
+        <div class="dock-item" id="dock-1-0" onclick="matrix.moveTo(1,0)" title="时光监控 (1,0)">
             <i class="fas fa-history"></i>
             <span class="dock-dot"></span>
         </div>
-        <div class="dock-item" id="dock-1-1" onclick="matrix.moveTo(1,1)" title="技能与文件仓 (1,1)">
+        <div class="dock-item" id="dock-0-1" onclick="matrix.moveTo(0,1)" title="任务画布 (0,1)">
+            <i class="fas fa-project-diagram"></i>
+            <span class="dock-dot"></span>
+        </div>
+        <div class="dock-item" id="dock-1-1" onclick="matrix.moveTo(1,1)" title="技能仓储 (1,1)">
             <i class="fas fa-box-open"></i>
             <span class="dock-dot"></span>
         </div>
@@ -107,36 +87,33 @@
                     </div>
                 </section>
 
-                <!-- (1,0) Quadrant: DAG Pipeline (Note: in matrix CSS, columns are X, rows are Y) -->
+                <!-- (1,0) Quadrant: Time Machine -->
                 <section class="matrix-cell" id="cell-1-0">
-                    <div class="view-header">
-                        <div class="view-title">DAG 任务依赖拓扑</div>
-                    </div>
-                    <div class="dag-canvas" id="workflow-canvas">
-                        <svg id="dag-svg" style="position:absolute; width:100%; height:100%; pointer-events:none;"></svg>
-                        <!-- Skills will be rendered as connectable cards here -->
-                        <div class="canvas-placeholder">
-                            <i class="fas fa-project-diagram"></i>
-                            <h3>拖动技能卡片到此处构建流水线</h3>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- (0,1) Quadrant: Time Machine -->
-                <section class="matrix-cell" id="cell-0-1">
                     <div class="view-header">
                         <div class="view-title">全局可观测时光机</div>
                     </div>
                     <div class="timemachine-container">
                         <div class="metrics-visualizer" id="tm-metrics">
-                            <!-- CPU/Mem charts -->
                         </div>
                         <div class="history-log-view" id="tm-logs">
-                            <!-- Historical logs -->
                         </div>
                         <div class="tm-slider-bar glass-surface">
                             <input type="range" id="global-tm-slider" min="0" max="100" value="100">
                             <div class="tm-time-label">现在</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- (0,1) Quadrant: DAG Pipeline -->
+                <section class="matrix-cell" id="cell-0-1">
+                    <div class="view-header">
+                        <div class="view-title">DAG 任务依赖拓扑</div>
+                    </div>
+                    <div class="dag-canvas" id="workflow-canvas">
+                        <svg id="dag-svg" style="position:absolute; width:100%; height:100%; pointer-events:none;"></svg>
+                        <div class="canvas-placeholder">
+                            <i class="fas fa-project-diagram"></i>
+                            <h3>拖动技能卡片到此处构建流水线</h3>
                         </div>
                     </div>
                 </section>
@@ -151,7 +128,7 @@
                         </div>
                     </div>
                     <div class="skills-files-layout">
-                        <div class="skills-drawer">
+                        <div class="skills-drawer" id="skills-drawer">
                             <!-- Skill Cards -->
                         </div>
                         <div class="files-explorer-mini">
@@ -163,27 +140,16 @@
         </main>
     </div>
 
-    <!-- Overlay Settings -->
-    <div id="settings-overlay" class="hidden">
-        <!-- Settings content from original index.html -->
-    </div>
-
-    <div id="notifier-root" class="notifier-container"></div>
-
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <script src="physics.js"></script>
-    <script src="matrix_controller.js"></script>
-    <script src="dag_engine.js"></script>
-    <script src="time_machine_ui.js"></script>
-    <script src="main.js"></script>
-</body>
-</html>
+    <!-- Wormhole Overlays -->
+    <div id="wormhole-gate-tl" class="wormhole-gate" data-quadrant="0,0"></div>
+    <div id="wormhole-gate-tr" class="wormhole-gate" data-quadrant="1,0"></div>
+    <div id="wormhole-gate-bl" class="wormhole-gate" data-quadrant="0,1"></div>
+    <div id="wormhole-gate-br" class="wormhole-gate" data-quadrant="1,1"></div>
 
     <!-- Overlay Terminal -->
     <div id="terminal-overlay" class="hidden glass-surface overlay-panel">
         <div class="panel-header">
-            <span>终端终端会话</span>
+            <span>终端会话</span>
             <button class="icon-btn-small" onclick="toggleTerminal()"><i class="fas fa-times"></i></button>
         </div>
         <div id="terminal-container"></div>
@@ -197,3 +163,17 @@
         </div>
         <div id="memos-list-wrapper" class="memos-timeline"></div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="src/effects/physics.js"></script>
+    <script src="src/components/matrix.js"></script>
+    <script src="src/components/dag_engine.js"></script>
+    <script src="src/components/time_machine_ui.js"></script>
+    <script src="src/components/heatmap.js"></script>
+    <script src="src/components/wormhole.js"></script>
+    <script src="src/components/slits_editor.js"></script>
+    <script src="src/components/vault.js"></script>
+    <script src="src/main.js"></script>
+</body>
+</html>

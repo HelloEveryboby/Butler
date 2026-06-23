@@ -199,13 +199,14 @@ body.has-custom-bg::before {
 
 #workspace-matrix {
     display: grid;
-    grid-template-columns: 100vw 100vw;
-    grid-template-rows: 100vh 100vh;
+    grid-template-columns: repeat(2, 100vw);
+    grid-template-rows: repeat(2, 100vh);
     width: 200vw;
     height: 200vh;
     transition: transform 0.8s var(--apple-easing);
     transform-style: preserve-3d;
     perspective: 1000px;
+    background: #000;
 }
 
 .matrix-cell {
@@ -2297,4 +2298,139 @@ body.tm-active #cell-0-1 {
 .memos-timeline {
     flex: 1;
     overflow-y: auto;
+}
+
+#substrate-heatmap {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    pointer-events: none;
+    filter: blur(40px);
+    opacity: 0.8;
+}
+
+.wormhole-gate {
+    position: fixed;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 150, 255, 0.2) 0%, rgba(0, 50, 255, 0) 70%);
+    box-shadow: 0 0 30px rgba(0, 150, 255, 0.1);
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.wormhole-gate.active {
+    opacity: 1;
+    animation: wormhole-pulse 2s infinite ease-in-out;
+}
+
+@keyframes wormhole-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.1); opacity: 0.9; box-shadow: 0 0 50px rgba(0, 150, 255, 0.3); }
+}
+
+#wormhole-gate-tl { top: -50px; left: -50px; }
+#wormhole-gate-tr { top: -50px; right: -50px; }
+#wormhole-gate-bl { bottom: -50px; left: -50px; }
+#wormhole-gate-br { bottom: -50px; right: -50px; }
+
+/* Slit Editor Styles */
+.slit-container {
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.slit-top, .slit-bottom {
+    transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+    background: inherit;
+    overflow: hidden;
+}
+
+.slit-open .slit-top { transform: translateY(-50%) rotateX(20deg); }
+.slit-open .slit-bottom { transform: translateY(50%) rotateX(-20deg); }
+
+.slit-editor-window {
+    position: absolute;
+    top: 10%;
+    left: 5%;
+    width: 90%;
+    height: 80%;
+    background: #121212;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.4s;
+    border-radius: 8px;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+}
+
+.slit-open .slit-editor-window {
+    opacity: 1;
+    z-index: 1;
+}
+
+/* Vault Compartment Styles */
+.vault-card {
+    background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    box-shadow: 0 0 20px rgba(0,0,0,0.8), inset 0 0 10px rgba(212, 175, 55, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.vault-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 10px 10px;
+    pointer-events: none;
+    opacity: 0.2;
+}
+
+.vault-lock-animation {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 24px;
+    color: #d4af37;
+    transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.vault-open .vault-lock-animation {
+    transform: rotate(180deg) scale(1.2);
+    text-shadow: 0 0 15px #d4af37;
+}
+
+.credential-key {
+    width: 40px;
+    height: 40px;
+    background: #d4af37;
+    mask: url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/svgs/solid/key.svg') no-repeat center;
+    -webkit-mask: url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/svgs/solid/key.svg') no-repeat center;
+    cursor: grab;
+    transition: transform 0.2s;
+}
+
+.credential-key:active { transform: scale(1.2) rotate(-45deg); cursor: grabbing; }
+
+.key-dissolve {
+    animation: key-dissolve 0.8s forwards;
+}
+
+@keyframes key-dissolve {
+    0% { transform: scale(1); opacity: 1; filter: blur(0); }
+    100% { transform: scale(0.5) translateY(20px); opacity: 0; filter: blur(10px); }
 }

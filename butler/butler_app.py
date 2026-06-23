@@ -598,11 +598,15 @@ class Jarvis:
         except Exception as e: self.logger.error(f"Reflection failed: {e}")
 
     def _record_system_snapshot(self):
-        """定期记录系统资源与运行状态快照。"""
+        """定期记录系统资源与运行状态快照，并向 UI 广播实时热力图指标。"""
         try:
             from butler.core.time_machine import time_machine
             from butler.core.algorithms import dras_manager
             stats = dras_manager.get_system_stats()
+
+            # Broadcast metrics to UI for heatmap via RunnerServer (WebSocket)
+            if hasattr(self, 'runner_server'):
+                self.runner_server.broadcast_metrics(stats)
 
             snapshot = {
                 "system": stats,
