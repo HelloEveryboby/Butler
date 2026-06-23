@@ -313,4 +313,37 @@ async function loadFiles(path) {
 
 document.addEventListener('DOMContentLoaded', () => {
     loadFiles('.');
+
+    // --- Mobile WebMessagePort IPC Bridge ---
+    window.addEventListener("message", function (event) {
+        // Initial handshake from Android host
+        if (event.data === "init_bridge" && event.ports[0]) {
+            const port = event.ports[0];
+            window.NativePort = port;
+
+            port.onmessage = function (e) {
+                try {
+                    const data = JSON.parse(e.data);
+                    // 1. High-frequency Metrics for SubstrateHeatmap
+                    if (data.timestamp && window.StateMatrix) {
+                        window.StateMatrix.updateFromBackend(data);
+                    }
+                    // 2. Throttling/DRAS state changes
+                    if (data.type === "DRAS") {
+                        const indicator = document.getElementById("connection-status");
+                        if (indicator) {
+                            indicator.style.backgroundColor = data.active ? "#FF9500" : "#34C759";
+                        }
+                    }
+                    // 3. Native Logs to TimeMachine
+                    if (data.type === "LOG" && window.TimeMachine) {
+                        window.TimeMachine.pushLog(data.data);
+                    }
+                } catch (err) {
+                    console.error("Native Bridge Parse Error:", err);
+                }
+            };
+            console.log("Butler Mobile Bridge: Active via WebMessagePort");
+        }
+    });
 });
