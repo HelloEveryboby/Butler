@@ -9,10 +9,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// MobileCallback defines the interface for Flutter to receive updates
-type MobileCallback interface {
+// ButlerEventListener defines the interface for Android to receive kernel updates
+// This is used via gomobile bind to create a Java/Kotlin listener
+type ButlerEventListener interface {
 	OnStatusUpdate(status string)
 	OnLog(message string)
+	OnMetricsUpdate(jsonMetrics string)
+	OnDrasStateChanged(cpuUsage float64, throttleActive bool)
+	OnClusterDiscovered(deviceName string, ipAddress string)
 }
 
 type Runner struct {
@@ -21,7 +25,7 @@ type Runner struct {
 	id        string
 	conn      *websocket.Conn
 	mu        sync.Mutex
-	callback  MobileCallback
+	listener  ButlerEventListener
 	running   bool
 }
 
@@ -38,14 +42,15 @@ func NewRunner() *Runner {
 	}
 }
 
-func (r *Runner) Start(configJSON string, cb MobileCallback) {
+// Start starts the core loop and attaches a listener
+func (r *Runner) Start(configJSON string, l ButlerEventListener) {
 	r.mu.Lock()
 	if r.running {
 		r.mu.Unlock()
 		return
 	}
 	r.running = true
-	r.callback = cb
+	r.listener = l
 	r.mu.Unlock()
 
 	var config struct {
@@ -65,6 +70,8 @@ func (r *Runner) Start(configJSON string, cb MobileCallback) {
 	r.id = config.ID
 
 	go r.runLoop()
+	// High-frequency metrics simulation/reporting
+	go r.metricsLoop()
 }
 
 func (r *Runner) Stop() {
@@ -78,14 +85,38 @@ func (r *Runner) Stop() {
 }
 
 func (r *Runner) emitStatus(status string) {
-	if r.callback != nil {
-		r.callback.OnStatusUpdate(status)
+	if r.listener != nil {
+		r.listener.OnStatusUpdate(status)
 	}
 }
 
 func (r *Runner) emitLog(msg string) {
-	if r.callback != nil {
-		r.callback.OnLog(msg)
+	if r.listener != nil {
+		r.listener.OnLog(msg)
+	}
+}
+
+func (r *Runner) metricsLoop() {
+	for {
+		r.mu.Lock()
+		if !r.running {
+			r.mu.Unlock()
+			break
+		}
+		r.mu.Unlock()
+
+		// High-frequency Metrics for SubstrateHeatmap
+		metrics := map[string]interface{}{
+			"timestamp": time.Now().UnixMilli(),
+			"cpu":       25.5, // Mock data, would be real in production
+			"mem":       42.1,
+			"net":       12.8,
+		}
+		data, _ := json.Marshal(metrics)
+		if r.listener != nil {
+			r.listener.OnMetricsUpdate(string(data))
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
 }
 
@@ -152,6 +183,6 @@ func (r *Runner) connect() error {
 		}
 
 		r.emitLog(fmt.Sprintf("Received task: %s", msg.Type))
-		// Mobile specific task handling could be added here
+		// Handle tasks here
 	}
 }
