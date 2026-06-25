@@ -38,7 +38,8 @@ interpreter:
 runner_server:
   host: "127.0.0.1"
   port: 8000
-  token: "YOUR_RUNNER_SERVER_TOKEN_HERE"
+  # 使用非空的哨兵默认值，这样在缺少 RUNNER_SERVER_TOKEN 时可以快速失败或被清晰地检测到
+  token: "${RUNNER_SERVER_TOKEN:-MISSING_RUNNER_SERVER_TOKEN}"
 
 # 自动资源下载与更新配置
 update_source:
