@@ -69,6 +69,23 @@ class RunnerServer:
             if runner_id in self.runners:
                 del self.runners[runner_id]
 
+    async def _broadcast_metrics_coro(self, stats: Dict[str, Any]):
+        """Internal coroutine for broadcasting metrics."""
+        if not self.runners: return
+        msg = json.dumps({"type": "metrics", "data": stats})
+        # Use asyncio.wait to handle all sends in parallel
+        await asyncio.gather(*(r.send(msg) for r in self.runners.values()), return_exceptions=True)
+
+    def broadcast_metrics(self, stats: Dict[str, Any]):
+        """Thread-safe way to broadcast metrics to all connected clients."""
+        # Implement DWT-aware broadcast: skip frames if system load is too high
+        cpu = stats.get("cpu", 0)
+        if cpu > 90 and time.time() % 2 < 1: # 50% frame skip in red zone
+            return
+
+        if self._loop and self.runners:
+            asyncio.run_coroutine_threadsafe(self._broadcast_metrics_coro(stats), self._loop)
+
     def start(self):
         """Starts the server in a background thread."""
         if not self.token:
@@ -90,7 +107,7 @@ class RunnerServer:
         except Exception as e:
             self.logger.error(f"RunnerServer loop crash: {e}")
 
-    def send_command(self, runner_id: str, cmd_type: str, payload: str):
+    def send_command(self, runner_id: str, cmd_type: str, payload: str, skill_config: dict = None):
         """Sends a command to a specific runner."""
         if runner_id not in self.runners:
             return False, f"Runner {runner_id} not connected"
@@ -101,6 +118,8 @@ class RunnerServer:
             "payload": payload,
             "token": self.token
         }
+        if skill_config:
+            msg["skill_config"] = skill_config
 
         future = asyncio.run_coroutine_threadsafe(websocket.send(json.dumps(msg)), self._loop)
         try:

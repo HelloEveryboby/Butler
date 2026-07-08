@@ -159,3 +159,11 @@ programs/bcli/butler-c
 programs/bcli/obj/
 programs/ble_framework/ble_framework_exec
 programs/ble_framework/libble.so
+
+# Asset Sync Hub artifacts
+.sync_cache.json
+.sync_backups/
+sync_hub.log
+butler_android/android.env
+butler_android/app/src/main/assets/.asset_meta
+butler_android/app/src/main/assets/config.json

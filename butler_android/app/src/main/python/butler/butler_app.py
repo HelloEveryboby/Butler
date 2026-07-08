@@ -125,6 +125,15 @@ class Jarvis:
         self.standalone_manager = StandaloneManager(self)
         self.standalone_manager.start()
 
+        # Initialize Secret Vault
+        from butler.core.secret_vault import secret_vault
+        # 尝试静默初始化 (Keyring)
+        if not secret_vault.initialize():
+            # 如果失败且有环境变量/配置中的主密码，尝试初始化
+            master_pwd = os.getenv("BUTLER_MASTER_PASSWORD")
+            if master_pwd:
+                secret_vault.initialize(master_pwd)
+
         # Initialize Runner Server
         runner_config = self.config.get("runner_server", {})
         self.runner_server = RunnerServer(
@@ -198,8 +207,19 @@ class Jarvis:
         cron_scheduler.add_task("proactive-tick", interval_seconds=3600, permanent=True)
         event_bus.on("cron:proactive-tick", self.proactive_agent.tick)
 
-        # 3. 工作流监听
-        event_bus.on("workflow_next", self.workflow_engine.execute_step)
+        # 3. 工作流监听 (支持新版 DAG 引擎)
+        event_bus.on("workflow_execute", self.workflow_engine.execute_workflow)
+
+        # 4. 时光机心跳与清理：定期记录系统状态并清理过期快照
+        cron_scheduler.add_task("timemachine_tick", interval_seconds=30, permanent=True)
+        event_bus.on("cron:timemachine_tick", self._record_system_snapshot)
+
+        cron_scheduler.add_task("timemachine_cleanup", interval_seconds=86400, permanent=True)
+        event_bus.on("cron:timemachine_cleanup", lambda: self._timemachine_cleanup(7))
+
+        # 5. 集群发现：启动局域网 Agent 扫描
+        from butler.core.cluster_manager import cluster_manager
+        cluster_manager.start_discovery()
 
         # 启动调度器
         cron_scheduler.start()
@@ -221,6 +241,12 @@ class Jarvis:
         # Log all UI output to structured log
         lvl = logging.ERROR if tag == 'error' else logging.INFO
         self.logger.log(lvl, f"[UI:{tag}] {message}")
+
+        # [TimeMachine] 记录 UI 输出事件
+        try:
+            from butler.core.time_machine import time_machine
+            time_machine.record("ui_event", {"message": message, "tag": tag, "response_id": response_id})
+        except Exception: pass
 
         if tag == 'ai_response_start':
             tag = 'ai_response'
@@ -469,7 +495,10 @@ class Jarvis:
             nlu_result = self.nlu_service.extract_intent(legacy_command, self.long_memory.get_recent_history(10))
             entities = nlu_result.get("entities", {})
             result = self.skill_manager.execute(skill_id, entities.get("operation"), entities=entities, jarvis_app=self)
-            self.speak(str(result))
+            if isinstance(result, dict) and result.get("status") == "pending_confirmation":
+                self.speak(result["message"])
+            else:
+                self.speak(str(result))
             return
 
         matched_intent = intent_registry.match_intent_locally(legacy_command)
@@ -567,6 +596,35 @@ class Jarvis:
                 insights = json.loads(json_match.group(1))
                 if insights: habit_manager.update_from_reflection(insights)
         except Exception as e: self.logger.error(f"Reflection failed: {e}")
+
+    def _record_system_snapshot(self):
+        """定期记录系统资源与运行状态快照，并向 UI 广播实时热力图指标。"""
+        try:
+            from butler.core.time_machine import time_machine
+            from butler.core.algorithms import dras_manager
+            stats = dras_manager.get_system_stats()
+
+            # Broadcast metrics to UI for heatmap via RunnerServer (WebSocket)
+            if hasattr(self, 'runner_server'):
+                self.runner_server.broadcast_metrics(stats)
+
+            snapshot = {
+                "system": stats,
+                "active_tasks": len(task_manager.volatile_tasks),
+                "workflows": self.workflow_engine.list_workflows()
+            }
+            time_machine.record("system_snapshot", snapshot)
+        except Exception as e:
+            self.logger.error(f"Failed to record system snapshot: {e}")
+
+    def _timemachine_cleanup(self, days: int):
+        """清理过期的时光机快照。"""
+        try:
+            from butler.core.time_machine import time_machine
+            time_machine.cleanup(days)
+            self.logger.info(f"TimeMachine cleanup complete (Retention: {days} days)")
+        except Exception as e:
+            self.logger.error(f"TimeMachine cleanup failed: {e}")
 
     def _trigger_no1_middle_school_easter_egg(self):
         """Triggers the 'No. 1 Middle School' nostalgia easter egg."""
@@ -756,6 +814,18 @@ class Jarvis:
             elif intent == "claim_task":
                 output = task_manager.claim_business_task(int(entities.get("task_id", 0)), "lead")
 
+            # Secret Vault Tools
+            elif intent == "vault_set":
+                from butler.core.secret_vault import secret_vault
+                secret_vault.set_secret(entities.get("key"), entities.get("value"))
+                output = f"Secret '{entities.get('key')}' stored securely."
+            elif intent == "vault_get":
+                from butler.core.secret_vault import secret_vault
+                output = secret_vault.get_secret(entities.get("key"))
+            elif intent == "vault_list":
+                from butler.core.secret_vault import secret_vault
+                output = secret_vault.list_secrets()
+
             # Skill Management Tools
             elif intent == "skill_install" or intent == "skill_import":
                 output = self.skill_manager.execute("manage_skills", "install" if intent == "skill_install" else "import", entities=entities, jarvis_app=self)
@@ -770,11 +840,63 @@ class Jarvis:
             elif intent == "read_inbox":
                 output = message_bus.read_inbox("lead")
 
+            # Time Machine Tools
+            elif intent == "timemachine_query":
+                from butler.core.time_machine import time_machine
+                ts = float(entities.get("timestamp", time.time()))
+                output = time_machine.get_snapshot_at(ts)
+            elif intent == "timemachine_range":
+                from butler.core.time_machine import time_machine
+                output = time_machine.get_range(
+                    float(entities.get("start")),
+                    float(entities.get("end")),
+                    entities.get("category")
+                )
+
+            # Cluster Tools
+            elif intent == "cluster_list":
+                from butler.core.cluster_manager import cluster_manager
+                output = cluster_manager.list_nodes()
+            elif intent == "cluster_execute":
+                from butler.core.cluster_manager import cluster_manager
+                output = cluster_manager.execute_remote(
+                    entities.get("node_id"),
+                    entities.get("skill_id"),
+                    entities.get("action", "run"),
+                    entities.get("payload", {})
+                )
+
             # Workflow Tools
             elif intent == "workflow_list":
                 output = self.workflow_engine.list_workflows()
             elif intent == "workflow_create":
-                output = self.workflow_engine.create_workflow(entities.get("name"), entities.get("steps"))
+                # [LLM 驱动的工作流生成] 如果 steps 是字符串，尝试让 LLM 解析为 DAG 结构
+                steps = entities.get("steps")
+                if isinstance(steps, str):
+                    self.ui_print(f"🧠 正在根据您的描述生成 DAG 工作流...", tag='system_message')
+                    gen_prompt = (
+                        "请将以下用户需求解析为 Butler DAG 工作流 JSON 结构。\n"
+                        "格式要求: list of objects with {id, intent, entities, depends_on: [list of ids]}\n\n"
+                        f"用户需求: {steps}"
+                    )
+                    steps_json = self.nlu_service.ask_llm(gen_prompt, use_habit=False)
+                    try:
+                        # 提取 JSON
+                        match = re.search(r"(\[.*\])", steps_json, re.DOTALL)
+                        if match:
+                            steps = json.loads(match.group(1))
+                        else:
+                            output = "Error: 无法从 AI 响应中解析出工作流结构。"
+                            break
+                    except Exception as e:
+                        output = f"Error: 工作流解析失败: {e}"
+                        break
+
+                wf_id = self.workflow_engine.create_workflow(entities.get("name", "AI 生成工作流"), steps)
+                # 如果指定了立刻执行
+                if entities.get("auto_start", True):
+                    self.workflow_engine.execute_workflow(wf_id)
+                output = f"Workflow created: {wf_id}"
 
             # Context Tools
             elif intent == "compress":
@@ -808,6 +930,9 @@ class Jarvis:
                 skill_id = intent if intent in self.skill_manager.manifests else self.skill_manager.match_skill(command)
                 if skill_id:
                     output = self.skill_manager.execute(skill_id, entities.get("operation") or entities.get("action") or "run", entities=entities, jarvis_app=self)
+                    if isinstance(output, dict) and output.get("status") == "pending_confirmation":
+                        self.speak(output["message"])
+                        break # Stop chain and wait for user confirmation/force
                 else:
                     output = extension_manager.execute(intent, command=command, args=entities)
 

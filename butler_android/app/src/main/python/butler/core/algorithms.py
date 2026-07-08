@@ -1,4 +1,7 @@
+import sys
 import heapq
+import importlib
+import contextlib
 from collections import deque
 
 try:
@@ -545,3 +548,212 @@ def k_means_clustering(data, n_clusters, random_state=None):
     kmeans.fit(data)
 
     return kmeans.labels_, kmeans.cluster_centers_
+
+# 4. Text Similarity & Hybrid Matcher
+class HybridMatcher:
+    """
+    自适应混合路由匹配器。
+    高性能 PC 使用 TF-IDF 语义匹配，低配设备降级为 Trie/Regex。
+    """
+    def __init__(self, manifests, hardware_low_power=False):
+        self.manifests = manifests
+        self.low_power = hardware_low_power
+        self.vectorizer = None
+        if not self.low_power and TfidfVectorizer is not None:
+            self._prepare_semantic()
+
+    def _prepare_semantic(self):
+        try:
+            self.vectorizer = TfidfVectorizer()
+            docs = []
+            self.ids = []
+            for s_id, meta in self.manifests.items():
+                text = f"{meta.get('name', '')} {meta.get('description', '')} {' '.join(meta.get('keywords', []))}"
+                docs.append(text)
+                self.ids.append(s_id)
+            if docs:
+                self.matrix = self.vectorizer.fit_transform(docs)
+        except Exception:
+            self.vectorizer = None
+
+    def match(self, command):
+        if not self.vectorizer or self.low_power:
+            # --- 降维策略：静态正则与关键字匹配 ---
+            cmd_lower = command.lower()
+            for s_id, meta in self.manifests.items():
+                name = meta.get('name', s_id).lower()
+                if name in cmd_lower or s_id.lower() in cmd_lower: return s_id
+                for k in meta.get('keywords', []):
+                    if k.lower() in cmd_lower: return s_id
+            return None
+        else:
+            # --- 高性能策略：TF-IDF 语义余弦相似度 ---
+            cmd_vec = self.vectorizer.transform([command])
+            sims = cosine_similarity(cmd_vec, self.matrix)
+            idx = sims.argmax()
+            if sims[0, idx] > 0.3:
+                return self.ids[idx]
+            return None
+
+# 8. LDST (Lightweight Dynamic Shadow-Topology Tree) Algorithm
+class LDSTResolver:
+    """
+    轻量级动态双向影子依赖拓扑树解析器。
+    用于在 "One Folder = One Skill" 架构下动态解析技能间的依赖关系。
+    """
+    def __init__(self, manifests):
+        self.manifests = manifests
+
+    def resolve(self, target_skill_id):
+        """
+        反向解析出执行顺序 (拓扑排序)。
+        """
+        order = []
+        visited = {} # 0: 未访问, 1: 访问中(有环), 2: 已完成
+
+        def dfs(name):
+            state = visited.get(name, 0)
+            if state == 1:
+                raise Exception(f"💥 检测到循环依赖：阻止了 {name} 的无休止调用！")
+            if state == 2:
+                return
+
+            visited[name] = 1 # 标记为正在访问
+
+            skill = self.manifests.get(name)
+            if not skill:
+                raise Exception(f"❌ 未找到技能模块: {name}")
+
+            # 反向解析：为了满足当前技能的 Requires，去寻找满足 Provides 的上游技能
+            requires = skill.get('requires', {})
+            # 如果 requires 是列表（旧版），转换为字典以统一处理
+            if isinstance(requires, list):
+                requires = {req: True for req in requires}
+
+            for req_key in requires:
+                provider_found = False
+                for potential_id, potential_meta in self.manifests.items():
+                    provides = potential_meta.get('provides', [])
+                    if req_key in provides:
+                        provider_found = True
+                        dfs(potential_id)
+
+                # 注意：有些依赖可能是系统环境(如 os.platform)，不一定由技能提供
+                # 这里我们主要解析技能间的依赖
+                if not provider_found:
+                    # 如果没有技能能提供，可能是环境变量，暂时跳过或记录日志
+                    pass
+
+            visited[name] = 2 # 标记为完成
+            order.append(name)
+
+        dfs(target_skill_id)
+        return order
+
+# 9. DRAS (Dynamic Resource-Aware Scheduling) & DWT Implementation
+class DynamicResourceManager:
+    """
+    Butler 动态资源感知管理器 (DRAS)。
+    实现三级渐进式压制机制，确保系统在高负载下的稳定性。
+    """
+    def __init__(self):
+        try:
+            import psutil
+            self.psutil = psutil
+        except ImportError:
+            self.psutil = None
+
+        self.high_load_start_time = None
+        self.CRITICAL_THRESHOLD = 95.0
+        self.WARNING_THRESHOLD = 85.0
+        self.THROTTLE_THRESHOLD = 60.0
+        self.STABLE_DURATION = 10.0 # 持续高负载阈值 (秒)
+        self.throttled = False
+        self._setup_signals()
+
+    def _setup_signals(self):
+        if sys.platform != 'win32':
+            import signal
+            try:
+                signal.signal(signal.SIGUSR1, self._handle_throttle_signal)
+            except Exception: pass
+        else:
+            # Windows Event logic would go here
+            pass
+
+    def _handle_throttle_signal(self, signum, frame):
+        print("🚨 Received SIGUSR1: Activating DRAS Throttle...")
+        self.throttled = True
+
+    def get_system_stats(self):
+        if not self.psutil:
+            return {"cpu": 0, "memory": 0}
+        return {
+            "cpu": self.psutil.cpu_percent(interval=None),
+            "memory": self.psutil.virtual_memory().percent
+        }
+
+    def check_schedule_allowed(self):
+        """
+        一级抑制：判断是否允许调度新任务。
+        """
+        stats = self.get_system_stats()
+        if stats["cpu"] > self.WARNING_THRESHOLD or stats["memory"] > self.WARNING_THRESHOLD:
+            return False, f"系统负载过高 (CPU: {stats['cpu']}%, MEM: {stats['memory']}%)，任务已进入 PENDING 队列。"
+        return True, "OK"
+
+    def apply_os_priority(self, pid, level="low"):
+        """
+        二级抑制 (OS 级)：调整进程优先级。
+        """
+        if not self.psutil or not pid:
+            return
+
+        try:
+            p = self.psutil.Process(pid)
+            if sys.platform == 'win32':
+                import win32process
+                priority = win32process.BELOW_NORMAL_PRIORITY_CLASS if level == "low" else win32process.NORMAL_PRIORITY_CLASS
+                p.nice(priority)
+            else:
+                priority = 10 if level == "low" else 0
+                p.nice(priority)
+        except Exception as e:
+            print(f"Failed to adjust OS priority for PID {pid}: {e}")
+
+    @contextlib.contextmanager
+    def cooperative_throttle(self):
+        """
+        二级抑制 (协作级)：代码注入式压制，减缓 Python 任务执行速率。
+        """
+        import time
+        stats = self.get_system_stats()
+        load = max(stats["cpu"], stats["memory"])
+
+        if load > self.WARNING_THRESHOLD or self.throttled:
+            time.sleep(0.15) # 红区/强制降速：大幅让出时间片
+        elif load > self.THROTTLE_THRESHOLD:
+            time.sleep(0.02) # 黄区：轻微压制
+
+        # 三级自保检测
+        if load > self.CRITICAL_THRESHOLD:
+            if self.high_load_start_time is None:
+                self.high_load_start_time = time.time()
+            elif time.time() - self.high_load_start_time > self.STABLE_DURATION:
+                # 持续极端负载，抛出异常触发优雅停止
+                raise RuntimeError("CRITICAL_SYSTEM_LOAD: 系统负载持续超载，触发任务自保护熔断。")
+        else:
+            self.high_load_start_time = None
+
+        try:
+            yield
+        finally:
+            pass
+
+class DWTThrottle(DynamicResourceManager):
+    """向下兼容的 DWT 别名"""
+    def monitor(self):
+        return self.cooperative_throttle()
+
+dras_manager = DynamicResourceManager()
+dwt_throttle = dras_manager
