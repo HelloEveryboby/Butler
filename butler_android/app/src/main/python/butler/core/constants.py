@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import logging
 
 # Project Root: /Butler/
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -7,8 +8,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 # Core Directories
 BUTLER_DIR = PROJECT_ROOT / "butler"
 PACKAGE_DIR = PROJECT_ROOT / "package"
-PLUGIN_DIR = PROJECT_ROOT / "plugin"
+# Backwards-compatible: keep PLUGIN_DIR for old scripts but point to skills
 SKILLS_DIR = PROJECT_ROOT / "skills"
+PLUGIN_DIR = SKILLS_DIR  # legacy alias
+
+# Subdirectories for skills
+CORE_PLUGINS_DIR = SKILLS_DIR / "core_plugins"
+THIRD_PARTY_DIR = SKILLS_DIR / "third_party"
+
 DATA_DIR = PROJECT_ROOT / "data"
 CONFIG_DIR = PROJECT_ROOT / "config"
 LOGS_DIR = PROJECT_ROOT / "logs"
@@ -26,12 +33,17 @@ SCHEDULED_TASKS_JSON = DATA_DIR / "scheduled_tasks.json"
 
 # Config Files
 SYSTEM_CONFIG_YAML = CONFIG_DIR / "config.yaml"
-SYSTEM_CONFIG_JSON = CONFIG_DIR / "system_config.json" # Legacy
+SYSTEM_CONFIG_JSON = CONFIG_DIR / "system_config.json"  # Legacy
 SKILLS_LOCK_JSON = PROJECT_ROOT / "skills-lock.json"
 
-# Ensure essential directories exist
-for _dir in [DATA_DIR, CONFIG_DIR, LOGS_DIR, AUDIT_LOGS_DIR]:
-    _dir.mkdir(parents=True, exist_ok=True)
+# Ensure essential directories exist (defensive)
+for _dir in [DATA_DIR, CONFIG_DIR, LOGS_DIR, AUDIT_LOGS_DIR, SKILLS_DIR, CORE_PLUGINS_DIR, THIRD_PARTY_DIR]:
+    try:
+        _dir.mkdir(parents=True, exist_ok=True)
+        logging.getLogger(__name__).info(f"[Constants] Ensured directory exists: {_dir}")
+    except Exception:
+        pass
+
 
 def resolve_path(relative_path: str) -> Path:
     """Resolves a relative path against the project root."""
