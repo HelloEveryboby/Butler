@@ -1,0 +1,4 @@
+2026-07-08 14:38:21,323 - AssetSyncHub.Manifest - INFO - No manifest found. Using default rules.
+2026-07-08 14:38:21,951 - AssetSyncHub.Sync - WARNING - Source directory /app/assets/textures/ does not exist. Skipping rule assets_textures.
+2026-07-08 14:38:21,952 - AssetSyncHub.Sync - WARNING - Source directory /app/assets/audio/ does not exist. Skipping rule assets_audio.
+2026-07-08 14:38:21,967 - AssetSyncHub.Sync - INFO - Skipping config injection: android.env or template missing.
