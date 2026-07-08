@@ -172,6 +172,26 @@
     <script src="src/components/wormhole.js"></script>
     <script src="src/components/slits_editor.js"></script>
     <script src="src/components/vault.js"></script>
+    <script src="src/components/modal.js"></script>
     <script src="src/main.js"></script>
+
+    <!-- Copilot Confirmation Modal -->
+    <div id="copilot-modal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <div class="modal-title">确认操作</div>
+            </div>
+            <div class="modal-body">
+                <div class="modal-body-text">你确定要执行此操作吗？</div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-dismiss">解雇</button>
+                <button class="modal-btn modal-btn-allow">允许</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Notification Container -->
+    <div id="notifier-container" class="notifier-container"></div>
 </body>
 </html>
