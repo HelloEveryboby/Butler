@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storage Hub</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+    <div id="storage-app" class="container">
+        <header>
+            <h1>Storage Hub</h1>
+            <div id="quota-summary" class="quota-container">
+                <div class="quota-item">
+                    <div class="quota-label">Combined Used</div>
+                    <div class="quota-value">1.2 TB</div>
+                </div>
+                <div class="quota-item">
+                    <div class="quota-label">Total Cloud</div>
+                    <div class="quota-value">5.0 TB</div>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div id="drive-list" class="drive-grid">
+                <!-- Drive cards -->
+            </div>
+
+            <div id="file-explorer" class="file-explorer hidden">
+                <div class="explorer-header">
+                    <button class="back-btn" onclick="ui.closeDrive()">← Back</button>
+                    <nav class="breadcrumb">
+                        <span id="current-drive">OneDrive</span> / <span id="current-path">root</span>
+                    </nav>
+                </div>
+                <div class="file-list-header file-item" style="border-bottom: 1px solid var(--glass-border); color: var(--text-secondary); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <span></span>
+                    <span>Name</span>
+                    <span style="text-align: right">Size</span>
+                    <span style="text-align: right">Actions</span>
+                </div>
+                <div id="file-list" class="file-list">
+                    <!-- Files -->
+                </div>
+            </div>
+        </main>
+
+        <div id="transfer-overlay" class="transfer-overlay hidden">
+            <div class="transfer-capsule">
+                <div class="spinner"></div>
+                <span id="transfer-status">Transferring...</span>
+            </div>
+        </div>
+    </div>
+    <script src="assets/js/app.js"></script>
+</body>
+</html>
