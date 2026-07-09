@@ -1,7 +1,6 @@
-EbookLib
+ebooklib
 Flask
 Pillow
-PyPDF2
 Pygments
 anthropic
 beautifulsoup4
@@ -21,9 +20,9 @@ lxml
 defusedxml
 paramiko
 pdfplumber
+pypdf
 python-docx
 python-pptx
-ebooklib
 prompt_toolkit
 psutil
 baidu-aip
@@ -34,10 +33,12 @@ pygame
 pypinyin
 pytesseract
 python-dateutil
-python-docx
 python-dotenv
-python-pptx
 pyttsx3
+pyaudio
+pydub
+playsound
+sounddevice
 redis
 redisvl
 requests>=2.32.0
@@ -56,6 +57,5 @@ watchdog
 webdriver-manager
 zvec
 websockets
-pypdf
 reportlab
 PyYAML
