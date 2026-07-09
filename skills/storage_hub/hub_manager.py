@@ -3,6 +3,7 @@ from typing import Dict, List, Any
 from butler.core.skill_sdk import SkillSDK
 from .adapters.base_adapter import BaseDriveAdapter
 from .adapters.onedrive import OneDriveAdapter
+from .adapters.webdav import WebDAVAdapter
 from .bridge_client import storage_bridge
 from .cache_manager import MetaCache
 from pathlib import Path
@@ -32,6 +33,14 @@ class HubManager:
                     client_id=drive.get("client_id"),
                     client_secret=drive.get("client_secret"),
                     redirect_uri=drive.get("redirect_uri", "http://localhost:8421/oauth/callback")
+                )
+                self.register_adapter(drive_id, adapter)
+            elif drive_type == "webdav":
+                adapter = WebDAVAdapter(
+                    drive_id=drive_id,
+                    base_url=drive.get("base_url"),
+                    username=drive.get("username"),
+                    password=drive.get("password")
                 )
                 self.register_adapter(drive_id, adapter)
 
