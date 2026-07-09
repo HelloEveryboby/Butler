@@ -1,6 +1,6 @@
 ---
 name: Storage Hub
-description: 极简网盘聚合引擎 (OneDrive, Baidu, Quark)
+description: 极简网盘聚合引擎 (OneDrive, WebDAV/AList, Baidu, Quark)
 version: 1.0.0
 author: Jules
 risk: high
@@ -25,5 +25,6 @@ frontend: ui/index.html
 
 ## 支持厂商
 - [x] OneDrive (Microsoft Graph API)
+- [x] WebDAV / AList (Standard Basic Auth)
 - [ ] 百度网盘 (PCS API)
 - [ ] 夸克网盘 (Web Cookie)
