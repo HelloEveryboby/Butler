@@ -1,0 +1,1 @@
+{"system": "python3 -c \"from skills.core_plugins.system_monitor.main import handle_request; print(handle_request('run'))\"", "memos": "python3 butler_cli.py list-memos", "ping": "ping -c 3 google.com"}

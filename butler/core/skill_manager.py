@@ -19,6 +19,31 @@ from butler.core.blackboard import blackboard
 
 logger = logging.getLogger("SkillManager")
 
+class CorePluginContext:
+    """
+    Context injected into core plugins to allow privileged access to internal modules.
+    Provides direct references to:
+    - event_bus
+    - message_bus
+    - blackboard
+    - data_storage
+    - system_sensor
+    """
+    def __init__(self, skill_manager):
+        from butler.core.event_bus import event_bus
+        from butler.core.message_bus import message_bus
+        from butler.core.blackboard import blackboard
+        from butler.data_storage import data_storage_manager
+        from butler.core.hal import SystemResourceSensor
+
+        self.event_bus = event_bus
+        self.message_bus = message_bus
+        self.blackboard = blackboard
+        self.data_storage = data_storage_manager
+        self.system_sensor = SystemResourceSensor()
+        self.skill_manager = skill_manager
+
+
 class SkillEventHandler(FileSystemEventHandler):
     """监听 skills 目录变化的处理器 (支持热插拔与防抖)"""
     def __init__(self, manager):
@@ -267,6 +292,12 @@ class SkillManager:
 
         logger.info(f"Skill Stage 1 complete: Discovered {len(self.manifests)} skills.")
 
+        # 自动强行加载核心插件，并常驻内存
+        for s_id, meta in list(self.manifests.items()):
+            if meta.get('is_core'):
+                logger.info(f"Forcibly auto-loading core plugin: {s_id}")
+                self._load_python_runtime(s_id)
+
     def _discover_skill(self, skill_id: str, manifests: dict, configs: dict, contents: dict, skill_path: Path = None):
         """
         Stage 1 & 2 预加载：检测技能格式并提取元数据。
@@ -292,6 +323,11 @@ class SkillManager:
         # 如果至少加载了其中一个
         if skill_id in manifests:
             manifests[skill_id]['path'] = str(skill_path)
+            # Detect core plugin status
+            if "core_plugins" in str(skill_path.resolve()):
+                manifests[skill_id]['is_core'] = True
+            else:
+                manifests[skill_id]['is_core'] = False
             # 确保关键字段存在 (LDST & Risk)
             manifests[skill_id].setdefault('provides', [])
             manifests[skill_id].setdefault('requires', {})
@@ -517,6 +553,16 @@ class SkillManager:
                 if hasattr(module, "handle_request"):
                     self.loaded_skills[skill_id] = module.handle_request
                     logger.info(f"Successfully loaded Python runtime for skill: {skill_id}")
+
+                    # Privilege injection for Core Plugins
+                    if manifest.get('is_core') and hasattr(module, "initialize_core"):
+                        try:
+                            context = CorePluginContext(self)
+                            module.initialize_core(context)
+                            logger.info(f"Successfully initialized core plugin context for {skill_id}")
+                        except Exception as init_err:
+                            logger.error(f"Error initializing core context for {skill_id}: {init_err}")
+
                     return True
                 else:
                     logger.error(f"Skill {skill_id} is missing 'handle_request' function.")
@@ -647,17 +693,22 @@ class SkillManager:
 
         # 3. Python 技能执行
         if manifest.get('has_python'):
-            # 确定隔离模式：显式声明 isolation: process 或存在 LDST 路由前缀
-            isolation = manifest.get('isolation') == 'process' or \
-                        any(str(p).startswith(('system.', 'net.', 'file.')) for p in manifest.get('provides', []))
-
-            if isolation:
-                return self._execute_python_subprocess(skill_id, action, **kwargs)
-            else:
-                # 向下兼容：主进程加载，但给予警告
-                logger.warning(f"⚠️ 警告: 技能 [{skill_id}] 正在以非隔离模式运行，强烈建议重构。")
+            # Core plugins run in-process for privileged context
+            if manifest.get('is_core'):
                 if not self._load_python_runtime(skill_id):
                     return f"Error: 技能 '{skill_id}' 的 Python 环境加载失败。"
+            else:
+                # 确定隔离模式：显式声明 isolation: process 或存在 LDST 路由前缀
+                isolation = manifest.get('isolation') == 'process' or \
+                            any(str(p).startswith(('system.', 'net.', 'file.')) for p in manifest.get('provides', []))
+
+                if isolation:
+                    return self._execute_python_subprocess(skill_id, action, **kwargs)
+                else:
+                    # 向下兼容：主进程加载，但给予警告
+                    logger.warning(f"⚠️ 警告: 技能 [{skill_id}] 正在以非隔离模式运行，强烈建议重构。")
+                    if not self._load_python_runtime(skill_id):
+                        return f"Error: 技能 '{skill_id}' 的 Python 环境加载失败。"
 
         if skill_id not in self.loaded_skills:
             if skill_id in self.skill_contents:
@@ -739,6 +790,12 @@ class SkillManager:
 
         elif action == "uninstall":
             if not skill_name: return "错误：请提供要卸载的技能名称。"
+
+            # Check if skill is core
+            meta = self.manifests.get(skill_name)
+            if meta and meta.get('is_core'):
+                return f"错误：技能 '{skill_name}' 是核心插件 (Core Plugin)，禁止热卸载！"
+
             target_path = self.skills_dir / skill_name
             if not target_path.exists():
                 return f"错误：技能 '{skill_name}' 未安装。"
