@@ -1,58 +1,258 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Storage Hub</title>
+    <title>存储中心 - Storage Hub</title>
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
     <div id="storage-app" class="container">
+        <!-- 头部标题与合并容量状态监控 -->
         <header>
-            <h1>Storage Hub</h1>
-            <div id="quota-summary" class="quota-container">
-                <div class="quota-item">
-                    <div class="quota-label">Combined Used</div>
-                    <div class="quota-value">1.2 TB</div>
+            <div class="logo-area">
+                <span class="logo-icon">📂</span>
+                <div>
+                    <h1>存储中心</h1>
+                    <p class="subtitle">极简多网盘聚合流传输引擎</p>
                 </div>
-                <div class="quota-item">
-                    <div class="quota-label">Total Cloud</div>
-                    <div class="quota-value">5.0 TB</div>
+            </div>
+
+            <!-- SVG 环形容量面板 -->
+            <div class="header-right">
+                <div id="quota-ring-container" class="quota-ring-card">
+                    <svg class="progress-ring-svg" width="64" height="64">
+                        <circle class="progress-ring-circle-bg" stroke="rgba(255,255,255,0.06)" stroke-width="6" fill="transparent" r="26" cx="32" cy="32"/>
+                        <circle id="quota-svg-ring" class="progress-ring-circle-fill" stroke="#2da44e" stroke-width="6" fill="transparent" r="26" cx="32" cy="32" stroke-dasharray="163.36" stroke-dashoffset="163.36"/>
+                    </svg>
+                    <div class="quota-ring-text">
+                        <span id="quota-percent-num">0%</span>
+                        <span class="quota-mini-label">已使用</span>
+                    </div>
+
+                    <!-- 悬浮环形详情卡片：条形图段落细分 -->
+                    <div id="quota-details-tooltip" class="quota-tooltip-card hidden">
+                        <h4>容量段落分析</h4>
+                        <div class="tooltip-bar-segment">
+                            <span class="segment-label">文档与媒体 (65%)</span>
+                            <div class="bar-track"><div class="bar-fill" style="width: 65%; background: #2da44e;"></div></div>
+                        </div>
+                        <div class="tooltip-bar-segment">
+                            <span class="segment-label">系统备份 (20%)</span>
+                            <div class="bar-track"><div class="bar-fill" style="width: 20%; background: #007aff;"></div></div>
+                        </div>
+                        <div class="tooltip-bar-segment">
+                            <span class="segment-label">其它碎文件 (5%)</span>
+                            <div class="bar-track"><div class="bar-fill" style="width: 5%; background: #e5c158;"></div></div>
+                        </div>
+                        <div class="tooltip-bar-segment">
+                            <span class="segment-label">剩余空闲 (10%)</span>
+                            <div class="bar-track"><div class="bar-fill" style="width: 10%; background: rgba(255,255,255,0.2);"></div></div>
+                        </div>
+                    </div>
                 </div>
+
+                <div class="quota-numerical">
+                    <div class="quota-item">
+                        <div class="quota-label">合并已用空间</div>
+                        <div id="quota-used-text" class="quota-value">0.0 GB</div>
+                    </div>
+                    <div class="quota-item">
+                        <div class="quota-label">云端总空间</div>
+                        <div id="quota-total-text" class="quota-value">0.0 GB</div>
+                    </div>
+                </div>
+
+                <!-- 配置齿轮按钮 -->
+                <button id="config-gear-btn" class="icon-btn-highlight" onclick="ui.toggleConfigModal(true)" title="配置网盘驱动">
+                    <span class="gear-icon">⚙️</span>
+                </button>
             </div>
         </header>
 
-        <main>
-            <div id="drive-list" class="drive-grid">
-                <!-- Drive cards -->
+        <!-- 主内容区 -->
+        <main class="workspace-main">
+            <!-- 1. 未配置任何云盘时的空状态 Canvas -->
+            <div id="empty-state-canvas" class="empty-state-view hidden">
+                <div class="canvas-shimmer-ring">
+                    <span class="shimmer-icon">☁️</span>
+                </div>
+                <h3>未检测到已初始化的网盘驱动</h3>
+                <p>存储中心处于离线状态。请点击右上角齿轮图标，或者使用我们为您定制的向导激活您的第一个存储流管道。</p>
+                <button class="primary-btn-pulse" onclick="ui.toggleConfigModal(true)">立即添加驱动</button>
             </div>
 
+            <!-- 2. 已连接云盘卡片网格 -->
+            <div id="drive-grid-container" class="workspace-panel">
+                <h3 class="section-title">我的云盘</h3>
+                <div id="drive-list" class="drive-grid">
+                    <!-- 动态生成网盘卡片 -->
+                </div>
+            </div>
+
+            <!-- 3. 文件浏览器视图 -->
             <div id="file-explorer" class="file-explorer hidden">
                 <div class="explorer-header">
-                    <button class="back-btn" onclick="ui.closeDrive()">← Back</button>
+                    <button class="back-btn" onclick="ui.closeDrive()">返回云盘列表</button>
                     <nav class="breadcrumb">
-                        <span id="current-drive">OneDrive</span> / <span id="current-path">root</span>
+                        <span id="current-drive">OneDrive</span> <span class="divider">/</span> <span id="current-path">root</span>
                     </nav>
                 </div>
-                <div class="file-list-header file-item" style="border-bottom: 1px solid var(--glass-border); color: var(--text-secondary); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
-                    <span></span>
-                    <span>Name</span>
-                    <span style="text-align: right">Size</span>
-                    <span style="text-align: right">Actions</span>
+
+                <div class="file-list-header">
+                    <span>类型</span>
+                    <span>名称</span>
+                    <span class="align-right">大小</span>
+                    <span class="align-right">操作</span>
                 </div>
+
                 <div id="file-list" class="file-list">
-                    <!-- Files -->
+                    <!-- 动态生成文件条目，支持 Drag/Drop -->
                 </div>
             </div>
         </main>
 
-        <div id="transfer-overlay" class="transfer-overlay hidden">
-            <div class="transfer-capsule">
-                <div class="spinner"></div>
-                <span id="transfer-status">Transferring...</span>
+        <!-- 配置配置模态框 (Glassmorphic Slider Overlay) -->
+        <div id="config-modal" class="config-modal-overlay hidden">
+            <div class="config-modal-card">
+                <div class="config-modal-header">
+                    <h3>⚙️ 网盘存储驱动配置</h3>
+                    <button class="close-btn" onclick="ui.toggleConfigModal(false)">×</button>
+                </div>
+
+                <div class="config-modal-body">
+                    <form id="drive-config-form" onsubmit="ui.saveConfig(event)">
+                        <div class="form-group">
+                            <label>驱动类型</label>
+                            <select id="drive-type-select" onchange="ui.onDriveTypeChange()">
+                                <option value="webdav">AList / WebDAV 协议网盘</option>
+                                <option value="onedrive">Microsoft OneDrive 微软云盘</option>
+                            </select>
+                        </div>
+
+                        <!-- 动态表单项：WebDAV 子组 -->
+                        <div id="subgroup-webdav" class="form-subgroup">
+                            <div class="form-group">
+                                <label>驱动唯一标识 (ID)</label>
+                                <input type="text" id="webdav-id" placeholder="例如: alist_main" required value="alist_webdav">
+                            </div>
+                            <div class="form-group">
+                                <label>驱动显示名称 (别名)</label>
+                                <input type="text" id="webdav-name" placeholder="例如: 个人极速网盘" required value="AList WebDAV">
+                            </div>
+                            <div class="form-group">
+                                <label>WebDAV 连接基准 URL</label>
+                                <input type="url" id="webdav-url" placeholder="http://localhost:5244/dav" required value="http://localhost:5244/dav">
+                            </div>
+                            <div class="form-group">
+                                <label>WebDAV 用户名</label>
+                                <input type="text" id="webdav-username" placeholder="请输入用户名" required value="admin">
+                            </div>
+                            <div class="form-group">
+                                <label>WebDAV 登录密码/密钥</label>
+                                <input type="password" id="webdav-password" placeholder="请输入密码" required value="password123">
+                            </div>
+                        </div>
+
+                        <!-- 动态表单项：OneDrive 子组 -->
+                        <div id="subgroup-onedrive" class="form-subgroup hidden">
+                            <div class="form-group">
+                                <label>驱动唯一标识 (ID)</label>
+                                <input type="text" id="onedrive-id" placeholder="例如: onedrive_personal" value="microsoft_onedrive">
+                            </div>
+                            <div class="form-group">
+                                <label>驱动显示名称 (别名)</label>
+                                <input type="text" id="onedrive-name" placeholder="例如: 微软工作云" value="Microsoft OneDrive">
+                            </div>
+                            <div class="form-group">
+                                <label>Client ID (客户端标识)</label>
+                                <input type="text" id="onedrive-client-id" placeholder="Azure API Client ID" value="onedrive_client_id_mock_123">
+                            </div>
+                            <div class="form-group">
+                                <label>Client Secret (客户端密钥)</label>
+                                <input type="password" id="onedrive-client-secret" placeholder="Azure API Client Secret" value="onedrive_secret_mock_xyz">
+                            </div>
+                            <div class="form-group">
+                                <label>OAuth 授权回调地址</label>
+                                <input type="text" id="onedrive-redirect" value="http://localhost:8421/oauth/callback">
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary" onclick="ui.toggleConfigModal(false)">取消</button>
+                            <button type="submit" class="btn-primary">保存并重载</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
+
+        <!-- 拖拽目标选择模态框 -->
+        <div id="target-chooser-modal" class="target-modal-overlay hidden">
+            <div class="target-modal-card">
+                <h3>🔄 跨盘零落地高速中转</h3>
+                <p>检测到您正在将文件拖入新的云端 dropzone。请选择您想将此文件流传输至的目标云盘驱动：</p>
+                <div id="target-drive-list" class="target-drive-buttons">
+                    <!-- 驱动流传输按钮 -->
+                </div>
+                <button class="close-btn-bottom" onclick="ui.closeTargetChooser()">取消操作</button>
+            </div>
+        </div>
+
+        <!-- Asynchronous RAM-Pipe Transfer Status Overlay -->
+        <div id="transfer-overlay" class="transfer-overlay hidden">
+            <div class="transfer-box">
+                <div class="transfer-header">
+                    <span class="pulse-pipe">🔄</span>
+                    <h3 id="transfer-title">正在建立中转通道...</h3>
+                </div>
+
+                <div class="transfer-body">
+                    <div class="transfer-meta">
+                        <div class="meta-row">
+                            <span class="label">流传输文件</span>
+                            <span id="transfer-file" class="value">文件名加载中...</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="label">传输线路</span>
+                            <span id="transfer-route" class="value">OneDrive ➜ WebDAV</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="label">传输引擎模式</span>
+                            <span id="transfer-mode" class="value">RAM-Pipe 极速内存流管道</span>
+                        </div>
+                    </div>
+
+                    <!-- 进度条 -->
+                    <div class="transfer-progress-container">
+                        <div class="progress-bar-track">
+                            <div id="transfer-progress-fill" class="progress-bar-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-percent-indicator">
+                            <span id="transfer-progress-text">0%</span>
+                            <span id="transfer-speed-text">0.0 MB/s</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 视觉向导：空配置下的 Spotlight Spotlight 引导层 -->
+        <div id="onboarding-overlay" class="onboarding-overlay hidden">
+            <div id="onboarding-spotlight" class="spotlight-focus"></div>
+            <div class="onboarding-card">
+                <h3>✨ 智能激活向导</h3>
+                <p>欢迎来到 Butler 极速存储中心！系统检测到您尚未添加任何网盘驱动。请点击右上角齿轮按钮进入配置面板，以便建立高速内存传输管道。</p>
+                <div class="onboarding-actions">
+                    <button class="btn-onboard-next" onclick="ui.dismissOnboarding()">开始使用</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 吐司全局通知容器 -->
+        <div id="toast-container" class="toast-container"></div>
     </div>
+
     <script src="assets/js/app.js"></script>
 </body>
 </html>
