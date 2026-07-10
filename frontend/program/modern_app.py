@@ -315,6 +315,15 @@ class ModernBridge:
                 })
         return ui_skills
 
+    def load_skill_frontend(self, frontend_path: str):
+        """Navigate the webview container to a skill's frontend HTML file."""
+        import os
+        abs_path = os.path.abspath(frontend_path)
+        if os.path.exists(abs_path):
+            self.window.load_url(f"file://{abs_path}")
+            return {"status": "ok"}
+        return {"error": f"Frontend not found: {abs_path}"}
+
     def get_quota_report(self):
         """Returns the current API quota usage report."""
         from package.core_utils.quota_manager import quota_manager
