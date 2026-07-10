@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <radialGradient id="bg-grad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </radialGradient>
+
+    <!-- Metallic Gold Gradient -->
+    <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047" />
+      <stop offset="50%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#ca8a04" />
+    </linearGradient>
+
+    <!-- Glassmorphism Reflection Gradient -->
+    <linearGradient id="glass-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.15" />
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.02" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.2" />
+    </linearGradient>
+
+    <!-- Glow Filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="15" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Dark Slate Background Canvas -->
+  <rect width="100%" height="100%" rx="160" fill="url(#bg-grad)" />
+
+  <!-- Outer Golden Glowing Ring -->
+  <circle cx="400" cy="400" r="320" fill="none" stroke="url(#gold-grad)" stroke-width="6" opacity="0.8" filter="url(#glow)" />
+  <circle cx="400" cy="400" r="300" fill="none" stroke="#e2e8f0" stroke-width="2" opacity="0.2" />
+
+  <!-- The Butler's Tuxedo & Silhouette -->
+  <g transform="translate(0, 20)">
+    <!-- Shoulders / Coat -->
+    <path d="M 220 540 C 220 440, 280 400, 400 400 C 520 400, 580 440, 580 540 Z" fill="#1e293b" stroke="url(#gold-grad)" stroke-width="4" />
+
+    <!-- Left Coat Lapel -->
+    <path d="M 220 540 L 320 430 L 360 480 L 310 540 Z" fill="#0f172a" stroke="url(#gold-grad)" stroke-width="2" />
+
+    <!-- Right Coat Lapel -->
+    <path d="M 580 540 L 480 430 L 440 480 L 490 540 Z" fill="#0f172a" stroke="url(#gold-grad)" stroke-width="2" />
+
+    <!-- Pure White Wingtip Collar Shirt -->
+    <path d="M 360 360 L 440 360 L 400 440 Z" fill="#f8fafc" />
+    <path d="M 360 360 L 400 400 L 340 410 Z" fill="#e2e8f0" />
+    <path d="M 440 360 L 400 400 L 460 410 Z" fill="#e2e8f0" />
+
+    <!-- Premium Golden Bowtie -->
+    <g transform="translate(400, 412)">
+      <!-- Left Bow -->
+      <path d="M 0 0 L -45 -20 L -45 20 Z" fill="url(#gold-grad)" />
+      <!-- Right Bow -->
+      <path d="M 0 0 L 45 -20 L 45 20 Z" fill="url(#gold-grad)" />
+      <!-- Center Knot -->
+      <rect x="-10" y="-12" width="20" height="24" rx="6" fill="#fef08a" />
+    </g>
+
+    <!-- Sleek Butler Glasses -->
+    <g transform="translate(0, -20)">
+      <!-- Left Lens Frame -->
+      <circle cx="340" cy="300" r="35" fill="none" stroke="url(#gold-grad)" stroke-width="5" />
+      <circle cx="340" cy="300" r="32" fill="url(#glass-grad)" />
+      <!-- Right Lens Frame -->
+      <circle cx="460" cy="300" r="35" fill="none" stroke="url(#gold-grad)" stroke-width="5" />
+      <circle cx="460" cy="300" r="32" fill="url(#glass-grad)" />
+      <!-- Glasses Bridge -->
+      <path d="M 375 300 Q 400 290 425 300" fill="none" stroke="url(#gold-grad)" stroke-width="5" />
+      <!-- Glasses Temples -->
+      <path d="M 305 300 Q 280 290 260 310" fill="none" stroke="url(#gold-grad)" stroke-width="3" />
+      <path d="M 495 300 Q 520 290 540 310" fill="none" stroke="url(#gold-grad)" stroke-width="3" />
+    </g>
+
+    <!-- Futuristic AI Monocle Glow (representing intelligence) -->
+    <circle cx="460" cy="280" r="8" fill="#38bdf8" opacity="0.8" filter="url(#glow)" />
+  </g>
+
+  <!-- Classy Glass Overlay Card -->
+  <rect x="150" y="150" width="500" height="500" rx="40" fill="url(#glass-grad)" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.1" pointer-events="none" />
+
+  <!-- Decorative Subtitle -->
+  <text x="400" y="710" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="28" font-weight="600" letter-spacing="8" text-anchor="middle">BUTLER • JARVIS</text>
+</svg>
