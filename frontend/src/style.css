@@ -119,6 +119,105 @@ body.has-custom-bg::before {
     100% { width: 100vw; height: 100vh; border-radius: 0; top: 0; opacity: 0; }
 }
 
+/* Dashboard Header */
+.dashboard-header {
+    position: fixed;
+    top: 20px;
+    left: 24px;
+    right: 24px;
+    height: 54px;
+    border-radius: 16px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+}
+
+.header-logo-section {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.logo-title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    background: linear-gradient(135deg, #ffffff 0%, #a1a1a6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+#system-dream-badge {
+    font-size: 12px;
+    color: #ff9500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    animation: pulse 2s infinite ease-in-out;
+}
+
+.animated-dream-moon {
+    animation: rotate 6s linear infinite;
+}
+
+#system-offline-badge {
+    font-size: 12px;
+    color: #ff3b30;
+    background: rgba(255, 59, 48, 0.15);
+    border: 1px solid rgba(255, 59, 48, 0.3);
+    padding: 2px 8px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.matrix-widgets {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.widget-capsule {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--text-primary);
+}
+
+.widget-capsule i {
+    color: var(--accent-color);
+}
+
+.pulse-wave {
+    animation: pulseWave 1.5s infinite linear;
+}
+
+@keyframes pulseWave {
+    0% { transform: scale(1); opacity: 0.7; }
+    50% { transform: scale(1.15); opacity: 1; color: #34c759; }
+    100% { transform: scale(1); opacity: 0.7; }
+}
+
+.indicator-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.indicator-dot.gray { background: #8e8e93; }
+.indicator-dot.green { background: #34c759; box-shadow: 0 0 8px #34c759; }
+.indicator-dot.yellow { background: #ff9500; box-shadow: 0 0 8px #ff9500; }
+
 /* Floating Dock */
 .floating-dock {
     position: fixed;
@@ -2218,6 +2317,37 @@ body.tm-active #cell-0-1 {
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
+/* Stream Response Typography & Neon Pulsing Cursor */
+.animated-stream-char {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(3px);
+    animation: charReveal 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes charReveal {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.neon-stream-cursor {
+    display: inline-block;
+    width: 8px;
+    height: 16px;
+    background-color: #00f0ff;
+    box-shadow: 0 0 10px #00f0ff, 0 0 20px #00f0ff;
+    animation: cursorBlink 0.8s steps(2, start) infinite;
+    vertical-align: middle;
+    margin-left: 2px;
+}
+
+@keyframes cursorBlink {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
+}
+
 /* Scrollbar Styling for Apple Look */
 ::-webkit-scrollbar {
     width: 6px;
@@ -2300,6 +2430,52 @@ body.tm-active #cell-0-1 {
     overflow-y: auto;
 }
 
+#fluid-gradient-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -2;
+    pointer-events: none;
+    overflow: hidden;
+    background: radial-gradient(circle at center, #0f0f15 0%, #000000 100%);
+}
+
+.fluid-bubble {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    mix-blend-mode: screen;
+    opacity: 0.35;
+    transition: transform 0.8s ease;
+    pointer-events: none;
+}
+
+.bubble-blue {
+    top: 10%;
+    left: 15%;
+    width: 45vw;
+    height: 45vw;
+    background: radial-gradient(circle, rgba(0, 122, 255, 0.8) 0%, rgba(0, 122, 255, 0) 70%);
+}
+
+.bubble-purple {
+    bottom: 15%;
+    right: 10%;
+    width: 50vw;
+    height: 50vw;
+    background: radial-gradient(circle, rgba(175, 82, 222, 0.8) 0%, rgba(175, 82, 222, 0) 70%);
+}
+
+.bubble-orange {
+    top: 50%;
+    left: 45%;
+    width: 35vw;
+    height: 35vw;
+    background: radial-gradient(circle, rgba(255, 149, 0, 0.6) 0%, rgba(255, 149, 0, 0) 70%);
+}
+
 #substrate-heatmap {
     position: fixed;
     top: 0;
@@ -2309,7 +2485,7 @@ body.tm-active #cell-0-1 {
     z-index: -1;
     pointer-events: none;
     filter: blur(40px);
-    opacity: 0.8;
+    opacity: 0.6;
 }
 
 .wormhole-gate {

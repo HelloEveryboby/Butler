@@ -30,11 +30,16 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
         }
         @keyframes slideIn {
-            from { transform: translateY(-20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+            from { transform: translateY(-30px) scale(0.95); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .flash-container.bounce-exit {
+            transform: translateY(-50px) scale(0.9);
+            opacity: 0;
         }
         .input-box {
             flex: 1;
@@ -79,16 +84,29 @@
 
     <script>
         const input = document.getElementById('main-input');
+        const container = document.querySelector('.flash-container');
+
+        function triggerExit(callback) {
+            container.classList.add('bounce-exit');
+            setTimeout(() => {
+                callback();
+                container.classList.remove('bounce-exit');
+            }, 250);
+        }
 
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 const val = input.value.trim();
                 if (val) {
-                    window.pywebview.api.submit_flash_command(val);
-                    input.value = '';
+                    triggerExit(() => {
+                        window.pywebview.api.submit_flash_command(val);
+                        input.value = '';
+                    });
                 }
             } else if (e.key === 'Escape') {
-                window.pywebview.api.hide_flash();
+                triggerExit(() => {
+                    window.pywebview.api.hide_flash();
+                });
             }
         });
 

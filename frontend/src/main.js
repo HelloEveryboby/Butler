@@ -108,6 +108,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // --- Flash Input Blur Damping Trigger ---
+    window.setMainWindowBlurActive = (isActive) => {
+        const body = document.body;
+        if (isActive) {
+            body.style.filter = "blur(15px) brightness(0.7)";
+            body.style.transition = "filter 0.4s cubic-bezier(0.25, 1, 0.5, 1)";
+        } else {
+            body.style.filter = "none";
+            body.style.transition = "filter 0.4s cubic-bezier(0.25, 1, 0.5, 1)";
+        }
+    };
+
+    // --- Dream and Quota Custom Bridge State Listeners ---
+    window.updateQuotaExhaustedState = (isExhausted) => {
+        const badge = document.getElementById("system-offline-badge");
+        if (badge) {
+            if (isExhausted) badge.classList.remove("hidden");
+            else badge.classList.add("hidden");
+        }
+    };
+
+    window.updateDreamingState = (isDreaming) => {
+        const badge = document.getElementById("system-dream-badge");
+        if (badge) {
+            if (isDreaming) badge.classList.remove("hidden");
+            else badge.classList.add("hidden");
+        }
+    };
+
     // --- Bridge Functions ---
     window.onAIStreamStart = () => {
         isStreaming = true;
@@ -119,9 +148,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.onAIStreamChunk = (chunk) => {
         if (currentAILine) {
-            const span = document.createElement('span');
-            span.innerText = chunk;
-            currentAILine.appendChild(span);
+            // Remove previous pulsing cursor if any
+            let cursor = currentAILine.querySelector('.neon-stream-cursor');
+            if (cursor) cursor.remove();
+
+            // Append chunk smoothly with animated characters/spans
+            const text = chunk;
+            for (let i = 0; i < text.length; i++) {
+                const charSpan = document.createElement('span');
+                charSpan.className = 'animated-stream-char';
+                charSpan.innerText = text[i];
+                currentAILine.appendChild(charSpan);
+            }
+
+            // Re-append pulsing cursor at the end
+            const newCursor = document.createElement('span');
+            newCursor.className = 'neon-stream-cursor';
+            newCursor.innerHTML = '&nbsp;';
+            currentAILine.appendChild(newCursor);
+
             interactionFlow.scrollTop = interactionFlow.scrollHeight;
         }
     };
@@ -129,6 +174,11 @@ document.addEventListener('DOMContentLoaded', () => {
     window.onAIStreamEnd = () => {
         isStreaming = false;
         document.getElementById('thinking-status').classList.remove('active');
+        // Remove final typing cursor
+        if (currentAILine) {
+            const cursor = currentAILine.querySelector('.neon-stream-cursor');
+            if (cursor) cursor.remove();
+        }
     };
 
     // --- Image Handling & Debugger ---

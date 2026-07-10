@@ -28,8 +28,64 @@ class HybridLinkClient:
         """Registers a callback for asynchronous events (messages without an ID)."""
         self._event_callbacks.append(callback)
 
+    def _find_platform_binary(self, orig_path: str) -> str:
+        """
+        根据当前系统平台，智能匹配并寻路至对应的 BHL 二进制路径。
+        优先规则：
+        1. 检查 orig_path 本身是否存在并直接返回
+        2. 提取文件名，寻路到 programs/lib_external/bhl_bin/{windows,macos,linux}/ 目录下匹配。
+        """
+        if os.path.isfile(orig_path):
+            return orig_path
+
+        import platform
+        system = platform.system().lower()
+        mapping = {
+            "windows": "windows",
+            "darwin": "macos",
+            "linux": "linux"
+        }
+        platform_dir_name = mapping.get(system, system)
+
+        # 基础文件名
+        filename = os.path.basename(orig_path)
+
+        # 提取文件名
+        base_name, _ = os.path.splitext(filename)
+
+        # 确定后缀
+        exts = []
+        if system == "windows":
+            exts = [".exe", ".dll", ""]
+        elif system == "darwin":
+            exts = [".dylib", "", ".app"]
+        else:
+            exts = [".so", ""]
+
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        search_dir = os.path.join(project_root, "programs", "lib_external", "bhl_bin", platform_dir_name)
+
+        if os.path.exists(search_dir):
+            for ext in exts:
+                cand = os.path.join(search_dir, base_name + ext)
+                if os.path.isfile(cand):
+                    self.logger.info(f"[Platform BHL Loader] 自动匹配寻路成功: {cand}")
+                    return cand
+
+        # Fallback to search in programs/[module_name] directly with platform specific ext
+        module_dir = os.path.dirname(orig_path)
+        if os.path.exists(module_dir):
+            for ext in exts:
+                cand = os.path.join(module_dir, base_name + ext)
+                if os.path.isfile(cand):
+                    return cand
+
+        return orig_path
+
     def start(self):
         """Starts the external process."""
+        self.executable_path = self._find_platform_binary(self.executable_path)
+
         if not os.path.isfile(self.executable_path):
             self.logger.error(f"Executable not found: {self.executable_path}")
             return False
@@ -43,7 +99,7 @@ class HybridLinkClient:
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1, # Line buffered
-                cwd=self.cwd,
+                cwd=self.cwd or os.path.dirname(self.executable_path),
                 shell=False
             )
             self._running = True

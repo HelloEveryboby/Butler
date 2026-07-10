@@ -106,7 +106,7 @@ class Jarvis:
         # Initialize services
         self._initialize_long_memory()
 
-        self.nlu_service = NLUService(config_loader.get("api.deepseek.key"), self.prompts)
+        self.nlu_service = NLUService(config_loader.get("api.deepseek.key"), self.prompts, jarvis_app=self)
         self.voice_service = VoiceService(self.handle_user_command, self.ui_print, self._on_voice_status_change)
         self.skill_manager = SkillManager()
         self.skill_manager.load_skills()
@@ -353,15 +353,41 @@ class Jarvis:
         if not command: return
         cmd = command.strip()
 
+        # Track active time for Idle Sensor of DreamEngine
+        self._last_activity_time = time.time()
+
         # Notify proactive agent of activity
         self.proactive_agent.update_activity()
 
         # Quota Check (Global Halt)
-        if quota_manager.halt_system and not quota_manager.check_quota():
-            report = quota_manager.get_usage_report()
-            msg = f"⚠️ 系统已锁定: API 额度已耗尽。"
-            self.ui_print(msg, tag='error')
-            self.voice_service.speak("系统额度已耗尽，已停止所有操作。")
+        if self.nlu_service.quota_exhausted_shortcircuit or (quota_manager.halt_system and not quota_manager.check_quota()):
+            self.nlu_service.quota_exhausted_shortcircuit = True
+
+            # Notify frontend to render local commands / offline badge
+            if hasattr(self, 'runner_server'):
+                self.runner_server.broadcast_command("quota_state", "quota_exhausted")
+
+            # 离线 LocalNLU 命令匹配
+            intent_id, entities, match_type = self.local_nlu.extract_intent(cmd)
+            if match_type == 'intent':
+                self.ui_print(f"本地命中意图: {intent_id}", tag='system_message')
+                handler_args = {"jarvis_app": self, "entities": entities, "programs": extension_manager.packages}
+                result = intent_registry.dispatch(intent_id, **handler_args)
+                if result: self.speak(str(result))
+                return
+            elif match_type == 'skill':
+                self.ui_print(f"本地命中技能: {intent_id}", tag='system_message')
+                result = self.skill_manager.execute(intent_id, entities.get("operation") or "run", entities=entities, jarvis_app=self)
+                if result: self.speak(str(result))
+                return
+
+            # 如果离线没有命中，优雅地播报管家降级对白
+            downgrade_dialogue = (
+                "报告长官，由于您的 DeepSeek API 额度已耗尽，我暂时无法进行深度语义思考。"
+                "但我已无缝为您切换到本地 LocalNLU 离线命令匹配模式，您依然可以通过预设指令让我为您清理系统、控制外设或播放音乐。"
+            )
+            self.ui_print(downgrade_dialogue, tag='ai_response')
+            self.voice_service.speak(downgrade_dialogue)
             return
 
         # 利用统一引擎记录用户交互（日志 + 事实同步）
@@ -458,7 +484,8 @@ class Jarvis:
                 self.ui_print("无效模式。可选: high, eco, normal", tag='error')
         elif cmd == "/dream":
             self.ui_print("正在手动启动做梦引擎...", tag='system_message')
-            threading.Thread(target=self.dream_engine.dream, daemon=True).start()
+            # 允许手动强制触发做梦流程
+            threading.Thread(target=lambda: self.dream_engine.dream(force=True), daemon=True).start()
         elif cmd.startswith("/focus"):
             parts = cmd.split()
             duration = int(parts[1]) if len(parts) > 1 else 25

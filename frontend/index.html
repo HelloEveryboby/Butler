@@ -26,10 +26,45 @@
     </script>
 </head>
 <body class="theme-apple matrix-mode">
+    <!-- Fluid Color Gradients (Mesh Bubbles) -->
+    <div id="fluid-gradient-container">
+        <div class="fluid-bubble bubble-blue"></div>
+        <div class="fluid-bubble bubble-purple"></div>
+        <div class="fluid-bubble bubble-orange"></div>
+    </div>
+
     <!-- Global Background Substrate Heatmap -->
     <canvas id="substrate-heatmap"></canvas>
 
     <div id="dynamic-island">Butler</div>
+
+    <!-- System Matrix Dashboard Watch Widget (Header/Dynamic Island Integration) -->
+    <header class="glass-surface dashboard-header damping-transition">
+        <div class="header-logo-section">
+            <span class="logo-title">BUTLER v2.0.0</span>
+            <span id="system-dream-badge" class="hidden"><i class="fas fa-moon animated-dream-moon"></i> 正在整理近几日的记忆（做梦中）...</span>
+            <span id="system-offline-badge" class="hidden"><i class="fas fa-wifi-slash"></i> 离线命令模式</span>
+        </div>
+        <div class="matrix-widgets">
+            <!-- Vector Memory Database Level indicator -->
+            <div class="widget-capsule" title="记忆级数状态指示">
+                <i class="fas fa-brain"></i>
+                <span id="vector-db-text">SQLite</span>
+                <span id="vector-db-indicator" class="indicator-dot gray"></span>
+            </div>
+            <!-- BHL Binary heartbeat pulse -->
+            <div class="widget-capsule" title="BHL 跨语言二进制心跳">
+                <i class="fas fa-wave-square pulse-wave"></i>
+                <span id="bhl-heartbeat-text">BHL: Offline</span>
+                <span id="bhl-heartbeat-indicator" class="indicator-dot gray"></span>
+            </div>
+            <!-- Mounted Storage state -->
+            <div class="widget-capsule" title="当前挂载的对象云存储">
+                <i class="fas fa-cloud"></i>
+                <span id="cloud-storage-text">Local</span>
+            </div>
+        </div>
+    </header>
 
     <!-- Floating Dock -->
     <nav class="floating-dock glass-surface damping-transition">

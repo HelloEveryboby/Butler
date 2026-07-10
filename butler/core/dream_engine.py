@@ -23,8 +23,13 @@ class DreamEngine:
     def should_dream(self):
         """
         检查是否满足做梦条件。
+        1. 检查 battery_manager 背景任务许可
+        2. 检查 24h 冷却时间 (如果手动调用 /dream，可通过 force 跳过)
+        3. 检查空闲传感器 (Idle Sensor): 用户最后一次操作已经过去至少 10 分钟
+        4. 检查系统负载：CPU 负载低于 20%
         """
         if not battery_manager.can_run_background_task():
+            logger.info("Battery manager blocked background tasks.")
             return False
 
         last_dream = 0
@@ -33,21 +38,46 @@ class DreamEngine:
 
         # 冷却时间 24 小时
         if time.time() - last_dream < 24 * 3600:
+            logger.info("Dream engine in 24h cooldown.")
+            return False
+
+        # 检查空闲时间：用户最后一次操作是否满 10 分钟 (600 秒)
+        last_activity_time = getattr(self.jarvis, "_last_activity_time", 0) if self.jarvis else 0
+        idle_duration = time.time() - last_activity_time
+        if idle_duration < 600:
+            logger.info(f"Dream engine idle sensor not met: only {idle_duration:.1f}s of idle time (< 600s)")
+            return False
+
+        # 检查 CPU 负载：低于 20%
+        import psutil
+        cpu_load = psutil.cpu_percent(interval=0.1)
+        if cpu_load >= 20.0:
+            logger.info(f"Dream engine CPU sensor not met: current CPU load {cpu_load:.1f}% (>= 20%)")
             return False
 
         return True
 
-    def dream(self):
+    def dream(self, force=False):
         """执行记忆整合流程"""
-        if not self.should_dream():
+        if not force and not self.should_dream():
             return
 
         logger.info("Butler 开始做梦 (记忆整合)...")
+        # 1. 发射 dreaming_start 事件，使前端状态栏悄悄亮起梦境律动图标
+        from butler.core.event_bus import event_bus
+        event_bus.emit("dreaming_start")
+        if self.jarvis and hasattr(self.jarvis, 'runner_server'):
+            # 通过 websocket 广播状态
+            self.jarvis.runner_server.broadcast_command("dream_state", "dreaming_start")
+
         try:
             # 1. 搜集信号
             signals = self._gather_signals()
             if not signals:
                 logger.info("没有发现新信号，结束做梦。")
+                event_bus.emit("dreaming_end")
+                if self.jarvis and hasattr(self.jarvis, 'runner_server'):
+                    self.jarvis.runner_server.broadcast_command("dream_state", "dreaming_end")
                 return
 
             # 2. 整合记忆
@@ -65,6 +95,11 @@ class DreamEngine:
 
         except Exception as e:
             logger.error(f"做梦过程中发生错误: {e}")
+        finally:
+            # 2. 结束做梦，通知前端恢复
+            event_bus.emit("dreaming_end")
+            if self.jarvis and hasattr(self.jarvis, 'runner_server'):
+                self.jarvis.runner_server.broadcast_command("dream_state", "dreaming_end")
 
     def _gather_signals(self):
         """搜集最近 3 天的日志"""

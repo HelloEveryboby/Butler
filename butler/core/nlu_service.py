@@ -11,12 +11,14 @@ from butler.core.habit_manager import habit_manager
 logger = LogManager.get_logger(__name__)
 
 class NLUService:
-    def __init__(self, api_key: str, prompts: Dict[str, Any]):
+    def __init__(self, api_key: str, prompts: Dict[str, Any], jarvis_app=None):
+        self.jarvis = jarvis_app
         # Prefer the provided api_key (from .env or direct call), or fall back to centralized config
         self.api_key = api_key or config_loader.get("api.deepseek.key")
         self.prompts = prompts
         # Centralized endpoint with fallback
         self.url = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
+        self.quota_exhausted_shortcircuit = False
 
     def _get_augmented_system_prompt(self, base_prompt_key: str) -> str:
         """Augments the system prompt with the current user habit profile."""
@@ -38,12 +40,13 @@ class NLUService:
 
     def extract_intent(self, text: str, history: List[Any] = None) -> Dict[str, Any]:
         """使用 DeepSeek API 从用户文本中提取意图和实体。"""
+        if self.quota_exhausted_shortcircuit or not quota_manager.check_quota():
+            self.quota_exhausted_shortcircuit = True
+            logger.error("API 额度已用尽，短路并切换至本地 LocalNLU 离线命令匹配模式。")
+            return {"intent": "quota_exceeded", "entities": {}}
+
         if not self.api_key or "YOUR_" in self.api_key:
              return {"intent": "unknown", "entities": {"error": "DeepSeek API Key missing or placeholder"}}
-
-        if not quota_manager.check_quota():
-            logger.error("API 额度已用尽，提取意图停止。")
-            return {"intent": "quota_exceeded", "entities": {}}
 
         system_prompt = self._get_augmented_system_prompt("nlu_intent_extraction")
 
@@ -87,8 +90,9 @@ class NLUService:
 
     def generate_general_response(self, text: str) -> str:
         """生成简单的聊天响应。"""
-        if not quota_manager.check_quota():
-            return "对不起，API 额度已用尽。请联系管理员充值或提高限额。"
+        if self.quota_exhausted_shortcircuit or not quota_manager.check_quota():
+            self.quota_exhausted_shortcircuit = True
+            return "【离线提示】API 额度已耗尽。我已为您切换到本地 LocalNLU 离线命令匹配模式。"
 
         system_prompt = self._get_augmented_system_prompt("general_response")
         payload = {
@@ -119,11 +123,12 @@ class NLUService:
 
     def ask_llm(self, prompt: str, history: List[Any] = None, use_habit: bool = True, system_override: str = None, image_b64: str = None) -> str:
         """通用 LLM 问答接口，支持多模态输入。"""
+        if self.quota_exhausted_shortcircuit or not quota_manager.check_quota():
+            self.quota_exhausted_shortcircuit = True
+            return "Error: API 额度已用尽。"
+
         if not self.api_key or "YOUR_" in self.api_key:
             return "【离线提示】当前未配置 API 密钥，仅支持本地指令。如需进行智能对话，请在设置中完成 API 配置。"
-
-        if not quota_manager.check_quota():
-            return "Error: API 额度已用尽。"
 
         # 如果存在图片，注入视觉分析指令
         if image_b64 and not system_override:

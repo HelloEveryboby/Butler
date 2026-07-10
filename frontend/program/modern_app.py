@@ -55,6 +55,12 @@ class ModernBridge:
     def _on_notification_close(self, data):
         self.window.evaluate_js(f"window.onNotificationClose({json.dumps(data)})")
 
+    def on_dream_start(self):
+        self.window.evaluate_js("window.updateDreamingState(true)")
+
+    def on_dream_end(self):
+        self.window.evaluate_js("window.updateDreamingState(false)")
+
     def handle_command(self, command):
         self.logger.info(f"Modern UI Command: {command}")
         # 记录词频
@@ -412,19 +418,30 @@ def main():
     def on_theme_change(theme):
         window.evaluate_js(f"window.setTheme({json.dumps(theme)})")
 
+    def on_dream_start_event():
+        bridge.on_dream_start()
+
+    def on_dream_end_event():
+        bridge.on_dream_end()
+
     event_bus.subscribe("nostalgia_mode_activated", on_nostalgia)
     event_bus.subscribe("theme_change", on_theme_change)
+    event_bus.subscribe("dreaming_start", on_dream_start_event)
+    event_bus.subscribe("dreaming_end", on_dream_end_event)
 
     # Flash Input Controls
     def toggle_flash():
         if flash_window.hidden:
             # Center on screen
+            window.evaluate_js("window.setMainWindowBlurActive(true)")
             flash_window.show()
             flash_window.evaluate_js("document.getElementById('main-input').focus()")
         else:
+            window.evaluate_js("window.setMainWindowBlurActive(false)")
             flash_window.hide()
 
     def hide_flash():
+        window.evaluate_js("window.setMainWindowBlurActive(false)")
         flash_window.hide()
 
     event_bus.on("flash_hide", hide_flash)

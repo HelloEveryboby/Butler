@@ -45,6 +45,32 @@ class SubstrateHeatmap {
         const speedFactor = 0.5 + cpuValue * 5;
         const densityFactor = 1 + memValue * 3;
 
+        // Apply dynamic drifting transitions to fluid background bubbles
+        const bBlue = document.querySelector('.bubble-blue');
+        const bPurple = document.querySelector('.bubble-purple');
+        const bOrange = document.querySelector('.bubble-orange');
+
+        const now = Date.now() * 0.0005 * (1 + cpuValue * 2);
+
+        if (bBlue) {
+            const tx = Math.sin(now) * 30;
+            const ty = Math.cos(now * 0.8) * 30;
+            const scale = 1 + cpuValue * 0.2;
+            bBlue.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+        }
+        if (bPurple) {
+            const tx = Math.cos(now * 1.1) * 35;
+            const ty = Math.sin(now * 0.9) * 35;
+            const scale = 1 + memValue * 0.25;
+            bPurple.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+        }
+        if (bOrange) {
+            const tx = Math.sin(now * 0.7) * 40;
+            const ty = Math.cos(now * 1.3) * 40;
+            const scale = 1 + (cpuValue + memValue) * 0.15;
+            bOrange.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+        }
+
         this.particles.forEach(p => {
             p.x += p.vx * speedFactor;
             p.y += p.vy * speedFactor;

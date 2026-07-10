@@ -172,8 +172,19 @@ class AutonomousSwitch:
                                 for v in victims:
                                     self._terminate_process(v['pid'], "重复实例清理")
 
-                    # 3. 资源熔断保护
-                    if cpu_load > 90 or mem_load > 90:
+                    # 3. 资源熔断保护：监控自愈子线程/其他相关进程 CPU 占用
+                    # 只要任何 Butler 或自愈相关的子进程 CPU 飙升至 90% 以上，即判定为失控，直接熔断杀死
+                    runaway_process = None
+                    for p in procs:
+                        if p['cpu'] > 90.0:
+                            runaway_process = p
+                            break
+
+                    if runaway_process:
+                        logger.error(f"⚠️ 监测到失控自愈或混合子进程! PID: {runaway_process['pid']}, CPU: {runaway_process['cpu']}%. 触发三板斧瞬间熔断！")
+                        self._terminate_process(runaway_process['pid'], "自愈失控CPU强行熔断")
+
+                    elif cpu_load > 90 or mem_load > 90:
                         logger.error(f"⚠️ 系统资源危急! CPU: {cpu_load}%, MEM: {mem_load}%。启动自动熔断。")
                         # 杀掉内存占用最高的一个进程（通常是失控的脚本）
                         target = procs[0]
