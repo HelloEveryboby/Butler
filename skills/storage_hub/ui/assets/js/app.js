@@ -190,13 +190,15 @@ class StorageHubUI {
 
         list.innerHTML = files.map((file, idx) => {
             const sizeStr = file.is_dir ? '--' : this.formatSize(file.size);
+            const escapedName = file.name.replace(/'/g, "\\'");
+            const escapedId = (file.id || "").replace(/'/g, "\\'");
             return `
-            <div class="file-item" draggable="true" ondragstart="ui.onFileDragStart(event, ${idx}, '${file.name}')">
+            <div class="file-item" draggable="true" ondragstart="ui.onFileDragStart(event, ${idx}, '${escapedName}', '${escapedId}', ${file.size || 0})">
                 <span class="icon">${file.is_dir ? '📁' : '📄'}</span>
                 <span class="name">${file.name}</span>
                 <span class="size">${sizeStr}</span>
                 <div class="actions">
-                    <button class="btn-icon-more" onclick="ui.showContextMenu(event, ${idx}, '${file.name}')">⋮</button>
+                    <button class="btn-icon-more" onclick="ui.showContextMenu(event, ${idx}, '${escapedName}')">⋮</button>
                 </div>
             </div>
             `;
@@ -220,10 +222,12 @@ class StorageHubUI {
     }
 
     // --- Drag & Drop Operations ---
-    onFileDragStart(e, idx, name) {
+    onFileDragStart(e, idx, name, id = "", size = 0) {
         e.dataTransfer.setData("text/plain", JSON.stringify({
             index: idx,
             name: name,
+            id: id,
+            size: size,
             sourceDrive: this.currentDrive,
             sourcePath: this.currentPath
         }));
@@ -256,8 +260,12 @@ class StorageHubUI {
             return;
         }
 
+        const escapedName = payload.name.replace(/'/g, "\\'");
+        const escapedId = (payload.id || "").replace(/'/g, "\\'");
+        const escapedSourcePath = (payload.sourcePath || "/").replace(/'/g, "\\'");
+
         list.innerHTML = targets.map(d => `
-            <button class="target-drv-btn" onclick="ui.executeCrossTransfer('${payload.sourceDrive}', '${d.id}', '${payload.name}')">
+            <button class="target-drv-btn" onclick="ui.executeCrossTransfer('${payload.sourceDrive}', '${d.id}', '${escapedName}', '${escapedId}', ${payload.size || 0}, '${escapedSourcePath}')">
                 <span>${d.icon || '🌐'}</span>
                 <span>传输到 ${d.name} (${d.type})</span>
             </button>
@@ -271,7 +279,7 @@ class StorageHubUI {
     }
 
     // --- High-Performance Streaming Transfer ---
-    async executeCrossTransfer(srcDrive, dstDrive, fileName) {
+    async executeCrossTransfer(srcDrive, dstDrive, fileName, fileId = "", fileSize = 0, sourcePath = "/") {
         this.closeTargetChooser();
 
         // Display loading transfer bar
@@ -287,6 +295,9 @@ class StorageHubUI {
             src_drive: srcDrive,
             dst_drive: dstDrive,
             file_name: fileName,
+            file_id: fileId,
+            file_size: fileSize,
+            source_path: sourcePath,
             dst_path: "/"
         });
 
@@ -342,13 +353,19 @@ class StorageHubUI {
         const type = document.getElementById('drive-type-select').value;
         const webdav = document.getElementById('subgroup-webdav');
         const onedrive = document.getElementById('subgroup-onedrive');
+        const baidu = document.getElementById('subgroup-baidu');
+
+        // Hide all first
+        webdav.classList.add('hidden');
+        onedrive.classList.add('hidden');
+        baidu.classList.add('hidden');
 
         if (type === "webdav") {
             webdav.classList.remove('hidden');
-            onedrive.classList.add('hidden');
-        } else {
-            webdav.classList.add('hidden');
+        } else if (type === "onedrive") {
             onedrive.classList.remove('hidden');
+        } else if (type === "baidu") {
+            baidu.classList.remove('hidden');
         }
     }
 
@@ -367,7 +384,7 @@ class StorageHubUI {
                 username: document.getElementById('webdav-username').value,
                 password: document.getElementById('webdav-password').value
             };
-        } else {
+        } else if (type === "onedrive") {
             driveConfig = {
                 type: "onedrive",
                 id: document.getElementById('onedrive-id').value,
@@ -375,6 +392,12 @@ class StorageHubUI {
                 client_id: document.getElementById('onedrive-client-id').value,
                 client_secret: document.getElementById('onedrive-client-secret').value,
                 redirect_uri: document.getElementById('onedrive-redirect').value
+            };
+        } else if (type === "baidu") {
+            driveConfig = {
+                type: "baidu",
+                id: document.getElementById('baidu-id').value,
+                name: document.getElementById('baidu-name').value
             };
         }
 
@@ -460,7 +483,8 @@ class StorageHubUI {
                 status: "ok",
                 drives: [
                     { id: "microsoft_onedrive", name: "Microsoft OneDrive", type: "onedrive", used: 1240, total: 5120, icon: "☁️" },
-                    { id: "alist_webdav", name: "AList WebDAV", type: "webdav", used: 1820, total: 2048, icon: "🌐" }
+                    { id: "alist_webdav", name: "AList WebDAV", type: "webdav", used: 1820, total: 2048, icon: "🌐" },
+                    { id: "baidu_netdisk", name: "Baidu Netdisk", type: "baidu", used: 3450, total: 5120, icon: "🐼" }
                 ]
             };
         }
@@ -478,11 +502,15 @@ class StorageHubUI {
                 { name: "学习资料", is_dir: true, size: 0 },
                 { name: "工作汇报.docx", is_dir: false, size: 1024 * 412 },
                 { name: "Butler_Architecture_v2.pdf", is_dir: false, size: 1024 * 1024 * 12.4 }
+            ] : (params.drive === "baidu_netdisk" ? [
+                { name: "电影视频", is_dir: true, size: 0 },
+                { name: "备份照片.zip", is_dir: false, size: 1024 * 1024 * 145.2 },
+                { name: "我的简历.pdf", is_dir: false, size: 1024 * 380 }
             ] : [
                 { name: "Media_Streaming", is_dir: true, size: 0 },
                 { name: "Ubuntu_24.04_LTS.iso", is_dir: false, size: 1024 * 1024 * 1024 * 3.8 },
                 { name: "Readme_Guide.txt", is_dir: false, size: 4096 }
-            ];
+            ]);
             return { status: "ok", files: files };
         }
 
