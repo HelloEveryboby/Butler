@@ -9,7 +9,7 @@
     "butler/__init__.py": "d41d8cd98f00b204e9800998ecf8427e",
     "butler/program_mapping.json": "d8f8081c1f05cf2f4c1f8abfc07eddea",
     "butler/collection.py": "9b8efbf27db066bb10d2434248553c35",
-    "butler/butler_app.py": "3d68dd2991397f5bd353a990a5bd01d1",
+    "butler/butler_app.py": "b58d1c6c48b5b665a165a51d7c005315",
     "butler/butler_app_enhanced.py": "e64198ef139b2f082d20735eb7e2cad7",
     "butler/bash.py": "178878a8c130734587495efa15ace2b2",
     "butler/data_storage.py": "348764826a9a0989af384d171cd70986",
@@ -441,7 +441,8 @@
     "programs/butler_runner/vault_unix.go": "7a8bf8c5376cdeacf4d5515d8a20137a",
     "programs/butler_runner/storage_hub/storage_manager.go": "7a441ae031a22d39a59f6ea97acfa3c9",
     "programs/butler_runner/storage_hub/go.mod": "8659a84f5b4ad1b7b2c68d4c727c0d1e",
-    "frontend/src/components/skill_ui_loader.js": "8ab94a0168ff1a2a0b92e78be2c87665"
+    "frontend/src/components/skill_ui_loader.js": "8ab94a0168ff1a2a0b92e78be2c87665",
+    "butler/core/agent_orchestrator.py": "db4fdbcc8642bbb615a56d156f37678a"
   },
-  "total_size": 172360
+  "total_size": 176809
 }

@@ -8,3 +8,9 @@
 2026-07-11 04:43:42,016 - AssetSyncHub.Sync - WARNING - Source directory /app/assets/textures/ does not exist. Skipping rule assets_textures.
 2026-07-11 04:43:42,016 - AssetSyncHub.Sync - WARNING - Source directory /app/assets/audio/ does not exist. Skipping rule assets_audio.
 2026-07-11 04:43:42,025 - AssetSyncHub.Sync - INFO - Skipping config injection: android.env or template missing.
+2026-07-11 09:42:19,924 - AssetSyncHub.Manifest - INFO - No manifest found. Using default rules.
+2026-07-11 09:42:19,959 - AssetSyncHub.Rollback - INFO - Removed old backup: backup_20260708_050519.tar.gz
+2026-07-11 09:42:19,959 - AssetSyncHub.Rollback - INFO - Created backup: backup_20260711_094219.tar.gz
+2026-07-11 09:42:20,263 - AssetSyncHub.Sync - WARNING - Source directory /app/assets/textures/ does not exist. Skipping rule assets_textures.
+2026-07-11 09:42:20,263 - AssetSyncHub.Sync - WARNING - Source directory /app/assets/audio/ does not exist. Skipping rule assets_audio.
+2026-07-11 09:42:20,277 - AssetSyncHub.Sync - INFO - Skipping config injection: android.env or template missing.

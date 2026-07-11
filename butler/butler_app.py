@@ -886,6 +886,9 @@ class Jarvis:
                 output = task_manager.list_business_tasks()
             elif intent == "claim_task":
                 output = task_manager.claim_business_task(int(entities.get("task_id", 0)), "lead")
+            elif intent == "decompose_task":
+                from butler.core.agent_orchestrator import decompose_task
+                output = decompose_task(entities.get("macro_goal"), entities.get("sub_tasks", []))
 
             # Secret Vault Tools
             elif intent == "vault_set":
