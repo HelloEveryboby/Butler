@@ -1,6 +1,7 @@
 ebooklib
 Flask
 Pillow
+filelock
 Pygments
 anthropic
 beautifulsoup4

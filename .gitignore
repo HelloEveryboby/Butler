@@ -1,6 +1,9 @@
 # Ignore release artifacts (Butler executable moved to release/)
 /release/*
 
+# Local Task System persisted data
+.tasks/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

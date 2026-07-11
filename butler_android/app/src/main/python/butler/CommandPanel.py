@@ -8,6 +8,7 @@ from package.core_utils.log_manager import LogManager
 from butler.core.asset_loader import asset_loader
 from butler.core.event_bus import event_bus
 from queue import Queue
+from butler.core.gui import UIThemeManager, FontScaler
 
 # 用于语法高亮显示的 Pygments
 try:
@@ -44,45 +45,20 @@ class CommandPanel(tk.Frame):
         self.programs = programs or {}
         self.all_program_names = sorted(list(self.programs.keys()))
 
-        # --- 主题和样式 (Admin/Power User Style) ---
-        self.background_color = '#1c1c1c' # Deeper black
-        self.foreground_color = '#00ff00' # Terminal green
-        self.input_bg_color = '#000000'
-        self.button_bg_color = '#333333'
-        self.button_fg_color = '#ffffff'
-        self.code_bg_color = '#000000'
-        self.menu_bg_color = '#121212'
-        self.menu_fg_color = '#00ff00'
+        # --- 主题和样式 (Delegated to butler/core/gui) ---
+        self.theme_manager = UIThemeManager("dark")
+        colors = self.theme_manager.get_colors()
 
-        self.font_configs = {
-            "small": {
-                "menu_label": ("Arial", 10, "bold"),
-                "program_listbox": ("Arial", 8),
-                "output_text": ("Consolas", 9),
-                "input_entry": ("Consolas", 9),
-                "buttons": ("Arial", 7),
-                "user_prompt": ("Consolas", 9, "bold"),
-                "system_message": ("Consolas", 9, "italic"),
-            },
-            "medium": {
-                "menu_label": ("Arial", 12, "bold"),
-                "program_listbox": ("Arial", 10),
-                "output_text": ("Consolas", 11),
-                "input_entry": ("Consolas", 11),
-                "buttons": ("Arial", 9),
-                "user_prompt": ("Consolas", 11, "bold"),
-                "system_message": ("Consolas", 11, "italic"),
-            },
-            "large": {
-                "menu_label": ("Arial", 14, "bold"),
-                "program_listbox": ("Arial", 12),
-                "output_text": ("Consolas", 13),
-                "input_entry": ("Consolas", 13),
-                "buttons": ("Arial", 11),
-                "user_prompt": ("Consolas", 13, "bold"),
-                "system_message": ("Consolas", 13, "italic"),
-            }
-        }
+        self.background_color = colors["background"]
+        self.foreground_color = colors["foreground"]
+        self.input_bg_color = colors["input_bg"]
+        self.button_bg_color = colors["button_bg"]
+        self.button_fg_color = colors["button_fg"]
+        self.code_bg_color = colors["code_bg"]
+        self.menu_bg_color = colors["menu_bg"]
+        self.menu_fg_color = colors["menu_fg"]
+
+        self.font_configs = UIThemeManager.FONT_CONFIGS
 
         self.config(bg=self.background_color)
         self.grid_rowconfigure(0, weight=1)
@@ -313,31 +289,8 @@ class CommandPanel(tk.Frame):
             self.auto_scale_fonts(new_scale_factor)
 
     def auto_scale_fonts(self, scale):
-        """Dynamically scale fonts based on window size."""
-        # Base sizes for 'medium'
-        base_fonts = {
-            "menu_label": 12,
-            "program_listbox": 10,
-            "output_text": 11,
-            "input_entry": 11,
-            "buttons": 9,
-            "user_prompt": 11,
-            "system_message": 11
-        }
-
-        scaled_fonts = {}
-        for key, size in base_fonts.items():
-            new_size = max(int(size * scale), 7)
-            if key == "menu_label":
-                scaled_fonts[key] = ("Arial", new_size, "bold")
-            elif key == "user_prompt":
-                scaled_fonts[key] = ("Consolas", new_size, "bold")
-            elif key == "system_message":
-                scaled_fonts[key] = ("Consolas", new_size, "italic")
-            elif key in ["output_text", "input_entry"]:
-                scaled_fonts[key] = ("Consolas", new_size)
-            else:
-                scaled_fonts[key] = ("Arial", new_size)
+        """Dynamically scale fonts based on window size (Delegated to FontScaler)."""
+        scaled_fonts = FontScaler.get_auto_scaled_fonts(scale)
 
         # Apply scaled fonts
         self.menu_label.config(font=scaled_fonts["menu_label"])

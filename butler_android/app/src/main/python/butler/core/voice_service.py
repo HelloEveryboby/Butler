@@ -132,7 +132,14 @@ class VoiceService:
         self.ACTIVATION_SOUND_FILE = asset_loader.resolve_path("audio://activate.wav")
 
     def get_engine(self) -> VoiceEngine:
-        return self.engines.get(self.mode, self.engines["online"])
+        engine = self.engines.get(self.mode, self.engines["online"])
+        if self.mode == "online":
+            baidu_eng = self.engines["online"]
+            if not hasattr(baidu_eng, 'client') or baidu_eng.client is None:
+                # Fallback to local engine silently
+                logger.warning("[Voice] Online Baidu keys missing or invalid. Silently falling back to LocalVoiceEngine.")
+                return self.engines["local"]
+        return engine
 
     def speak(self, text: str):
         engine = self.get_engine()
@@ -186,7 +193,16 @@ class VoiceService:
         try:
             from pvrecorder import PvRecorder
             access_key = config_loader.get("api.picovoice.access_key")
-            recorder = PvRecorder(access_key=access_key, device_index=-1, frame_length=512) if access_key else PvRecorder(device_index=-1, frame_length=512)
+            if not access_key or "YOUR_" in str(access_key):
+                access_key = None
+                logger.warning("[Voice] Picovoice access key is missing or placeholder. Trying default device.")
+
+            try:
+                recorder = PvRecorder(access_key=access_key, device_index=-1, frame_length=512) if access_key else PvRecorder(device_index=-1, frame_length=512)
+            except Exception as e:
+                logger.error(f"[Voice] PvRecorder initialization failed: {e}. Voice recording is unavailable.")
+                self.ui_print("录音设备初始化失败，请检查麦克风或 Picovoice Key。", tag='error')
+                return
 
             self.ui_print(f"正在录音 ({self.mode} 模式)...", tag='system_message')
             self.play_activation_sound()

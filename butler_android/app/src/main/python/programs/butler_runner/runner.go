@@ -25,6 +25,7 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/vova616/screenshot"
+	"github.com/butler/programs/butler_runner/storage_hub"
 )
 
 // --- 协议定义 ---
@@ -63,6 +64,7 @@ var (
 	blackboard = make(map[string]interface{})
 	vault      = NewVaultEngine()
 	procMgr    *ProcessManager
+	storageMgr = storage_hub.NewStorageManager()
 )
 
 // --- Hardware Capability Detection ---
@@ -154,28 +156,6 @@ func (pm *ProcessManager) startProcess(mp *ManagedProcess) error {
 	return nil
 }
 
-func (pm *ProcessManager) applyResourceLimits(cmd *exec.Cmd, risk string) {
-	if runtime.GOOS == "windows" {
-		// Windows: Job Objects (Partial Implementation via SysProcAttr)
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | 0x00000008, // DETACHED_PROCESS
-		}
-	} else {
-		// Linux: Niceness and Cgroups
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Setpgid: true,
-		}
-		// Set Niceness to 19 (lowest priority) if risk is high or low power
-		if risk == "high" {
-			// In Go, we use cmd.Env or a wrapper to set nice,
-			// but we'll prepend 'nice -n 19' to the command args if on Linux
-			newArgs := []string{"-n", "19", cmd.Path}
-			newArgs = append(newArgs, cmd.Args[1:]...)
-			cmd.Path = "/usr/bin/nice"
-			cmd.Args = append([]string{"nice"}, newArgs...)
-		}
-	}
-}
 
 func (pm *ProcessManager) monitorProcess(mp *ManagedProcess, stdout, stderr io.ReadCloser) {
 	// Snapshot engine would read from these pipes
@@ -428,6 +408,10 @@ func normalizeType(t string) string {
 		return "vault_decrypt"
 	case "spawn_skill", "spawn":
 		return "spawn_skill"
+	case "storage_transfer", "cloud_transfer":
+		return "storage_transfer"
+	case "storage_oauth_listen":
+		return "storage_oauth_listen"
 	default:
 		return t
 	}
@@ -733,6 +717,37 @@ func handleTask(c *websocket.Conn, msg Message) {
 			sendResp(c, "fail", nil, err.Error())
 		} else {
 			sendResp(c, "ok", string(res), "")
+		}
+
+	case "storage_transfer":
+		var params struct {
+			SrcURL     string            `json:"src_url"`
+			SrcHeaders map[string]string `json:"src_headers"`
+			DstURL     string            `json:"dst_url"`
+			Method     string            `json:"method"`
+			DstHeaders map[string]string `json:"dst_headers"`
+		}
+		if err := json.Unmarshal([]byte(msg.Payload), &params); err != nil {
+			sendResp(c, "fail", nil, "Invalid storage_transfer payload")
+			return
+		}
+		err := storageMgr.TransferStream(context.Background(), params.SrcURL, params.SrcHeaders, params.DstURL, params.Method, params.DstHeaders)
+		if err != nil {
+			sendResp(c, "fail", nil, err.Error())
+		} else {
+			sendResp(c, "ok", "Transfer completed", "")
+		}
+
+	case "storage_oauth_listen":
+		port := 8421
+		if msg.Payload != "" {
+			fmt.Sscanf(msg.Payload, "%d", &port)
+		}
+		code, err := storageMgr.StartOAuthListener(port)
+		if err != nil {
+			sendResp(c, "fail", nil, err.Error())
+		} else {
+			sendResp(c, "ok", code, "")
 		}
 
 	default:

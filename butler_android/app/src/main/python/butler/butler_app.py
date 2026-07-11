@@ -79,6 +79,25 @@ class Jarvis:
         load_dotenv()
         self.logger = LogManager.get_logger(__name__)
 
+        # ----------------------------------------------------
+        # HAL peripheral connection auto-detection try-except
+        # ----------------------------------------------------
+        self.hardware_linked = False
+        try:
+            from package.device.stm32_hw_bridge import STM32HardwareBridge
+            bridge = STM32HardwareBridge()
+            node_port = bridge.find_node()
+            if node_port:
+                self.hardware_linked = True
+                self.logger.info(f"[HAL] STM32 硬件外设已检测并关联在端口: {node_port}")
+            else:
+                self.logger.info("[HAL] 未检测到物理 STM32 硬件。")
+        except Exception as e:
+            self.logger.warning(f"[HAL] 硬件自动检测异常: {e}")
+
+        if not self.hardware_linked:
+            self.logger.info("\033[1;33m[HAL] 未检测到硬件外设，已自动进入纯软件管家模式。\033[0m")
+
         # Load configurations
         self.config = config_loader._config
         self.prompts = self._load_json_resource("prompts.json")
@@ -148,9 +167,63 @@ class Jarvis:
         from package.security.encrypt import DualLayerEncryptor
         self.dual_encryptor = DualLayerEncryptor()
 
+        # Print Geek Startup Banner
+        self._print_startup_banner(headless)
+
         self.ui_suggested = False
         self.waiting_for_ui_confirm = False
         self._interaction_count = 0
+
+    def _print_startup_banner(self, headless):
+        # 1. Determine Memory Backend
+        try:
+            fact_db_cls = type(self.long_memory.fact_db).__name__
+            if "Redis" in fact_db_cls:
+                memory_status = "Redis (Cloud Mode)"
+            elif "Zvec" in fact_db_cls:
+                memory_status = "Zvec (Local Mode)"
+            else:
+                memory_status = "SQLite (Local Mode)"
+        except Exception:
+            memory_status = "SQLite (Local Mode)"
+
+        # 2. Determine Voice Mode
+        try:
+            v_mode = self.voice_service.mode
+            if v_mode == "online":
+                voice_status = "Online (Baidu)"
+            elif v_mode == "local":
+                voice_status = "Local (Faster-Whisper)"
+            else:
+                voice_status = "Offline"
+        except Exception:
+            voice_status = "Offline"
+
+        # 3. Determine UI Mode
+        if headless:
+            ui_status = "Headless"
+        elif self.root is not None:
+            ui_status = "Classic Admin TUI/GUI"
+        else:
+            ui_status = "Modern Glassmorphism"
+
+        # 4. Determine HAL Status
+        hal_status = "Hardware-Linked" if self.hardware_linked else "Software-Only"
+
+        banner = f"""\033[1;36m
+  ██████╗ ██╗   ██╗████████╗██╗     ███████╗██████╗
+  ██╔══██╗██║   ██║╚══██╔══╝██║     ██╔════╝██╔══██╗
+  ██████╔╝██║   ██║   ██║   ██║     █████╗  ██████╔╝
+  ██╔══██╗██║   ██║   ██║   ██║     ██╔══╝  ██╔══██╗
+  ██████╔╝╚██████╔╝   ██║   ███████╗███████╗██║  ██║
+  ╚══════╝  ╚═════╝    ╚═╝   ╚══════╝╚══════╝╚═╝  ╚═╝\033[1;32m v2.0.0\033[0m
+
+  \033[1;32m[Memory]\033[0m Backend: \033[1;33m{memory_status}\033[0m
+  \033[1;32m[Voice]\033[0m  Mode:    \033[1;33m{voice_status}\033[0m
+  \033[1;32m[UI]\033[0m     Mode:    \033[1;33m{ui_status}\033[0m
+  \033[1;32m[HAL]\033[0m    Status:  \033[1;33m{hal_status}\033[0m
+        """
+        print(banner)
 
     def _load_json_resource(self, filename):
         path = Path(__file__).parent / filename

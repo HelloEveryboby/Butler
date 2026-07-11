@@ -19,6 +19,31 @@ from butler.core.blackboard import blackboard
 
 logger = logging.getLogger("SkillManager")
 
+class CorePluginContext:
+    """
+    Context injected into core plugins to allow privileged access to internal modules.
+    Provides direct references to:
+    - event_bus
+    - message_bus
+    - blackboard
+    - data_storage
+    - system_sensor
+    """
+    def __init__(self, skill_manager):
+        from butler.core.event_bus import event_bus
+        from butler.core.message_bus import message_bus
+        from butler.core.blackboard import blackboard
+        from butler.data_storage import data_storage_manager
+        from butler.core.hal import SystemResourceSensor
+
+        self.event_bus = event_bus
+        self.message_bus = message_bus
+        self.blackboard = blackboard
+        self.data_storage = data_storage_manager
+        self.system_sensor = SystemResourceSensor()
+        self.skill_manager = skill_manager
+
+
 class SkillEventHandler(FileSystemEventHandler):
     """监听 skills 目录变化的处理器 (支持热插拔与防抖)"""
     def __init__(self, manager):
@@ -231,7 +256,7 @@ class SkillManager:
     def load_skills(self):
         """
         Stage 1: 扫描 skills 目录，发现所有技能并加载元数据。
-        使用临时状态以避免重扫期间的竞争。
+        支持递归探测 (深度=2)，以便支持分类文件夹。
         """
         if not self.skills_dir.exists():
             self.skills_dir.mkdir(parents=True, exist_ok=True)
@@ -244,11 +269,21 @@ class SkillManager:
         new_configs = {}
         new_skill_contents = {}
 
-        # 扫描目录
-        for item in self.skills_dir.iterdir():
-            if item.is_dir():
-                skill_id = item.name
-                self._discover_skill(skill_id, new_manifests, new_configs, new_skill_contents)
+        # 扫描目录 (深度优先递归探测)
+        def _scan_recursive(current_dir: Path, depth=0):
+            if depth > 2: return
+            try:
+                for item in current_dir.iterdir():
+                    if item.is_dir() and not item.name.startswith('.') and item.name != "__pycache__":
+                        # 检查是否是技能目录
+                        if (item / "SKILL.md").exists() or (item / "config.yaml").exists() or (item / "manifest.json").exists():
+                            self._discover_skill(item.name, new_manifests, new_configs, new_skill_contents, skill_path=item)
+                        else:
+                            _scan_recursive(item, depth + 1)
+            except Exception:
+                pass
+
+        _scan_recursive(self.skills_dir)
 
         # 原子交换（在 Python 中，字典赋值是原子的）
         self.manifests = new_manifests
@@ -257,11 +292,18 @@ class SkillManager:
 
         logger.info(f"Skill Stage 1 complete: Discovered {len(self.manifests)} skills.")
 
-    def _discover_skill(self, skill_id: str, manifests: dict, configs: dict, contents: dict):
+        # 自动强行加载核心插件，并常驻内存
+        for s_id, meta in list(self.manifests.items()):
+            if meta.get('is_core'):
+                logger.info(f"Forcibly auto-loading core plugin: {s_id}")
+                self._load_python_runtime(s_id)
+
+    def _discover_skill(self, skill_id: str, manifests: dict, configs: dict, contents: dict, skill_path: Path = None):
         """
         Stage 1 & 2 预加载：检测技能格式并提取元数据。
         """
-        skill_path = self.skills_dir / skill_id
+        if skill_path is None:
+            skill_path = self.skills_dir / skill_id
 
         # 1. 优先尝试 SKILL.md (AI 友好规范)
         skill_md_path = skill_path / "SKILL.md"
@@ -276,29 +318,36 @@ class SkillManager:
         # 3. Fallback 到 manifest.json (旧版规范)
         manifest_path = skill_path / "manifest.json"
         if manifest_path.exists() and skill_id not in manifests:
-            self._load_from_manifest(skill_id, manifest_path, manifests, configs)
+            self._load_from_manifest(skill_id, manifest_path, manifests, configs, skill_path=skill_path)
 
         # 如果至少加载了其中一个
         if skill_id in manifests:
+            manifests[skill_id]['path'] = str(skill_path)
+            # Detect core plugin status
+            if "core_plugins" in str(skill_path.resolve()):
+                manifests[skill_id]['is_core'] = True
+            else:
+                manifests[skill_id]['is_core'] = False
             # 确保关键字段存在 (LDST & Risk)
             manifests[skill_id].setdefault('provides', [])
             manifests[skill_id].setdefault('requires', {})
             manifests[skill_id].setdefault('risk', 'low')
 
             # 探测执行优先级：Binary > Python
-            self._try_load_binary_entry(skill_id, manifests)
+            self._try_load_binary_entry(skill_id, manifests, skill_path=skill_path)
             if not manifests[skill_id].get('has_binary'):
-                self._try_load_python_entry(skill_id, manifests)
+                self._try_load_python_entry(skill_id, manifests, skill_path=skill_path)
 
             # 探测前端入口
-            self._try_load_frontend_entry(skill_id, manifests)
+            self._try_load_frontend_entry(skill_id, manifests, skill_path=skill_path)
             return True
 
         return False
 
-    def _try_load_frontend_entry(self, skill_id: str, manifests: dict):
+    def _try_load_frontend_entry(self, skill_id: str, manifests: dict, skill_path: Path = None):
         """探测前端 UI 入口 (index.html)"""
-        skill_path = self.skills_dir / skill_id
+        if skill_path is None:
+            skill_path = self.skills_dir / skill_id
 
         # 1. 如果 SKILL.md 中明确指定了 frontend
         frontend_file = manifests[skill_id].get('frontend')
@@ -378,30 +427,33 @@ class SkillManager:
             logger.error(f"Error parsing SKILL.md for {skill_id}: {e}")
         return False
 
-    def _load_from_manifest(self, skill_id: str, file_path: Path, manifests: dict, configs: dict):
+    def _load_from_manifest(self, skill_id: str, manifest_path: Path, manifests: dict, configs: dict, skill_path: Path = None):
         """解析旧版的 manifest.json"""
+        if skill_path is None:
+            skill_path = self.skills_dir / skill_id
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(manifest_path, 'r', encoding='utf-8') as f:
                 metadata = json.load(f)
                 manifests[skill_id] = metadata
                 manifests[skill_id]['id'] = skill_id
                 manifests[skill_id]['format'] = 'legacy'
 
                 # 加载 config.json (配置)
-                config_path = (self.skills_dir / skill_id) / "config.json"
+                config_path = skill_path / "config.json"
                 if config_path.exists():
                     with open(config_path, 'r', encoding='utf-8') as f:
                         configs[skill_id] = json.load(f)
 
-                self._try_load_python_entry(skill_id, manifests)
+                self._try_load_python_entry(skill_id, manifests, skill_path=skill_path)
                 return True
         except Exception as e:
             logger.error(f"Error loading manifest for {skill_id}: {e}")
         return False
 
-    def _try_load_python_entry(self, skill_id: str, manifests: dict):
+    def _try_load_python_entry(self, skill_id: str, manifests: dict, skill_path: Path = None):
         """尝试加载 Python 入口点 (自定义、main.py 或 __init__.py)"""
-        skill_path = self.skills_dir / skill_id
+        if skill_path is None:
+            skill_path = self.skills_dir / skill_id
         entry_file = None
 
         # 1. 优先检查 manifest 中指定的 python_entry
@@ -425,9 +477,10 @@ class SkillManager:
             return True
         return False
 
-    def _try_load_binary_entry(self, skill_id: str, manifests: dict):
+    def _try_load_binary_entry(self, skill_id: str, manifests: dict, skill_path: Path = None):
         """探测二进制可执行文件 (静默执行优先级最高)"""
-        skill_path = self.skills_dir / skill_id
+        if skill_path is None:
+            skill_path = self.skills_dir / skill_id
         bin_dir = skill_path / "bin"
 
         # 候选文件列表
@@ -451,7 +504,8 @@ class SkillManager:
         自动检查并安装依赖 (requirements.txt)。
         :param target_lib: 是否安装到技能目录下的 .lib 文件夹中 (用于进程隔离)
         """
-        skill_path = self.skills_dir / skill_id
+        manifest = self.manifests.get(skill_id, {})
+        skill_path = Path(manifest.get('path', self.skills_dir / skill_id))
         req_path = skill_path / "requirements.txt"
 
         # 记录安装状态的 key (如果是 target_lib，则区分开)
@@ -499,6 +553,16 @@ class SkillManager:
                 if hasattr(module, "handle_request"):
                     self.loaded_skills[skill_id] = module.handle_request
                     logger.info(f"Successfully loaded Python runtime for skill: {skill_id}")
+
+                    # Privilege injection for Core Plugins
+                    if manifest.get('is_core') and hasattr(module, "initialize_core"):
+                        try:
+                            context = CorePluginContext(self)
+                            module.initialize_core(context)
+                            logger.info(f"Successfully initialized core plugin context for {skill_id}")
+                        except Exception as init_err:
+                            logger.error(f"Error initializing core context for {skill_id}: {init_err}")
+
                     return True
                 else:
                     logger.error(f"Skill {skill_id} is missing 'handle_request' function.")
@@ -629,17 +693,22 @@ class SkillManager:
 
         # 3. Python 技能执行
         if manifest.get('has_python'):
-            # 确定隔离模式：显式声明 isolation: process 或存在 LDST 路由前缀
-            isolation = manifest.get('isolation') == 'process' or \
-                        any(str(p).startswith(('system.', 'net.', 'file.')) for p in manifest.get('provides', []))
-
-            if isolation:
-                return self._execute_python_subprocess(skill_id, action, **kwargs)
-            else:
-                # 向下兼容：主进程加载，但给予警告
-                logger.warning(f"⚠️ 警告: 技能 [{skill_id}] 正在以非隔离模式运行，强烈建议重构。")
+            # Core plugins run in-process for privileged context
+            if manifest.get('is_core'):
                 if not self._load_python_runtime(skill_id):
                     return f"Error: 技能 '{skill_id}' 的 Python 环境加载失败。"
+            else:
+                # 确定隔离模式：显式声明 isolation: process 或存在 LDST 路由前缀
+                isolation = manifest.get('isolation') == 'process' or \
+                            any(str(p).startswith(('system.', 'net.', 'file.')) for p in manifest.get('provides', []))
+
+                if isolation:
+                    return self._execute_python_subprocess(skill_id, action, **kwargs)
+                else:
+                    # 向下兼容：主进程加载，但给予警告
+                    logger.warning(f"⚠️ 警告: 技能 [{skill_id}] 正在以非隔离模式运行，强烈建议重构。")
+                    if not self._load_python_runtime(skill_id):
+                        return f"Error: 技能 '{skill_id}' 的 Python 环境加载失败。"
 
         if skill_id not in self.loaded_skills:
             if skill_id in self.skill_contents:
@@ -721,6 +790,12 @@ class SkillManager:
 
         elif action == "uninstall":
             if not skill_name: return "错误：请提供要卸载的技能名称。"
+
+            # Check if skill is core
+            meta = self.manifests.get(skill_name)
+            if meta and meta.get('is_core'):
+                return f"错误：技能 '{skill_name}' 是核心插件 (Core Plugin)，禁止热卸载！"
+
             target_path = self.skills_dir / skill_name
             if not target_path.exists():
                 return f"错误：技能 '{skill_name}' 未安装。"
@@ -785,7 +860,7 @@ class SkillManager:
     def _execute_python_subprocess(self, skill_id: str, action: str, **kwargs):
         """在独立子进程中执行 Python 技能，并通过 JSON-RPC 通信 (加强鲁棒性版)"""
         manifest = self.manifests[skill_id]
-        skill_path = (self.skills_dir / skill_id).resolve()
+        skill_path = Path(manifest.get('path', self.skills_dir / skill_id)).resolve()
         entry_file = Path(manifest.get('entry_file')).resolve()
 
         # 准备依赖环境
@@ -933,6 +1008,7 @@ class SkillManager:
 
     def _execute_binary(self, skill_id: str, **kwargs):
         """执行二进制程序"""
+        if skill_id not in self.manifests: return f"Error: {skill_id} not found."
         bin_path = self.manifests[skill_id].get('binary_path')
         if not bin_path:
             return f"Error: 技能 '{skill_id}' 找不到二进制路径。"
@@ -954,7 +1030,8 @@ class SkillManager:
 
     def _execute_allowed_script(self, skill_id: str, script_rel_path: str, **kwargs):
         """执行 SKILL.md 中 allowed-tools 授权的脚本"""
-        manifest = self.manifests.get(skill_id, {})
+        if skill_id not in self.manifests: return f"Error: {skill_id} not found."
+        manifest = self.manifests[skill_id]
         allowed_tools = manifest.get('allowed-tools', [])
 
         # 将 allowed-tools 转换为列表（如果是字符串）
@@ -971,7 +1048,7 @@ class SkillManager:
         if not is_allowed:
             return f"Error: 脚本 '{script_rel_path}' 未在技能 '{skill_id}' 的 allowed-tools 中授权。"
 
-        skill_path = self.skills_dir / skill_id
+        skill_path = Path(manifest.get('path', self.skills_dir / skill_id))
         script_full_path = skill_path / script_rel_path
 
         if not script_full_path.exists():

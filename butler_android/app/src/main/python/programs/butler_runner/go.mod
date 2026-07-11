@@ -3,6 +3,7 @@ module butler_runner
 go 1.24.3
 
 require (
+	github.com/butler/programs/butler_runner/storage_hub v0.0.0-00010101000000-000000000000
 	github.com/go-vgo/robotgo v1.0.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/shirou/gopsutil/v4 v4.26.5
@@ -35,3 +36,5 @@ require (
 	golang.org/x/image v0.33.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 )
+
+replace github.com/butler/programs/butler_runner/storage_hub => ./storage_hub
