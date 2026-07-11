@@ -127,6 +127,7 @@
                             <select id="drive-type-select" onchange="ui.onDriveTypeChange()">
                                 <option value="webdav">AList / WebDAV 协议网盘</option>
                                 <option value="onedrive">Microsoft OneDrive 微软云盘</option>
+                                <option value="baidu">Baidu Netdisk 百度网盘</option>
                             </select>
                         </div>
 
@@ -175,6 +176,21 @@
                             <div class="form-group">
                                 <label>OAuth 授权回调地址</label>
                                 <input type="text" id="onedrive-redirect" value="http://localhost:8421/oauth/callback">
+                            </div>
+                        </div>
+
+                        <!-- 动态表单项：Baidu Netdisk 子组 -->
+                        <div id="subgroup-baidu" class="form-subgroup hidden">
+                            <div class="form-group">
+                                <label>驱动唯一标识 (ID)</label>
+                                <input type="text" id="baidu-id" placeholder="例如: baidu_personal" value="baidu_netdisk">
+                            </div>
+                            <div class="form-group">
+                                <label>驱动显示名称 (别名)</label>
+                                <input type="text" id="baidu-name" placeholder="例如: 我的百度网盘" value="Baidu Netdisk">
+                            </div>
+                            <div class="form-group" style="font-size: 11px; color: var(--text-secondary); line-height: 1.5; padding: 10px; background: rgba(255,255,255,0.02); border-radius: 6px;">
+                                💡 <strong>提示：</strong> 百度网盘由后台 bypy 自动处理驱动对接与安全凭证加密备份。如果您第一次使用，请确保在主机终端运行过 <code>bypy info</code> 进行扫码授权。
                             </div>
                         </div>
 
