@@ -163,6 +163,15 @@ class Jarvis:
         self.runner_server.register_event_callback(self._on_runner_event)
         self.runner_server.start()
 
+        # Initialize REST API Secure Gateway
+        import os
+        from butler.core.api import start_api_server_thread
+        self.api_server_thread = start_api_server_thread(
+            host=os.environ.get("BUTLER_API_HOST", "0.0.0.0"),
+            port=int(os.environ.get("BUTLER_API_PORT", 5001)),
+            use_ssl=True
+        )
+
         # Initialize Encryption Suite
         from package.security.encrypt import DualLayerEncryptor
         self.dual_encryptor = DualLayerEncryptor()

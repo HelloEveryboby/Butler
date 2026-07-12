@@ -51,6 +51,9 @@ def main():
     # Reverse Sync
     subparsers.add_parser("reverse-sync", help="从 Android 反向同步资产到 PC (调试用)")
 
+    # Audit
+    subparsers.add_parser("audit", help="系统安全审计自检与报告生成")
+
     if len(sys.argv) == 1:
         # If no arguments, try interactive mode
         run_interactive()
@@ -65,7 +68,11 @@ def execute_command(args):
     manifest_mgr = ManifestManager(root)
     manifest_mgr.load()
 
-    if args.command == "init":
+    if args.command == "audit":
+        from butler.core.sec_utils.audit import run_security_audit
+        print(run_security_audit())
+
+    elif args.command == "init":
         im = InitManager(root)
         print(im.init_android())
 
@@ -127,6 +134,7 @@ def run_interactive():
             "🔄 回滚到上一个版本",
             "⚙️ 初始化环境",
             "🔍 检查环境",
+            "🛡️ 执行安全审计自检",
             "🚪 退出"
         ]
     ).ask()
@@ -143,6 +151,9 @@ def run_interactive():
     elif action == "🔍 检查环境":
         class Args: command = "check-env"
         execute_command(Args())
+    elif action == "🛡️ 执行安全审计自检":
+        class Args: command = "audit"
+        execute_command(Args())
 
 def run_simple_interactive():
     print("\n--- Butler 资产同步中心 ---")
@@ -150,9 +161,10 @@ def run_simple_interactive():
     print("2. 回滚 (rollback)")
     print("3. 初始化 (init)")
     print("4. 检查环境 (check-env)")
-    print("5. 退出")
+    print("5. 执行安全审计自检 (audit)")
+    print("6. 退出")
 
-    choice = input("\n请选择 [1-5]: ")
+    choice = input("\n请选择 [1-6]: ")
     if choice == '1':
         class Args: command = "sync"; force = False; no_backup = False
         execute_command(Args())
@@ -164,6 +176,9 @@ def run_simple_interactive():
         execute_command(Args())
     elif choice == '4':
         class Args: command = "check-env"
+        execute_command(Args())
+    elif choice == '5':
+        class Args: command = "audit"
         execute_command(Args())
 
 if __name__ == "__main__":

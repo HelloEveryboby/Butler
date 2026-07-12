@@ -253,6 +253,38 @@ class SkillManager:
         else:
             logger.error(f"❌ 技能 [{skill_id}] 热加载失败 (未发现有效元数据)")
 
+    def _is_skill_safe(self, entry_file: str) -> bool:
+        """Performs AST analysis on non-core python skill entry files."""
+        try:
+            import ast
+            if not os.path.exists(entry_file):
+                return True # No file to scan, safe by default
+
+            with open(entry_file, 'r', encoding='utf-8') as f:
+                tree = ast.parse(f.read())
+
+            forbidden_calls = {
+                'os.system', 'os.popen', 'subprocess.Popen', 'subprocess.call',
+                'subprocess.run', 'shutil.rmtree', 'eval', 'exec'
+            }
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    call_name = ""
+                    if isinstance(node.func, ast.Attribute):
+                        if hasattr(node.func.value, 'id'):
+                            call_name = f"{node.func.value.id}.{node.func.attr}"
+                    elif isinstance(node.func, ast.Name):
+                        call_name = node.func.id
+
+                    if call_name in forbidden_calls:
+                        logger.warning(f"Skill entry {entry_file} contains forbidden call: {call_name}")
+                        return False
+            return True
+        except Exception as e:
+            logger.error(f"Error performing AST check on {entry_file}: {e}")
+            return False
+
     def load_skills(self):
         """
         Stage 1: 扫描 skills 目录，发现所有技能并加载元数据。
@@ -538,6 +570,12 @@ class SkillManager:
 
         if not entry_file:
             return False
+
+        # Enforce AST safety check for non-core skills
+        if not manifest.get('is_core') and entry_file:
+            if not self._is_skill_safe(entry_file):
+                logger.error(f"Security Alert: Non-core skill '{skill_id}' failed AST safety check. Loading aborted.")
+                return False
 
         # 安装依赖
         self._ensure_dependencies(skill_id)
@@ -862,6 +900,12 @@ class SkillManager:
         manifest = self.manifests[skill_id]
         skill_path = Path(manifest.get('path', self.skills_dir / skill_id)).resolve()
         entry_file = Path(manifest.get('entry_file')).resolve()
+
+        # Enforce AST safety check for non-core skills
+        if not manifest.get('is_core') and entry_file:
+            if not self._is_skill_safe(str(entry_file)):
+                logger.error(f"Security Alert: Non-core skill '{skill_id}' failed AST safety check. Subprocess launch aborted.")
+                return f"Error: 技能 '{skill_id}' 未能通过安全静态审计 (AST 校验失败)。"
 
         # 准备依赖环境
         self._ensure_dependencies(skill_id, target_lib=True)
