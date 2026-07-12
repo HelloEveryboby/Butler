@@ -3,7 +3,7 @@ from playwright.sync_api import sync_playwright
 
 def run_verification(page):
     current_dir = os.getcwd()
-    file_url = f"file://{current_dir}/frontend/view/index.html"
+    file_url = f"file://{current_dir}/frontend/index.html"
     page.goto(file_url)
     page.wait_for_timeout(1000)
 

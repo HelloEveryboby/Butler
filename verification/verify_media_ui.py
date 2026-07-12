@@ -8,7 +8,7 @@ def run_verification():
 
     with sync_playwright() as p:
         current_dir = os.getcwd()
-        file_path = f"file://{current_dir}/frontend/view/index.html"
+        file_path = f"file://{current_dir}/frontend/index.html"
 
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={'width': 1280, 'height': 800})
