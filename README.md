@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <video src="assets/butler_demo.webm" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);" autoplay loop muted playsinline></video>
+</p>
+
+<p align="center">
   <a href="https://github.com/HelloEveryboby/Butler"><img src="https://img.shields.io/github/stars/HelloEveryboby/Butler?style=social" alt="GitHub stars"></a>
   <img src="https://img.shields.io/badge/Language-Python%20%2B%20Go%20%2B%20C%2B%2B-blue" alt="Languages">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-brightgreen" alt="Platforms">
