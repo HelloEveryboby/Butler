@@ -29,10 +29,26 @@ class RunnerServer:
         self._event_callbacks.append(callback)
 
     async def _handler(self, websocket):
-        """Handles incoming WebSocket connections."""
+        """Handles incoming WebSocket connections with rate limiting and Token validation."""
+        import time
         runner_id = "unknown"
+        ip = websocket.remote_address[0] if websocket.remote_address else "unknown"
+
+        # Simple IP Rate Limiting Initialization
+        if not hasattr(self, "_request_counts"):
+            self._request_counts = {}
+
         try:
             async for message in websocket:
+                # Rate limit check (sliding window 1s)
+                now = time.time()
+                self._request_counts[ip] = [t for t in self._request_counts.get(ip, []) if now - t < 1.0]
+                if len(self._request_counts[ip]) > 50:  # Max 50 requests/sec limit
+                    self.logger.warning(f"Rate limit exceeded for IP: {ip}. Dropping request.")
+                    await websocket.send(json.dumps({"status": "error", "error": "Rate limit exceeded"}))
+                    continue
+                self._request_counts[ip].append(now)
+
                 try:
                     data = json.loads(message)
                 except json.JSONDecodeError:
@@ -42,8 +58,14 @@ class RunnerServer:
                 msg_token = data.get("token")
                 msg_runner_id = data.get("runner_id", "anonymous")
 
-                # Validate token
-                if not self.token or msg_token != self.token:
+                # Dynamic Token Validation from SecretVault (with fallback to configuration token)
+                from butler.core.secret_vault import secret_vault
+                try:
+                    expected_token = secret_vault.get_secret("runner_token") or self.token
+                except Exception:
+                    expected_token = self.token
+
+                if not expected_token or msg_token != expected_token:
                     self.logger.warning(f"Unauthorized connection attempt from {websocket.remote_address}")
                     await websocket.send(json.dumps({"status": "error", "error": "Unauthorized"}))
                     await websocket.close(1008, "Invalid Token")
@@ -99,7 +121,28 @@ class RunnerServer:
     def _run_server(self):
         async def main():
             self._loop = asyncio.get_running_loop()
-            async with websockets.serve(self._handler, self.host, self.port):
+
+            # Setup SSL/TLS context for secure WSS connection
+            import ssl
+            from butler.core.sec_utils.certs import generate_self_signed_cert
+
+            ssl_context = None
+            try:
+                ssl_cert, ssl_key = generate_self_signed_cert()
+                ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                ssl_context.load_cert_chain(ssl_cert, ssl_key)
+                self.logger.info("RunnerServer starting with SSL (wss://) enabled.")
+            except Exception as e:
+                self.logger.error(f"Failed to load SSL context for RunnerServer, falling back to plain ws: {e}")
+
+            # Enforce max connection size limit (2MB) to prevent buffer-based DOS
+            async with websockets.serve(
+                self._handler,
+                self.host,
+                self.port,
+                ssl=ssl_context,
+                max_size=2 * 1024 * 1024 # 2MB limit
+            ):
                 await asyncio.Future()  # run forever
 
         try:

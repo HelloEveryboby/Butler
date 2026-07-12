@@ -71,6 +71,7 @@ class SecretVault:
                 runner_server.send_command("default_runner", "vault_init", self._master_key.hex())
 
                 logger.info("SecretVault initialized via System Keyring (Industrial Mode).")
+                self._ensure_default_tokens()
                 return True
             except Exception as e:
                 logger.warning(f"Failed to use OS Keychain: {e}")
@@ -96,9 +97,25 @@ class SecretVault:
             runner_server.broadcast_command("vault_init", self._master_key.hex())
 
             logger.info("SecretVault initialized via Master Password.")
+            self._ensure_default_tokens()
             return True
 
         return False
+
+    def _ensure_default_tokens(self):
+        """Ensures that default secure tokens are generated and stored."""
+        import secrets
+        try:
+            if not self.get_secret("rest_api_bearer_token"):
+                token = secrets.token_hex(32)
+                self.set_secret("rest_api_bearer_token", token)
+                logger.info("Generated new secure Bearer Token for REST API gateway.")
+            if not self.get_secret("runner_token"):
+                token = secrets.token_hex(32)
+                self.set_secret("runner_token", token)
+                logger.info("Generated new secure Token for Runner WebSocket server.")
+        except Exception as e:
+            logger.error(f"Failed to generate default vault tokens: {e}")
 
     def _get_or_create_salt(self) -> bytes:
         with sqlite3.connect(self.db_path) as conn:

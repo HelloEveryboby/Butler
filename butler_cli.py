@@ -86,8 +86,9 @@ def main():
     subparsers.add_parser("monitor", help="系统健康监控与自愈报告")
 
     # 9. 系统审计 (Audit)
-    audit_parser = subparsers.add_parser("audit", help="高性能系统审计与调度演示")
+    audit_parser = subparsers.add_parser("audit", help="高性能系统与安全审计自检")
     audit_parser.add_argument("--dir", help="审计目标目录")
+    audit_parser.add_argument("--security", action="store_true", help="执行系统安全自检审计并生成 SECURITY_AUDIT_REPORT.md 报告")
 
     # 10. 依赖管理 (Dependency)
     dep_parser = subparsers.add_parser("dependency", help="项目环境与依赖库管理")
@@ -195,8 +196,13 @@ def main():
             monitor_run()
 
         elif args.command == "audit":
-            from package.core_utils.system_executor_tool import run as audit_run
-            audit_run(dir=args.dir)
+            if args.security:
+                from butler.core.sec_utils.audit import run_security_audit
+                res = run_security_audit()
+                print(res)
+            else:
+                from package.core_utils.system_executor_tool import run as audit_run
+                audit_run(dir=args.dir)
 
         elif args.command == "dependency":
             from package.core_utils.dependency_manager import run as dep_run

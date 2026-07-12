@@ -2,3 +2,12 @@
 2026-07-08 14:38:21,951 - AssetSyncHub.Sync - WARNING - Source directory /app/assets/textures/ does not exist. Skipping rule assets_textures.
 2026-07-08 14:38:21,952 - AssetSyncHub.Sync - WARNING - Source directory /app/assets/audio/ does not exist. Skipping rule assets_audio.
 2026-07-08 14:38:21,967 - AssetSyncHub.Sync - INFO - Skipping config injection: android.env or template missing.
+2026-07-12 06:47:16,821 - AssetSyncHub.Manifest - INFO - No manifest found. Using default rules.
+2026-07-12 06:47:16,847 - butler.core.constants - INFO - [Constants] Ensured directory exists: /app/data
+2026-07-12 06:47:16,847 - butler.core.constants - INFO - [Constants] Ensured directory exists: /app/config
+2026-07-12 06:47:16,847 - butler.core.constants - INFO - [Constants] Ensured directory exists: /app/logs
+2026-07-12 06:47:16,847 - butler.core.constants - INFO - [Constants] Ensured directory exists: /app/data/audit_logs
+2026-07-12 06:47:16,847 - butler.core.constants - INFO - [Constants] Ensured directory exists: /app/skills
+2026-07-12 06:47:16,847 - butler.core.constants - INFO - [Constants] Ensured directory exists: /app/skills/core_plugins
+2026-07-12 06:47:16,847 - butler.core.constants - INFO - [Constants] Ensured directory exists: /app/skills/third_party
+2026-07-12 06:47:16,934 - SecurityAudit - INFO - Starting Butler Security Self-Audit...

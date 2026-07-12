@@ -36,8 +36,33 @@ class NLUService:
 
         return f"{base_prompt}{personality_injection}"
 
+    def _is_prompt_injection(self, text: str) -> bool:
+        """
+        Detects common prompt injection patterns to protect the NLU Service boundary.
+        """
+        import re
+        patterns = [
+            r"(ignore|bypass|override)\s+(all\s+)?(previous|above)\s+(instructions|directives|prompts|rules)",
+            r"system:\s*now\s+in\s+developer\s+mode",
+            r"dan\s+mode",
+            r"忽略(上述|之前|所有)?(指令|规则|提示词|设定|约束)",
+            r"现在进入(开发者|developer|dan)模式",
+            r"强制返回",
+            r"--- end of text ---",
+        ]
+        text_lower = text.lower()
+        for pattern in patterns:
+            if re.search(pattern, text_lower):
+                return True
+        return False
+
     def extract_intent(self, text: str, history: List[Any] = None) -> Dict[str, Any]:
         """使用 DeepSeek API 从用户文本中提取意图和实体。"""
+        # 1. Input-side Prompt Injection Filter
+        if self._is_prompt_injection(text):
+            logger.warning(f"Prompt injection detected in extract_intent: '{text}'")
+            return {"intent": "unauthorized_attempt", "entities": {"error": "Adversarial prompt injection attempt detected and blocked."}}
+
         if not self.api_key or "YOUR_" in self.api_key:
              return {"intent": "unknown", "entities": {"error": "DeepSeek API Key missing or placeholder"}}
 
@@ -80,13 +105,43 @@ class NLUService:
             if result_text.strip().startswith("```json"):
                 result_text = result_text.strip()[7:-4].strip()
 
-            return json.loads(result_text)
+            # Output-side structural & content validation (JSON Schema/Safety)
+            try:
+                parsed = json.loads(result_text)
+                if not isinstance(parsed, dict) or "intent" not in parsed or "entities" not in parsed:
+                    raise ValueError("JSON does not conform to intent schema")
+
+                # Check for malicious script/command leakage inside JSON values
+                import re
+                forbidden_patterns = [r"os\s*\.\s*system", r"subprocess\s*\.", r"exec\s*\(", r"eval\s*\("]
+                def check_malicious_values(val):
+                    if isinstance(val, str):
+                        for fp in forbidden_patterns:
+                            if re.search(fp, val):
+                                raise ValueError("Malicious execution patterns detected inside JSON entity values.")
+                    elif isinstance(val, dict):
+                        for k, v in val.items():
+                            check_malicious_values(v)
+                    elif isinstance(val, list):
+                        for v in val:
+                            check_malicious_values(v)
+
+                check_malicious_values(parsed)
+                return parsed
+            except Exception as schema_err:
+                logger.error(f"JSON Schema/Safety verification failed: {schema_err}")
+                return {"intent": "malformed_response", "entities": {"error": f"JSON Schema/Safety validation failed: {str(schema_err)}"}}
         except Exception as e:
             logger.error(f"NLU extraction failed: {e}")
             return {"intent": "unknown", "entities": {"error": str(e)}}
 
     def generate_general_response(self, text: str) -> str:
         """生成简单的聊天响应。"""
+        # 1. Input-side Prompt Injection Filter
+        if self._is_prompt_injection(text):
+            logger.warning(f"Prompt injection detected in generate_general_response: '{text}'")
+            return "对不起，您的输入包含不安全的安全载荷，请求已被拦截。"
+
         if not quota_manager.check_quota():
             return "对不起，API 额度已用尽。请联系管理员充值或提高限额。"
 
@@ -119,6 +174,11 @@ class NLUService:
 
     def ask_llm(self, prompt: str, history: List[Any] = None, use_habit: bool = True, system_override: str = None, image_b64: str = None) -> str:
         """通用 LLM 问答接口，支持多模态输入。"""
+        # 1. Input-side Prompt Injection Filter
+        if self._is_prompt_injection(prompt):
+            logger.warning(f"Prompt injection detected in ask_llm: '{prompt}'")
+            return "【安全拦截】系统检测到潜在的提示词注入或越权攻击载荷，该请求已被安全过滤器拦截。"
+
         if not self.api_key or "YOUR_" in self.api_key:
             return "【离线提示】当前未配置 API 密钥，仅支持本地指令。如需进行智能对话，请在设置中完成 API 配置。"
 
