@@ -95,6 +95,18 @@ class MatrixController {
                 item.classList.remove('active');
             }
         });
+
+        // Dynamic PM Matrix non-linear zoom and blur spatial transition
+        const targetCellId = `cell-${nx}-${ny}`;
+        document.querySelectorAll('.matrix-cell').forEach(cell => {
+            if (cell.id === targetCellId) {
+                cell.classList.add('active-cell');
+                cell.classList.remove('inactive-cell');
+            } else {
+                cell.classList.add('inactive-cell');
+                cell.classList.remove('active-cell');
+            }
+        });
     }
 }
 
