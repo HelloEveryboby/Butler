@@ -61,6 +61,7 @@
                 <!-- (0,0) Quadrant: Smart Chat & Debugger -->
                 <section class="matrix-cell" id="cell-0-0">
                     <div class="view-header">
+                        <div class="view-title" id="chat-view-title">智能助手 (Smart Chat)</div>
                         <div class="status-indicators">
                             <span id="connection-status" class="status-dot green active"></span>
                             <span id="thinking-status" class="status-dot blue"></span>
@@ -111,6 +112,7 @@
                 <!-- (1,0) Quadrant: Time Machine -->
                 <section class="matrix-cell" id="cell-1-0">
                     <div class="view-header">
+                        <div class="view-title" id="tm-view-title">时光监控 (Time Machine)</div>
                     </div>
                     <div class="timemachine-container">
                         <div class="metrics-visualizer" id="tm-metrics">
@@ -127,7 +129,7 @@
                 <!-- (0,1) Quadrant: DAG Pipeline -->
                 <section class="matrix-cell" id="cell-0-1">
                     <div class="view-header">
-                        <div></div>
+                        <div class="view-title" id="dag-view-title">任务画布 (DAG Canvas)</div>
                         <div class="dag-toolbar glass-surface" style="display: flex; gap: 8px; padding: 6px 12px; border-radius: 8px; border: var(--subpixel-border);">
                             <button class="icon-btn-small" onclick="runDagPipeline()" title="启动流水线" style="color: #34C759; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 600;"><i class="fas fa-play"></i> 启动</button>
                             <button class="icon-btn-small" onclick="pauseDagPipeline()" title="暂停流水线" style="color: #FF9500; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 600;"><i class="fas fa-pause"></i> 暂停</button>
@@ -146,6 +148,7 @@
                 <!-- (1,1) Quadrant: Skills & Files -->
                 <section class="matrix-cell" id="cell-1-1">
                     <div class="view-header">
+                        <div class="view-title" id="skills-view-title">技能仓储 (Skills & Files)</div>
                         <div class="header-actions">
                             <button class="icon-btn-small" onclick="toggleTerminal()" title="打开终端"><i class="fas fa-terminal"></i></button>
                             <button class="icon-btn-small" onclick="toggleMemos()" title="备忘录"><i class="fas fa-sticky-note"></i></button>

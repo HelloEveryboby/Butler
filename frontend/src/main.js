@@ -80,6 +80,8 @@ window.skipOnboarding = () => {
     if (window.matrix) {
         window.matrix.moveTo(0, 0);
     }
+    // Add class to hide top-left headers on completion of onboarding
+    document.body.classList.add('onboarding-completed');
     window.showToast("上手指南", "新手引导已结束。点击开始体验 Butler 本地优先的极致魅力！", "success");
     localStorage.setItem('butler_onboarding_completed', 'true');
 };
@@ -591,6 +593,11 @@ window.onVaultUnlocking = (data) => {
 
 // Initial Theme Check and Application on DOM Load
 document.addEventListener('DOMContentLoaded', () => {
+    // If onboarding is completed, hide headers instantly
+    if (localStorage.getItem('butler_onboarding_completed') === 'true') {
+        document.body.classList.add('onboarding-completed');
+    }
+
     const savedTheme = localStorage.getItem('setting_theme');
     if (savedTheme === 'dark') {
         document.body.classList.remove('theme-apple');
