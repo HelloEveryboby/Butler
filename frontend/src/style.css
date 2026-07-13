@@ -2540,3 +2540,249 @@ body.tm-active #cell-0-1 {
     0% { transform: scale(1); opacity: 1; filter: blur(0); }
     100% { transform: scale(0.5) translateY(20px); opacity: 0; filter: blur(10px); }
 }
+
+/* ==========================================
+   Product Manager (PM) Enhancements Styles
+   ========================================== */
+
+/* 1. Matrix Non-Linear Transition and Scale Blur Zoom */
+.matrix-cell {
+    transition: opacity 0.8s var(--apple-easing), transform 0.8s var(--apple-easing), filter 0.8s var(--apple-easing) !important;
+}
+.matrix-cell.inactive-cell {
+    transform: scale(0.96) !important;
+    filter: blur(8px) !important;
+    opacity: 0.55 !important;
+    pointer-events: none !important;
+}
+.matrix-cell.active-cell {
+    transform: scale(1) !important;
+    filter: blur(0) !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+/* 2. Cyberpunk Midnight Dark Mode Overrides */
+.theme-dark {
+    --bg-glass: rgba(12, 12, 18, 0.75);
+    --sidebar-glass: rgba(10, 10, 12, 0.9);
+    --border-color: rgba(0, 122, 255, 0.2);
+    --text-primary: #f5f5f7;
+    --text-secondary: #8e8e93;
+    --subpixel-border: 1px solid rgba(0, 122, 255, 0.25);
+    --accent-color: #0A84FF;
+}
+
+.theme-dark .glass-surface {
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6), inset 0 0 1px rgba(0, 122, 255, 0.3);
+    border: 1px solid rgba(0, 122, 255, 0.25);
+}
+
+.theme-dark .settings-sidebar {
+    background: rgba(0, 0, 0, 0.25);
+    border-right: 1px solid rgba(0, 122, 255, 0.15);
+}
+
+.theme-dark .settings-group-card {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(0, 122, 255, 0.15);
+}
+
+.theme-dark .settings-row {
+    border-bottom: 1px solid rgba(0, 122, 255, 0.15);
+}
+
+.theme-dark .apple-select {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 122, 255, 0.25);
+}
+
+/* 3. Interactive Onboarding Tour Styles */
+#onboarding-tour-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    z-index: 9999;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(3px);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+#onboarding-tour-overlay.active {
+    pointer-events: auto;
+    opacity: 1;
+}
+.onboarding-bubble {
+    position: absolute;
+    width: 330px;
+    background: var(--sidebar-glass);
+    backdrop-filter: blur(25px) saturate(180%);
+    border: 1px solid var(--accent-color);
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    z-index: 10000;
+    pointer-events: auto;
+    animation: scaleIn 0.3s var(--apple-easing);
+    color: var(--text-primary);
+}
+.onboarding-bubble::after {
+    content: '';
+    position: absolute;
+    width: 0; height: 0;
+    border: 10px solid transparent;
+}
+/* Bubble arrow directions */
+.onboarding-bubble.arrow-top::after {
+    border-bottom-color: var(--accent-color);
+    bottom: 100%; left: 24px;
+    margin-bottom: -1px;
+}
+.onboarding-bubble.arrow-bottom::after {
+    border-top-color: var(--accent-color);
+    top: 100%; left: 24px;
+    margin-top: -1px;
+}
+.onboarding-bubble.arrow-left::after {
+    border-right-color: var(--accent-color);
+    right: 100%; top: 24px;
+    margin-right: -1px;
+}
+.onboarding-bubble.arrow-right::after {
+    border-left-color: var(--accent-color);
+    left: 100%; top: 24px;
+    margin-left: -1px;
+}
+.onboarding-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 8px;
+    color: var(--accent-color);
+}
+.onboarding-body {
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 14px;
+    color: var(--text-primary);
+}
+.onboarding-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.onboarding-step-indicator {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.onboarding-btn {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: opacity 0.2s;
+}
+.onboarding-btn:hover {
+    opacity: 0.9;
+}
+.onboarding-btn-skip {
+    background: transparent;
+    color: var(--text-secondary);
+    border: none;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+/* Focused elements overlay border effect */
+.onboarding-highlight {
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.55), 0 0 20px var(--accent-color) !important;
+    border: 2.5px solid var(--accent-color) !important;
+    z-index: 9998 !important;
+    transition: all 0.3s ease;
+}
+
+/* 4. Quick Action Cards in Chat Quadrant */
+.quick-actions-container {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    width: 100%;
+    overflow-x: auto;
+    padding: 4px;
+    scrollbar-width: none;
+}
+.quick-actions-container::-webkit-scrollbar {
+    display: none;
+}
+.quick-action-card {
+    flex: 1;
+    min-width: 150px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.25s var(--apple-easing);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+}
+.quick-action-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-3px);
+    border-color: var(--accent-color);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+}
+.quick-action-card i {
+    font-size: 20px;
+}
+.quick-action-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+.quick-action-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* 5. Flow Animation on SVG connections */
+.dag-svg-path {
+    stroke-width: 2.5;
+    transition: stroke 0.3s;
+}
+.dag-svg-path.running-flow {
+    stroke: var(--accent-color) !important;
+    stroke-dasharray: 8, 4;
+    animation: dagFlowShift 1s linear infinite;
+}
+@keyframes dagFlowShift {
+    to {
+        stroke-dashoffset: -12;
+    }
+}
+.dag-node-status-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #34C759;
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    animation: scaleIn 0.2s ease-out;
+}
+.dag-node-status-badge.loading {
+    background: #007AFF;
+}

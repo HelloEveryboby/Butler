@@ -9,6 +9,7 @@ class DAGEngine {
         this.connections = [];
         this.isConnecting = false;
         this.tempLine = null;
+        this.isRunning = false;
 
         this.init();
     }
@@ -148,7 +149,10 @@ class DAGEngine {
     }
 
     updateConnections() {
-        if (this.connections.length === 0 && !this.isConnecting) return;
+        if (this.connections.length === 0 && !this.isConnecting) {
+            this.svg.innerHTML = '';
+            return;
+        }
 
         let html = '';
         const canvasRect = this.canvas.getBoundingClientRect();
@@ -166,8 +170,9 @@ class DAGEngine {
             const x2 = toIn.left + toIn.width / 2 - canvasRect.left;
             const y2 = toIn.top + toIn.height / 2 - canvasRect.top;
 
-            html += `<path d="M ${x1} ${y1} C ${x1 + 50} ${y1}, ${x2 - 50} ${y2}, ${x2} ${y2}"
-                           stroke="var(--accent-color)" stroke-width="2" fill="none" />`;
+            const runningClass = this.isRunning ? 'running-flow' : '';
+            html += `<path class="dag-svg-path ${runningClass}" d="M ${x1} ${y1} C ${x1 + 50} ${y1}, ${x2 - 50} ${y2}, ${x2} ${y2}"
+                           stroke="var(--accent-color)" stroke-width="2.5" fill="none" />`;
         });
 
         // Add back the temp line if connecting
@@ -177,7 +182,89 @@ class DAGEngine {
             this.svg.innerHTML = html;
         }
     }
+
+    runPipeline() {
+        if (this.nodes.length === 0) {
+            window.showToast("任务流水线", "画布中没有检测到可执行的技能节点！请从左侧拖入技能卡片。", "error");
+            return;
+        }
+
+        this.isRunning = true;
+        window.showToast("任务流水线", "流水线已启动。正在进行拓扑排序并分配执行节点...", "success");
+
+        // Set all nodes to loading status
+        this.nodes.forEach(node => {
+            this.setNodeStatus(node.el, 'loading', '执行中...');
+        });
+
+        // Simulating step-by-step execution feedback
+        this.nodes.forEach((node, idx) => {
+            setTimeout(() => {
+                if (!this.isRunning) return; // Prevent if paused/cleared in between
+                this.setNodeStatus(node.el, 'success', '✔ 成功');
+                const skillName = node.el.dataset.skillId || '技能';
+                window.showToast("执行成功", `步骤 [${skillName}] 已成功完成。`, "success");
+
+                // If it is the last step
+                if (idx === this.nodes.length - 1) {
+                    this.isRunning = false;
+                    window.showToast("流水线执行完成", "所有 DAG 节点已顺利执行完毕，状态已保存。", "success");
+                }
+            }, (idx + 1) * 1500);
+        });
+    }
+
+    pausePipeline() {
+        this.isRunning = false;
+        // Remove status badges
+        this.nodes.forEach(node => {
+            const badge = node.el.querySelector('.dag-node-status-badge');
+            if (badge) badge.remove();
+        });
+        window.showToast("任务流水线", "流水线已成功暂停。", "warning");
+    }
+
+    clearCanvas() {
+        this.isRunning = false;
+        this.connections = [];
+        this.nodes = [];
+
+        // Remove all nodes from DOM except placeholder
+        const nodesToClear = this.canvas.querySelectorAll('.dag-node');
+        nodesToClear.forEach(node => node.remove());
+
+        this.svg.innerHTML = '';
+
+        // Show placeholder
+        const placeholder = this.canvas.querySelector('.canvas-placeholder');
+        if (placeholder) placeholder.style.display = 'flex';
+
+        window.showToast("任务流水线", "画布已清空并复位。", "success");
+    }
+
+    setNodeStatus(nodeEl, status, text) {
+        let badge = nodeEl.querySelector('.dag-node-status-badge');
+        if (!badge) {
+            badge = document.createElement('div');
+            nodeEl.appendChild(badge);
+        }
+        badge.className = `dag-node-status-badge ${status}`;
+        badge.innerText = text;
+    }
 }
+
+// Global hooks for toolbar
+window.runDagPipeline = () => {
+    if (window.dagEngine) window.dagEngine.runPipeline();
+};
+
+window.pauseDagPipeline = () => {
+    if (window.dagEngine) window.dagEngine.pausePipeline();
+};
+
+window.clearDagCanvas = () => {
+    if (window.dagEngine) window.dagEngine.clearCanvas();
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     window.dagEngine = new DAGEngine();

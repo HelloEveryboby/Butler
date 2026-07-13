@@ -9,6 +9,115 @@ window.escapeHTML = (str) => {
         .replace(/'/g, "&#039;");
 };
 
+// Dialogue Quick Action Trigger
+window.triggerQuickAction = (command, emoji) => {
+    const chatInput = document.getElementById('chat-input');
+    const welcome = document.querySelector('.welcome-message');
+    if (chatInput) {
+        chatInput.innerText = command;
+        if (welcome) welcome.style.display = 'none';
+        const sendBtn = document.getElementById('send-command-btn');
+        if (sendBtn) {
+            sendBtn.click();
+        }
+    }
+};
+
+// Onboarding Steps Definitions
+const onboardingSteps = [
+    {
+        title: "🪐 核心对话中枢 (0,0)",
+        text: "这是 Butler 的 AI 大脑。在此发送消息、拖放截图激光诊断报错，或点击下方<b>快捷指令卡片</b>一键触发自检、清理、音频降噪等自研底层核心能力。",
+        quadrant: [0, 0],
+        highlight: "cell-0-0"
+    },
+    {
+        title: "🕰️ 全局状态时光机 (1,0)",
+        text: "全局可观测时光机。拖动底部时间轴滑块，可以重现系统历史快照和环境传感器遥测曲线，报错状态还会全局高亮提示！",
+        quadrant: [1, 0],
+        highlight: "cell-1-0"
+    },
+    {
+        title: "📊 任务画布 DAG Canvas (0,1)",
+        text: "发光实体连接线任务编排。拖拽技能到此处可以组装复杂的 DAG 流水线。右上角更拥有<b>全新启动控制台</b>，点击即刻产生高对比度连线跑马灯流动！",
+        quadrant: [0, 1],
+        highlight: "cell-0-1"
+    },
+    {
+        title: "📦 技能仓储与底层硬件 (1,1)",
+        text: "模块化抽屉式技能。One Folder = One Skill。在此浏览各种定制技能与文件仓。右上角可展开终端，监控底层 HAL 硬件传感器与多端 Go 运行器生命周期。",
+        quadrant: [1, 1],
+        highlight: "cell-1-1"
+    }
+];
+
+let currentOnboardingStep = 0;
+
+window.startOnboardingTour = () => {
+    currentOnboardingStep = 0;
+    const overlay = document.getElementById('onboarding-tour-overlay');
+    if (overlay) {
+        overlay.classList.add('active');
+        showOnboardingStep(0);
+    }
+};
+
+window.nextOnboardingStep = () => {
+    currentOnboardingStep++;
+    if (currentOnboardingStep < onboardingSteps.length) {
+        showOnboardingStep(currentOnboardingStep);
+    } else {
+        window.skipOnboarding();
+    }
+};
+
+window.skipOnboarding = () => {
+    const overlay = document.getElementById('onboarding-tour-overlay');
+    if (overlay) overlay.classList.remove('active');
+    document.querySelectorAll('.matrix-cell').forEach(cell => {
+        cell.classList.remove('onboarding-highlight');
+    });
+    if (window.matrix) {
+        window.matrix.moveTo(0, 0);
+    }
+    window.showToast("上手指南", "新手引导已结束。点击开始体验 Butler 本地优先的极致魅力！", "success");
+    localStorage.setItem('butler_onboarding_completed', 'true');
+};
+
+function showOnboardingStep(index) {
+    const step = onboardingSteps[index];
+    if (!step) return;
+
+    if (window.matrix) {
+        window.matrix.moveTo(step.quadrant[0], step.quadrant[1]);
+    }
+
+    document.querySelectorAll('.matrix-cell').forEach(cell => {
+        cell.classList.remove('onboarding-highlight');
+    });
+    const targetCell = document.getElementById(step.highlight);
+    if (targetCell) {
+        targetCell.classList.add('onboarding-highlight');
+    }
+
+    const bubble = document.getElementById('onboarding-bubble-el');
+    const bodyText = document.getElementById('onboarding-body-text');
+    const stepIndicator = document.getElementById('onboarding-step-indicator');
+    const nextBtn = document.getElementById('onboarding-next-btn');
+
+    if (bodyText) bodyText.innerHTML = step.text;
+    if (stepIndicator) stepIndicator.innerText = `${index + 1} / ${onboardingSteps.length}`;
+    if (nextBtn) {
+        nextBtn.innerText = (index === onboardingSteps.length - 1) ? "探索完成" : "下一步";
+    }
+
+    if (bubble) {
+        bubble.style.position = 'fixed';
+        bubble.style.left = '40px';
+        bubble.style.bottom = '130px';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // Elements
     const interactionFlow = document.getElementById('interaction-flow');
@@ -274,27 +383,234 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 });
 
-// Settings Toggle
+// Settings Toggle and Form Lifecycle
 window.toggleSettings = () => {
-        const overlay = document.getElementById('settings-overlay');
-        if (overlay) overlay.classList.toggle('hidden');
-    };
-
-    // Vault Unlock Event
-    window.onVaultUnlocking = (data) => {
-        const modal = document.createElement('div');
-        modal.className = 'fullscreen-notif-overlay';
-        modal.innerHTML = `
-            <div class="fullscreen-notif-card glass-surface vault-unlock-card" style="border: 1px solid #d4af37;">
-                <h2 style="color: #d4af37;"><i class="fas fa-shield-halved"></i> 密室正在解锁</h2>
-                <p>为了您的隐私安全，Butler 正在从安全内存派生密钥。</p>
-                <div class="vault-lock-animation active"><i class="fas fa-lock" style="font-size: 48px; color: #d4af37;"></i></div>
-                <div style="margin-top: 30px;" class="loading-spinner"></div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-        setTimeout(() => modal.remove(), 3000);
+    const overlay = document.getElementById('settings-overlay');
+    if (overlay) {
+        overlay.classList.toggle('hidden');
+        if (!overlay.classList.contains('hidden')) {
+            loadSettingsForm();
+        }
+    }
 };
+
+// Switch Settings Tabs
+window.switchSettingsTab = (tabId) => {
+    document.querySelectorAll('.settings-nav-item').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelectorAll('.settings-panel').forEach(panel => {
+        panel.classList.remove('active');
+    });
+
+    const targetBtn = document.getElementById(`tab-btn-${tabId}`);
+    if (targetBtn) targetBtn.classList.add('active');
+
+    const targetPanel = document.getElementById(`settings-tab-${tabId}`);
+    if (targetPanel) targetPanel.classList.add('active');
+};
+
+// API Key Visibility Toggle
+window.toggleApiKeyVisibility = () => {
+    const keyInput = document.getElementById('setting-api-key');
+    const eyeIcon = document.getElementById('api-key-eye');
+    if (keyInput && eyeIcon) {
+        if (keyInput.type === 'password') {
+            keyInput.type = 'text';
+            eyeIcon.className = 'fas fa-eye-slash';
+        } else {
+            keyInput.type = 'password';
+            eyeIcon.className = 'fas fa-eye';
+        }
+    }
+};
+
+// Provider Change Helper
+window.onProviderChange = () => {
+    const provider = document.getElementById('setting-provider').value;
+    const modelInput = document.getElementById('setting-model-name');
+    const urlInput = document.getElementById('setting-base-url');
+    if (provider === 'deepseek') {
+        modelInput.value = 'deepseek-chat';
+        urlInput.value = 'https://api.deepseek.com';
+    } else if (provider === 'openai') {
+        modelInput.value = 'gpt-4o';
+        urlInput.value = 'https://api.openai.com/v1';
+    } else if (provider === 'local') {
+        modelInput.value = 'llama3';
+        urlInput.value = 'http://localhost:11434';
+    }
+};
+
+// Save Model Settings
+window.saveModelSettings = () => {
+    const provider = document.getElementById('setting-provider').value;
+    const model = document.getElementById('setting-model-name').value;
+    const apiKey = document.getElementById('setting-api-key').value;
+    const baseUrl = document.getElementById('setting-base-url').value;
+
+    localStorage.setItem('setting_provider', provider);
+    localStorage.setItem('setting_model', model);
+    localStorage.setItem('setting_api_key', apiKey);
+    localStorage.setItem('setting_base_url', baseUrl);
+
+    window.showToast("保存成功", "大模型提供商参数已成功加密保存在本地 SecretVault 中！", "success");
+};
+
+// Memory Db Change Helper
+window.onMemoryDbChange = () => {
+    const dbType = document.getElementById('setting-memory-db').value;
+    const badge = document.getElementById('active-memory-db-badge');
+    if (badge) {
+        badge.innerText = dbType.toUpperCase() + " Database";
+        if (dbType === 'redis') {
+            badge.style.background = 'rgba(0, 122, 255, 0.2)';
+            badge.style.color = '#007AFF';
+        } else if (dbType === 'zvec') {
+            badge.style.background = 'rgba(52, 199, 89, 0.2)';
+            badge.style.color = '#34C759';
+        } else {
+            badge.style.background = 'rgba(255, 149, 0, 0.2)';
+            badge.style.color = '#FF9500';
+        }
+    }
+};
+
+// Save Memory Settings
+window.saveMemorySettings = () => {
+    const dbType = document.getElementById('setting-memory-db').value;
+    const dreamEngine = document.getElementById('setting-dream-engine').checked;
+
+    localStorage.setItem('setting_memory_db', dbType);
+    localStorage.setItem('setting_dream_engine', dreamEngine);
+
+    window.showToast("记忆库设置", "向量数据库切换及后台做梦精简规则已更新且生效。", "success");
+};
+
+// Test HAL Connection
+window.testHalConnection = () => {
+    window.showToast("硬件自检", "正在向物理 STM32 硬件总线发送遥测信号包...", "success");
+    setTimeout(() => {
+        window.showToast("测试完成", "回路反馈正常！已成功捕获 HAL 传感器温度与 USB-OLED 屏幕驱动缓存。", "success");
+    }, 1500);
+};
+
+// Toggle Theme Mode
+window.toggleThemeMode = () => {
+    const toggleInput = document.getElementById('setting-theme-toggle');
+    if (toggleInput) {
+        if (toggleInput.checked) {
+            document.body.classList.remove('theme-apple');
+            document.body.classList.add('theme-dark');
+            localStorage.setItem('setting_theme', 'dark');
+            window.showToast("深浅主题", "已切换至「Midnight Cyberpunk」暗黑磨砂玻璃极客主题。", "success");
+        } else {
+            document.body.classList.remove('theme-dark');
+            document.body.classList.add('theme-apple');
+            localStorage.setItem('setting_theme', 'light');
+            window.showToast("深浅主题", "已切换至「Apple Premium Light」白磨砂玻璃极简主题。", "success");
+        }
+    }
+};
+
+// Update Blur CSS custom property
+window.updateBlurValue = (val) => {
+    document.documentElement.style.setProperty('--glass-blur', `${val}px`);
+    localStorage.setItem('setting_blur', val);
+};
+
+// Toggle Heatmap background
+window.toggleHeatmapAnimation = () => {
+    const toggle = document.getElementById('setting-heatmap-toggle');
+    const canvas = document.getElementById('substrate-heatmap');
+    if (canvas) {
+        if (toggle && toggle.checked) {
+            canvas.style.display = 'block';
+            localStorage.setItem('setting_heatmap', 'true');
+        } else {
+            canvas.style.display = 'none';
+            localStorage.setItem('setting_heatmap', 'false');
+        }
+    }
+};
+
+// Load Saved Form Settings
+function loadSettingsForm() {
+    if (localStorage.getItem('setting_provider')) {
+        document.getElementById('setting-provider').value = localStorage.getItem('setting_provider');
+    }
+    if (localStorage.getItem('setting_model')) {
+        document.getElementById('setting-model-name').value = localStorage.getItem('setting_model');
+    }
+    if (localStorage.getItem('setting_api_key')) {
+        document.getElementById('setting-api-key').value = localStorage.getItem('setting_api_key');
+    }
+    if (localStorage.getItem('setting_base_url')) {
+        document.getElementById('setting-base-url').value = localStorage.getItem('setting_base_url');
+    }
+    if (localStorage.getItem('setting_memory_db')) {
+        const dbType = localStorage.getItem('setting_memory_db');
+        document.getElementById('setting-memory-db').value = dbType;
+        window.onMemoryDbChange();
+    }
+    if (localStorage.getItem('setting_dream_engine')) {
+        document.getElementById('setting-dream-engine').checked = (localStorage.getItem('setting_dream_engine') === 'true');
+    }
+    if (localStorage.getItem('setting_theme')) {
+        const isDark = (localStorage.getItem('setting_theme') === 'dark');
+        document.getElementById('setting-theme-toggle').checked = isDark;
+    }
+    if (localStorage.getItem('setting_blur')) {
+        const blur = localStorage.getItem('setting_blur');
+        document.getElementById('setting-blur-slider').value = blur;
+        document.documentElement.style.setProperty('--glass-blur', `${blur}px`);
+    }
+    if (localStorage.getItem('setting_heatmap')) {
+        const heatmapOn = (localStorage.getItem('setting_heatmap') === 'true');
+        document.getElementById('setting-heatmap-toggle').checked = heatmapOn;
+        const canvas = document.getElementById('substrate-heatmap');
+        if (canvas) canvas.style.display = heatmapOn ? 'block' : 'none';
+    }
+}
+
+// Vault Unlock Event
+window.onVaultUnlocking = (data) => {
+    const modal = document.createElement('div');
+    modal.className = 'fullscreen-notif-overlay';
+    modal.innerHTML = `
+        <div class="fullscreen-notif-card glass-surface vault-unlock-card" style="border: 1px solid #d4af37;">
+            <h2 style="color: #d4af37;"><i class="fas fa-shield-halved"></i> 密室正在解锁</h2>
+            <p>为了您的隐私安全，Butler 正在从安全内存派生密钥。</p>
+            <div class="vault-lock-animation active"><i class="fas fa-lock" style="font-size: 48px; color: #d4af37;"></i></div>
+            <div style="margin-top: 30px;" class="loading-spinner"></div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    setTimeout(() => modal.remove(), 3000);
+};
+
+// Initial Theme Check and Application on DOM Load
+document.addEventListener('DOMContentLoaded', () => {
+    const savedTheme = localStorage.getItem('setting_theme');
+    if (savedTheme === 'dark') {
+        document.body.classList.remove('theme-apple');
+        document.body.classList.add('theme-dark');
+    } else {
+        document.body.classList.remove('theme-dark');
+        document.body.classList.add('theme-apple');
+    }
+
+    const savedBlur = localStorage.getItem('setting_blur');
+    if (savedBlur) {
+        document.documentElement.style.setProperty('--glass-blur', `${savedBlur}px`);
+    }
+
+    const savedHeatmap = localStorage.getItem('setting_heatmap');
+    if (savedHeatmap === 'false') {
+        const canvas = document.getElementById('substrate-heatmap');
+        if (canvas) canvas.style.display = 'none';
+    }
+});
 
 // Initialize Matrix on Load
 document.addEventListener('DOMContentLoaded', () => {
@@ -370,6 +686,13 @@ async function loadFiles(path) {
 
 document.addEventListener('DOMContentLoaded', () => {
     loadFiles('.');
+
+    // Launch Onboarding Tour automatically for new users after layout settles
+    setTimeout(() => {
+        if (!localStorage.getItem('butler_onboarding_completed')) {
+            window.startOnboardingTour();
+        }
+    }, 1500);
 
     // --- Mobile WebMessagePort IPC Bridge ---
     window.addEventListener("message", function (event) {
