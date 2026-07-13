@@ -113,9 +113,9 @@ def run_verification():
         }""")
         time.sleep(0.5)
 
-        # Now click '启动' inside DAG Toolbar to trigger flows and status badges
-        page.click("button:has-text('启动')")
-        time.sleep(0.8)
+        # Now trigger '启动' inside DAG Toolbar to trigger flows and status badges
+        page.evaluate("window.runDagPipeline();")
+        time.sleep(1)
         page.screenshot(path=f"{screenshot_dir}/pm_dag_running_glow.png")
         print("Captured pm_dag_running_glow.png")
 
