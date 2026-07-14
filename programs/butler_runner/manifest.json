@@ -1,0 +1,131 @@
+{
+  "name": "butler_runner",
+  "version": "2.0.0",
+  "description": "Butler-Runner Pro: 远程执行节点 — 支持命令执行、截屏、键鼠模拟、文件操作、格式转换、加密保管箱、剪贴板同步、交互式 Shell、系统服务管理",
+  "language": "go",
+  "author": "Butler Team",
+  "license": "MIT",
+
+  "build": {
+    "command": "go build -o {output} {source}",
+    "source": "runner.go",
+    "output": "runner"
+  },
+
+  "executable": {
+    "path": "runner",
+    "args": ["-server", "ws://localhost:8000/ws/butler", "-token", "${RUNNER_TOKEN}", "-id", "${RUNNER_ID:-default_runner}"]
+  },
+
+  "capabilities": [
+    "shell",
+    "file_ls",
+    "file_upload",
+    "file_download",
+    "file_delete",
+    "file_mkdir",
+    "file_read",
+    "screenshot",
+    "app_control",
+    "input",
+    "sys_info",
+    "ping",
+    "sleep",
+    "vault_init",
+    "vault_set_key",
+    "vault_encrypt",
+    "vault_decrypt",
+    "spawn_skill",
+    "format_convert",
+    "storage_transfer",
+    "storage_oauth_listen",
+    "metrics",
+    "clipboard_read",
+    "clipboard_write",
+    "clipboard_watch",
+    "shell_session_create",
+    "shell_session_input",
+    "shell_session_resize",
+    "shell_session_close",
+    "shell_session_list",
+    "service_list",
+    "service_status",
+    "service_start",
+    "service_stop",
+    "service_restart",
+    "service_logs",
+    "process_list",
+    "process_kill"
+  ],
+
+  "platforms": {
+    "linux": {
+      "build_deps": ["libx11-dev", "libxtst-dev", "libxext-dev", "libxinerama-dev", "libxkbcommon-dev"],
+      "build_tags": []
+    },
+    "darwin": {
+      "build_deps": [],
+      "build_tags": []
+    },
+    "windows": {
+      "build_deps": ["mingw-w64"],
+      "build_tags": []
+    }
+  },
+
+  "dependencies": {
+    "gorilla/websocket": "WebSocket client for server communication",
+    "go-vgo/robotgo": "Desktop automation (keyboard/mouse)",
+    "vova616/screenshot": "Screen capture",
+    "shirou/gopsutil/v4": "System metrics collection",
+    "signintech/gopdf": "PDF generation",
+    "xuri/excelize/v2": "Excel processing",
+    "yuin/goldmark": "Markdown processing",
+    "deepteams/webp": "WebP image processing",
+    "gopkg.in/yaml.v3": "YAML parsing",
+    "creack/pty": "Interactive shell PTY support (v2 new)"
+  },
+
+  "environment_variables": {
+    "BUTLER_RUNNER_TOKEN": {
+      "required": true,
+      "description": "Authentication token for WebSocket connection",
+      "min_length": 16
+    },
+    "RUNNER_ID": {
+      "required": false,
+      "default": "default_runner",
+      "description": "Unique identifier for this runner node"
+    },
+    "BUTLER_SERVER_URL": {
+      "required": false,
+      "default": "ws://localhost:8000/ws/butler",
+      "description": "Butler server WebSocket URL (use wss:// for TLS)"
+    }
+  },
+
+  "security": {
+    "protocol": "WebSocket (JSON)",
+    "authentication": "Token-based with HMAC-SHA256 message signing (v2)",
+    "tls": "Supported via WSS (auto-generated self-signed cert or custom cert/key)",
+    "file_operations": "Path traversal protection (isSafePath)",
+    "vault": "AES-256-GCM with mlock/VirtualLock memory pinning"
+  },
+
+  "resource_limits": {
+    "snapshot_buffer_size": 100,
+    "snapshot_interval_ms": 200,
+    "archive_interval_s": 5,
+    "delta_compression_threshold_pct": 2.0,
+    "dras_cpu_threshold_pct": 85.0,
+    "dwt_yellow_zone_pct": 60.0,
+    "dwt_red_zone_pct": 85.0,
+    "max_restart_backoff_s": 30,
+    "heartbeat_timeout_s": 60
+  },
+
+  "run": {
+    "description": "Start Butler-Runner Pro remote execution node",
+    "usage": "./runner -server <ws_url> -token <auth_token> -id <runner_id>"
+  }
+}
