@@ -26,12 +26,19 @@ def handle_request(action, **kwargs):
     from_fmt = from_fmt.upper()
     to_fmt = to_fmt.upper()
 
-    # Normalize some common type aliases
-    if from_fmt == "MD": from_fmt = "MARKDOWN"
-    if to_fmt == "MD": to_fmt = "MARKDOWN"
-    if from_fmt == "MARKDOWN": from_fmt = "MD"
-    if to_fmt == "MARKDOWN": to_fmt = "MD"
-    if to_fmt == "XLSX": to_fmt = "CSV" # Fallback XLSX to CSV as designed
+    # Normalize aliases
+    if from_fmt in ["MD", "MARKDOWN"]: from_fmt = "MD"
+    if to_fmt in ["MD", "MARKDOWN"]: to_fmt = "MD"
+    if from_fmt in ["XLSX", "EXCEL"]: from_fmt = "XLSX"
+    if to_fmt in ["XLSX", "EXCEL"]: to_fmt = "XLSX"
+    if from_fmt in ["WEBP"]: from_fmt = "WEBP"
+    if to_fmt in ["WEBP"]: to_fmt = "WEBP"
+    if from_fmt in ["BASE64"]: from_fmt = "BASE64"
+    if to_fmt in ["BASE64"]: to_fmt = "BASE64"
+    if from_fmt in ["PNG"]: from_fmt = "PNG"
+    if to_fmt in ["PNG"]: to_fmt = "PNG"
+    if from_fmt in ["JPG", "JPEG"]: from_fmt = "JPG"
+    if to_fmt in ["JPG", "JPEG"]: to_fmt = "JPG"
 
     # Options structure
     opts = {
@@ -70,16 +77,20 @@ def handle_request(action, **kwargs):
     # 3. Local Fallback Execution (Pure Python)
     logger.info("Executing format conversion locally (Python Fallback)")
     try:
-        # Resolve source data
+        # Resolve source data as text for standard converters
         src_content = ""
-        if input_val.startswith("http://") or input_val.startswith("https://"):
-            import requests
-            resp = requests.get(input_val, timeout=10)
-            resp.raise_for_status()
-            src_content = resp.text
-        elif os.path.exists(input_val):
-            with open(input_val, 'r', encoding='utf-8') as f:
-                src_content = f.read()
+        # WebP and Base64 converters will re-resolve input_val to binary if needed
+        if from_fmt not in ["PNG", "JPG"] and to_fmt not in ["WEBP", "BASE64"]:
+            if input_val.startswith("http://") or input_val.startswith("https://"):
+                import requests
+                resp = requests.get(input_val, timeout=10)
+                resp.raise_for_status()
+                src_content = resp.text
+            elif os.path.exists(input_val):
+                with open(input_val, 'r', encoding='utf-8') as f:
+                    src_content = f.read()
+            else:
+                src_content = input_val
         else:
             src_content = input_val
 
@@ -89,6 +100,14 @@ def handle_request(action, **kwargs):
             result = local_md_to_html(src_content, opts)
         elif from_fmt in ["JSON", "YAML"] and to_fmt == "CSV":
             result = local_data_to_csv(src_content, from_fmt, opts)
+        elif to_fmt == "XLSX":
+            result = _local_fallback_xlsx(src_content, from_fmt, opts)
+        elif to_fmt == "MD":
+            result = _local_fallback_md(src_content, from_fmt, opts)
+        elif to_fmt in ["WEBP", "BASE64"] or from_fmt in ["PNG", "JPG"]:
+            result = _local_fallback_image(src_content, from_fmt, to_fmt, opts)
+        elif to_fmt == "PDF":
+            result = _local_fallback_pdf(src_content, from_fmt, opts)
         else:
             return f"Error: Unsupported local conversion path: {from_fmt} -> {to_fmt}"
 
@@ -97,10 +116,17 @@ def handle_request(action, **kwargs):
             parent_dir = os.path.dirname(save_to)
             if parent_dir and not os.path.exists(parent_dir):
                 os.makedirs(parent_dir, exist_ok=True)
-            with open(save_to, 'w', encoding='utf-8') as f:
-                f.write(result)
+            if isinstance(result, bytes):
+                with open(save_to, 'wb') as f:
+                    f.write(result)
+            else:
+                with open(save_to, 'w', encoding='utf-8') as f:
+                    f.write(result)
             return f"Success: Saved to {save_to}"
         else:
+            if isinstance(result, bytes):
+                import base64
+                return base64.b64encode(result).decode('utf-8')
             return result
 
     except Exception as e:
@@ -153,7 +179,7 @@ def local_md_to_html(md_text, opts):
         list_match = re.match(r'^[\-\*]\s+(.*)$', stripped)
         if list_match:
             if not in_list:
-                html_lines.append("<ul>")
+                html_lines.append("</ul>")
                 in_list = True
             html_lines.append(f"<li>{list_match.group(1)}</li>")
             continue
@@ -294,3 +320,123 @@ def _flatten_dict(val, prefix, current):
         current[prefix] = str(val).lower()
     else:
         current[prefix] = str(val)
+
+
+def _local_fallback_xlsx(src_content, from_fmt, opts):
+    """Local fallback for Excel: Prepend UTF-8 BOM to allow double-clicking on Windows."""
+    logger.warning("Warning: Local XLSX fallback generated a BOM-marked CSV file instead.")
+    csv_data = ""
+    if from_fmt in ["JSON", "YAML"]:
+        csv_data = local_data_to_csv(src_content, from_fmt, opts)
+    else:
+        csv_data = src_content
+    # Return UTF-8 BOM marked CSV string
+    return "\ufeff" + csv_data
+
+
+def _local_fallback_pdf(src_content, from_fmt, opts):
+    """Local fallback for PDF: PDF formatting is not locally supported, raise exception."""
+    raise ValueError("Local fallback for PDF is not supported. Please connect a Go Runner.")
+
+
+def _local_fallback_md(src_content, from_fmt, opts):
+    """Generates Markdown table from JSON or CSV in pure Python."""
+    import csv
+    import io
+
+    # 1. Resolve to standard rows
+    rows = []
+    if from_fmt == "JSON":
+        data = json.loads(src_content)
+        if isinstance(data, dict):
+            data = [data]
+        elif not isinstance(data, list):
+            raise ValueError("JSON data must be a list of objects or a single object")
+
+        # Flatten objects
+        flat_items = []
+        all_keys = set()
+        for item in data:
+            flat = {}
+            _flatten_dict(item, "", flat)
+            flat_items.append(flat)
+            all_keys.update(flat.keys())
+
+        sorted_keys = sorted(list(all_keys))
+        rows.append(sorted_keys)
+        for flat in flat_items:
+            row = [flat.get(k, "") for k in sorted_keys]
+            rows.append(row)
+    elif from_fmt == "CSV":
+        f = io.StringIO(src_content)
+        reader = csv.reader(f)
+        rows = list(reader)
+    else:
+        raise ValueError(f"Unsupported source format for Markdown table: {from_fmt}")
+
+    if not rows:
+        return "*No data available.*\n"
+
+    headers = rows[0]
+    data_rows = rows[1:]
+
+    def escape_cell(val):
+        val_str = str(val)
+        val_str = val_str.replace("|", "\\|")
+        val_str = val_str.replace("\r\n", "<br />").replace("\n", "<br />")
+        return val_str
+
+    # 2. Render Table
+    md_lines = []
+    md_lines.append("| " + " | ".join(escape_cell(h) for h in headers) + " |")
+    md_lines.append("| " + " | ".join("---" for _ in headers) + " |")
+    for row in data_rows:
+        md_lines.append("| " + " | ".join(escape_cell(val) for val in row) + " |")
+
+    return "\n".join(md_lines) + "\n"
+
+
+def _local_fallback_image(src_content, from_fmt, to_fmt, opts):
+    """Converts image to WebP or Base64 in pure Python."""
+    import base64
+    import io
+
+    binary_data = b""
+    if src_content.startswith("http://") or src_content.startswith("https://"):
+        import requests
+        resp = requests.get(src_content, timeout=10)
+        resp.raise_for_status()
+        binary_data = resp.content
+    elif os.path.exists(src_content):
+        with open(src_content, 'rb') as f:
+            binary_data = f.read()
+    else:
+        # Assume it's a base64 encoded string or raw string
+        try:
+            binary_data = base64.b64decode(src_content)
+        except Exception:
+            binary_data = src_content.encode('utf-8')
+
+    if to_fmt == "BASE64":
+        encoded = base64.b64encode(binary_data).decode('utf-8')
+        if opts.get("config", {}).get("WithDataUri", False):
+            fmt = from_fmt.lower()
+            if fmt == "jpeg":
+                fmt = "jpg"
+            encoded = f"data:image/{fmt};base64," + encoded
+        return encoded
+
+    elif to_fmt == "WEBP":
+        try:
+            from PIL import Image
+            img = Image.open(io.BytesIO(binary_data))
+            out_buf = io.BytesIO()
+            quality = opts.get("config", {}).get("quality", 80)
+            img.save(out_buf, format="WEBP", quality=quality)
+            return out_buf.getvalue()
+        except ImportError:
+            raise ImportError("Pillow library is required for local WebP image conversion. Please install pillow or connect a Go Runner.")
+        except Exception as e:
+            raise ValueError(f"Image WebP conversion failed: {e}")
+    else:
+        raise ValueError(f"Unsupported image target format: {to_fmt}")
