@@ -20,6 +20,7 @@ class RunnerServer:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._server_thread: Optional[threading.Thread] = None
         self._event_callbacks: List[Callable[[str, Dict[str, Any]], None]] = []
+        self._pending_requests: Dict[str, asyncio.Future] = {}
 
         if not self.token or self.token == "BUTLER_SECRET_2026":
             self.logger.warning("⚠️ RunnerServer is using a default or missing token! This is insecure.")
@@ -77,6 +78,14 @@ class RunnerServer:
                     self.logger.info(f"Runner registered: {runner_id} from {websocket.remote_address}")
                     await websocket.send(json.dumps({"status": "ok", "data": f"Registered as {runner_id}"}))
                     continue
+
+                # Check if this is a response to a pending request with a request_id correlation
+                req_id = data.get("request_id")
+                if req_id and req_id in self._pending_requests:
+                    self._loop.call_soon_threadsafe(
+                        lambda r_id=req_id, d=data: self._pending_requests[r_id].set_result(d)
+                        if r_id in self._pending_requests and not self._pending_requests[r_id].done() else None
+                    )
 
                 # Handle responses/events
                 for callback in self._event_callbacks:
@@ -150,7 +159,7 @@ class RunnerServer:
         except Exception as e:
             self.logger.error(f"RunnerServer loop crash: {e}")
 
-    def send_command(self, runner_id: str, cmd_type: str, payload: str, skill_config: dict = None):
+    def send_command(self, runner_id: str, cmd_type: str, payload: str, skill_config: dict = None, request_id: str = None):
         """Sends a command to a specific runner."""
         if runner_id not in self.runners:
             return False, f"Runner {runner_id} not connected"
@@ -163,6 +172,8 @@ class RunnerServer:
         }
         if skill_config:
             msg["skill_config"] = skill_config
+        if request_id:
+            msg["request_id"] = request_id
 
         future = asyncio.run_coroutine_threadsafe(websocket.send(json.dumps(msg)), self._loop)
         try:
@@ -170,6 +181,56 @@ class RunnerServer:
             return True, "Command sent"
         except Exception as e:
             return False, str(e)
+
+    async def send_command_async(self, runner_id: str, cmd_type: str, payload: str, request_id: str = None, timeout: float = 30.0) -> Dict[str, Any]:
+        """Asynchronously sends a command and waits for a response containing the same request_id."""
+        if runner_id not in self.runners:
+            return {"status": "fail", "error": f"Runner {runner_id} not connected"}
+
+        if not request_id:
+            import uuid
+            request_id = uuid.uuid4().hex
+
+        websocket = self.runners[runner_id]
+        msg = {
+            "type": cmd_type,
+            "payload": payload,
+            "token": self.token,
+            "request_id": request_id
+        }
+
+        # Create future to wait for response
+        future = self._loop.create_future()
+        self._pending_requests[request_id] = future
+
+        try:
+            await websocket.send(json.dumps(msg))
+            result = await asyncio.wait_for(future, timeout=timeout)
+            return result
+        except asyncio.TimeoutError:
+            return {"status": "fail", "error": f"Request {request_id} timed out after {timeout} seconds"}
+        except Exception as e:
+            return {"status": "fail", "error": str(e)}
+        finally:
+            self._pending_requests.pop(request_id, None)
+
+    def send_command_sync(self, runner_id: str, cmd_type: str, payload: str, timeout: float = 30.0) -> Dict[str, Any]:
+        """Synchronously sends a command and blocks the calling thread until a response with a matching request_id is received."""
+        if not self._loop:
+            return {"status": "fail", "error": "RunnerServer event loop is not running"}
+
+        import uuid
+        request_id = uuid.uuid4().hex
+
+        future = asyncio.run_coroutine_threadsafe(
+            self.send_command_async(runner_id, cmd_type, payload, request_id, timeout),
+            self._loop
+        )
+        try:
+            # Wait for the async operation to complete (timeout + 1s padding for safe thread wait)
+            return future.result(timeout=timeout + 1.0)
+        except Exception as e:
+            return {"status": "fail", "error": f"Synchronous execution failed: {e}"}
 
     def broadcast_command(self, cmd_type: str, payload: str):
         """Broadcasts a command to all connected runners."""

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -26,6 +27,7 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/vova616/screenshot"
 	"github.com/butler/programs/butler_runner/storage_hub"
+	"butler_runner/converter"
 )
 
 // --- 协议定义 ---
@@ -37,6 +39,7 @@ type Message struct {
 	RunnerID           string                 `json:"runner_id,omitempty"`
 	BlackboardSnapshot map[string]interface{} `json:"blackboard_snapshot,omitempty"`
 	SkillConfig        *SkillSpawnConfig      `json:"skill_config,omitempty"`
+	RequestID          string                 `json:"request_id,omitempty"`
 }
 
 type SkillSpawnConfig struct {
@@ -49,10 +52,11 @@ type SkillSpawnConfig struct {
 }
 
 type Response struct {
-	Status   string      `json:"status"`
-	Data     interface{} `json:"data,omitempty"`
-	Error    string      `json:"error,omitempty"`
-	RunnerID string      `json:"runner_id"`
+	Status    string      `json:"status"`
+	Data      interface{} `json:"data,omitempty"`
+	Error     string      `json:"error,omitempty"`
+	RunnerID  string      `json:"runner_id"`
+	RequestID string      `json:"request_id,omitempty"`
 }
 
 var (
@@ -439,6 +443,93 @@ func isSafePath(path string) bool {
 func handleTask(c *websocket.Conn, msg Message) {
 	msgType := normalizeType(msg.Type)
 	switch msgType {
+	case "format_convert":
+		var task struct {
+			Input   string                   `json:"input"`
+			From    string                   `json:"from"`
+			To      string                   `json:"to"`
+			SaveTo  string                   `json:"save_to"`
+			Options converter.ConvertOptions `json:"options"`
+		}
+		if err := json.Unmarshal([]byte(msg.Payload), &task); err != nil {
+			sendRespWithID(c, "fail", nil, "Invalid format_convert payload: "+err.Error(), msg.RequestID)
+			return
+		}
+
+		// 1. Resolve source stream (Input)
+		var src io.Reader
+		if strings.HasPrefix(task.Input, "http://") || strings.HasPrefix(task.Input, "https://") {
+			resp, err := http.Get(task.Input)
+			if err != nil {
+				sendRespWithID(c, "fail", nil, "HTTP download failed: "+err.Error(), msg.RequestID)
+				return
+			}
+			defer resp.Body.Close()
+			src = resp.Body
+		} else if isFile, err := os.Stat(task.Input); err == nil && !isFile.IsDir() {
+			if !isSafePath(task.Input) {
+				sendRespWithID(c, "fail", nil, "Security error: Unsafe input file path: "+task.Input, msg.RequestID)
+				return
+			}
+			file, err := os.Open(task.Input)
+			if err != nil {
+				sendRespWithID(c, "fail", nil, "Failed to open input file: "+err.Error(), msg.RequestID)
+				return
+			}
+			defer file.Close()
+			src = file
+		} else {
+			// Memory/string source
+			src = strings.NewReader(task.Input)
+		}
+
+		// 2. Resolve target stream (SaveTo / Memory)
+		var dst io.Writer
+		var memBuf bytes.Buffer
+
+		if task.SaveTo != "" {
+			if !isSafePath(task.SaveTo) {
+				sendRespWithID(c, "fail", nil, "Security error: Unsafe save_to file path: "+task.SaveTo, msg.RequestID)
+				return
+			}
+			// Ensure parent directory exists
+			parentDir := filepath.Dir(task.SaveTo)
+			if err := os.MkdirAll(parentDir, 0755); err != nil {
+				sendRespWithID(c, "fail", nil, "Failed to create save_to directory: "+err.Error(), msg.RequestID)
+				return
+			}
+			file, err := os.Create(task.SaveTo)
+			if err != nil {
+				sendRespWithID(c, "fail", nil, "Failed to create target file: "+err.Error(), msg.RequestID)
+				return
+			}
+			defer file.Close()
+			dst = file
+		} else {
+			dst = &memBuf
+		}
+
+		// 3. Resolve converter from registry
+		reg := converter.NewConverterRegistry()
+		conv, exists := reg.GetConverter(converter.DocType(strings.ToUpper(task.From)), converter.DocType(strings.ToUpper(task.To)))
+		if !exists {
+			sendRespWithID(c, "fail", nil, fmt.Sprintf("Unsupported conversion path: %s -> %s", task.From, task.To), msg.RequestID)
+			return
+		}
+
+		// 4. Run conversion
+		if err := conv.Convert(context.Background(), src, dst, task.Options); err != nil {
+			sendRespWithID(c, "fail", nil, "Conversion error: "+err.Error(), msg.RequestID)
+			return
+		}
+
+		// 5. Respond
+		if task.SaveTo != "" {
+			sendRespWithID(c, "ok", "Saved to "+task.SaveTo, "", msg.RequestID)
+		} else {
+			sendRespWithID(c, "ok", memBuf.String(), "", msg.RequestID)
+		}
+
 	case "ping":
 		sendResp(c, "pong", "alive", "")
 
@@ -778,6 +869,21 @@ func sendResp(c *websocket.Conn, status string, data interface{}, errMsg string)
 		Data:     data,
 		Error:    errMsg,
 		RunnerID: *runnerID,
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if err := c.WriteJSON(resp); err != nil {
+		log.Printf("⚠️ 发送响应失败: %v", err)
+	}
+}
+
+func sendRespWithID(c *websocket.Conn, status string, data interface{}, errMsg string, requestID string) {
+	resp := Response{
+		Status:    status,
+		Data:      data,
+		Error:     errMsg,
+		RunnerID:  *runnerID,
+		RequestID: requestID,
 	}
 	mu.Lock()
 	defer mu.Unlock()
