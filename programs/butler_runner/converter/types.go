@@ -14,6 +14,13 @@ const (
 	TypeMarkdown DocType = "MD"
 	TypeHTML     DocType = "HTML"
 	TypeCSV      DocType = "CSV"
+	TypeExcel    DocType = "XLSX"
+	TypePDF      DocType = "PDF"
+	TypePNG      DocType = "PNG"
+	TypeJPG      DocType = "JPG"
+	TypeJPEG     DocType = "JPEG"
+	TypeWebP     DocType = "WEBP"
+	TypeBase64   DocType = "BASE64"
 )
 
 // ConvertOptions contains extra conversion parameters
