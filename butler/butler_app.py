@@ -51,7 +51,6 @@ from butler.core.sensing_api import init_sensing_api
 from butler.core.workflow_engine import WorkflowEngine
 from butler.core.self_healing import SelfHealing
 from butler.core.display_protocol import display_server
-from butler.core.policy_loader import load_butler_policy
 from butler.usb_screen import USBScreen
 from butler.gui.config_wizard import show_config_wizard_if_needed
 from butler.core.asset_downloader import download_essential_assets
@@ -583,8 +582,6 @@ class Jarvis:
             "3. **反馈进度**: 在编写和运行代码的过程中，清晰地告知用户你正在进行的操作。"
         )
         system_prompt += dev_instruction
-        # Inject BUTLER.md policy
-        system_prompt += load_butler_policy()
         # Inject Go-runner active environments dynamically
         system_prompt += self._get_runner_env_prompt_extension()
 
@@ -855,11 +852,6 @@ class Jarvis:
         """Autonomous agent loop with tool use and persistence."""
         history = self.long_memory.get_recent_history(10)
         messages = []
-
-        # Inject BUTLER.md policy
-        policy = load_butler_policy()
-        if policy:
-            messages.append({"role": "system", "content": policy})
 
         # [Stage 2] 注入全局技能目录
         skill_extension = self.skill_manager.get_system_prompt_extension()
