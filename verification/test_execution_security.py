@@ -51,6 +51,24 @@ def test_interpreter_shell_safety():
     assert not success
     assert "Security Block" in output
 
+    # Test requires_approval and is_destructive helper functions
+    assert interpreter.is_destructive("rm -rf /")
+    assert not interpreter.is_destructive("ls -la")
+
+    assert interpreter.requires_approval("sudo apt update")
+    assert interpreter.requires_approval("reg add HKLM\\Software")
+    assert interpreter.requires_approval("mkdir /etc/myconfig")
+    assert not interpreter.requires_approval("ls -la")
+
+    # Test execute_shell with approval flow
+    success, output = interpreter.execute_shell("sudo apt update", approved=False)
+    assert not success
+    assert "Approval Required" in output
+
+    success, output = interpreter.execute_shell("mkdir /etc/newdir", approved=False)
+    assert not success
+    assert "Approval Required" in output
+
 def test_skill_manager_ast_safety():
     sm = SkillManager()
 
@@ -73,3 +91,53 @@ def test_skill_manager_ast_safety():
         assert not sm._is_skill_safe(unsafe_file)
     finally:
         os.unlink(unsafe_file)
+
+def test_implicit_skill_matching():
+    # Setup mock Jarvis app and skill manager
+    mock_app = MagicMock()
+    mock_skill_manager = MagicMock()
+    mock_app.skill_manager = mock_skill_manager
+
+    # Configure manifest for format_convert and archive_manager
+    mock_skill_manager.manifests = {
+        "format_convert": {
+            "name": "Format Convert",
+            "keywords": ["convert", "pandoc", "pdf2docx"]
+        },
+        "archive_manager": {
+            "name": "Archive Manager",
+            "keywords": ["zip", "unzip", "tar"]
+        }
+    }
+
+    # Configure skill manager mock execute function to return custom status
+    def mock_execute(skill_id, action, **kwargs):
+        return f"Mocked execute of {skill_id} with action {action}"
+
+    mock_skill_manager.execute.side_effect = mock_execute
+
+    # Set up interpreter and inject mock app
+    interpreter = Interpreter()
+    interpreter.safety_mode = True
+    interpreter.jarvis_app = mock_app
+
+    # Test format_convert interception
+    success, output = interpreter.execute_shell("pandoc input.md -o output.html")
+    assert success
+    assert "format_convert" in output
+    assert "智能拦截成功" in output
+    mock_skill_manager.execute.assert_any_call(
+        "format_convert", "run",
+        input="input.md", from_fmt="md", to_fmt="html", save_to="output.html",
+        jarvis_app=mock_app
+    )
+
+    # Test archive_manager interception
+    success, output = interpreter.execute_shell("zip -r archive.zip folder1")
+    assert success
+    assert "archive_manager" in output
+    mock_skill_manager.execute.assert_any_call(
+        "archive_manager", "run",
+        action="zip", zip_path="archive.zip", targets=["folder1"],
+        jarvis_app=mock_app
+    )

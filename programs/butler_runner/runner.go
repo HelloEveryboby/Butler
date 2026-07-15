@@ -59,16 +59,72 @@ type Response struct {
 	RequestID string      `json:"request_id,omitempty"`
 }
 
+type EnvInfo struct {
+	OS             string   `json:"os"`
+	Arch           string   `json:"arch"`
+	DefaultShell   string   `json:"default_shell"`
+	AvailableTools []string `json:"available_tools"`
+	IsAdmin        bool     `json:"is_admin"`
+}
+
+func detectEnvironment() EnvInfo {
+	isAdminUser := false
+	if runtime.GOOS == "windows" {
+		f, err := os.Open("\\\\.\\PHYSICALDRIVE0")
+		if err == nil {
+			isAdminUser = true
+			f.Close()
+		}
+	} else {
+		isAdminUser = (os.Getuid() == 0 || os.Geteuid() == 0)
+	}
+
+	var availableTools []string
+	toolsToCheck := []string{"python", "python3", "ffmpeg", "pandoc", "libreoffice", "soffice", "git", "zip", "unzip", "tar"}
+	for _, tool := range toolsToCheck {
+		if _, err := exec.LookPath(tool); err == nil {
+			availableTools = append(availableTools, tool)
+		}
+	}
+
+	defaultShell := "sh"
+	if runtime.GOOS == "windows" {
+		if val := os.Getenv("COMSPEC"); val != "" {
+			defaultShell = val
+		} else if _, err := exec.LookPath("powershell"); err == nil {
+			defaultShell = "powershell"
+		} else {
+			defaultShell = "cmd"
+		}
+	} else {
+		if val := os.Getenv("SHELL"); val != "" {
+			defaultShell = val
+		} else if _, err := exec.LookPath("bash"); err == nil {
+			defaultShell = "/bin/bash"
+		}
+	}
+
+	return EnvInfo{
+		OS:             runtime.GOOS,
+		Arch:           runtime.GOARCH,
+		DefaultShell:   defaultShell,
+		AvailableTools: availableTools,
+		IsAdmin:        isAdminUser,
+	}
+}
+
 var (
-	serverURL  = flag.String("server", "ws://localhost:8000/ws/butler", "Butler server WebSocket URL")
-	authToken  = flag.String("token", "", "Authentication token (REQUIRED)")
-	runnerID   = flag.String("id", "default_runner", "Unique ID for this runner")
-	isSleeping = false
-	mu         sync.Mutex
-	blackboard = make(map[string]interface{})
-	vault      = NewVaultEngine()
-	procMgr    *ProcessManager
-	storageMgr = storage_hub.NewStorageManager()
+	serverURL    = flag.String("server", "ws://localhost:8000/ws/butler", "Butler server WebSocket URL")
+	authToken    = flag.String("token", "", "Authentication token (REQUIRED)")
+	runnerID     = flag.String("id", "default_runner", "Unique ID for this runner")
+	isSleeping   = false
+	mu           sync.Mutex
+	blackboard   = make(map[string]interface{})
+	vault        = NewVaultEngine()
+	procMgr      *ProcessManager
+	storageMgr   = storage_hub.NewStorageManager()
+	activeCmds   = make(map[string]context.CancelFunc)
+	activeCmdsMu sync.Mutex
 )
 
 // --- Hardware Capability Detection ---
@@ -296,11 +352,14 @@ func connect() error {
 
 	procMgr = NewProcessManager(c)
 
+	envInfo := detectEnvironment()
+
 	// 发送注册消息
 	regMsg := Message{
 		Type:     "register",
 		Token:    *authToken,
 		RunnerID: *runnerID,
+		Data:     envInfo,
 	}
 	if err := c.WriteJSON(regMsg); err != nil {
 		return err
@@ -704,19 +763,87 @@ func handleTask(c *websocket.Conn, msg Message) {
 			sendResp(c, "ok", "Deleted: "+msg.Payload, "")
 		}
 
+	case "interrupt":
+		reqID := msg.Payload // Payload contains the request_id to interrupt
+		activeCmdsMu.Lock()
+		cancel, exists := activeCmds[reqID]
+		activeCmdsMu.Unlock()
+		if exists && cancel != nil {
+			cancel()
+			sendRespWithID(c, "ok", "Command interrupt signal sent", "", msg.RequestID)
+		} else {
+			sendRespWithID(c, "fail", nil, "No active command found with request_id: "+reqID, msg.RequestID)
+		}
+
 	case "shell":
-		fmt.Printf("⚠️  Executing Shell Command: %s\n", msg.Payload)
+		reqID := msg.RequestID
+		if reqID == "" {
+			reqID = "shell_sync" // Fallback if no request_id
+		}
+
+		fmt.Printf("⚠️  Executing Shell Command [%s]: %s\n", reqID, msg.Payload)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		activeCmdsMu.Lock()
+		activeCmds[reqID] = cancel
+		activeCmdsMu.Unlock()
+
+		defer func() {
+			activeCmdsMu.Lock()
+			delete(activeCmds, reqID)
+			activeCmdsMu.Unlock()
+		}()
+
 		var cmd *exec.Cmd
 		if runtime.GOOS == "windows" {
-			cmd = exec.Command("cmd", "/C", msg.Payload)
+			cmd = exec.CommandContext(ctx, "cmd", "/C", msg.Payload)
 		} else {
-			cmd = exec.Command("sh", "-c", msg.Payload)
+			cmd = exec.CommandContext(ctx, "sh", "-c", msg.Payload)
 		}
-		output, err := cmd.CombinedOutput()
+
+		// Use a buffer to capture stdout/stderr dynamically
+		var outBuf bytes.Buffer
+		cmd.Stdout = &outBuf
+		cmd.Stderr = &outBuf
+
+		err := cmd.Start()
 		if err != nil {
-			sendResp(c, "fail", string(output), err.Error())
+			sendRespWithID(c, "fail", nil, err.Error(), reqID)
+			return
+		}
+
+		// Wait for completion or context cancel
+		err = cmd.Wait()
+
+		// Check if it was canceled
+		if ctx.Err() != nil {
+			stdoutPeek := outBuf.String()
+			if len(stdoutPeek) > 1000 {
+				stdoutPeek = stdoutPeek[:1000] + "...[已被用户中断截断]..."
+			} else {
+				stdoutPeek += "...[已被用户中断截断]..."
+			}
+			exitCode := 130 // Default standard for SIGINT/Interrupted
+			if cmd.ProcessState != nil {
+				if sysStatus, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
+					exitCode = sysStatus.ExitStatus()
+				}
+			}
+
+			sendRespWithID(c, "interrupted", map[string]interface{}{
+				"exit_code":   exitCode,
+				"stdout_peek": stdoutPeek,
+				"stderr":      "signal: interrupt",
+			}, "signal: interrupt", reqID)
+			return
+		}
+
+		// Normal execution completed
+		output := outBuf.String()
+		if err != nil {
+			sendRespWithID(c, "fail", output, err.Error(), reqID)
 		} else {
-			sendResp(c, "ok", string(output), "")
+			sendRespWithID(c, "ok", output, "", reqID)
 		}
 
 	case "cd":

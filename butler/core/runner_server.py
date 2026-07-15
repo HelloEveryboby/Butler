@@ -13,12 +13,13 @@ class RunnerInfo:
     """
     用于追踪已连接 Runner 状态的数据类
     """
-    def __init__(self, runner_id: str, websocket, ip: str):
+    def __init__(self, runner_id: str, websocket, ip: str, env_info: Dict[str, Any] = None):
         self.runner_id = runner_id
         self.websocket = websocket
         self.ip = ip
         self.connected_at = time.time()
         self.last_seen = time.time()
+        self.env_info = env_info or {}
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -26,7 +27,8 @@ class RunnerInfo:
             "ip": self.ip,
             "connected_at": self.connected_at,
             "last_seen": self.last_seen,
-            "alive_seconds": int(time.time() - self.connected_at)
+            "alive_seconds": int(time.time() - self.connected_at),
+            "env_info": self.env_info
         }
 
 class RunnerServer:
@@ -140,7 +142,8 @@ class RunnerServer:
                 # 3. 注册行为
                 if msg_type == "register":
                     runner_id = msg_runner_id
-                    self.runners[runner_id] = RunnerInfo(runner_id, websocket, ip)
+                    env_info = data.get("data") if isinstance(data.get("data"), dict) else {}
+                    self.runners[runner_id] = RunnerInfo(runner_id, websocket, ip, env_info=env_info)
                     self.logger.info(f"Runner registered: {runner_id} from {websocket.remote_address}")
                     
                     # 返回注册成功消息
