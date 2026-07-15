@@ -51,6 +51,7 @@ from butler.core.sensing_api import init_sensing_api
 from butler.core.workflow_engine import WorkflowEngine
 from butler.core.self_healing import SelfHealing
 from butler.core.display_protocol import display_server
+from butler.core.policy_loader import load_butler_policy
 from butler.usb_screen import USBScreen
 from butler.gui.config_wizard import show_config_wizard_if_needed
 from butler.core.asset_downloader import download_essential_assets
@@ -176,6 +177,10 @@ class Jarvis:
         from package.security.encrypt import DualLayerEncryptor
         self.dual_encryptor = DualLayerEncryptor()
 
+        # Inject self into interpreter for skill interception
+        from butler.interpreter import interpreter
+        interpreter.jarvis_app = self
+
         # Print Geek Startup Banner
         self._print_startup_banner(headless)
 
@@ -233,6 +238,34 @@ class Jarvis:
   \033[1;32m[HAL]\033[0m    Status:  \033[1;33m{hal_status}\033[0m
         """
         print(banner)
+
+    def _get_runner_env_prompt_extension(self) -> str:
+        """
+        获取已连接 Go 执行节点的精简环境状态提示词。
+        """
+        try:
+            if hasattr(self, 'runner_server') and self.runner_server:
+                runners_info = self.runner_server.get_all_runners_info()
+                if runners_info:
+                    ext = "\n### 🖥️ 活跃远程执行节点环境 (Active Go Runners Environment)\n"
+                    ext += "当前已连接以下 Butler-Runner 执行节点。当执行涉及多端控制、设备命令或文件传输时，请严格根据对应节点的系统环境和可用工具链来规划方案，避免下发不兼容的指令：\n"
+                    for r in runners_info:
+                        rid = r.get("runner_id")
+                        env = r.get("env_info", {})
+                        if env:
+                            tools = ", ".join(env.get("available_tools", [])) or "无"
+                            admin_status = "管理员权限 (Admin/Root)" if env.get("is_admin") else "普通用户权限"
+                            ext += (
+                                f"- **节点名称 (Runner ID)**: `{rid}`\n"
+                                f"  - 操作系统: `{env.get('os')}` / `{env.get('arch')}`\n"
+                                f"  - 默认终端 (Shell): `{env.get('default_shell')}`\n"
+                                f"  - 权限级别: `{admin_status}`\n"
+                                f"  - 可用系统工具链 (Tools): `{tools}`\n"
+                            )
+                    return ext
+        except Exception as e:
+            self.logger.error(f"Error building runner env prompt: {e}")
+        return ""
 
     def _load_json_resource(self, filename):
         path = Path(__file__).parent / filename
@@ -550,6 +583,10 @@ class Jarvis:
             "3. **反馈进度**: 在编写和运行代码的过程中，清晰地告知用户你正在进行的操作。"
         )
         system_prompt += dev_instruction
+        # Inject BUTLER.md policy
+        system_prompt += load_butler_policy()
+        # Inject Go-runner active environments dynamically
+        system_prompt += self._get_runner_env_prompt_extension()
 
         history = self.long_memory.get_recent_history(10)
         max_iterations = 5
@@ -819,10 +856,20 @@ class Jarvis:
         history = self.long_memory.get_recent_history(10)
         messages = []
 
+        # Inject BUTLER.md policy
+        policy = load_butler_policy()
+        if policy:
+            messages.append({"role": "system", "content": policy})
+
         # [Stage 2] 注入全局技能目录
         skill_extension = self.skill_manager.get_system_prompt_extension()
         if skill_extension:
             messages.append({"role": "system", "content": skill_extension})
+
+        # Inject Go-runner active environments dynamically
+        runner_env_extension = self._get_runner_env_prompt_extension()
+        if runner_env_extension:
+            messages.append({"role": "system", "content": runner_env_extension})
 
         for h in history:
             role = h.metadata.get('role', 'user') if hasattr(h, 'metadata') else 'user'

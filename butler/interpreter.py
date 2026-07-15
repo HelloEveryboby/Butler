@@ -54,29 +54,47 @@ class Interpreter:
             logger.error(f"Interpreter AST safety parse error: {e}")
             return False
 
-    def is_command_safe(self, command: str) -> bool:
-        """Statically inspects shell commands for high-risk operations."""
-        if not self.safety_mode:
-            return True
+    def is_destructive(self, command: str) -> bool:
+        """Determines if a shell command is extremely destructive."""
         cmd_lower = command.lower().strip()
-
-        # Blacklist of highly destructive or dangerous command patterns
-        forbidden_commands = [
+        destructive_patterns = [
             "rm -rf /", "rm -rf *", "mkfs", "dd if=", "chmod -r", "chown -r",
             ":(){ :|:& };:", "shred"
         ]
-        for fc in forbidden_commands:
-            if fc in cmd_lower:
-                logger.warning(f"Interpreter: Blocked highly destructive command pattern '{fc}'")
-                return False
-
+        for dp in destructive_patterns:
+            if dp in cmd_lower:
+                return True
         # Protect core operating system directories from critical modifications
         sensitive_dirs = ["/etc/passwd", "/etc/shadow", "/boot", "/sys", "/proc", "/dev"]
         for sd in sensitive_dirs:
             if sd in cmd_lower and any(op in cmd_lower for op in ["rm ", "mv ", ">"]):
-                logger.warning(f"Interpreter: Blocked destructive access to sensitive directory '{sd}'")
-                return False
+                return True
+        return False
 
+    def requires_approval(self, command: str) -> bool:
+        """Checks if a command requires explicit user approval (privilege escalation, system modification)."""
+        cmd_lower = command.lower().strip()
+        # Privilege escalation triggers
+        priv_triggers = ["sudo ", "runas ", "psexec ", "gksudo ", "pkexec ", "administrator"]
+        if any(trigger in cmd_lower for trigger in priv_triggers):
+            return True
+        # System modifications: registry changes
+        registry_triggers = ["reg add", "reg delete", "reg import"]
+        if any(trigger in cmd_lower for trigger in registry_triggers):
+            return True
+        # System folder writes/modifications (Windows/Linux)
+        system_folders = ["/etc/", "/system/", "c:\\windows", "c:\\program files"]
+        is_write_op = any(op in cmd_lower for op in ["mkdir", "rm ", "mv ", "del", "write", ">", ">>"])
+        if is_write_op and any(folder in cmd_lower for folder in system_folders):
+            return True
+        return False
+
+    def is_command_safe(self, command: str) -> bool:
+        """Statically inspects shell commands for high-risk operations."""
+        if not self.safety_mode:
+            return True
+        if self.is_destructive(command):
+            return False
         return True
 
     def execute_python(self, code):
@@ -99,10 +117,24 @@ class Interpreter:
         output = f.getvalue()
         return success, output
 
-    def execute_shell(self, command):
-        """Executes a shell command and captures output."""
-        if not self.is_command_safe(command):
-            return False, "Security Block: Execution of this command was blocked due to safety guidelines."
+    def execute_shell(self, command, approved=False):
+        """Executes a shell command and captures output, enforcing security rules and approval gates."""
+        if self.safety_mode:
+            if self.is_destructive(command):
+                return False, "Security Block: Execution of this extremely destructive command was blocked."
+            if self.requires_approval(command) and not approved:
+                return False, "Approval Required: This command requires explicit user authorization (privilege escalation or system modifications detected)."
+
+        # Check for skill interception to bypass raw command execution
+        if hasattr(self, 'jarvis_app') and self.jarvis_app:
+            try:
+                from butler.core.skill_interceptor import SkillInterceptor
+                intercepted, result = SkillInterceptor.intercept_command(command, self.jarvis_app)
+                if intercepted:
+                    logger.info(f"Interpreter: Shell command intercepted successfully: {result}")
+                    return True, result
+            except Exception as e:
+                logger.error(f"Interpreter: Error during skill interception: {e}")
 
         logger.info(f"Executing Shell command: {command}")
         try:
@@ -138,12 +170,12 @@ class Interpreter:
         except Exception as e:
             return False, f"Error executing shell command: {str(e)}"
 
-    def run(self, language, code):
+    def run(self, language, code, approved=False):
         """Entry point for running code of a specific language."""
         if language.lower() == 'python':
             return self.execute_python(code)
         elif language.lower() in ['shell', 'sh', 'bash', 'cmd', 'powershell']:
-            return self.execute_shell(code)
+            return self.execute_shell(code, approved=approved)
         else:
             return False, f"Unsupported language: {language}"
 
