@@ -183,12 +183,150 @@
     </div>
 
     <!-- Overlay Memos -->
-    <div id="memos-overlay" class="hidden glass-surface overlay-panel">
-        <div class="panel-header">
-            <span>备忘录</span>
+    <div id="memos-overlay" class="hidden glass-surface overlay-panel" style="width: 85%; height: 85%; max-width: 1200px;">
+        <div class="panel-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 15px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 18px; font-weight: 700; color: var(--text-primary);"><i class="fas fa-sticky-note" style="color: var(--accent-color);"></i> Memos 备忘空间</span>
+                <span style="font-size: 11px; background: rgba(0,122,255,0.15); color: var(--accent-color); padding: 2px 6px; border-radius: 10px; font-weight: 600;">Butler AI Brain v2.5</span>
+            </div>
             <button class="icon-btn-small" onclick="toggleMemos()"><i class="fas fa-times"></i></button>
         </div>
-        <div id="memos-list-wrapper" class="memos-timeline"></div>
+
+        <div class="memos-main-layout" style="display: flex; flex: 1; overflow: hidden; position: relative; gap: 20px; width: 100%; height: 100%;">
+            <!-- Left panel: content list & editor -->
+            <div class="memos-content-panel" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto; gap: 15px; padding-right: 5px;">
+
+                <!-- Header Toolbar -->
+                <div class="memos-toolbar-row" style="display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;">
+                    <div class="memos-search-bar" style="flex: 1; min-width: 250px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); border-radius: 10px; display: flex; align-items: center; padding: 0 16px; gap: 10px;">
+                        <i class="fas fa-search" style="color: var(--text-secondary);"></i>
+                        <input type="text" id="memo-search-input" placeholder="搜索备忘录内容、#标签 或拖拽归入..." style="background: transparent; border: none; color: var(--text-primary); flex: 1; padding: 8px 0; outline: none; font-size: 14px;">
+                    </div>
+
+                    <div class="view-mode-toggle" style="display: flex; background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 2px;">
+                        <button id="memos-list-view-btn" class="icon-btn-small active" title="时间轴视图"><i class="fas fa-list"></i></button>
+                        <button id="memos-gallery-view-btn" class="icon-btn-small" title="画廊瀑布流视图"><i class="fas fa-th-large"></i></button>
+                        <button id="memos-spatial-view-btn" class="icon-btn-small" title="智能关联图谱"><i class="fas fa-project-diagram"></i></button>
+                    </div>
+
+                    <div style="display: flex; gap: 8px;">
+                        <button id="new-memo-btn" class="apple-btn-primary" style="display: flex; align-items: center; gap: 6px;"><i class="fas fa-plus"></i> 新建备忘</button>
+                        <button id="archive-view-toggle-btn" class="icon-btn-small" title="切换显示已归档" style="border: 1px solid var(--border-color); border-radius: 8px; width: 34px; height: 34px;"><i class="fas fa-archive"></i></button>
+                    </div>
+                </div>
+
+                <!-- 30-Day Heatmap Activity -->
+                <div id="memos-heatmap-container" class="memos-heatmap-card" style="margin-bottom: 5px;">
+                    <div class="heatmap-header" style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                        <span>最近 30 天备忘活动热力图</span>
+                        <span id="heatmap-count-indicator" style="font-size: 10px; opacity: 0.8;">0 条记录</span>
+                    </div>
+                    <div id="memos-heatmap" class="heatmap-body"></div>
+                </div>
+
+                <!-- Editor Card (Initially Hidden) -->
+                <div id="memo-editor-container" class="memo-editor-card hidden" style="display: none;">
+                    <div id="memo-drop-zone" class="drop-zone" style="margin-bottom: 10px; padding: 12px; border: 1.5px dashed var(--border-color); border-radius: 10px; font-size: 12px; color: var(--text-secondary); transition: all 0.2s;">
+                        <i class="fas fa-cloud-upload-alt" style="margin-right: 6px;"></i> 拖拽图片、音视频文件到此处直接上传，支持 #标签
+                    </div>
+
+                    <div class="editor-header" style="display: flex; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">
+                        <i class="fas fa-hashtag" style="color: var(--accent-color); align-self: center;"></i>
+                        <input type="text" id="memo-tags-input" placeholder="输入标签，例如: #工作 #灵感 (空格分隔，支持 # 自动联想)" style="background: transparent; border: none; color: var(--text-primary); font-size: 14px; width: 100%; outline: none;">
+                    </div>
+
+                    <div class="editor-body" style="position: relative; margin-top: 8px;">
+                        <textarea id="memo-content-input" placeholder="写点什么吧... 支持标准 Markdown 格式即时渲染。首行可作为摘要，支持拖拽和 Ctrl + Enter 极速保存" style="width: 100%; min-height: 110px; background: transparent; border: none; color: var(--text-primary); font-size: 15px; resize: vertical; outline: none; font-family: inherit; line-height: 1.5;"></textarea>
+
+                        <!-- Auto-Complete Dropdown -->
+                        <div id="tag-autocomplete-list" class="tag-autocomplete-dropdown hidden"></div>
+                    </div>
+
+                    <!-- AI Suggestion Confirmation Bar -->
+                    <div id="ai-tag-suggestion-bar" class="ai-suggestion-bar hidden">
+                        <span style="font-size: 12px; color: var(--text-secondary);"><i class="fas fa-robot" style="color: #5856D6;"></i> AI 建议标签：</span>
+                        <div id="ai-suggested-tags-container" style="display: inline-flex; gap: 6px; flex-wrap: wrap;"></div>
+                    </div>
+
+                    <div class="editor-footer" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px; margin-top: 5px;">
+                        <div class="editor-tools" style="display: flex; gap: 10px; align-items: center;">
+                            <label class="icon-btn-small" title="添加图片/音视频附件" style="cursor: pointer; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px;">
+                                <i class="fas fa-paperclip" style="font-size: 16px;"></i>
+                                <input type="file" id="memo-file-upload" multiple style="display: none;">
+                            </label>
+
+                            <div class="ai-magic-trigger-wrapper" style="position: relative;">
+                                <button id="memo-ai-magic-btn" class="icon-btn-small" title="AI 魔棒助手 (润色/总结/Todo)" style="color: #5856D6;"><i class="fas fa-magic" style="font-size: 15px;"></i></button>
+                                <!-- AI Magic Wand Menu -->
+                                <div id="ai-magic-wand-menu" class="ai-popup-menu hidden">
+                                    <div class="ai-menu-item" data-action="summary"><i class="fas fa-compress-alt"></i> 一键总结 (TL;DR)</div>
+                                    <div class="ai-menu-item" data-action="polish"><i class="fas fa-feather-alt"></i> 排版美化与润色</div>
+                                    <div class="ai-menu-item" data-action="todo"><i class="fas fa-clipboard-list"></i> 转化为待办列表</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 8px;">
+                            <button id="cancel-memo-btn" class="modal-btn modal-btn-dismiss" style="padding: 6px 14px; font-size: 13px; margin: 0; border-radius: 8px;">取消</button>
+                            <button id="save-memo-btn" class="apple-btn-primary" style="padding: 6px 16px; font-size: 13px; border-radius: 8px;">保存备忘</button>
+                        </div>
+                    </div>
+
+                    <div class="attachment-preview-list" id="memo-attachment-preview" style="margin-top: 10px;"></div>
+                </div>
+
+                <!-- Live Lists -->
+                <!-- Pinned Section -->
+                <div id="memos-pinned-section" class="hidden" style="margin-bottom: 10px;">
+                    <div style="font-size: 11px; font-weight: 700; color: var(--accent-color); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                        <i class="fas fa-thumbtack" style="transform: rotate(45deg);"></i> <span>已置顶备忘录</span>
+                    </div>
+                    <div id="memos-pinned-wrapper" class="memos-timeline" style="margin-bottom: 15px;"></div>
+                </div>
+
+                <!-- Main Section -->
+                <div id="memos-main-section">
+                    <div id="memos-all-header-title" style="font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                        <i class="fas fa-sticky-note"></i> <span>所有备忘录</span>
+                    </div>
+                    <div id="memos-list-wrapper" class="memos-timeline">
+                        <div id="memos-timeline" class="memos-timeline"></div>
+                    </div>
+                </div>
+
+                <!-- Spatial Graph View -->
+                <div id="memos-spatial-wrapper" class="hidden" style="width: 100%; height: 420px; border-radius: 16px; overflow: hidden; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); position: relative;">
+                    <div id="memos-spatial-container" style="width: 100%; height: 100%;"></div>
+                </div>
+
+            </div>
+
+            <!-- Right detail panel -->
+            <div id="memo-detail-sidebar" class="side-panel-hidden" style="width: 320px; border-left: 1px solid var(--border-color); padding-left: 20px; display: flex; flex-direction: column; overflow-y: auto; transition: transform 0.4s var(--apple-easing);">
+                <div class="side-panel-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;">
+                    <h3 style="font-size: 15px; font-weight: 700; color: var(--text-primary);"><i class="fas fa-info-circle" style="color: var(--accent-color); margin-right: 6px;"></i> 备忘卡片分析</h3>
+                    <button class="icon-btn-small" id="close-memo-sidebar"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="side-panel-body" style="flex: 1; display: flex; flex-direction: column; gap: 15px;">
+                    <div id="sidebar-memo-date" style="font-size: 12px; color: var(--text-secondary); font-family: monospace;"></div>
+
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-top: 10px;">备忘内容预览</div>
+                    <div id="sidebar-memo-content-display" class="memo-card-content" style="max-height: 200px; overflow-y: auto; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 14px;"></div>
+
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-top: 10px;">备忘标签</div>
+                    <div id="sidebar-memo-tags" class="memo-tags"></div>
+
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-top: 10px;">多模态附件</div>
+                    <div id="sidebar-memo-resources" class="memo-resource-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; max-height: 150px; overflow-y: auto;"></div>
+
+                    <div class="sidebar-actions" style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <button id="sidebar-pin-btn" class="apple-btn-primary" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;"><i class="fas fa-thumbtack"></i> 切换置顶状态</button>
+                        <button id="sidebar-archive-btn" class="apple-btn-primary" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: #FF9500;"><i class="fas fa-archive"></i> 归档此备忘</button>
+                        <button id="sidebar-delete-btn" class="apple-btn-primary" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: #FF3B30;"><i class="fas fa-trash-alt"></i> 彻底删除备忘</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Overlay Settings -->
@@ -343,6 +481,7 @@
     <script src="src/components/slits_editor.js"></script>
     <script src="src/components/vault.js"></script>
     <script src="src/components/modal.js"></script>
+    <script src="src/components/memos.js"></script>
     <script src="src/main.js"></script>
     <script src="src/components/skill_ui_loader.js"></script>
 

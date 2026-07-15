@@ -2,6 +2,9 @@
   "skill_id": "memos",
   "name": "备忘录",
   "description": "支持图片、视频、音频和 Markdown 的备忘录系统，仿 usememos。",
-  "actions": ["add", "list", "search", "delete"],
-  "keywords": ["备忘录", "memo", "记录", "便签"]
+  "actions": ["add", "list", "search", "delete", "update", "ai_tag_predict", "ai_magic_wand"],
+  "keywords": ["备忘录", "memo", "记录", "便签"],
+  "has_frontend": true,
+  "frontend_path": "frontend/index.html",
+  "icon": "fa-sticky-note"
 }
