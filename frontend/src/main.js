@@ -671,7 +671,11 @@ window.toggleTerminal = () => {
 };
 
 window.toggleMemos = () => {
-    document.getElementById('memos-overlay').classList.toggle('hidden');
+    const el = document.getElementById('memos-overlay');
+    el.classList.toggle('hidden');
+    if (!el.classList.contains('hidden') && window.memosManager) {
+        window.memosManager.refreshMemos();
+    }
 };
 
 // Files Logic (Restored)

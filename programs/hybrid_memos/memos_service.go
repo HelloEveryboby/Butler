@@ -15,12 +15,14 @@ import (
 
 // Memo 结构体定义
 type Memo struct {
-	ID        int      `json:"id"`
-	Content   string   `json:"content"`
-	Tags      []string `json:"tags"`
-	Resources []string `json:"resources"` // 附件路径列表
-	CreatedAt int64    `json:"created_at"`
-	UpdatedAt int64    `json:"updated_at"`
+	ID         int      `json:"id"`
+	Content    string   `json:"content"`
+	Tags       []string `json:"tags"`
+	Resources  []string `json:"resources"` // 附件路径列表
+	CreatedAt  int64    `json:"created_at"`
+	UpdatedAt  int64    `json:"updated_at"`
+	IsPinned   int      `json:"is_pinned"`   // 1 置顶, 0 普通
+	IsArchived int      `json:"is_archived"` // 1 归档, 0 活跃
 }
 
 type Request struct {
@@ -53,13 +55,19 @@ func initDB(dbPath string) {
 		tags TEXT,
 		resources TEXT,
 		created_at INTEGER,
-		updated_at INTEGER
+		updated_at INTEGER,
+		is_pinned INTEGER DEFAULT 0,
+		is_archived INTEGER DEFAULT 0
 	);
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
 		log.Fatalf("%q: %s\n", err, sqlStmt)
 	}
+
+	// 增量升级表结构，确保老版本升级不出错
+	_, _ = db.Exec("ALTER TABLE memos ADD COLUMN is_pinned INTEGER DEFAULT 0")
+	_, _ = db.Exec("ALTER TABLE memos ADD COLUMN is_archived INTEGER DEFAULT 0")
 }
 
 func main() {
@@ -140,6 +148,54 @@ func handleRequest(req Request) {
 			sendResult(req.Id, memos)
 		}
 
+	case "update_memo":
+		idRaw, _ := req.Params["id"].(float64)
+		content, hasContent := req.Params["content"].(string)
+		tagsRaw, hasTags := req.Params["tags"].([]interface{})
+		resourcesRaw, hasResources := req.Params["resources"].([]interface{})
+		isPinnedRaw, hasIsPinned := req.Params["is_pinned"].(float64)
+		isArchivedRaw, hasIsArchived := req.Params["is_archived"].(float64)
+
+		id := int(idRaw)
+		if id <= 0 {
+			sendError(req.Id, -32000, "Invalid ID")
+			return
+		}
+
+		patches := make(map[string]interface{})
+		if hasContent {
+			patches["content"] = content
+		}
+		if hasTags {
+			tags := make([]string, 0)
+			for _, t := range tagsRaw {
+				tags = append(tags, t.(string))
+			}
+			tagsJSON, _ := json.Marshal(tags)
+			patches["tags"] = string(tagsJSON)
+		}
+		if hasResources {
+			resources := make([]string, 0)
+			for _, r := range resourcesRaw {
+				resources = append(resources, r.(string))
+			}
+			resourcesJSON, _ := json.Marshal(resources)
+			patches["resources"] = string(resourcesJSON)
+		}
+		if hasIsPinned {
+			patches["is_pinned"] = int(isPinnedRaw)
+		}
+		if hasIsArchived {
+			patches["is_archived"] = int(isArchivedRaw)
+		}
+
+		err := updateMemo(id, patches)
+		if err != nil {
+			sendError(req.Id, -32000, err.Error())
+		} else {
+			sendResult(req.Id, "success")
+		}
+
 	case "delete_memo":
 		id, _ := req.Params["id"].(float64)
 		err := deleteMemo(int(id))
@@ -170,7 +226,7 @@ func addMemo(content string, tags []string, resources []string) (int64, error) {
 }
 
 func listMemos(limit, offset int) ([]Memo, error) {
-	rows, err := db.Query("SELECT id, content, tags, resources, created_at, updated_at FROM memos ORDER BY created_at DESC LIMIT ? OFFSET ?", limit, offset)
+	rows, err := db.Query("SELECT id, content, tags, resources, created_at, updated_at, is_pinned, is_archived FROM memos ORDER BY is_pinned DESC, created_at DESC LIMIT ? OFFSET ?", limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +236,7 @@ func listMemos(limit, offset int) ([]Memo, error) {
 	for rows.Next() {
 		var m Memo
 		var tagsStr, resourcesStr string
-		err = rows.Scan(&m.ID, &m.Content, &tagsStr, &resourcesStr, &m.CreatedAt, &m.UpdatedAt)
+		err = rows.Scan(&m.ID, &m.Content, &tagsStr, &resourcesStr, &m.CreatedAt, &m.UpdatedAt, &m.IsPinned, &m.IsArchived)
 		if err != nil {
 			return nil, err
 		}
@@ -192,7 +248,7 @@ func listMemos(limit, offset int) ([]Memo, error) {
 }
 
 func searchMemos(query string) ([]Memo, error) {
-	rows, err := db.Query("SELECT id, content, tags, resources, created_at, updated_at FROM memos WHERE content LIKE ? OR tags LIKE ? ORDER BY created_at DESC", "%"+query+"%", "%"+query+"%")
+	rows, err := db.Query("SELECT id, content, tags, resources, created_at, updated_at, is_pinned, is_archived FROM memos WHERE content LIKE ? OR tags LIKE ? ORDER BY is_pinned DESC, created_at DESC", "%"+query+"%", "%"+query+"%")
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +258,7 @@ func searchMemos(query string) ([]Memo, error) {
 	for rows.Next() {
 		var m Memo
 		var tagsStr, resourcesStr string
-		err = rows.Scan(&m.ID, &m.Content, &tagsStr, &resourcesStr, &m.CreatedAt, &m.UpdatedAt)
+		err = rows.Scan(&m.ID, &m.Content, &tagsStr, &resourcesStr, &m.CreatedAt, &m.UpdatedAt, &m.IsPinned, &m.IsArchived)
 		if err != nil {
 			return nil, err
 		}
@@ -211,6 +267,33 @@ func searchMemos(query string) ([]Memo, error) {
 		memos = append(memos, m)
 	}
 	return memos, nil
+}
+
+func updateMemo(id int, patches map[string]interface{}) error {
+	if len(patches) == 0 {
+		return nil
+	}
+
+	query := "UPDATE memos SET "
+	var args []interface{}
+	first := true
+	for k, v := range patches {
+		if !first {
+			query += ", "
+		}
+		query += k + " = ?"
+		args = append(args, v)
+		first = false
+	}
+	// Append updated_at
+	query += ", updated_at = ?"
+	args = append(args, time.Now().Unix())
+
+	query += " WHERE id = ?"
+	args = append(args, id)
+
+	_, err := db.Exec(query, args...)
+	return err
 }
 
 func deleteMemo(id int) error {
