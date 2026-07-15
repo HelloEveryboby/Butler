@@ -121,7 +121,7 @@ class SafeImporter:
             'argparse', 'getopt', 'readline', 'getpass', 'cmd', 'shlex', 'sysconfig',
         }
 
-        # 模块特定的允许属性
+        # 模块特定的允许属性（采用白名单机制）
         self.module_attributes = {
             'sys': {'version', 'version_info', 'platform', 'argv', 'path', 'modules'},
             'os': {'name', 'environ', 'pathsep', 'sep', 'linesep'},
@@ -129,27 +129,31 @@ class SafeImporter:
 
     def import_module(self, name, globals=None, locals=None, fromlist=(), level=0):
         """安全的模块导入函数"""
-        # 检查模块是否允许导入
+        # 严格限制：只允许从白名单中的模块导入[cite: 1]
         if name not in self.allowed_modules:
             raise SecurityError(f"禁止导入模块: {name}")
 
         # 实际导入模块
         module = __import__(name, globals, locals, fromlist, level)
 
-        # 如果是从模块导入特定属性，检查这些属性是否允许
+        # 如果是从模块导入特定属性，检查这些属性是否在允许范围中
         if fromlist:
+            # 1. 显式拦截 `from x import *`
+            if '*' in fromlist:
+                raise SecurityError(f"禁止使用 'from {name} import *' 通配符导入")
+
             for attr in fromlist:
                 if attr.startswith('_'):
                     raise SecurityError(f"禁止访问以下划线开头的属性: {attr}")
 
-                # 检查模块特定的属性限制
+                # 如果存在针对特定模块的属性白名单，则进行白名单匹配检查
                 if name in self.module_attributes and attr not in self.module_attributes[name]:
                     raise SecurityError(f"禁止从模块 {name} 导入属性: {attr}")
 
         return module
 
 class ASTValidator(ast.NodeVisitor):
-    """AST 验证器，用于检查和限制代码结构"""
+    """AST 验证器，用于递归检查和限制代码结构"""
 
     def __init__(self):
         # 允许的节点类型白名单
@@ -174,14 +178,17 @@ class ASTValidator(ast.NodeVisitor):
             ast.List, ast.Tuple, ast.Set, ast.Dict, ast.ListComp, ast.SetComp,
             ast.DictComp, ast.GeneratorExp,
 
-            # 其他
-            ast.Slice, ast.Index, ast.ExtSlice, ast.comprehension, ast.arguments,
+            # 其他基础/必需节点
+            ast.Slice, ast.comprehension, ast.arguments,
             ast.arg, ast.keyword, ast.alias, ast.withitem, ast.excepthandler,
+
+            # 修复递归漏洞后引入的 AST 上下文基础节点 (Load / Store / Del)[cite: 1]
+            ast.Load, ast.Store, ast.Del,
         }
 
         # 禁止的节点类型黑名单
         self.forbidden_nodes = {
-            ast.Yield, ast.YieldFrom, ast.Await,  # 生成器和协程
+            ast.Yield, ast.YieldFrom, ast.Await,  # 强制禁止异步生成器和部分特殊协程
         }
 
         # 禁止的函数和属性黑名单
@@ -200,7 +207,7 @@ class ASTValidator(ast.NodeVisitor):
             '__anext__', '__await__', '__call__', '__new__', '__init__',
             '__init_subclass__', '__prepare__', '__instancecheck__',
             '__subclasscheck__', '__getitem__', '__setitem__', '__delitem__',
-            '__contains__', '__len__', '__iter__', '__reversed__', '__add__',
+            '__contains__', '__len__', '__reversed__', '__add__',
             '__sub__', '__mul__', '__matmul__', '__truediv__', '__floordiv__',
             '__mod__', '__divmod__', '__pow__', '__lshift__', '__rshift__',
             '__and__', '__xor__', '__or__', '__radd__', '__rsub__', '__rmul__',
@@ -215,30 +222,39 @@ class ASTValidator(ast.NodeVisitor):
             '__repr__', '__bytes__', '__format__', '__lt__', '__le__', '__eq__',
             '__ne__', '__gt__', '__ge__', '__getnewargs__', '__getnewargs_ex__',
             '__getstate__', '__setstate__', '__reduce__', '__reduce_ex__',
-            '__sizeof__', '__dir__', '__init__', '__subclasshook__',
+            '__sizeof__', '__subclasshook__',
         }
 
     def validate(self, node):
-        """验证 AST 节点"""
-        if type(node) not in self.allowed_nodes:
-            raise SecurityError(f"禁止的语法结构: {type(node).__name__}")
+        """执行 AST 递归验证入口"""
+        self.visit(node)
 
-        if type(node) in self.forbidden_nodes:
-            raise SecurityError(f"明确禁止的语法结构: {type(node).__name__}")
+    def visit(self, node):
+        """覆盖基类的 visit 行为，对所有遍历到的节点进行拦截和白名单过滤[cite: 1]"""
+        node_type = type(node)
+        
+        # 1. 节点类型必须在白名单内[cite: 1]
+        if node_type not in self.allowed_nodes:
+            raise SecurityError(f"禁止的语法结构: {node_type.__name__}")
 
-        self.generic_visit(node)
+        # 2. 节点类型不得在硬性黑名单内
+        if node_type in self.forbidden_nodes:
+            raise SecurityError(f"明确禁止的语法结构: {node_type.__name__}")
+
+        # 继续向下递归子节点[cite: 1]
+        return super().visit(node)
 
     def visit_Import(self, node):
-        """检查导入语句"""
+        """检查 import xxx 语句"""
         for alias in node.names:
             if alias.name.startswith('_'):
                 raise SecurityError(f"禁止导入以下划线开头的模块: {alias.name}")
 
-            # 检查模块黑名单
+            # 导入黑名单模块过滤（作为双重保护，实际加载端由 SafeImporter 负责把关）
             forbidden_modules = {'os', 'sys', 'io', 'socket', 'subprocess', 'ctypes',
                                 'mmap', 'fcntl', 'select', 'selectors', 'signal',
                                 'resource', 'pwd', 'grp', 'termios', 'tty', 'pty',
-                                'fcntl', 'posix', 'nt', '_winreg', 'winreg', 'msvcrt'}
+                                'posix', 'nt', '_winreg', 'winreg', 'msvcrt'}
 
             if alias.name in forbidden_modules:
                 raise SecurityError(f"禁止导入模块: {alias.name}")
@@ -246,20 +262,24 @@ class ASTValidator(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node):
-        """检查从模块导入语句"""
+        """检查 from xxx import yyy 语句[cite: 1]"""
         if node.module and node.module.startswith('_'):
             raise SecurityError(f"禁止从以下划线开头的模块导入: {node.module}")
 
-        # 检查模块黑名单
+        # 显式拦截 `from x import *`[cite: 1]
+        for alias in node.names:
+            if alias.name == '*':
+                raise SecurityError(f"禁止使用 'from {node.module} import *' 通配符导入")
+
         forbidden_modules = {'os', 'sys', 'io', 'socket', 'subprocess', 'ctypes',
                             'mmap', 'fcntl', 'select', 'selectors', 'signal',
                             'resource', 'pwd', 'grp', 'termios', 'tty', 'pty',
-                            'fcntl', 'posix', 'nt', '_winreg', 'winreg', 'msvcrt'}
+                            'posix', 'nt', '_winreg', 'winreg', 'msvcrt'}
 
         if node.module in forbidden_modules:
             raise SecurityError(f"禁止从模块导入: {node.module}")
 
-        # 检查导入的属性
+        # 检查具体导入的属性
         for alias in node.names:
             if alias.name.startswith('_'):
                 raise SecurityError(f"禁止导入以下划线开头的属性: {alias.name}")
@@ -270,13 +290,13 @@ class ASTValidator(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Call(self, node):
-        """检查函数调用"""
-        # 检查直接调用危险函数
+        """检查函数与方法调用"""
+        # 直接函数名调用限制
         if isinstance(node.func, ast.Name):
             if node.func.id in self.forbidden_calls:
                 raise SecurityError(f"禁止调用函数: {node.func.id}")
 
-        # 检查调用危险方法
+        # 方法调用属性拦截
         if isinstance(node.func, ast.Attribute):
             if node.func.attr in self.forbidden_calls:
                 raise SecurityError(f"禁止调用方法: {node.func.attr}")
@@ -294,125 +314,93 @@ class ASTValidator(ast.NodeVisitor):
         self.generic_visit(node)
 
 class BytecodeValidator:
-    """字节码验证器，用于检查和过滤危险操作码"""
+    """版本安全的字节码验证器"""
 
     def __init__(self):
-        # 允许的操作码白名单
-        self.allowed_opcodes = {
-            opcode.opmap['POP_TOP'],
-            opcode.opmap['ROT_TWO'],
-            opcode.opmap['ROT_THREE'],
-            opcode.opmap['DUP_TOP'],
-            opcode.opmap['DUP_TOP_TWO'],
-            opcode.opmap['NOP'],
-            opcode.opmap['UNARY_POSITIVE'],
-            opcode.opmap['UNARY_NEGATIVE'],
-            opcode.opmap['UNARY_NOT'],
-            opcode.opmap['UNARY_INVERT'],
-            opcode.opmap['BINARY_POWER'],
-            opcode.opmap['BINARY_MULTIPLY'],
-            opcode.opmap['BINARY_FLOOR_DIVIDE'],
-            opcode.opmap['BINARY_TRUE_DIVIDE'],
-            opcode.opmap['BINARY_MODULO'],
-            opcode.opmap['BINARY_ADD'],
-            opcode.opmap['BINARY_SUBTRACT'],
-            opcode.opmap['BINARY_SUBSCR'],
-            opcode.opmap['BINARY_LSHIFT'],
-            opcode.opmap['BINARY_RSHIFT'],
-            opcode.opmap['BINARY_AND'],
-            opcode.opmap['BINARY_XOR'],
-            opcode.opmap['BINARY_OR'],
-            opcode.opmap['INPLACE_ADD'],
-            opcode.opmap['INPLACE_SUBTRACT'],
-            opcode.opmap['INPLACE_MULTIPLY'],
-            opcode.opmap['INPLACE_FLOOR_DIVIDE'],
-            opcode.opmap['INPLACE_TRUE_DIVIDE'],
-            opcode.opmap['INPLACE_MODULO'],
-            opcode.opmap['INPLACE_POWER'],
-            opcode.opmap['INPLACE_LSHIFT'],
-            opcode.opmap['INPLACE_RSHIFT'],
-            opcode.opmap['INPLACE_AND'],
-            opcode.opmap['INPLACE_XOR'],
-            opcode.opmap['INPLACE_OR'],
-            opcode.opmap['STORE_SUBSCR'],
-            opcode.opmap['DELETE_SUBSCR'],
-            opcode.opmap['GET_ITER'],
-            opcode.opmap['GET_YIELD_FROM_ITER'],
-            opcode.opmap['PRINT_EXPR'],
-            opcode.opmap['LOAD_BUILD_CLASS'],
-            opcode.opmap['YIELD_FROM'],
-            opcode.opmap['SET_ADD'],
-            opcode.opmap['LIST_APPEND'],
-            opcode.opmap['MAP_ADD'],
-            opcode.opmap['LOAD_CONST'],
-            opcode.opmap['LOAD_NAME'],
-            opcode.opmap['LOAD_GLOBAL'],
-            opcode.opmap['LOAD_ATTR'],
-            opcode.opmap['COMPARE_OP'],
-            opcode.opmap['IMPORT_NAME'],
-            opcode.opmap['IMPORT_FROM'],
-            opcode.opmap['JUMP_FORWARD'],
-            opcode.opmap['JUMP_IF_FALSE_OR_POP'],
-            opcode.opmap['JUMP_IF_TRUE_OR_POP'],
-            opcode.opmap['JUMP_ABSOLUTE'],
-            opcode.opmap['POP_JUMP_IF_FALSE'],
-            opcode.opmap['POP_JUMP_IF_TRUE'],
-            opcode.opmap['LOAD_FAST'],
-            opcode.opmap['STORE_FAST'],
-            opcode.opmap['DELETE_FAST'],
-            opcode.opmap['LOAD_CLOSURE'],
-            opcode.opmap['LOAD_DEREF'],
-            opcode.opmap['STORE_DEREF'],
-            opcode.opmap['DELETE_DEREF'],
-            opcode.opmap['RAISE_VARARGS'],
-            opcode.opmap['CALL_FUNCTION'],
-            opcode.opmap['CALL_FUNCTION_KW'],
-            opcode.opmap['CALL_FUNCTION_EX'],
-            opcode.opmap['LOAD_METHOD'],
-            opcode.opmap['CALL_METHOD'],
-            opcode.opmap['LIST_EXTEND'],
-            opcode.opmap['SET_UPDATE'],
-            opcode.opmap['DICT_UPDATE'],
-            opcode.opmap['DICT_MERGE'],
-            opcode.opmap['FORMAT_VALUE'],
-            opcode.opmap['BUILD_CONST_KEY_MAP'],
-            opcode.opmap['BUILD_STRING'],
-            opcode.opmap['BUILD_TUPLE'],
-            opcode.opmap['BUILD_LIST'],
-            opcode.opmap['BUILD_SET'],
-            opcode.opmap['BUILD_MAP'],
-            opcode.opmap['SETUP_ANNOTATIONS'],
-            opcode.opmap['LOAD_ASSERTION_ERROR'],
-            opcode.opmap['LIST_TO_TUPLE'],
+        # 1. 动态且版本安全地构建【允许操作码】白名单（不因 Python 版本迭代直接报错崩溃）[cite: 1]
+        raw_allowed_names = {
+            # 基础数据栈操作
+            'POP_TOP', 'NOP', 'COPY', 'SWAP', 'PUSH_NULL',
+            'ROT_TWO', 'ROT_THREE', 'ROT_FOUR', 'DUP_TOP', 'DUP_TOP_TWO',
+            
+            # 算术、一元和位运算（兼容现代 Python 将 BINARY_ADD 等合并为 BINARY_OP / BINARY_SUBSCR 的变动）
+            'UNARY_POSITIVE', 'UNARY_NEGATIVE', 'UNARY_NOT', 'UNARY_INVERT',
+            'BINARY_OP', 'BINARY_SUBSCR', 'STORE_SUBSCR', 'DELETE_SUBSCR',
+            'BINARY_POWER', 'BINARY_MULTIPLY', 'BINARY_FLOOR_DIVIDE', 'BINARY_TRUE_DIVIDE',
+            'BINARY_MODULO', 'BINARY_ADD', 'BINARY_SUBTRACT', 'BINARY_LSHIFT', 'BINARY_RSHIFT',
+            'BINARY_AND', 'BINARY_XOR', 'BINARY_OR',
+            'INPLACE_ADD', 'INPLACE_SUBTRACT', 'INPLACE_MULTIPLY', 'INPLACE_FLOOR_DIVIDE',
+            'INPLACE_TRUE_DIVIDE', 'INPLACE_MODULO', 'INPLACE_POWER', 'INPLACE_LSHIFT',
+            'INPLACE_RSHIFT', 'INPLACE_AND', 'INPLACE_XOR', 'INPLACE_OR',
+
+            # 迭代、生成与类构造
+            'GET_ITER', 'GET_YIELD_FROM_ITER', 'PRINT_EXPR', 'LOAD_BUILD_CLASS',
+            'YIELD_FROM', 'SET_ADD', 'LIST_APPEND', 'MAP_ADD',
+            
+            # 变量加载与检索
+            'LOAD_CONST', 'LOAD_NAME', 'LOAD_GLOBAL', 'LOAD_ATTR', 'LOAD_SUPER_ATTR',
+            'COMPARE_OP', 'IS_OP', 'CONTAINS_OP',
+            'IMPORT_NAME', 'IMPORT_FROM',
+            
+            # 分支跳转
+            'JUMP_FORWARD', 'JUMP_BACKWARD', 'JUMP_IF_FALSE_OR_POP', 'JUMP_IF_TRUE_OR_POP',
+            'POP_JUMP_IF_FALSE', 'POP_JUMP_IF_TRUE', 'POP_JUMP_IF_NONE', 'POP_JUMP_IF_NOT_NONE',
+            'JUMP_ABSOLUTE',
+            
+            # 局部变量/闭包/异常控制
+            'LOAD_FAST', 'STORE_FAST', 'DELETE_FAST', 'LOAD_FAST_CHECK', 'LOAD_FAST_AND_CLEAR',
+            'LOAD_CLOSURE', 'LOAD_DEREF', 'STORE_DEREF', 'DELETE_DEREF', 'LOAD_FROM_DICT_OR_DEREF',
+            'RAISE_VARARGS', 'RERAISE', 'PUSH_EXC_INFO', 'CHECK_EXC_MATCH', 'POP_EXCEPT',
+            
+            # 函数与方法调用（兼容现代 Python 3.11/3.12 引入的 CALL 族指令）
+            'CALL', 'CALL_FUNCTION', 'CALL_FUNCTION_KW', 'CALL_FUNCTION_EX', 'CALL_KW',
+            'LOAD_METHOD', 'CALL_METHOD', 'KW_NAMES',
+            
+            # 数据结构构造
+            'LIST_EXTEND', 'SET_UPDATE', 'DICT_UPDATE', 'DICT_MERGE',
+            'FORMAT_VALUE', 'BUILD_CONST_KEY_MAP', 'BUILD_STRING', 'BUILD_TUPLE',
+            'BUILD_LIST', 'BUILD_SET', 'BUILD_MAP',
+            
+            # 其它
+            'SETUP_ANNOTATIONS', 'LOAD_ASSERTION_ERROR', 'LIST_TO_TUPLE', 'RETURN_VALUE', 'RETURN_CONST'
         }
 
-        # 禁止的操作码黑名单
+        # 2. 动态且版本安全地构建【绝对禁止操作码】黑名单[cite: 1]
+        raw_forbidden_names = {
+            'IMPORT_STAR',       # 显式阻止通配符导入
+            'EXEC_STMT',         # 阻止古老的 exec 语句指令
+            'BREAK_LOOP', 'CONTINUE_LOOP', 'SETUP_LOOP',  # 早期旧循环栈控制
+            'SETUP_WITH', 'WITH_CLEANUP', 'WITH_CLEANUP_START', 'WITH_CLEANUP_FINISH',
+            'SETUP_ASYNC_WITH', 'BEFORE_ASYNC_WITH', 'END_ASYNC_FOR',
+            'SETUP_FINALLY', 'SETUP_EXCEPT', 'POP_BLOCK',
+        }
+
+        # 通过读取当前环境下的实际 opcode.opmap，动态转化名称为真实的机器码数字[cite: 1]
+        self.allowed_opcodes = {
+            opcode.opmap[name] for name in raw_allowed_names if name in opcode.opmap
+        }
         self.forbidden_opcodes = {
-            opcode.opmap['IMPORT_STAR'],  # 禁止from module import *
-            opcode.opmap['EXEC_STMT'],    # 禁止exec语句
-            opcode.opmap['BREAK_LOOP'],   # 禁止break循环
-            opcode.opmap['CONTINUE_LOOP'],# 禁止continue循环
-            opcode.opmap['SETUP_WITH'],   # 禁止with语句
-            opcode.opmap['WITH_CLEANUP'], # 禁止with语句
-            opcode.opmap['SETUP_ASYNC_WITH'], # 禁止async with语句
-            opcode.opmap['BEFORE_ASYNC_WITH'], # 禁止async with语句
-            opcode.opmap['END_ASYNC_FOR'], # 禁止async for语句
-            opcode.opmap['SETUP_FINALLY'], # 禁止try/finally语句
-            opcode.opmap['POP_BLOCK'],    # 禁止块操作
-            opcode.opmap['SETUP_EXCEPT'], # 禁止try/except语句
-            opcode.opmap['SETUP_LOOP'],   # 禁止循环
+            opcode.opmap[name] for name in raw_forbidden_names if name in opcode.opmap
         }
 
     def validate(self, code_obj):
-        """验证字节码"""
+        """遍历并验证字节码安全合法性[cite: 1]"""
+        # 利用标准库 dis.get_instructions 遍历解析，并针对闭包、内部函数对象递归审查[cite: 1]
         instructions = dis.get_instructions(code_obj)
 
         for instr in instructions:
+            # 1. 遭遇显式黑名单指令直接抛异常阻断
             if instr.opcode in self.forbidden_opcodes:
-                raise SecurityError(f"禁止的操作码: {instr.opname}")
+                raise SecurityError(f"使用了被绝对禁止的字节码指令: {instr.opname}")
 
+            # 2. 如果不处于任何允许的白名单内，则判为安全越界
             if instr.opcode not in self.allowed_opcodes:
-                raise SecurityError(f"不允许的操作码: {instr.opname}")
+                raise SecurityError(f"未受信任的字节码指令: {instr.opname}")
+
+        # 递归检查嵌套的代码对象（例如函数、列表推导、Lambda 内部）[cite: 1]
+        for const in code_obj.co_consts:
+            if isinstance(const, types.CodeType):
+                self.validate(const)
 
 class ResourceMonitor(threading.Thread):
     """资源监视器，用于监控代码执行的资源使用情况"""
@@ -443,7 +431,6 @@ class ResourceMonitor(threading.Thread):
 
     def get_memory_usage(self):
         """获取当前内存使用量"""
-        # 这是一个简化的实现，实际中可能需要更精确的内存监控
         return len(gc.get_objects()) * 100  # 近似值
 
     def count_instruction(self):
@@ -504,11 +491,8 @@ class Sandbox:
         except SyntaxError as e:
             raise SandboxError(f"语法错误: {e}")
 
-        # 验证AST
-        try:
-            self.ast_validator.validate(tree)
-        except SecurityError as e:
-            raise e
+        # 验证AST (深度遍历，不漏掉任何隐藏分支)[cite: 1]
+        self.ast_validator.validate(tree)
 
         # 编译AST
         try:
@@ -516,11 +500,8 @@ class Sandbox:
         except Exception as e:
             raise SandboxError(f"编译错误: {e}")
 
-        # 验证字节码
-        try:
-            self.bytecode_validator.validate(code_obj)
-        except SecurityError as e:
-            raise e
+        # 验证字节码 (动态探测的 3.12 安全指令集 + 递归检查嵌套代码)[cite: 1]
+        self.bytecode_validator.validate(code_obj)
 
         # 准备执行环境
         if globals_dict is None:
