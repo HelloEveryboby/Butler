@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from butler.core.runner_server import runner_server
+from butler.core.runner_server import get_runner_server
 
 logger = logging.getLogger("FormatConvertSkill")
 
@@ -10,6 +10,7 @@ def handle_request(action, **kwargs):
     Handle document format conversion requests.
     Supports action: "run" (and others if needed)
     """
+    runner_server = get_runner_server()
     entities = kwargs.get("entities", {})
 
     # 1. Extract params from entities or direct kwargs
@@ -48,8 +49,14 @@ def handle_request(action, **kwargs):
     }
 
     # 2. Check if a Go Runner is connected (Distributed Priority)
-    runners = runner_server.list_runners()
-    if runners:
+    runners = []
+    if runner_server:
+        try:
+            runners = runner_server.list_runners()
+        except Exception:
+            pass
+
+    if runners and runner_server:
         runner_id = runners[0] # Pick the first available runner
         logger.info(f"Delegating format conversion task to Go Runner: {runner_id}")
 

@@ -1,7 +1,7 @@
 """
 🔐 账号密码管理器 (AccountPassword)
 提供安全的账号密码存储、自动登录和强密码生成功能。
-采用主密码加密机制，所有数据均通过 AES-256 进行本地加密存储。
+采用主密码加密机制，所有数据均通过 AES-256-GCM 进行本地加密存储。
 """
 
 import sqlite3
@@ -40,7 +40,7 @@ class AccountManager:
         self._init_db()
         self.master_key = None
 
-        # 获取或生成加密盐（用于 PBKDF2 派生 AES 密钥）
+        # 获取或生成加密盐（用于 PBKDF2/Argon2 派生 AES 密钥）
         salt_hex = self._get_config("encryption_salt")
         if not salt_hex:
             self.encryption_salt = os.urandom(16)
@@ -49,18 +49,19 @@ class AccountManager:
             self.encryption_salt = bytes.fromhex(salt_hex)
 
     def _init_db(self):
-        """初始化数据库表结构"""
+        """初始化数据库表结构并自动执行平滑迁移"""
         # 配置表
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS config (
                                 name TEXT PRIMARY KEY,
                                 value TEXT
                              )''')
-        # 账号表
+        # 账号表 (带新版 tag 列支持 GCM)
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS accounts (
                                 id INTEGER PRIMARY KEY,
                                 username TEXT NOT NULL,
                                 password_encrypted TEXT NOT NULL,
                                 iv TEXT NOT NULL,
+                                tag TEXT DEFAULT '',
                                 category TEXT NOT NULL,
                                 website TEXT NOT NULL,
                                 notes TEXT DEFAULT '',
@@ -68,15 +69,23 @@ class AccountManager:
                                 login_url TEXT DEFAULT ''
                              )''')
 
-        # 检查是否需要升级表结构（添加 login_url 列）
+        # 检查是否需要升级表结构
         self.cursor.execute("PRAGMA table_info(accounts)")
         columns = [column[1] for column in self.cursor.fetchall()]
+
         if 'login_url' not in columns:
             try:
                 self.cursor.execute("ALTER TABLE accounts ADD COLUMN login_url TEXT DEFAULT ''")
                 logging.info("Database migrated: added login_url column to accounts table.")
             except Exception as e:
-                logging.error(f"Migration failed: {e}")
+                logging.error(f"Migration (login_url) failed: {e}")
+
+        if 'tag' not in columns:
+            try:
+                self.cursor.execute("ALTER TABLE accounts ADD COLUMN tag TEXT DEFAULT ''")
+                logging.info("Database migrated: added GCM tag column to accounts table.")
+            except Exception as e:
+                logging.error(f"Migration (tag) failed: {e}")
 
         self.conn.commit()
 
@@ -131,12 +140,18 @@ class AccountManager:
             return False
 
     def _encrypt(self, plaintext):
-        iv, ct = SymmetricCrypto.encrypt_data(plaintext, self.master_key)
-        return iv, ct
+        """AES-256-GCM 强加密，返回 nonce_b64, ct_b64, tag_b64"""
+        nonce, ct, tag = SymmetricCrypto.encrypt_data(plaintext, self.master_key)
+        return nonce, ct, tag
 
-    def _decrypt(self, iv, ct):
+    def _decrypt(self, iv_or_nonce, ct, tag=None):
+        """解密方法：自动支持 AES-256-GCM (带 tag) 和旧版的 AES-CBC (不带 tag)"""
         try:
-            return SymmetricCrypto.decrypt_data(iv, ct, self.master_key)
+            # 如果 tag 为空或者全空格，则不传 tag_b64 从而自动降级解密旧版的 CBC
+            if tag and tag.strip():
+                return SymmetricCrypto.decrypt_data(iv_or_nonce, ct, self.master_key, tag_b64=tag)
+            else:
+                return SymmetricCrypto.decrypt_data(iv_or_nonce, ct, self.master_key)
         except Exception as e:
             logging.error(f"解密失败: {e}")
             return None
@@ -181,13 +196,14 @@ class AccountManager:
         login_url = input("登录页面 URL (可选, 用于浏览器自动登录): ")
         notes = input("备注 (可选): ")
 
-        iv, ct = self._encrypt(password)
+        # AES-256-GCM 强加密
+        nonce, ct, tag = self._encrypt(password)
 
         try:
-            self.cursor.execute("INSERT INTO accounts (username, password_encrypted, iv, category, website, notes, login_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                               (username, ct, iv, category, website, notes, login_url))
+            self.cursor.execute("INSERT INTO accounts (username, password_encrypted, iv, tag, category, website, notes, login_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                               (username, ct, nonce, tag, category, website, notes, login_url))
             self.conn.commit()
-            print("✅ 账号信息已安全加密保存")
+            print("✅ 账号信息已安全加密保存 (AES-256-GCM)")
         except Exception as e:
             print(f"❌ 保存失败: {e}")
 
@@ -214,22 +230,22 @@ class AccountManager:
 
         choice = input("\n输入ID查看详情 (或按Enter返回主菜单): ")
         if choice.isdigit():
-            self.cursor.execute("SELECT username, password_encrypted, iv, category, website, notes, login_url FROM accounts WHERE id=?", (choice,))
+            self.cursor.execute("SELECT username, password_encrypted, iv, tag, category, website, notes, login_url FROM accounts WHERE id=?", (choice,))
             acc = self.cursor.fetchone()
             if acc:
                 print("\n" + "="*30)
                 print(f"用户名: {acc[0]}")
-                print(f"分类: {acc[3]}")
-                print(f"网站: {acc[4]}")
-                print(f"登录URL: {acc[6]}")
-                print(f"备注: {acc[5]}")
+                print(f"分类: {acc[4]}")
+                print(f"网站: {acc[5]}")
+                print(f"登录URL: {acc[7]}")
+                print(f"备注: {acc[6]}")
                 print("="*30)
 
                 print("\n操作: [1] 复制密码 [2] 显示密码 [Enter] 返回")
                 op = input("> ")
-                password = self._decrypt(acc[2], acc[1])
+                password = self._decrypt(acc[2], acc[1], tag=acc[3])
                 if not password:
-                    print("❌ 无法解密密码，可能密钥已损坏。")
+                    print("❌ 无法解密密码，可能密钥或校验标签已损坏。")
                     return
 
                 if op == '1':
@@ -260,9 +276,9 @@ class AccountManager:
         choice = input("\n选择编号进行自动登录 (或按Enter返回): ")
         if choice.isdigit() and 0 < int(choice) <= len(accounts):
             acc_id = accounts[int(choice)-1][0]
-            self.cursor.execute("SELECT username, password_encrypted, iv, website, login_url FROM accounts WHERE id=?", (acc_id,))
-            username, ct, iv, website, login_url = self.cursor.fetchone()
-            password = self._decrypt(iv, ct)
+            self.cursor.execute("SELECT username, password_encrypted, iv, tag, website, login_url FROM accounts WHERE id=?", (acc_id,))
+            username, ct, iv, tag, website, login_url = self.cursor.fetchone()
+            password = self._decrypt(iv, ct, tag=tag)
             if not password:
                 print("❌ 解密失败，无法自动登录")
                 return
@@ -422,14 +438,14 @@ class AccountManager:
 
         if input("是否需要更改密码? (y/n): ").lower() == 'y':
             new_pwd = getpass("输入新密码: ")
-            iv, ct = self._encrypt(new_pwd)
-            self.cursor.execute("UPDATE accounts SET category=?, website=?, notes=?, login_url=?, password_encrypted=?, iv=? WHERE id=?",
-                               (new_cat, new_web, new_note, new_url, ct, iv, acc_id))
+            nonce, ct, tag = self._encrypt(new_pwd)
+            self.cursor.execute("UPDATE accounts SET category=?, website=?, notes=?, login_url=?, password_encrypted=?, iv=?, tag=? WHERE id=?",
+                               (new_cat, new_web, new_note, new_url, ct, nonce, tag, acc_id))
         else:
             self.cursor.execute("UPDATE accounts SET category=?, website=?, notes=?, login_url=? WHERE id=?",
                                (new_cat, new_web, new_note, new_url, acc_id))
         self.conn.commit()
-        print("✅ 信息已成功更新")
+        print("✅ 信息已成功更新 (AES-256-GCM)")
 
     def change_master_password(self):
         print("\n--- 修改主密码 (数据重加密) ---")
@@ -450,32 +466,32 @@ class AccountManager:
                 continue
             break
 
-        # 重新加密所有账号数据
-        self.cursor.execute("SELECT id, password_encrypted, iv FROM accounts")
+        # 重新加密所有账号数据，提升至 AES-256-GCM
+        self.cursor.execute("SELECT id, password_encrypted, iv, tag FROM accounts")
         all_accounts = self.cursor.fetchall()
 
         new_master_key = SymmetricCrypto.derive_key(p1, self.encryption_salt)
 
         print("正在重新加密所有数据，请勿关闭程序...")
         try:
-            for acc_id, ct, iv in all_accounts:
-                old_pwd = self._decrypt(iv, ct)
+            for acc_id, ct, iv, tag in all_accounts:
+                old_pwd = self._decrypt(iv, ct, tag=tag)
                 if old_pwd is None: continue
 
                 # 临时替换密钥进行加密
                 orig_key = self.master_key
                 self.master_key = new_master_key
-                new_iv, new_ct = self._encrypt(old_pwd)
+                new_nonce, new_ct, new_tag = self._encrypt(old_pwd)
                 self.master_key = orig_key
 
-                self.cursor.execute("UPDATE accounts SET password_encrypted=?, iv=? WHERE id=?", (new_ct, new_iv, acc_id))
+                self.cursor.execute("UPDATE accounts SET password_encrypted=?, iv=?, tag=? WHERE id=?", (new_ct, new_nonce, new_tag, acc_id))
 
             # 更新主密码哈希
             new_hashed = bcrypt.hashpw(p1.encode('utf-8'), bcrypt.gensalt())
             self._set_config("master_hash", new_hashed.decode('utf-8'))
             self.master_key = new_master_key
             self.conn.commit()
-            print("✅ 主密码修改成功，所有本地数据已完成重加密")
+            print("✅ 主密码修改成功，所有本地数据已完成 GCM 重加密")
         except Exception as e:
             self.conn.rollback()
             print(f"❌ 修改失败: {e}")
@@ -485,7 +501,7 @@ class AccountManager:
         print("\n⚠️ 注意: 导出文件将包含明文密码，请在安全的环境下操作。")
         filename = input("请输入导出文件名 (默认 accounts_export.csv): ") or "accounts_export.csv"
 
-        self.cursor.execute("SELECT username, category, website, notes, password_encrypted, iv FROM accounts")
+        self.cursor.execute("SELECT username, category, website, notes, password_encrypted, iv, tag FROM accounts")
         rows = self.cursor.fetchall()
 
         try:
@@ -493,7 +509,7 @@ class AccountManager:
                 writer = csv.writer(f)
                 writer.writerow(['用户名', '明文密码', '分类', '网站', '备注'])
                 for r in rows:
-                    pwd = self._decrypt(r[5], r[4])
+                    pwd = self._decrypt(r[5], r[4], tag=r[6])
                     writer.writerow([r[0], pwd, r[1], r[2], r[3]])
             print(f"✅ 成功导出到: {os.path.abspath(filename)}")
         except Exception as e:
@@ -558,6 +574,9 @@ def run(*args, **kwargs):
     except KeyboardInterrupt:
         print("\n👋 强制退出")
     finally:
+        # 清理/擦除主密码和密钥，确保内存安全
+        if hasattr(manager, 'master_key'):
+            manager.master_key = None
         manager.close()
 
 if __name__ == "__main__":

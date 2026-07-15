@@ -3,12 +3,11 @@ import base64
 import json
 import logging
 import sqlite3
+import secrets
 from typing import Optional, Dict, Any
 from pathlib import Path
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from butler.core.constants import DATA_DIR
+from package.security.crypto_core import SymmetricCrypto
 
 try:
     import keyring
@@ -20,7 +19,7 @@ logger = logging.getLogger("SecretVault")
 class SecretVault:
     """
     Butler 机密管理模块 (Zero-Trust Vault).
-    支持系统凭据管理器 (Keyring) + PBKDF2 主密码派生的双模加密 (AES-256-GCM)。
+    支持系统凭据管理器 (Keyring) + Argon2id 主密码派生的双模加密 (AES-256-GCM)。
     """
     def __init__(self, db_path: str = None):
         self.db_path = Path(db_path or DATA_DIR / "system_data" / "secrets.db")
@@ -50,7 +49,7 @@ class SecretVault:
         """
         初始化保险库密钥。
         1. 尝试从 Keyring 获取系统生成的随机根密钥。
-        2. 如果失败且提供了 master_password，则通过 PBKDF2 派生密钥。
+        2. 如果失败且提供了 master_password，则通过 Argon2id/PBKDF2 派生密钥。
         """
         # 1. Try Keyring (Industrial-grade OS Native Integration)
         if keyring:
@@ -66,9 +65,11 @@ class SecretVault:
                 self._key_source = 'keyring'
 
                 # Sync to Go Runner (only if local)
-                from butler.core.runner_server import runner_server
-                # Use a specific runner_id for the primary local runner to avoid broadcast exposure
-                runner_server.send_command("default_runner", "vault_init", self._master_key.hex())
+                from butler.core.runner_server import get_runner_server
+                runner_server = get_runner_server()
+                if runner_server:
+                    # Use a specific runner_id for the primary local runner to avoid broadcast exposure
+                    runner_server.send_command("default_runner", "vault_init", self._master_key.hex())
 
                 logger.info("SecretVault initialized via System Keyring (Industrial Mode).")
                 self._ensure_default_tokens()
@@ -76,35 +77,45 @@ class SecretVault:
             except Exception as e:
                 logger.warning(f"Failed to use OS Keychain: {e}")
 
-        # 2. Fallback to Master Password
+        # 2. Fallback to Master Password via Argon2id
         if master_password:
-            # Broadast event for "Golden Glassmorphism" UI if this is manual entry
+            # Broadcast event for "Golden Glassmorphism" UI if this is manual entry
             from butler.core.event_bus import event_bus
             event_bus.emit("vault_unlocking", {"source": "password"})
 
             salt = self._get_or_create_salt()
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=32,
-                salt=salt,
-                iterations=100000,
-            )
-            self._master_key = kdf.derive(master_password.encode())
+            # 统一采用高安全强度 Argon2id 对称密钥派生
+            self._master_key = SymmetricCrypto.derive_key(master_password, salt)
             self._key_source = 'password'
 
             # Sync to local runner for memory pinning
-            from butler.core.runner_server import runner_server
-            runner_server.broadcast_command("vault_init", self._master_key.hex())
+            from butler.core.runner_server import get_runner_server
+            runner_server = get_runner_server()
+            if runner_server:
+                runner_server.broadcast_command("vault_init", self._master_key.hex())
 
-            logger.info("SecretVault initialized via Master Password.")
+            logger.info("SecretVault initialized via Master Password (Argon2id).")
             self._ensure_default_tokens()
             return True
 
         return False
 
+    def clear_session_key(self):
+        """物理级清除内存中的主密钥，确保内存取证安全 (Scrubbing)"""
+        if self._master_key:
+            # 覆写内存
+            try:
+                # 尝试就地覆盖
+                for i in range(len(self._master_key)):
+                    self._master_key[i] = 0
+            except Exception:
+                pass
+            self._master_key = None
+        self._key_source = None
+        logger.info("SecretVault session key cleared securely from memory.")
+
     def _ensure_default_tokens(self):
         """Ensures that default secure tokens are generated and stored."""
-        import secrets
         try:
             if not self.get_secret("rest_api_bearer_token"):
                 token = secrets.token_hex(32)
@@ -131,6 +142,8 @@ class SecretVault:
         if not self._master_key:
             raise RuntimeError("Vault not initialized.")
 
+        # 使用 Cryptography AESGCM (AES-256-GCM) 强加密存储
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
         aesgcm = AESGCM(self._master_key)
         nonce = os.urandom(12)
         ciphertext = aesgcm.encrypt(nonce, value.encode(), None)
@@ -151,6 +164,7 @@ class SecretVault:
                 return None
 
             ciphertext, nonce = res
+            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
             aesgcm = AESGCM(self._master_key)
             try:
                 decrypted = aesgcm.decrypt(nonce, ciphertext, None)
