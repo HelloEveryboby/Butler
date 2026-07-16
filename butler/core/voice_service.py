@@ -14,6 +14,34 @@ from butler.core.asset_loader import asset_loader
 
 logger = LogManager.get_logger(__name__)
 
+def detect_and_configure_gpu_device() -> str:
+    """
+    检测系统的 CUDA 硬件加速可用性与显存/内存容量。
+    如果显存不足，自动降级切换到 CPU 模式，避免 CUDA out of memory。
+    """
+    try:
+        import torch
+        if torch.cuda.is_available():
+            vram_bytes = torch.cuda.get_device_properties(0).total_memory
+            vram_gb = vram_bytes / (1024 ** 3)
+            logger.info(f"[GPU] CUDA is available. Total VRAM: {vram_gb:.2f} GB")
+            # 最低要求 RTX 3060 12GB 或至少 6GB 显存才使用 GPU 模式
+            if vram_gb >= 6.0:
+                logger.info("[GPU] RTX GPU status OK. CUDA device mode enabled.")
+                return "cuda"
+            else:
+                logger.warning(f"[GPU] CUDA VRAM is insufficient ({vram_gb:.2f} GB < 6.0 GB). Automatically switching to CPU mode to avoid out of memory.")
+                return "cpu"
+        else:
+            logger.info("[GPU] CUDA is not available on this host. Fallback to CPU mode.")
+            return "cpu"
+    except ImportError:
+        logger.debug("[GPU] PyTorch is not installed. Defaulting to CPU mode.")
+        return "cpu"
+    except Exception as e:
+        logger.warning(f"[GPU] Error during GPU/CUDA detection: {e}. Switching to CPU mode for safety.")
+        return "cpu"
+
 class VoiceEngine:
     def speak(self, text: str):
         pass
@@ -73,10 +101,11 @@ class LocalVoiceEngine(VoiceEngine):
         try:
             from faster_whisper import WhisperModel
             model_size = config_loader.get("voice.local_stt_model", "base")
-            # In a real scenario, we'd want to specify where to download/load models
-            # For this sandbox, we assume it can reach HF or is pre-cached
-            self.stt_model = WhisperModel(model_size, device="cpu", compute_type="int8")
-            logger.info(f"Local STT (Whisper {model_size}) initialized.")
+            # Detect best device safely to avoid CUDA out of memory
+            dev_mode = detect_and_configure_gpu_device()
+            compute_type = "float16" if dev_mode == "cuda" else "int8"
+            self.stt_model = WhisperModel(model_size, device=dev_mode, compute_type=compute_type)
+            logger.info(f"Local STT (Whisper {model_size}) initialized on {dev_mode}.")
         except Exception as e:
             logger.error(f"Failed to init Local STT: {e}")
 
@@ -121,15 +150,78 @@ class VoiceService:
         self.ui_print = ui_print_func
         self.on_status_change = on_status_change
         self.is_listening = False
+        self.voice_available = True
 
         # Load mode from config
         self.mode = config_loader.get("voice.mode", "online")
-        self.engines: Dict[str, VoiceEngine] = {
-            "online": BaiduVoiceEngine(),
-            "local": LocalVoiceEngine()
-        }
+
+        # Test hardware and engines during startup to fall back gracefully if unavailable
+        self._test_voice_hardware_and_engines()
 
         self.ACTIVATION_SOUND_FILE = asset_loader.resolve_path("audio://activate.wav")
+
+    def _test_voice_hardware_and_engines(self):
+        """
+        检测麦克风、扬声器以及 TTS 引擎的可用性。
+        如果硬件不可用或出错，将优雅关闭语音模块，转为纯文本模式。
+        """
+        logger.info("Initializing voice diagnostics...")
+        mic_ok = False
+        speaker_ok = False
+        tts_ok = False
+
+        # 1. 检测扬声器/声音输出
+        try:
+            import pygame
+            pygame.mixer.init()
+            speaker_ok = True
+        except Exception as e:
+            logger.warning(f"Speaker output check failed via pygame: {e}")
+            try:
+                import sounddevice as sd
+                sd.query_devices()
+                speaker_ok = True
+            except Exception:
+                pass
+
+        # 2. 检测麦克风/音频输入
+        try:
+            from pvrecorder import PvRecorder
+            devices = PvRecorder.get_available_devices()
+            if devices:
+                mic_ok = True
+            else:
+                logger.warning("No microphone devices found.")
+        except Exception as e:
+            logger.warning(f"Microphone check failed via pvrecorder: {e}")
+            try:
+                import pyaudio
+                p = pyaudio.PyAudio()
+                if p.get_device_count() > 0:
+                    mic_ok = True
+                p.terminate()
+            except Exception:
+                pass
+
+        # 3. 初始化引擎
+        try:
+            self.engines: Dict[str, VoiceEngine] = {
+                "online": BaiduVoiceEngine(),
+                "local": LocalVoiceEngine()
+            }
+            tts_ok = True
+        except Exception as e:
+            logger.warning(f"Failed to initialize voice engines: {e}")
+
+        # 最终决定
+        if not mic_ok or not speaker_ok or not tts_ok:
+            self.voice_available = False
+            logger.warning("Voice hardware or engine initialization failed. Gracefully falling back to text mode.")
+            # Delayed UI print to avoid startup race conditions
+            threading.Timer(1.0, lambda: self.ui_print("Voice module unavailable. Text mode enabled.", tag="system_message")).start()
+        else:
+            self.voice_available = True
+            logger.info("Voice diagnostics complete. Voice service is fully available.")
 
     def get_engine(self) -> VoiceEngine:
         engine = self.engines.get(self.mode, self.engines["online"])
@@ -142,6 +234,10 @@ class VoiceService:
         return engine
 
     def speak(self, text: str):
+        if not self.voice_available:
+            self.ui_print(text, tag='ai_response')
+            return
+
         engine = self.get_engine()
         audio_bytes = engine.speak(text)
 
@@ -154,6 +250,8 @@ class VoiceService:
         # If engine.speak returns None, it might have played it internally (like pyttsx3)
 
     def _play_audio(self, file_path: str):
+        if not self.voice_available:
+            return
         try:
             import pygame
             if not pygame.mixer.get_init():
@@ -166,10 +264,13 @@ class VoiceService:
             logger.warning(f"Could not play audio {file_path}: {e}")
 
     def play_activation_sound(self):
-        if os.path.exists(self.ACTIVATION_SOUND_FILE):
+        if self.voice_available and os.path.exists(self.ACTIVATION_SOUND_FILE):
             self._play_audio(self.ACTIVATION_SOUND_FILE)
 
     def start_listening(self):
+        if not self.voice_available:
+            self.ui_print("⚠️ 语音模块已降级关闭。请使用纯文本控制。", tag='error')
+            return
         if self.is_listening: return
         self.is_listening = True
         if self.on_status_change: self.on_status_change(True)

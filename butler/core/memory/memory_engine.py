@@ -102,12 +102,41 @@ class SQLiteLongMemory(AbstractLongMemory):
         db_path = os.path.normpath(os.path.join(current_dir, "../data/system_data/long_memory.db"))
         try:
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
-            self._conn = sqlite3.connect(db_path, check_same_thread=False)
-            self._create_table()
+            self._init_or_recover_db(db_path)
             self._logger.info(f"SQLiteLongMemory 初始化成功: {db_path}")
         except Exception as e:
             self._logger.error(f"SQLiteLongMemory 初始化失败: {e}")
             raise
+
+    def _init_or_recover_db(self, db_path):
+        try:
+            self._conn = sqlite3.connect(db_path, check_same_thread=False)
+            self._create_table()
+            # Perform query to test integrity
+            cursor = self._conn.cursor()
+            cursor.execute(f"SELECT * FROM \"{self._collection_name}\" LIMIT 1;")
+            cursor.fetchall()
+        except sqlite3.Error as e:
+            self._logger.warning(f"检测到 SQLite 数据库损坏或不可用: {e}。启动自动备份与灾后自愈机制。")
+            if self._conn:
+                try:
+                    self._conn.close()
+                except Exception:
+                    pass
+            if os.path.exists(db_path):
+                import shutil
+                corrupt_backup = f"{db_path}.corrupt.{int(time.time())}"
+                try:
+                    shutil.move(db_path, corrupt_backup)
+                    self._logger.warning(f"损坏的数据库文件已自动备份至: {corrupt_backup}")
+                except Exception as backup_err:
+                    self._logger.error(f"数据库备份失败: {backup_err}")
+                    try:
+                        os.remove(db_path)
+                    except Exception:
+                        pass
+            self._conn = sqlite3.connect(db_path, check_same_thread=False)
+            self._create_table()
 
     def _create_table(self):
         t = f'"{self._collection_name}"'
@@ -128,23 +157,33 @@ class SQLiteLongMemory(AbstractLongMemory):
         if not items or not self._conn: return
         t = f'"{self._collection_name}"'
         with self._lock:
-            # 简单的排重逻辑
-            to_delete_ids = []
-            for item in items:
-                cursor = self._conn.cursor()
-                cursor.execute(f"SELECT id FROM {t} WHERE content = ?", (item.content,))
-                to_delete_ids.extend([r[0] for r in cursor.fetchall() if r[0] != item.id])
+            for attempt in range(3):
+                try:
+                    # 简单的排重逻辑
+                    to_delete_ids = []
+                    for item in items:
+                        cursor = self._conn.cursor()
+                        cursor.execute(f"SELECT id FROM {t} WHERE content = ?", (item.content,))
+                        to_delete_ids.extend([r[0] for r in cursor.fetchall() if r[0] != item.id])
 
-            if to_delete_ids:
-                self.delete(to_delete_ids)
+                    if to_delete_ids:
+                        self.delete(to_delete_ids)
 
-            try:
-                with self._conn:
-                    for it in items:
-                        self._conn.execute(f"INSERT OR REPLACE INTO {t} (id, content, metadata) VALUES (?, ?, ?)",
-                                         (it.id, it.content, json.dumps(it.metadata)))
-                self._update_cache(items)
-            except Exception as e: self._logger.error(f"SQLite 保存失败: {e}")
+                    with self._conn:
+                        for it in items:
+                            self._conn.execute(f"INSERT OR REPLACE INTO {t} (id, content, metadata) VALUES (?, ?, ?)",
+                                             (it.id, it.content, json.dumps(it.metadata)))
+                    self._update_cache(items)
+                    break # Success!
+                except sqlite3.Error as e:
+                    self._logger.warning(f"写入 SQLite 记忆失败 (第 {attempt+1} 次尝试): {e}")
+                    if attempt == 2:
+                        self._logger.error("写入 SQLite 记忆失败且重试耗尽。")
+                    else:
+                        time.sleep(0.1)
+                except Exception as e:
+                    self._logger.error(f"SQLite 保存失败: {e}")
+                    break
 
     def _sanitize_query(self, text: str) -> str:
         """清理查询字符串，防止 FTS5 语法错误。"""
@@ -375,30 +414,51 @@ class UnifiedMemoryEngine:
 
     def init(self, logger=None):
         if logger: self._logger = logger
-        self.fact_db.init(self._logger)
+        try:
+            self.fact_db.init(self._logger)
+        except Exception as e:
+            self._logger.warning(f"Memory unavailable, fallback to normal conversation. Error: {e}")
 
     def record_interaction(self, user_cmd: str, assistant_resp: str):
         """记录交互：实现双轨同步。"""
-        self.logs.add_daily_log(f"User: {user_cmd}\nAssistant: {assistant_resp}")
+        try:
+            self.logs.add_daily_log(f"User: {user_cmd}\nAssistant: {assistant_resp}")
+        except Exception as e:
+            self._logger.warning(f"Failed to write log daily: {e}")
 
-        # 彩蛋逻辑：识别怀旧词汇并标记
-        is_nos = any(k in user_cmd for k in ["一中", "早读", "中考", "操场"])
-        meta = {"role": "assistant", "type": "nostalgia" if is_nos else "chat", "ts": time.time()}
+        try:
+            # 彩蛋逻辑：识别怀旧词汇并标记
+            is_nos = any(k in user_cmd for k in ["一中", "早读", "中考", "操场"])
+            meta = {"role": "assistant", "type": "nostalgia" if is_nos else "chat", "ts": time.time()}
 
-        item = LongMemoryItem.new(content=assistant_resp, id=f"resp_{int(time.time()*1000)}", metadata=meta)
-        self.fact_db.save([item])
+            item = LongMemoryItem.new(content=assistant_resp, id=f"resp_{int(time.time()*1000)}", metadata=meta)
+            self.fact_db.save([item])
+        except Exception as e:
+            self._logger.warning(f"Memory unavailable, fallback to normal conversation. Error: {e}")
 
     def save_fact(self, content: str, metadata: dict = None):
         """保存事实：数据共享。"""
-        metadata = metadata or {}
-        item = LongMemoryItem.new(content=content, id=f"fact_{int(time.time()*1000)}", metadata=metadata)
-        self.fact_db.save([item])
-        self.logs.add_daily_log(f"[Fact Synchronized] {content}")
+        try:
+            metadata = metadata or {}
+            item = LongMemoryItem.new(content=content, id=f"fact_{int(time.time()*1000)}", metadata=metadata)
+            self.fact_db.save([item])
+            self.logs.add_daily_log(f"[Fact Synchronized] {content}")
+        except Exception as e:
+            self._logger.warning(f"Memory unavailable, fallback to normal conversation. Error: {e}")
 
     def unified_search(self, query: str, n: int = 5) -> List[Dict[str, Any]]:
         """跨系统搜索：合并事实与语境。"""
-        f_res = self.fact_db.search(query, n)
-        l_res = self.logs.search(query, n)
+        try:
+            f_res = self.fact_db.search(query, n)
+        except Exception as e:
+            self._logger.warning(f"Memory unavailable, fallback to normal conversation. Error: {e}")
+            f_res = []
+
+        try:
+            l_res = self.logs.search(query, n)
+        except Exception as e:
+            self._logger.warning(f"Memory log search failed. Error: {e}")
+            l_res = []
 
         combined = []
         for r in f_res:
@@ -411,9 +471,41 @@ class UnifiedMemoryEngine:
         # 降序排序，得分越高越靠前
         return sorted(combined, key=lambda x: x["score"], reverse=True)
 
-    def search(self, text, n, filter=None): return self.fact_db.search(text, n, filter)
-    def save(self, items): self.fact_db.save(items)
-    def delete(self, ids): self.fact_db.delete(ids)
-    def get_recent_history(self, n): return self.fact_db.get_recent_history(n)
-    def export_data(self): return self.fact_db.export_data()
-    def import_data(self, data): self.fact_db.import_data(data)
+    def search(self, text, n, filter=None):
+        try:
+            return self.fact_db.search(text, n, filter)
+        except Exception as e:
+            self._logger.warning(f"Memory unavailable, fallback to normal conversation. Error: {e}")
+            return []
+
+    def save(self, items):
+        try:
+            self.fact_db.save(items)
+        except Exception as e:
+            self._logger.warning(f"Memory unavailable, fallback to normal conversation. Error: {e}")
+
+    def delete(self, ids):
+        try:
+            self.fact_db.delete(ids)
+        except Exception as e:
+            self._logger.warning(f"Memory unavailable, fallback to normal conversation. Error: {e}")
+
+    def get_recent_history(self, n):
+        try:
+            return self.fact_db.get_recent_history(n)
+        except Exception as e:
+            self._logger.warning(f"Memory unavailable, fallback to normal conversation. Error: {e}")
+            return []
+
+    def export_data(self) -> List[dict]:
+        try:
+            return self.fact_db.export_data()
+        except Exception as e:
+            self._logger.warning(f"Memory unavailable, fallback to normal conversation. Error: {e}")
+            return []
+
+    def import_data(self, data: List[dict]):
+        try:
+            self.fact_db.import_data(data)
+        except Exception as e:
+            self._logger.warning(f"Memory unavailable, fallback to normal conversation. Error: {e}")

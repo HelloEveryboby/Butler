@@ -180,7 +180,14 @@ class NLUService:
             return "【安全拦截】系统检测到潜在的提示词注入或越权攻击载荷，该请求已被安全过滤器拦截。"
 
         if not self.api_key or "YOUR_" in self.api_key:
-            return "【离线提示】当前未配置 API 密钥，仅支持本地指令。如需进行智能对话，请在设置中完成 API 配置。"
+            return (
+                "AI service unavailable.\n\n"
+                "Reason:\n"
+                "DEEPSEEK_API_KEY not configured.\n\n"
+                "Please set in `.env` file:\n"
+                "DEEPSEEK_API_KEY=xxxxx\n\n"
+                "【离线提示】当前未配置 API 密钥，仅支持本地指令。如需进行智能对话，请在 `.env` 或设置中完成 API 配置。"
+            )
 
         if not quota_manager.check_quota():
             return "Error: API 额度已用尽。"

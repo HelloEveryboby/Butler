@@ -106,6 +106,9 @@ def main():
     skills_parser.add_argument("op", choices=["add", "remove", "list", "find"], help="操作类型")
     skills_parser.add_argument("extra_args", nargs=argparse.REMAINDER, help="npx skills 的原生参数")
 
+    # 13. 诊断 (Doctor)
+    subparsers.add_parser("doctor", help="系统诊断与预检 (Doctor Mode)")
+
     # --- 动态加载自定义技能 ---
     try:
         from butler.core.skill_manager import SkillManager
@@ -234,6 +237,10 @@ def main():
             cmd = ["npx", "-y", "skills", args.op] + args.extra_args
             print(f"🚀 执行命令: {' '.join(cmd)}")
             subprocess.run(cmd)
+
+        elif args.command == "doctor":
+            from butler.core.doctor import run_doctor
+            run_doctor()
 
         # --- 处理动态技能调用 ---
         elif skill_manager and args.command in skill_manager.manifests:

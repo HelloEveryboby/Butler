@@ -1,10 +1,66 @@
 import os
 import json
-try:
-    from playsound import playsound
-except ImportError:
-    def playsound(path):
-        print(f"[模拟播放] {path}")
+import sys
+import subprocess
+import time
+
+def playsound(path):
+    # 1. 尝试导入第三方包 playsound 或 playsound3
+    try:
+        from playsound import playsound as ps
+        ps(path)
+        return
+    except ImportError:
+        try:
+            from playsound3 import playsound as ps3
+            ps3(path)
+            return
+        except ImportError:
+            pass
+
+    # 2. 平台特定内置/原生播放逻辑 (不依赖任何外部编译包)
+    try:
+        if sys.platform == "win32":
+            import winsound
+            # winsound.PlaySound 只支持 WAV 文件
+            if path.lower().endswith('.wav'):
+                winsound.PlaySound(path, winsound.SND_FILENAME)
+                return
+            else:
+                # 尝试用 cmd 启动系统默认播放器 (非阻塞但安全)
+                os.system(f'start "" "{path}"')
+                return
+        elif sys.platform == "darwin":
+            subprocess.run(["afplay", path], check=True)
+            return
+        else:
+            # Linux / Unix / Android
+            # 优先尝试 pygame
+            try:
+                import pygame
+                if not pygame.mixer.get_init():
+                    pygame.mixer.init()
+                pygame.mixer.music.load(path)
+                pygame.mixer.music.play()
+                while pygame.mixer.music.get_busy():
+                    time.sleep(0.1)
+                return
+            except Exception:
+                pass
+
+            # 尝试各种常见系统播放命令
+            for cmd in ["paplay", "aplay", "play", "mpg123", "xdg-open"]:
+                try:
+                    subprocess.run([cmd, path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                    return
+                except Exception:
+                    continue
+    except Exception as e:
+        print(f"原生播放器尝试失败: {e}")
+
+    # 3. 最终虚拟/模拟播放降级
+    print(f"[模拟播放] {path}")
+
 MUSIC_LIBRARY_FILE = "music_library.json"
 
 # 音乐播放器函数

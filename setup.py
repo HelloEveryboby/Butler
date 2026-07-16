@@ -13,7 +13,6 @@ setup(
     install_requires=[
         "pyttsx3",
         "pydub",
-        "playsound",
         "pyaudio",
         "prompt_toolkit",
         "Pillow",
