@@ -235,7 +235,13 @@ class Jarvis:
   \033[1;32m[Voice]\033[0m  Mode:    \033[1;33m{voice_status}\033[0m
   \033[1;32m[UI]\033[0m     Mode:    \033[1;33m{ui_status}\033[0m
   \033[1;32m[HAL]\033[0m    Status:  \033[1;33m{hal_status}\033[0m
-        """
+"""
+        # Startup Key configuration diagnostics
+        api_key = config_loader.get("api.deepseek.key")
+        if not api_key or "YOUR_" in str(api_key):
+            banner += "\n  \033[1;31m[⚠️ 警告/Warning]\033[0m AI service unavailable. Reason: DEEPSEEK_API_KEY not configured.\n  Please set in .env:\n  DEEPSEEK_API_KEY=xxxxx\n"
+
+        banner += "        "
         print(banner)
 
     def _get_runner_env_prompt_extension(self) -> str:
@@ -1094,7 +1100,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--classic", "--admin", action="store_true", dest="classic")
+    parser.add_argument("command", nargs="?", help="Command to run, e.g., doctor")
     args = parser.parse_args()
+
+    if args.command == "doctor":
+        from butler.core.doctor import run_doctor
+        run_doctor()
+        return
+
     usb_screen = USBScreen(40, 8)
     if args.headless:
         jarvis = Jarvis(None, usb_screen, headless=True); jarvis.main()

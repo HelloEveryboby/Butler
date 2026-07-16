@@ -24,6 +24,14 @@ class Interpreter:
 
     def is_python_safe(self, code: str) -> bool:
         """Performs static AST analysis on incoming python code block to verify safety."""
+        # Strictly check for dangerous strings
+        dangerous_strings = ["rm -rf", "format disk"]
+        code_lower = code.lower()
+        for ds in dangerous_strings:
+            if ds in code_lower:
+                logger.warning(f"Interpreter: Blocked forbidden dangerous payload string '{ds}'")
+                return False
+
         if not self.safety_mode:
             return True
         try:
@@ -33,6 +41,7 @@ class Interpreter:
             # Allow basic printing and calculations, forbid shell/process manipulation builtins
             forbidden_names = {"eval", "exec", "__import__", "getattr", "setattr", "compile"}
             forbidden_modules = {"os", "subprocess", "shutil", "sys", "socket", "pty"}
+            forbidden_calls = {"os.system", "subprocess.Popen", "subprocess.run", "subprocess.call"}
 
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
@@ -48,6 +57,13 @@ class Interpreter:
                     if isinstance(node.func, ast.Name):
                         if node.func.id in forbidden_names:
                             logger.warning(f"Interpreter: Blocked forbidden call '{node.func.id}'")
+                            return False
+                    elif isinstance(node.func, ast.Attribute):
+                        call_name = ""
+                        if hasattr(node.func.value, 'id'):
+                            call_name = f"{node.func.value.id}.{node.func.attr}"
+                        if call_name in forbidden_calls:
+                            logger.warning(f"Interpreter: Blocked forbidden call attribute '{call_name}'")
                             return False
             return True
         except Exception as e:
@@ -71,8 +87,48 @@ class Interpreter:
                 return True
         return False
 
-    def requires_approval(self, command: str) -> bool:
-        """Checks if a command requires explicit user approval (privilege escalation, system modification)."""
+    def get_command_grade(self, language: str, code: str) -> str:
+        """
+        Grades code/commands based on security risk levels:
+        - LOW: Harmless viewing of time, reading weather, calculations.
+        - MEDIUM: File creation, writing configs (no approval needed, but logged).
+        - HIGH: Deleting files, executing shell commands, system modifications (MUST request approval).
+        """
+        import re
+        code_lower = code.lower().strip()
+        lang_lower = language.lower().strip()
+
+        # 1. Any shell execution is HIGH risk by default
+        if lang_lower in ['shell', 'sh', 'bash', 'cmd', 'powershell']:
+            # Exception for low-risk read-only commands
+            safe_read_only_patterns = ["time", "date", "weather", "ls", "echo", "pwd", "whoami", "ping"]
+            if any(re.search(rf"\b{k}\b", code_lower) for k in safe_read_only_patterns):
+                return 'LOW'
+            return 'HIGH'
+
+        # 2. Deleting files or sensitive modifications (HIGH)
+        high_risk_keywords = [
+            "delete", "remove", "unlink", "rm ", "rmdir", "shutil.rmtree", "os.remove", "os.unlink",
+            "format", "sudo", "runas", "psexec", "registry", "reg ", "system32", "sys."
+        ]
+        if any(keyword in code_lower for keyword in high_risk_keywords):
+            return 'HIGH'
+
+        # 3. System modifications or dangerous commands in shell
+        if self.is_destructive(code) or self.requires_approval_legacy(code):
+            return 'HIGH'
+
+        # 4. Creating files, writing/modifying configs (MEDIUM)
+        medium_risk_keywords = [
+            "write", "create", "mkdir", "touch", "open", "save", "config", "set_config", "modify", "update"
+        ]
+        if any(keyword in code_lower for keyword in medium_risk_keywords):
+            return 'MEDIUM'
+
+        # 5. Default to LOW for basic math, print, reading weather/time
+        return 'LOW'
+
+    def requires_approval_legacy(self, command: str) -> bool:
         cmd_lower = command.lower().strip()
         # Privilege escalation triggers
         priv_triggers = ["sudo ", "runas ", "psexec ", "gksudo ", "pkexec ", "administrator"]
@@ -89,11 +145,28 @@ class Interpreter:
             return True
         return False
 
+    def requires_approval(self, code_or_lang: str, second_arg: str = None) -> bool:
+        """Checks if a command/code requires explicit user approval (HIGH risk grade). Supports dual signatures."""
+        if second_arg is not None:
+            language = code_or_lang
+            code = second_arg
+        else:
+            language = "shell"
+            code = code_or_lang
+
+        grade = self.get_command_grade(language, code)
+        if grade == 'MEDIUM':
+            logger.info(f"Interpreter [MEDIUM Risk logged]: Executing file/config modification.")
+        return grade == 'HIGH'
+
     def is_command_safe(self, command: str) -> bool:
         """Statically inspects shell commands for high-risk operations."""
         if not self.safety_mode:
             return True
         if self.is_destructive(command):
+            return False
+        cmd_lower = command.lower()
+        if "rm -rf" in cmd_lower or "format disk" in cmd_lower:
             return False
         return True
 
@@ -119,13 +192,7 @@ class Interpreter:
 
     def execute_shell(self, command, approved=False):
         """Executes a shell command and captures output, enforcing security rules and approval gates."""
-        if self.safety_mode:
-            if self.is_destructive(command):
-                return False, "Security Block: Execution of this extremely destructive command was blocked."
-            if self.requires_approval(command) and not approved:
-                return False, "Approval Required: This command requires explicit user authorization (privilege escalation or system modifications detected)."
-
-        # Check for skill interception to bypass raw command execution
+        # 1. Check for skill interception to bypass raw command execution FIRST
         if hasattr(self, 'jarvis_app') and self.jarvis_app:
             try:
                 from butler.core.skill_interceptor import SkillInterceptor
@@ -135,6 +202,13 @@ class Interpreter:
                     return True, result
             except Exception as e:
                 logger.error(f"Interpreter: Error during skill interception: {e}")
+
+        # 2. If not intercepted, enforce security rules and approval gates
+        if self.safety_mode:
+            if self.is_destructive(command):
+                return False, "Security Block: Execution of this extremely destructive command was blocked."
+            if self.requires_approval("shell", command) and not approved:
+                return False, "Approval Required: This command requires explicit user authorization (privilege escalation or system modifications detected)."
 
         logger.info(f"Executing Shell command: {command}")
         try:

@@ -8,3 +8,34 @@ __pycache__/
 .venv
 venv/
 logs/
+
+# Rust build artifacts
+target/
+**/target/
+
+# SQLite databases & temp files
+*.db
+*.db-journal
+*.sqlite
+data/**/*.db
+butler/data/system_data/*.db
+skills/storage_hub/cache/*.db
+temp_android_repo/
+.env_ready
+.tasks/
+
+# Executables and bin/ artifacts
+**/*_exec
+**/sysutil
+**/memos_service
+**/memory_service
+**/converter
+**/*.o
+**/*.obj
+
+# Log files
+*.log
+sync_hub.log
+server.log
+sync_cache.json
+.sync_cache.json

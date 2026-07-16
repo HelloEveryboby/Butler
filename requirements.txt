@@ -37,7 +37,6 @@ python-dotenv
 pyttsx3
 pyaudio
 pydub
-playsound
 sounddevice
 redis
 redisvl

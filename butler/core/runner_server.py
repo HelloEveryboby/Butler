@@ -54,6 +54,10 @@ class RunnerServer:
         # 心跳超时时间 (单位: 秒)，默认60秒
         self.heartbeat_timeout = 60.0
 
+        # Register as the global server instance
+        global _global_server
+        _global_server = self
+
     def _verify_token_strength(self, token: str) -> bool:
         """验证 Token 长度及安全性 (>= 16字符且非默认)"""
         if not token:
@@ -400,3 +404,29 @@ def init_runner_server(host: str = "127.0.0.1", port: int = 8000, token: str = N
 def get_runner_server() -> Optional[RunnerServer]:
     """获取全局配置的 RunnerServer 实例[cite: 1]"""
     return _global_server
+
+class RunnerServerProxy:
+    """
+    A dynamic proxy that intercepts attribute accesses and forwards them
+    to the global RunnerServer instance if it is initialized, or returns safe
+    no-op defaults otherwise. This preserves full backward compatibility
+    for direct imports.
+    """
+    def __getattr__(self, name: str):
+        global _global_server
+        if _global_server is not None:
+            return getattr(_global_server, name)
+
+        def dummy(*args, **kwargs):
+            logger = logging.getLogger("RunnerServerProxy")
+            logger.debug(f"RunnerServerProxy placeholder called for: {name}")
+            if name in ["send_command", "send_command_sync"]:
+                return False, "RunnerServer not initialized yet"
+            elif name in ["list_runners", "get_all_runners_info"]:
+                return []
+            elif name == "health_check":
+                return {"server_running": False}
+            return None
+        return dummy
+
+runner_server = RunnerServerProxy()
