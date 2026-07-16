@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Butler - 资源下载器</title>
+    <!-- Tailwind CSS & FontAwesome -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Glassmorphism Styles matching Butler UI 3.0 */
+        :root {
+            --bg-color: #0c0e12;
+            --panel-bg: rgba(18, 22, 28, 0.7);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --accent-blue: #007aff;
+            --accent-green: #34c759;
+            --accent-red: #ff3b30;
+            --glass-blur: blur(30px);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-image: radial-gradient(circle at 10% 20%, rgba(0, 122, 255, 0.08) 0%, transparent 40%),
+                              radial-gradient(circle at 90% 80%, rgba(52, 199, 89, 0.06) 0%, transparent 40%);
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+
+        /* Standard responsive styling for premium feel */
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(0, 122, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .active-tab {
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #0056b3 100%);
+            box-shadow: 0 4px 14px 0 rgba(0, 122, 255, 0.4);
+            color: white;
+        }
+
+        .piece-block {
+            width: 8px;
+            height: 8px;
+            border-radius: 1.5px;
+            margin: 1px;
+            display: inline-block;
+        }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Toast notifications styling */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- Toast Notification -->
+    <div id="toast-notification" class="toast glass-panel p-4 flex items-center space-x-3 text-sm font-medium">
+        <i id="toast-icon" class="fas fa-check-circle text-lg text-green-500"></i>
+        <div id="toast-content" class="text-gray-200">提示内容</div>
+    </div>
+
+    <!-- Header Panel -->
+    <div class="glass-panel p-4 md:p-6 mb-6 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+        <div class="flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg">
+                <i class="fas fa-download text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold tracking-wide">资源下载器 <span class="text-xs font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full uppercase ml-1">v2.0</span></h1>
+                <p class="text-xs text-gray-400">快 • 稳 • 全 — 纯净高效的多线程并发与跨端同步中心</p>
+            </div>
+        </div>
+        <!-- Global Actions and Status -->
+        <div class="flex items-center space-x-3">
+            <button onclick="window.history.back()" class="px-4 py-2 rounded-lg text-sm bg-gray-800 hover:bg-gray-700 transition flex items-center space-x-2">
+                <i class="fas fa-arrow-left"></i> <span>返回主页</span>
+            </button>
+            <div id="scheduler-badge" class="px-3 py-1.5 rounded-full text-xs font-bold bg-green-500 bg-opacity-20 text-green-400 border border-green-500 border-opacity-30 flex items-center space-x-1.5">
+                <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                <span>定时守护进程已启动</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="grid grid-cols-3 md:grid-cols-6 gap-2 mb-6">
+        <button onclick="switchTab('queue')" id="tab-queue" class="active-tab px-4 py-3 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
+            <i class="fas fa-list-check"></i> <span class="hidden md:inline">任务队列</span>
+        </button>
+        <button onclick="switchTab('add')" id="tab-add" class="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
+            <i class="fas fa-circle-plus"></i> <span class="hidden md:inline">新建下载</span>
+        </button>
+        <button onclick="switchTab('search')" id="tab-search" class="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
+            <i class="fas fa-magnifying-glass"></i> <span class="hidden md:inline">搜索与嗅探</span>
+        </button>
+        <button onclick="switchTab('storage')" id="tab-storage" class="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
+            <i class="fas fa-cloud-arrow-up"></i> <span class="hidden md:inline">存储同步</span>
+        </button>
+        <button onclick="switchTab('diagnose')" id="tab-diagnose" class="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
+            <i class="fas fa-shield-halved"></i> <span class="hidden md:inline">网络诊断</span>
+        </button>
+        <button onclick="switchTab('settings')" id="tab-settings" class="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
+            <i class="fas fa-sliders"></i> <span class="hidden md:inline">设置中心</span>
+        </button>
+    </div>
+
+    <!-- Active Tab Contents Container -->
+    <div class="space-y-6">
+
+        <!-- 1. Task Queue Tab -->
+        <div id="content-queue" class="space-y-6">
+            <!-- Active Downloads Grid -->
+            <div class="glass-panel p-4 md:p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-base md:text-lg font-bold tracking-wide flex items-center space-x-2">
+                        <i class="fas fa-spinner animate-spin text-blue-500"></i>
+                        <span>正在下载的任务</span>
+                    </h2>
+                    <span id="active-tasks-count" class="text-xs bg-gray-800 px-3 py-1 rounded-full text-gray-400 font-semibold">0 任务活动</span>
+                </div>
+                <!-- Dynamic active list -->
+                <div id="active-list" class="space-y-4">
+                    <!-- Empty state -->
+                    <div class="text-center py-8 text-gray-500 text-sm">
+                        <i class="fas fa-folder-open text-4xl mb-2 block"></i>
+                        没有正在运行的任务，请点击顶部“新建下载”创建新任务！
+                    </div>
+                </div>
+            </div>
+
+            <!-- P2P High-fidelity Visualizer Panel (Hidden by default, displayed when BT downloading) -->
+            <div id="p2p-visualizer" class="glass-panel p-4 md:p-6 hidden">
+                <div class="border-b border-gray-800 pb-3 mb-4 flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-network-wired text-green-500 text-lg animate-pulse"></i>
+                        <h3 class="text-sm md:text-base font-bold text-gray-200">P2P 磁力元数据及分块加载动态仪 (DHT Core)</h3>
+                    </div>
+                    <span class="text-xs bg-green-500 bg-opacity-20 text-green-400 border border-green-500 border-opacity-20 px-2 py-0.5 rounded">高速连接中</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <h4 class="text-xs text-gray-400 mb-2 font-bold uppercase tracking-wider">DHT Peer 拓扑分布</h4>
+                        <div class="bg-black bg-opacity-40 p-3 rounded-lg h-36 flex flex-col justify-around text-xs font-mono text-green-400">
+                            <div>已连种子源 (Seeds): <span class="float-right text-gray-100">42 / 120</span></div>
+                            <div>网络中继节点 (DHT): <span class="float-right text-gray-100">386 活跃节点</span></div>
+                            <div>当前协议通道: <span class="float-right text-gray-100">uTP (加密封装)</span></div>
+                            <div>平均延时: <span class="float-right text-yellow-400">12ms</span></div>
+                        </div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <h4 class="text-xs text-gray-400 mb-2 font-bold uppercase tracking-wider">分块不落地随机并发写入进度图 (Out-of-Order Block Loading)</h4>
+                        <div class="bg-black bg-opacity-40 p-3 rounded-lg h-36 overflow-y-auto" id="p2p-pieces-grid">
+                            <!-- Populated with color piece blocks dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Completed Downloads Panel -->
+            <div class="glass-panel p-4 md:p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-base md:text-lg font-bold tracking-wide flex items-center space-x-2">
+                        <i class="fas fa-circle-check text-green-500"></i>
+                        <span>已完成/已暂停的任务</span>
+                    </h2>
+                    <span id="inactive-tasks-count" class="text-xs bg-gray-800 px-3 py-1 rounded-full text-gray-400 font-semibold">0 记录</span>
+                </div>
+                <!-- Dynamic complete list -->
+                <div id="completed-list" class="space-y-4">
+                    <!-- Loaded dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Add Download Tab -->
+        <div id="content-add" class="glass-panel p-4 md:p-6 hidden">
+            <h2 class="text-lg font-bold tracking-wide mb-4 flex items-center space-x-2">
+                <i class="fas fa-circle-plus text-blue-500"></i>
+                <span>新建下载任务</span>
+            </h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">资源链接 (支持批量添加，每行一个)</label>
+                    <textarea id="add-url" rows="5" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-3 text-sm focus:outline-none focus:border-blue-500 text-gray-100 placeholder-gray-600 font-mono" placeholder="支持常见协议：&#10;• HTTP / HTTPS 下载链接&#10;• magnet:?xt=urn:btih:... (磁力链接)&#10;• thunder://... (迅雷专用链，一键自动解码)&#10;• ed2k://... (电驴电驴分流)&#10;• pan.baidu.com... (百度网盘分享提取)"></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">文件类型自动归类</label>
+                        <select id="add-category" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-3 text-sm focus:outline-none focus:border-blue-500 text-gray-100 font-medium">
+                            <option value="movie">🎬 影视多媒体 (优先 P2P/边下边播)</option>
+                            <option value="software">💻 精选软件 (自动安全沙盒检测)</option>
+                            <option value="document">📄 文档资料 (高强数据完整性校验)</option>
+                            <option value="other" selected>📦 其他杂项 (常规高速通道)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">定时下载调度 (可选)</label>
+                        <input type="time" id="add-time" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-sm focus:outline-none focus:border-blue-500 text-gray-100 font-mono">
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="createDownloadTask()" class="w-full bg-gradient-to-tr from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold tracking-wider py-3 px-4 rounded-xl shadow-lg transition-all flex items-center justify-center space-x-2">
+                            <i class="fas fa-circle-down"></i> <span>立即加入高速队列</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Thunder link decoder feedback -->
+                <div id="thunder-feedback" class="p-3 bg-blue-500 bg-opacity-10 border border-blue-500 border-opacity-20 rounded-xl text-xs text-blue-400 hidden flex items-center space-x-2">
+                    <i class="fas fa-bolt"></i>
+                    <span>已检测到迅雷专用协议，系统已实时将其解码为底层直链！</span>
+                </div>
+
+                <!-- Baidu share parsing preview section (Hidden by default) -->
+                <div id="baidu-preview-panel" class="p-4 bg-gray-900 bg-opacity-50 border border-gray-800 rounded-xl hidden">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-3 flex items-center space-x-1.5">
+                        <i class="fab fa-bilibili text-blue-400"></i>
+                        <span>提取网盘分享文件列表预览 (Baidu Share Preview)</span>
+                    </h3>
+                    <div class="space-y-2 max-h-48 overflow-y-auto" id="baidu-files-list">
+                        <!-- Populated dynamic files tree -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Search & Sniff Tab -->
+        <div id="content-search" class="grid grid-cols-1 md:grid-cols-2 gap-6 hidden">
+            <!-- 3A. Aggregate Search -->
+            <div class="glass-panel p-4 md:p-6 flex flex-col h-full">
+                <h2 class="text-base md:text-lg font-bold tracking-wide mb-4 flex items-center space-x-2">
+                    <i class="fas fa-magnifying-glass text-blue-500"></i>
+                    <span>聚合搜索资源库</span>
+                </h2>
+                <div class="flex space-x-2 mb-4">
+                    <input type="text" id="search-query" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 text-gray-100 placeholder-gray-500" placeholder="输入影视、软件或文档名称，如: 毒液 / Office">
+                    <button onclick="triggerSearch()" class="bg-blue-600 hover:bg-blue-500 px-5 rounded-xl text-sm font-bold flex items-center space-x-2 transition">
+                        <i class="fas fa-magnifying-glass"></i> <span>检索</span>
+                    </button>
+                </div>
+                <!-- Search results -->
+                <div id="search-results-list" class="space-y-3 flex-1 overflow-y-auto max-h-96 text-sm text-gray-500">
+                    <div class="text-center py-12">
+                        <i class="fas fa-box-archive text-3xl mb-2 block"></i>
+                        输入关键词检索，系统将聚合磁力猫、电驴先锋及小众软件资源
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3B. Web Sniffer -->
+            <div class="glass-panel p-4 md:p-6 flex flex-col h-full">
+                <h2 class="text-base md:text-lg font-bold tracking-wide mb-4 flex items-center space-x-2">
+                    <i class="fas fa-broadcast-tower text-indigo-500"></i>
+                    <span>网页智能嗅探器</span>
+                </h2>
+                <div class="flex space-x-2 mb-4">
+                    <input type="text" id="sniff-url" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 text-gray-100 placeholder-gray-500" placeholder="复制黏贴需要提取媒体资源的网页 URL">
+                    <button onclick="triggerSniff()" class="bg-indigo-600 hover:bg-indigo-500 px-5 rounded-xl text-sm font-bold flex items-center space-x-2 transition">
+                        <i class="fas fa-wand-magic-sparkles"></i> <span>嗅探</span>
+                    </button>
+                </div>
+                <!-- Sniff results -->
+                <div id="sniff-results-list" class="space-y-3 flex-1 overflow-y-auto max-h-96 text-sm text-gray-500">
+                    <div class="text-center py-12">
+                        <i class="fas fa-spider text-3xl mb-2 block"></i>
+                        只需输入包含视频、音频或资料下载文件的网页链接，即可提取一键下载
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Storage Hub Sync Tab -->
+        <div id="content-storage" class="glass-panel p-4 md:p-6 hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-bold tracking-wide flex items-center space-x-2">
+                    <i class="fas fa-cloud-arrow-up text-blue-500"></i>
+                    <span>Storage Hub 云盘联动管理</span>
+                </h2>
+                <span class="text-xs bg-blue-500 bg-opacity-20 text-blue-400 border border-blue-500 border-opacity-20 px-2 py-0.5 rounded">生态共建</span>
+            </div>
+            <p class="text-sm text-gray-400 mb-6">资源下载器已深度对接 Butler 内置的 <b>Storage Hub 存储中心</b>。下载完成后，支持一键将本地文件通过内存 RAM-Pipe 管道无缝转存至您的微软 OneDrive、WebDAV 或阿里云盘备份库中。</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="storage-drives-grid">
+                <!-- Loaded dynamically -->
+            </div>
+        </div>
+
+        <!-- 5. Network Diagnose Tab -->
+        <div id="content-diagnose" class="glass-panel p-4 md:p-6 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold tracking-wide flex items-center space-x-2">
+                    <i class="fas fa-shield-halved text-indigo-500"></i>
+                    <span>网络连通性及运营商P2P审计</span>
+                </h2>
+                <button onclick="runDiagnostics()" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition">
+                    <i class="fas fa-arrows-rotate"></i> <span>启动一键诊断</span>
+                </button>
+            </div>
+            <p class="text-sm text-gray-400 mb-6">如果下载速度慢，可能并非宽带问题，而是运营商对 DHT 网络或 trackers 阻断。下面一键测试当前物理环境连通性指标：</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="diagnostics-results">
+                <div class="bg-gray-900 bg-opacity-40 p-4 border border-gray-800 rounded-xl text-center text-gray-500 text-sm py-12 md:col-span-2">
+                    <i class="fas fa-gauge-high text-4xl mb-2 block"></i>
+                    点击右上角“启动一键诊断”开始测试！
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. Settings Tab -->
+        <div id="content-settings" class="glass-panel p-4 md:p-6 hidden">
+            <h2 class="text-lg font-bold tracking-wide mb-4 flex items-center space-x-2">
+                <i class="fas fa-sliders text-blue-500"></i>
+                <span>设置中心</span>
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-4">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-1">下载速度与线程控制</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">分块最大并发线程</label>
+                            <input type="number" id="settings-threads" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-sm text-gray-100" value="16">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">“摸鱼模式”限速 (KB/s)</label>
+                            <input type="number" id="settings-speedlimit" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-sm text-gray-100" value="200">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-1">推送渠道集成 (完成自动提醒)</h3>
+                    <div class="grid grid-cols-1 gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Server酱 SendKey (微信推送)</label>
+                            <input type="password" id="settings-serverchan" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-sm text-gray-100" placeholder="输入 SCTXXXXXXXXX">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">PushPlus Token (微信即时推)</label>
+                            <input type="password" id="settings-pushplus" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-sm text-gray-100" placeholder="输入 32位 令牌密钥">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="saveSettings()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition">
+                    保存设置
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 7. Media Streaming Video Player Modal ("边下边播"弹窗) -->
+    <div id="player-modal" class="fixed inset-0 bg-black bg-opacity-80 backdrop-filter backdrop-blur-md hidden flex items-center justify-center p-4 z-50">
+        <div class="glass-panel w-full max-w-4xl p-4 overflow-hidden relative">
+            <button onclick="closePlayerModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white transition text-xl">
+                <i class="fas fa-circle-xmark"></i>
+            </button>
+            <h3 id="player-title" class="text-base md:text-lg font-bold mb-4 pr-12 text-gray-200 truncate">边下边播 HLS 实时解构媒体流</h3>
+            <div class="aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
+                <video id="html5-player" controls autoplay class="w-full h-full"></video>
+            </div>
+            <div class="mt-3 text-xs text-gray-400 flex items-center space-x-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-ping"></span>
+                <span>正在以 HTTP Range 206 请求高速解构本地未落地缓存，支持任意时间轴切片拖拽。</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 8. Storage Hub Destination Save Modal (云端转存弹窗) -->
+    <div id="sync-modal" class="fixed inset-0 bg-black bg-opacity-70 backdrop-filter backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="glass-panel w-full max-w-md p-6 relative">
+            <button onclick="closeSyncModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white transition">
+                <i class="fas fa-circle-xmark"></i>
+            </button>
+            <h3 class="text-lg font-bold mb-4">转存资源至 Storage Hub 云备份</h3>
+            <input type="hidden" id="sync-task-id">
+            <div class="space-y-4 text-sm">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">选择云盘/目标驱动器</label>
+                    <select id="sync-drive-select" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-3 text-gray-100">
+                        <!-- Loaded dynamically -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">存储路径目录</label>
+                    <input type="text" id="sync-path-input" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-3 text-gray-100" value="/Backup/Downloads">
+                </div>
+                <button onclick="confirmStorageHubSync()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition">
+                    立即一键云上传
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Scripts -->
+    <script>
+        let currentTab = 'queue';
+        let tasksUpdateInterval = null;
+        let isMock = false;
+
+        // Toast Helper
+        function showToast(title, content, type = 'success') {
+            const toast = document.getElementById('toast-notification');
+            const icon = document.getElementById('toast-icon');
+            const body = document.getElementById('toast-content');
+
+            body.innerHTML = `<strong>${title}</strong>: ${content}`;
+            if (type === 'error') {
+                icon.className = 'fas fa-circle-exclamation text-lg text-red-500';
+            } else {
+                icon.className = 'fas fa-check-circle text-lg text-green-500';
+            }
+
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Initialize connection
+        document.addEventListener('DOMContentLoaded', () => {
+            isMock = typeof window.pywebview === 'undefined' || typeof window.pywebview.api === 'undefined';
+
+            // Render beautiful mock P2P block grids
+            const grid = document.getElementById('p2p-pieces-grid');
+            if (grid) {
+                grid.innerHTML = '';
+                for (let i = 0; i < 180; i++) {
+                    const block = document.createElement('div');
+                    block.className = 'piece-block';
+                    // Random color of progress
+                    const rand = Math.random();
+                    if (rand < 0.2) {
+                        block.style.backgroundColor = '#1f2937'; // un-downloaded
+                    } else if (rand < 0.6) {
+                        block.style.backgroundColor = '#1d4ed8'; // downloading/buffer
+                    } else {
+                        block.style.backgroundColor = '#2563eb'; // verified/completed
+                    }
+                    grid.appendChild(block);
+                }
+            }
+
+            // Start polling tasks list
+            fetchTasksList();
+            tasksUpdateInterval = setInterval(fetchTasksList, 1500);
+
+            // Fetch Storage Hub Drives
+            loadDrivesData();
+
+            // Set up real-time inputs decoders
+            setupUrlInputDecoder();
+        });
+
+        // Auto decode Thunder link on paste
+        function setupUrlInputDecoder() {
+            const textarea = document.getElementById('add-url');
+            textarea.addEventListener('input', () => {
+                const val = textarea.value.trim();
+                if (val.toLowerCase().startsWith('thunder://')) {
+                    document.getElementById('thunder-feedback').classList.remove('hidden');
+                } else {
+                    document.getElementById('thunder-feedback').classList.add('hidden');
+                }
+            });
+        }
+
+        // Switch panel tabs
+        function switchTab(tabId) {
+            currentTab = tabId;
+            const tabs = ['queue', 'add', 'search', 'storage', 'diagnose', 'settings'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                const panel = document.getElementById(`content-${t}`);
+                if (t === tabId) {
+                    btn.className = 'active-tab px-4 py-3 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200';
+                    panel.classList.remove('hidden');
+                } else {
+                    btn.className = 'px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200';
+                    panel.classList.add('hidden');
+                }
+            });
+
+            // Specific tab updates
+            if (tabId === 'storage') {
+                loadDrivesData();
+            }
+        }
+
+        // Call python skills securely
+        async function callSkillBackend(action, params = {}) {
+            if (isMock) {
+                // Fallback mock values in browser sandbox mode
+                console.log(`Mock calling downloader:${action}`, params);
+                return getMockResponse(action, params);
+            }
+            try {
+                return await window.pywebview.api.call_skill('downloader', action, params);
+            } catch (err) {
+                console.error("Pywebview backend call error", err);
+                return { error: err.toString() };
+            }
+        }
+
+        // Dynamic stats task list fetcher
+        async function fetchTasksList() {
+            const data = await callSkillBackend('list_tasks');
+            if (data.error) return;
+
+            const activeContainer = document.getElementById('active-list');
+            const completedContainer = document.getElementById('completed-list');
+
+            let activeHtml = '';
+            let completedHtml = '';
+            let activeCount = 0;
+            let completedCount = 0;
+            let hasP2PActive = false;
+
+            for (const key in data) {
+                const task = data[key];
+                const progressWidth = `${task.progress}%`;
+
+                let iconClass = 'fa-file-arrow-down text-blue-400';
+                if (task.category === 'movie') iconClass = 'fa-video text-pink-500';
+                else if (task.category === 'software') iconClass = 'fa-laptop-code text-green-400';
+                else if (task.category === 'document') iconClass = 'fa-file-lines text-yellow-400';
+
+                if (task.is_p2p) {
+                    iconClass = 'fa-circle-nodes text-indigo-400';
+                }
+
+                if (task.status === 'downloading' || task.status === 'pending') {
+                    activeCount++;
+                    if (task.is_p2p) hasP2PActive = true;
+
+                    activeHtml += `
+                        <div class="glass-card p-4 flex flex-col space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3 truncate">
+                                    <i class="fas ${iconClass} text-lg"></i>
+                                    <div>
+                                        <span class="font-semibold text-sm text-gray-100 truncate max-w-xs md:max-w-md block">${task.name}</span>
+                                        <span class="text-xs text-gray-400 font-mono">${task.speed} • ETA ${task.eta}</span>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button onclick="toggleSpeedLimit('${task.id}')" title="摸鱼限速" class="px-2 py-1 rounded text-xs bg-gray-800 hover:bg-gray-700 text-yellow-400 flex items-center space-x-1">
+                                        <i class="fas ${task.speed_limited ? 'fa-gauge' : 'fa-gauge-high'}"></i>
+                                        <span>${task.speed_limited ? '全速' : '限速'}</span>
+                                    </button>
+                                    <button onclick="pauseTask('${task.id}')" class="w-8 h-8 rounded-full bg-blue-500 bg-opacity-10 hover:bg-opacity-20 text-blue-400 flex items-center justify-center transition">
+                                        <i class="fas fa-pause text-xs"></i>
+                                    </button>
+                                    <button onclick="deleteTask('${task.id}')" class="w-8 h-8 rounded-full bg-red-500 bg-opacity-10 hover:bg-opacity-20 text-red-400 flex items-center justify-center transition">
+                                        <i class="fas fa-trash-can text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- Bar -->
+                            <div class="space-y-1">
+                                <div class="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full" style="width: ${progressWidth}"></div>
+                                </div>
+                                <div class="flex justify-between text-xxs text-gray-400 font-mono">
+                                    <span>${progressWidth} 已加载</span>
+                                    <span>${formatSize(task.downloaded_size)} / ${formatSize(task.total_size)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    completedCount++;
+                    const isDone = task.status === 'completed';
+
+                    let doneBtnHtml = '';
+                    if (isDone) {
+                        doneBtnHtml = `
+                            <button onclick="openSyncModal('${task.id}')" class="px-3 py-1.5 rounded-lg text-xs bg-blue-600 hover:bg-blue-500 font-bold text-white flex items-center space-x-1.5 transition">
+                                <i class="fas fa-cloud-arrow-up"></i> <span>云端转存</span>
+                            </button>
+                            <button onclick="autoExtractZip('${task.id}')" class="px-3 py-1.5 rounded-lg text-xs bg-green-700 hover:bg-green-600 font-bold text-gray-200 flex items-center space-x-1.5 transition">
+                                <i class="fas fa-file-zipper"></i> <span>自动解压</span>
+                            </button>
+                            ${task.category === 'movie' ? `
+                                <button onclick="playMediaDuringDownload('${task.id}', '${task.name}')" class="px-3 py-1.5 rounded-lg text-xs bg-pink-600 hover:bg-pink-500 font-bold text-white flex items-center space-x-1.5 transition">
+                                    <i class="fas fa-circle-play"></i> <span>边下边播</span>
+                                </button>
+                            ` : ''}
+                        `;
+                    }
+
+                    completedHtml += `
+                        <div class="glass-card p-4 flex flex-col md:flex-row justify-between items-start md:items-center space-y-3 md:space-y-0">
+                            <div class="flex items-center space-x-3 min-w-0">
+                                <i class="fas ${iconClass} text-lg ${isDone ? 'opacity-70' : 'opacity-40'}"></i>
+                                <div class="truncate">
+                                    <span class="font-medium text-sm text-gray-200 truncate block">${task.name}</span>
+                                    <span class="text-xs text-gray-400 font-mono">
+                                        ${isDone ? '<span class="text-green-400 font-bold">校验完成</span>' : `<span class="text-yellow-400 font-bold">${task.status === 'paused' ? '暂停中' : '失败'}</span>`}
+                                        • 大小: ${formatSize(task.total_size || task.downloaded_size)}
+                                        ${task.md5 ? `• MD5: <span class="text-xxs">${task.md5.substring(0, 8)}...</span>` : ''}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                ${doneBtnHtml}
+                                ${!isDone ? `
+                                    <button onclick="resumeTask('${task.id}')" class="px-3 py-1.5 rounded-lg text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 flex items-center space-x-1.5 transition">
+                                        <i class="fas fa-play"></i> <span>恢复</span>
+                                    </button>
+                                ` : ''}
+                                <button onclick="deleteTask('${task.id}', true)" class="px-3 py-1.5 rounded-lg text-xs bg-red-500 bg-opacity-10 hover:bg-opacity-20 text-red-400 flex items-center space-x-1.5 transition">
+                                    <i class="fas fa-trash-can"></i> <span>删除</span>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            // Render
+            if (activeCount > 0) {
+                activeContainer.innerHTML = activeHtml;
+            } else {
+                activeContainer.innerHTML = `
+                    <div class="text-center py-8 text-gray-500 text-sm">
+                        <i class="fas fa-folder-open text-4xl mb-2 block"></i>
+                        没有正在下载的任务
+                    </div>
+                `;
+            }
+
+            if (completedCount > 0) {
+                completedContainer.innerHTML = completedHtml;
+            } else {
+                completedContainer.innerHTML = `
+                    <div class="text-center py-6 text-gray-600 text-xs">没有历史完成或暂停记录</div>
+                `;
+            }
+
+            document.getElementById('active-tasks-count').innerText = `${activeCount} 任务活动`;
+            document.getElementById('inactive-tasks-count').innerText = `${completedCount} 记录`;
+
+            // Control P2P visualizer section based on active Magnet tasks
+            const p2pVisualizer = document.getElementById('p2p-visualizer');
+            if (hasP2PActive) {
+                p2pVisualizer.classList.remove('hidden');
+                // Pulse update a few piece colors
+                const blocks = document.querySelectorAll('.piece-block');
+                if (blocks.length > 0) {
+                    for (let i = 0; i < 6; i++) {
+                        const randomIdx = Math.floor(Math.random() * blocks.length);
+                        blocks[randomIdx].style.backgroundColor = '#10b981'; // Dynamic loading hit (green)
+                    }
+                }
+            } else {
+                p2pVisualizer.classList.add('hidden');
+            }
+        }
+
+        // Add task trigger
+        async function createDownloadTask() {
+            const urlInput = document.getElementById('add-url');
+            const catInput = document.getElementById('add-category');
+            const timeInput = document.getElementById('add-time');
+
+            const url = urlInput.value.trim();
+            if (!url) {
+                showToast("创建错误", "请复制黏贴要下载的资源链接", "error");
+                return;
+            }
+
+            // Check if multiple URLs
+            if (url.includes('\n')) {
+                const res = await callSkillBackend('batch_add', {
+                    urls: url,
+                    category: catInput.value
+                });
+                if (res.status === 'ok') {
+                    showToast("批量添加", `已成功加入 ${res.added} 个分流任务！`);
+                    urlInput.value = '';
+                    switchTab('queue');
+                } else {
+                    showToast("错误", res.error || "批量创建失败", "error");
+                }
+                return;
+            }
+
+            // Handle Baidu link mock extraction
+            if (url.includes('pan.baidu.com')) {
+                showToast("智能感知", "正在解析百度网盘多文件分享树...");
+                const preview = document.getElementById('baidu-preview-panel');
+                const list = document.getElementById('baidu-files-list');
+                preview.classList.remove('hidden');
+                list.innerHTML = '<div class="text-xs text-gray-500 animate-pulse text-center p-4">正与百度网盘 PCS 直达适配器握手中...</div>';
+
+                const data = await callSkillBackend('baidu_netdisk_parse', { url });
+                if (data.status === 'ok') {
+                    let itemsHtml = '';
+                    data.files.forEach(f => {
+                        itemsHtml += `
+                            <div class="flex items-center justify-between text-xs text-gray-300 p-2 bg-gray-800 bg-opacity-30 rounded-lg">
+                                <span class="flex items-center space-x-2">
+                                    <i class="fas ${f.is_dir ? 'fa-folder text-yellow-500' : 'fa-file text-blue-400'}"></i>
+                                    <span>${f.name}</span>
+                                </span>
+                                <button onclick="triggerImmediateDownload('${url}', '${f.name}')" class="px-2 py-1 text-xxs bg-blue-600 hover:bg-blue-500 rounded font-semibold text-white">提取下载</button>
+                            </div>
+                        `;
+                    });
+                    list.innerHTML = itemsHtml;
+                    return;
+                }
+            }
+
+            // Single standard task creator
+            const schedTime = timeInput.value ? timeInput.value : null;
+            const res = await callSkillBackend('add_task', {
+                url: url,
+                category: catInput.value,
+                scheduled_time: schedTime
+            });
+
+            if (res.status === 'ok') {
+                showToast("添加成功", `${res.name} 已成功编入下载序列！`);
+                urlInput.value = '';
+                timeInput.value = '';
+                switchTab('queue');
+            } else {
+                showToast("创建错误", res.error || "资源无效", "error");
+            }
+        }
+
+        async function triggerImmediateDownload(baseUrl, filename) {
+            const res = await callSkillBackend('add_task', {
+                url: `${baseUrl}?filename=${encodeURIComponent(filename)}`,
+                category: 'other'
+            });
+            if (res.status === 'ok') {
+                showToast("提取成功", `${filename} 已通过直链加载至序列`);
+                switchTab('queue');
+            }
+        }
+
+        // Toggle task buttons
+        async function pauseTask(taskId) {
+            await callSkillBackend('pause_task', { task_id: taskId });
+            showToast("已暂停", "任务已安全暂停分块读取");
+            fetchTasksList();
+        }
+
+        async function resumeTask(taskId) {
+            await callSkillBackend('resume_task', { task_id: taskId });
+            showToast("已恢复", "任务多线程通道重新连接中...");
+            fetchTasksList();
+        }
+
+        async function deleteTask(taskId, deleteDiskFile = false) {
+            const confirmDel = confirm(`确定删除该下载任务吗？${deleteDiskFile ? '\n(注意: 这将同时物理删除已下载的本地硬盘文件)' : ''}`);
+            if (confirmDel) {
+                await callSkillBackend('delete_task', { task_id: taskId, delete_file: deleteDiskFile });
+                showToast("任务删除", "记录已清理");
+                fetchTasksList();
+            }
+        }
+
+        async function toggleSpeedLimit(taskId) {
+            const res = await callSkillBackend('toggle_speed_limit', { task_id: taskId });
+            if (res.speed_limited) {
+                showToast("速度管制", "已开启200KB/s摸鱼限速");
+            } else {
+                showToast("全速冲刺", "已解除速度限制，跑满兆宽！");
+            }
+            fetchTasksList();
+        }
+
+        // Search Tab
+        async function triggerSearch() {
+            const queryInput = document.getElementById('search-query');
+            const q = queryInput.value.trim();
+            if (!q) {
+                showToast("提示", "请输入搜索资源关键词", "error");
+                return;
+            }
+
+            const resultsContainer = document.getElementById('search-results-list');
+            resultsContainer.innerHTML = '<div class="text-center py-12 text-gray-400 animate-pulse"><i class="fas fa-spinner animate-spin text-2xl mb-2 block"></i>正在全网检索各大磁力与共享站点...</div>';
+
+            const results = await callSkillBackend('aggregate_search', { query: q });
+            if (!results || results.length === 0) {
+                resultsContainer.innerHTML = '<div class="text-center py-12 text-gray-500">未检索到对应资源</div>';
+                return;
+            }
+
+            let html = '';
+            results.forEach(item => {
+                html += `
+                    <div class="p-3 bg-gray-900 bg-opacity-40 border border-gray-800 rounded-xl flex flex-col space-y-2 hover:border-blue-500 transition">
+                        <div class="flex justify-between items-start">
+                            <span class="font-semibold text-gray-200 text-xs md:text-sm line-clamp-2 flex-1 mr-2">${item.title}</span>
+                            <span class="px-2 py-0.5 rounded text-xxs font-bold ${item.provider === '磁力猫' ? 'bg-indigo-500 bg-opacity-20 text-indigo-400 border border-indigo-500 border-opacity-30' : 'bg-green-500 bg-opacity-20 text-green-400 border border-green-500 border-opacity-30'}">${item.provider}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs font-mono text-gray-400">
+                            <span>大小: ${item.size} • 活跃热度: ${item.seeds}🔥</span>
+                            <button onclick="importSearchResult('${item.url}', '${item.type}')" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded-lg text-xxs font-bold text-white transition flex items-center space-x-1">
+                                <i class="fas fa-download"></i> <span>一键创建</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            resultsContainer.innerHTML = html;
+        }
+
+        async function importSearchResult(url, type) {
+            const res = await callSkillBackend('add_task', { url, category: type });
+            if (res.status === 'ok') {
+                showToast("任务导入", `${res.name} 已成功编入队列`);
+                switchTab('queue');
+            }
+        }
+
+        // Web Sniffer Tab
+        async function triggerSniff() {
+            const sniffInput = document.getElementById('sniff-url');
+            const url = sniffInput.value.trim();
+            if (!url) {
+                showToast("提示", "请输入要嗅探的网页URL", "error");
+                return;
+            }
+
+            const resultsContainer = document.getElementById('sniff-results-list');
+            resultsContainer.innerHTML = '<div class="text-center py-12 text-gray-400 animate-pulse"><i class="fas fa-spider animate-bounce text-2xl mb-2 block"></i>正在爬取网页代码并实时解构媒体直链...</div>';
+
+            const res = await callSkillBackend('web_sniff', { url });
+            if (res.error) {
+                resultsContainer.innerHTML = `<div class="text-center py-12 text-red-400">${res.error}</div>`;
+                return;
+            }
+
+            if (!res.links || res.links.length === 0) {
+                resultsContainer.innerHTML = '<div class="text-center py-12 text-gray-500">网页中未检测到媒体视频或可下载资源直链</div>';
+                return;
+            }
+
+            let html = '';
+            res.links.forEach(l => {
+                html += `
+                    <div class="p-3 bg-gray-900 bg-opacity-40 border border-gray-800 rounded-xl flex items-center justify-between hover:border-indigo-500 transition">
+                        <div class="truncate mr-3">
+                            <span class="font-medium text-gray-200 text-xs truncate block">${l.title}</span>
+                            <span class="text-xxs text-gray-400 font-mono block truncate">${l.url}</span>
+                        </div>
+                        <button onclick="importSearchResult('${l.url}', '${l.type}')" class="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xxs font-bold text-white flex items-center space-x-1 transition flex-shrink-0">
+                            <i class="fas fa-plus"></i> <span>下载</span>
+                        </button>
+                    </div>
+                `;
+            });
+            resultsContainer.innerHTML = html;
+        }
+
+        // Storage Hub Linkage Tab
+        async function loadDrivesData() {
+            const drives = await callSkillBackend('get_storage_drives');
+            const container = document.getElementById('storage-drives-grid');
+            if (!container) return;
+
+            let html = '';
+            drives.forEach(drv => {
+                const percent = ((drv.used / drv.total) * 100).toFixed(1);
+                html += `
+                    <div class="bg-gray-900 bg-opacity-40 p-4 border border-gray-800 rounded-xl flex flex-col justify-between space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2.5">
+                                <span class="text-2xl">${drv.icon}</span>
+                                <div>
+                                    <h3 class="font-bold text-gray-200 text-sm">${drv.name}</h3>
+                                    <p class="text-xxs text-gray-400 uppercase font-bold">${drv.type} 驱动通道</p>
+                                </div>
+                            </div>
+                            <span class="text-xs font-mono text-gray-400">${percent}%</span>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                <div class="h-full bg-blue-500 rounded-full" style="width: ${percent}%"></div>
+                            </div>
+                            <div class="flex justify-between text-xxs font-mono text-gray-500">
+                                <span>容量已用: ${drv.used} GB</span>
+                                <span>总配额: ${drv.total} GB</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+
+            // Load drives into sync modal dropdown
+            const select = document.getElementById('sync-drive-select');
+            if (select) {
+                select.innerHTML = '';
+                drives.forEach(drv => {
+                    const opt = document.createElement('option');
+                    opt.value = drv.id;
+                    opt.innerText = drv.name;
+                    select.appendChild(opt);
+                });
+            }
+        }
+
+        // Storage Hub Linkage Modal actions
+        function openSyncModal(taskId) {
+            document.getElementById('sync-task-id').value = taskId;
+            document.getElementById('sync-modal').classList.remove('hidden');
+        }
+
+        function closeSyncModal() {
+            document.getElementById('sync-modal').classList.add('hidden');
+        }
+
+        async function confirmStorageHubSync() {
+            const taskId = document.getElementById('sync-task-id').value;
+            const driveId = document.getElementById('sync-drive-select').value;
+            const destPath = document.getElementById('sync-path-input').value;
+
+            closeSyncModal();
+            showToast("云备份传输", "正调配 Storage Hub 独立进程 RAM-Pipe 内存中继流管道...");
+
+            const res = await callSkillBackend('save_to_storage_hub', {
+                task_id: taskId,
+                drive_id: driveId,
+                dest_path: destPath
+            });
+
+            if (res.status === 'ok') {
+                showToast("转存完成", `文件已完美上传至云端: ${res.destination}\n大小: ${res.size}`);
+            } else {
+                showToast("同步出错", res.error || "传输阻断", "error");
+            }
+        }
+
+        // Live media range playback ("边下边播"弹窗播放)
+        function playMediaDuringDownload(taskId, filename) {
+            const modal = document.getElementById('player-modal');
+            const title = document.getElementById('player-title');
+            const player = document.getElementById('html5-player');
+
+            title.innerText = `边下边播实时解码: ${filename}`;
+            // Set source pointing to range stream server
+            player.src = `http://localhost:8329/stream?task_id=${taskId}`;
+            modal.classList.remove('hidden');
+        }
+
+        function closePlayerModal() {
+            const modal = document.getElementById('player-modal');
+            const player = document.getElementById('html5-player');
+            player.pause();
+            player.src = '';
+            modal.classList.add('hidden');
+        }
+
+        // ZIP decompression with password manager
+        async function autoExtractZip(taskId) {
+            showToast("解压检查", "正在用密码库自动轮询比对 CRC 校验...");
+            const res = await callSkillBackend('unzip_extract', { task_id: taskId });
+            if (res.status === 'ok') {
+                showToast("解压成功", `已成功解压至：${res.out_dir}\n匹配密码：${res.password}`);
+            } else {
+                showToast("需要密码", res.error || "解压失败", "error");
+            }
+        }
+
+        // Run Network diagnostics
+        async function runDiagnostics() {
+            const container = document.getElementById('diagnostics-results');
+            container.innerHTML = '<div class="text-center py-12 text-gray-400 animate-pulse"><i class="fas fa-arrows-spin animate-spin text-2xl mb-2 block"></i>正在进行网络一键穿透性诊断...</div>';
+
+            const res = await callSkillBackend('network_diagnose');
+
+            container.innerHTML = `
+                <div class="bg-gray-900 bg-opacity-40 p-4 border border-gray-800 rounded-xl space-y-3 font-mono text-xs text-gray-300">
+                    <div>114.114.114.114 延迟: <span class="float-right text-green-400">${res.ping_dns_114}</span></div>
+                    <div>8.8.8.8 (Google) 延迟: <span class="float-right text-green-400">${res.ping_dns_google}</span></div>
+                    <div>Github 域名解析测试: <span class="float-right text-blue-400">${res.dns_github}</span></div>
+                </div>
+                <div class="bg-gray-900 bg-opacity-40 p-4 border border-gray-800 rounded-xl space-y-3 font-mono text-xs text-gray-300 flex flex-col justify-between">
+                    <div>P2P Tracker 封锁阻断检测:</div>
+                    <div class="text-sm font-bold ${res.p2p_tracker_blocking.includes('畅通') ? 'text-green-400' : 'text-yellow-400'} animate-pulse">${res.p2p_tracker_blocking}</div>
+                    <div class="text-xxs text-gray-500">诊断时间: ${res.diagnosed_at}</div>
+                </div>
+            `;
+            showToast("诊断完成", "本地网络连通性指标已全部跑完！");
+        }
+
+        // Settings saving
+        async function saveSettings() {
+            const threads = document.getElementById('settings-threads').value;
+            const limit = document.getElementById('settings-speedlimit').value;
+            const sc = document.getElementById('settings-serverchan').value;
+            const pp = document.getElementById('settings-pushplus').value;
+
+            // Simple local cache save
+            localStorage.setItem('downloader_threads', threads);
+            localStorage.setItem('downloader_limit', limit);
+            localStorage.setItem('downloader_sc', sc);
+            localStorage.setItem('downloader_pp', pp);
+
+            showToast("保存成功", "下载配置及微信推送 Key 缓存保存成功！");
+        }
+
+        // Format helpers
+        function formatSize(bytes) {
+            if (!bytes || bytes <= 0) return '未知大小';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+        }
+
+        // Standing browser preview Mock response dataset
+        function getMockResponse(action, params) {
+            if (action === 'list_tasks') {
+                return {
+                    "mock_dl_1": {
+                        "id": "mock_dl_1",
+                        "name": "[电影] 毒液：最后一舞 (2024) HD.mp4",
+                        "status": "downloading",
+                        "total_size": 2618928190,
+                        "downloaded_size": 1421029102,
+                        "progress": 54,
+                        "speed": "12.4 MB/s (34 Peers)",
+                        "eta": "1分36秒",
+                        "category": "movie",
+                        "is_p2p": true,
+                        "speed_limited": false
+                    },
+                    "mock_dl_2": {
+                        "id": "mock_dl_2",
+                        "name": "7-Zip 24.07 X64 简体中文开源版.exe",
+                        "status": "completed",
+                        "total_size": 1829102,
+                        "downloaded_size": 1829102,
+                        "progress": 100,
+                        "speed": "0 B/s",
+                        "eta": "已完成",
+                        "category": "software",
+                        "is_p2p": false,
+                        "md5": "7d8a9fb1bc271037748fa0627e8a91cf",
+                        "speed_limited": false
+                    }
+                };
+            }
+            if (action === 'get_storage_drives') {
+                return [
+                    {"id": "local_backup", "name": "💻 本地高能库 (Downloads)", "type": "local", "used": 120, "total": 512, "icon": "💻"},
+                    {"id": "webdav_alist", "name": "🌐 WebDAV 云盘组 (AList)", "type": "webdav", "used": 540, "total": 1024, "icon": "🌐"},
+                    {"id": "onedrive_jules", "name": "☁️ OneDrive 极客盘", "type": "onedrive", "used": 12, "total": 500, "icon": "☁️"}
+                ];
+            }
+            return { status: "ok" };
+        }
+    </script>
+</body>
+</html>

@@ -282,6 +282,8 @@ class ModernBridge:
         """Generic skill caller for frontend."""
         if params is None:
             params = {}
+        # Auto-inject jarvis_app instance for full integration compatibility
+        params.setdefault("jarvis_app", self.jarvis)
         try:
             return self.jarvis.skill_manager.execute(skill_id, action, **params)
         except Exception as e:
