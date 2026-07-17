@@ -115,13 +115,13 @@
                 <i class="fas fa-download text-xl"></i>
             </div>
             <div>
-                <h1 class="text-xl md:text-2xl font-bold tracking-wide">资源下载器 <span class="text-xs font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full uppercase ml-1">v2.0</span></h1>
+                <h1 class="text-xl md:text-2xl font-bold tracking-wide">资源下载器 <span class="text-xs font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full uppercase ml-1">v2.0</span><span id="standalone-badge" class="text-xs font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-full uppercase ml-1.5 hidden">Standalone</span></h1>
                 <p class="text-xs text-gray-400">快 • 稳 • 全 — 纯净高效的多线程并发与跨端同步中心</p>
             </div>
         </div>
         <!-- Global Actions and Status -->
         <div class="flex items-center space-x-3">
-            <button onclick="window.history.back()" class="px-4 py-2 rounded-lg text-sm bg-gray-800 hover:bg-gray-700 transition flex items-center space-x-2">
+            <button id="btn-back-home" onclick="window.history.back()" class="px-4 py-2 rounded-lg text-sm bg-gray-800 hover:bg-gray-700 transition flex items-center space-x-2">
                 <i class="fas fa-arrow-left"></i> <span>返回主页</span>
             </button>
             <div id="scheduler-badge" class="px-3 py-1.5 rounded-full text-xs font-bold bg-green-500 bg-opacity-20 text-green-400 border border-green-500 border-opacity-30 flex items-center space-x-1.5">
@@ -374,6 +374,10 @@
                             <input type="number" id="settings-speedlimit" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-sm text-gray-100" value="200">
                         </div>
                     </div>
+                    <div class="mt-4">
+                        <label class="block text-xs text-gray-400 mb-1">默认下载保存路径</label>
+                        <input type="text" id="settings-downloadpath" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-sm text-gray-100 font-mono" placeholder="不填则使用系统默认相对路径">
+                    </div>
                 </div>
 
                 <div class="space-y-4">
@@ -500,7 +504,72 @@
 
             // Set up real-time inputs decoders
             setupUrlInputDecoder();
+
+            // Check standalone status
+            checkStandaloneStatus();
         });
+
+        // Check if running in standalone mode or inside Butler
+        async function checkStandaloneStatus() {
+            const status = await callSkillBackend('get_status');
+            if (status && status.status === 'ok') {
+                if (status.standalone) {
+                    // Standalone mode UI optimization
+                    const btnBackHome = document.getElementById('btn-back-home');
+                    if (btnBackHome) btnBackHome.classList.add('hidden');
+
+                    const badge = document.getElementById('standalone-badge');
+                    if (badge) badge.classList.remove('hidden');
+
+                    // Hide storage tab in standalone mode to keep grid layout clean and precise
+                    const tabStorage = document.getElementById('tab-storage');
+                    if (tabStorage) tabStorage.classList.add('hidden');
+
+                    // Adjust grid classes for tabs if storage is hidden
+                    const navContainer = tabStorage ? tabStorage.parentElement : null;
+                    if (navContainer) {
+                        navContainer.classList.remove('md:grid-cols-6');
+                        navContainer.classList.add('md:grid-cols-5');
+                    }
+                } else {
+                    const btnBackHome = document.getElementById('btn-back-home');
+                    if (btnBackHome) btnBackHome.classList.remove('hidden');
+
+                    const badge = document.getElementById('standalone-badge');
+                    if (badge) badge.classList.add('hidden');
+
+                    const tabStorage = document.getElementById('tab-storage');
+                    if (tabStorage) tabStorage.classList.remove('hidden');
+                }
+
+                // Populate customized settings fields
+                if (status.download_path) {
+                    const pathInput = document.getElementById('settings-downloadpath');
+                    if (pathInput) pathInput.value = status.download_path;
+                }
+
+                // Populate configs
+                if (status.config) {
+                    const cfg = status.config;
+                    if (cfg.max_threads) {
+                        const threadsInput = document.getElementById('settings-threads');
+                        if (threadsInput) threadsInput.value = cfg.max_threads;
+                    }
+                    if (cfg.speed_limit) {
+                        const limitInput = document.getElementById('settings-speedlimit');
+                        if (limitInput) limitInput.value = cfg.speed_limit;
+                    }
+                    if (cfg.server_chan) {
+                        const scInput = document.getElementById('settings-serverchan');
+                        if (scInput) scInput.value = cfg.server_chan;
+                    }
+                    if (cfg.push_plus) {
+                        const ppInput = document.getElementById('settings-pushplus');
+                        if (ppInput) ppInput.value = cfg.push_plus;
+                    }
+                }
+            }
+        }
 
         // Auto decode Thunder link on paste
         function setupUrlInputDecoder() {
@@ -539,17 +608,39 @@
 
         // Call python skills securely
         async function callSkillBackend(action, params = {}) {
-            if (isMock) {
-                // Fallback mock values in browser sandbox mode
-                console.log(`Mock calling downloader:${action}`, params);
-                return getMockResponse(action, params);
+            // 1. If pywebview is available, use it
+            if (typeof window.pywebview !== 'undefined' && typeof window.pywebview.api !== 'undefined') {
+                try {
+                    return await window.pywebview.api.call_skill('downloader', action, params);
+                } catch (err) {
+                    console.error("Pywebview backend call error", err);
+                    return { error: err.toString() };
+                }
             }
-            try {
-                return await window.pywebview.api.call_skill('downloader', action, params);
-            } catch (err) {
-                console.error("Pywebview backend call error", err);
-                return { error: err.toString() };
+
+            // 2. Otherwise, check if we are served from http/https server and use fetch API
+            if (window.location.protocol.startsWith('http')) {
+                try {
+                    const response = await fetch(`/api/${action}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(params)
+                    });
+                    if (response.ok) {
+                        return await response.json();
+                    } else {
+                        console.warn(`HTTP API call error: ${response.status}`);
+                    }
+                } catch (err) {
+                    console.error("Fetch API backend call error", err);
+                }
             }
+
+            // 3. Fallback mock values in browser sandbox mode
+            console.log(`Mock calling downloader:${action}`, params);
+            return getMockResponse(action, params);
         }
 
         // Dynamic stats task list fetcher
@@ -1048,14 +1139,29 @@
             const limit = document.getElementById('settings-speedlimit').value;
             const sc = document.getElementById('settings-serverchan').value;
             const pp = document.getElementById('settings-pushplus').value;
+            const dlPath = document.getElementById('settings-downloadpath').value;
 
             // Simple local cache save
             localStorage.setItem('downloader_threads', threads);
             localStorage.setItem('downloader_limit', limit);
             localStorage.setItem('downloader_sc', sc);
             localStorage.setItem('downloader_pp', pp);
+            localStorage.setItem('downloader_path', dlPath);
 
-            showToast("保存成功", "下载配置及微信推送 Key 缓存保存成功！");
+            // Call backend save_settings to persist in config.json
+            const res = await callSkillBackend('save_settings', {
+                download_path: dlPath,
+                max_threads: parseInt(threads) || 16,
+                speed_limit: parseInt(limit) || 200,
+                server_chan: sc,
+                push_plus: pp
+            });
+
+            if (res && res.status === 'error') {
+                showToast("保存失败", res.error, "error");
+            } else {
+                showToast("保存成功", "下载配置及保存路径已成功写入服务器配置！");
+            }
         }
 
         // Format helpers
