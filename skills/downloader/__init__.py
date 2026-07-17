@@ -29,11 +29,65 @@ logger = logging.getLogger("DownloaderSkill")
 
 # Path Configuration
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DOWNLOADS_DIR = os.path.join(PROJECT_ROOT, "data", "downloads")
-CONFIG_PATH = os.path.join(PROJECT_ROOT, "skills", "downloader", "tasks.json")
+SKILL_DIR = os.path.join(PROJECT_ROOT, "skills", "downloader")
+DATA_DIR = os.path.join(SKILL_DIR, "data")
+os.makedirs(DATA_DIR, exist_ok=True)
 
-os.makedirs(DOWNLOADS_DIR, exist_ok=True)
-os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+CONFIG_PATH = os.path.join(DATA_DIR, "tasks.json")
+OLD_CONFIG_PATH = os.path.join(SKILL_DIR, "tasks.json")
+
+# Migrate old tasks.json if it exists and the new one doesn't
+if os.path.exists(OLD_CONFIG_PATH) and not os.path.exists(CONFIG_PATH):
+    try:
+        shutil.move(OLD_CONFIG_PATH, CONFIG_PATH)
+    except Exception:
+        pass
+
+# Local config & standalone settings helper
+LOCAL_CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
+IS_STANDALONE = False
+
+def get_standalone_status() -> bool:
+    global IS_STANDALONE
+    return IS_STANDALONE or os.environ.get("BUTLER_DOWNLOADER_STANDALONE") == "1"
+
+def load_local_config() -> Dict[str, Any]:
+    if not os.path.exists(LOCAL_CONFIG_PATH):
+        return {}
+    try:
+        with open(LOCAL_CONFIG_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_local_config(config: Dict[str, Any]):
+    try:
+        with open(LOCAL_CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=4, ensure_ascii=False)
+    except Exception:
+        pass
+
+def get_downloads_dir() -> str:
+    cfg = load_local_config()
+    custom_path = cfg.get("download_path")
+    if custom_path:
+        # Standardize path
+        custom_path = os.path.expanduser(custom_path)
+        if not os.path.isabs(custom_path):
+            custom_path = os.path.abspath(os.path.join(PROJECT_ROOT, custom_path))
+        os.makedirs(custom_path, exist_ok=True)
+        return custom_path
+
+    # Defaults
+    if get_standalone_status():
+        path = os.path.join(SKILL_DIR, "downloads")
+    else:
+        path = os.path.join(PROJECT_ROOT, "data", "downloads")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+# Legacy compatibility global variable (evaluated once at load)
+DOWNLOADS_DIR = get_downloads_dir()
 
 # Global variables
 streaming_server_port = 8329
@@ -739,7 +793,35 @@ def handle_request(action: str, **kwargs) -> Any:
     # Access Jarvis references
     jarvis_app = kwargs.get("jarvis_app")
 
-    if action == "list_tasks":
+    if action == "get_status":
+        return {
+            "status": "ok",
+            "standalone": get_standalone_status(),
+            "download_path": get_downloads_dir(),
+            "config": load_local_config()
+        }
+
+    elif action == "save_settings":
+        download_path = kwargs.get("download_path")
+        if download_path:
+            download_path = download_path.strip()
+            try:
+                os.makedirs(os.path.expanduser(download_path), exist_ok=True)
+            except Exception as e:
+                return {"status": "error", "error": f"无效或无权限的路径: {str(e)}"}
+
+        cfg = load_local_config()
+        if download_path is not None:
+            cfg["download_path"] = download_path
+
+        for k in ["max_threads", "speed_limit", "server_chan", "push_plus"]:
+            if k in kwargs:
+                cfg[k] = kwargs[k]
+
+        save_local_config(cfg)
+        return {"status": "ok", "config": cfg}
+
+    elif action == "list_tasks":
         return load_tasks()
 
     elif action == "add_task":
@@ -800,7 +882,7 @@ def handle_request(action: str, **kwargs) -> Any:
             name = os.path.basename(parsed.path) or "downloaded_file"
 
         task_id = f"dl_{int(time.time() * 1000)}"
-        file_path = os.path.join(DOWNLOADS_DIR, name)
+        file_path = os.path.join(get_downloads_dir(), name)
 
         tasks = load_tasks()
         tasks[task_id] = {
@@ -1228,6 +1310,14 @@ def handle_request(action: str, **kwargs) -> Any:
             "destination": f"{drive_id}:{dest_path}/{file_name}",
             "size": format_bytes(file_size)
         }
+
+    elif action == "run":
+        try:
+            import skills.downloader.run as run_module
+            run_module.main()
+            return {"status": "ok"}
+        except Exception as e:
+            return {"error": f"Failed to start standalone downloader: {str(e)}"}
 
     return {"error": f"Unknown action: {action}"}
 

@@ -30,7 +30,15 @@ logging.basicConfig(
 logger = logging.getLogger("ButlerHub")
 
 def main():
+    if "--run" in sys.argv:
+        idx = sys.argv.index("--run")
+        if idx + 1 < len(sys.argv) and sys.argv[idx + 1] == "downloader":
+            from skills.downloader.run import main as run_downloader
+            run_downloader()
+            return
+
     parser = argparse.ArgumentParser(description="Butler 资产同步中心 (Asset Sync Hub)")
+    parser.add_argument("--run", choices=["downloader"], help="拉起并独立运行特定的 Butler 模块/技能 (例如: downloader)")
     subparsers = parser.add_subparsers(dest="command", help="子命令")
 
     # Sync

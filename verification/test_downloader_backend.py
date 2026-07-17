@@ -93,5 +93,31 @@ class TestDownloaderBackend(unittest.TestCase):
         self.assertGreater(len(drives), 0)
         self.assertIn("name", drives[0])
 
+    def test_standalone_status(self):
+        """Test that get_status action returns correct standalone, directory, and config parameters."""
+        res = handle_request("get_status")
+        self.assertEqual(res["status"], "ok")
+        self.assertIn("standalone", res)
+        self.assertIn("download_path", res)
+        self.assertIn("config", res)
+
+    def test_save_settings_and_path_resolution(self):
+        """Test saving customized settings and verifying path resolution updates dynamically."""
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
+        try:
+            res = handle_request("save_settings", download_path=temp_dir, max_threads=8)
+            self.assertEqual(res["status"], "ok")
+            self.assertEqual(res["config"]["download_path"], temp_dir)
+            self.assertEqual(res["config"]["max_threads"], 8)
+
+            status_res = handle_request("get_status")
+            self.assertEqual(status_res["download_path"], temp_dir)
+        finally:
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+            from skills.downloader import save_local_config
+            save_local_config({})
+
 if __name__ == "__main__":
     unittest.main()
