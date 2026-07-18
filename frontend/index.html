@@ -29,33 +29,32 @@
     <!-- Global Background Substrate Heatmap -->
     <canvas id="substrate-heatmap"></canvas>
 
-    <div id="dynamic-island">Butler</div>
-
-    <!-- Floating Dock -->
-    <nav class="floating-dock glass-surface damping-transition">
-        <div class="dock-item active" id="dock-0-0" onclick="matrix.moveTo(0,0)" title="智能助手 (0,0)">
-            <i class="fas fa-comment-dots"></i>
-            <span class="dock-dot"></span>
-        </div>
-        <div class="dock-item" id="dock-1-0" onclick="matrix.moveTo(1,0)" title="时光监控 (1,0)">
-            <i class="fas fa-history"></i>
-            <span class="dock-dot"></span>
-        </div>
-        <div class="dock-item" id="dock-0-1" onclick="matrix.moveTo(0,1)" title="任务画布 (0,1)">
-            <i class="fas fa-project-diagram"></i>
-            <span class="dock-dot"></span>
-        </div>
-        <div class="dock-item" id="dock-1-1" onclick="matrix.moveTo(1,1)" title="技能仓储 (1,1)">
-            <i class="fas fa-box-open"></i>
-            <span class="dock-dot"></span>
-        </div>
-        <div class="dock-divider"></div>
-        <div class="dock-item" id="dock-settings" onclick="toggleSettings()" title="系统设置">
-            <i class="fas fa-cog"></i>
-        </div>
-    </nav>
-
     <div class="app-container">
+        <div id="dynamic-island">Butler</div>
+
+        <!-- Floating Dock -->
+        <nav class="floating-dock glass-surface damping-transition">
+            <div class="dock-item active" id="dock-0-0" onclick="matrix.moveTo(0,0)" title="智能助手 (0,0)">
+                <i class="fas fa-comment-dots"></i>
+                <span class="dock-dot"></span>
+            </div>
+            <div class="dock-item" id="dock-1-0" onclick="matrix.moveTo(1,0)" title="时光监控 (1,0)">
+                <i class="fas fa-history"></i>
+                <span class="dock-dot"></span>
+            </div>
+            <div class="dock-item" id="dock-0-1" onclick="matrix.moveTo(0,1)" title="任务画布 (0,1)">
+                <i class="fas fa-project-diagram"></i>
+                <span class="dock-dot"></span>
+            </div>
+            <div class="dock-item" id="dock-1-1" onclick="matrix.moveTo(1,1)" title="技能仓储 (1,1)">
+                <i class="fas fa-box-open"></i>
+                <span class="dock-dot"></span>
+            </div>
+            <div class="dock-divider"></div>
+            <div class="dock-item" id="dock-settings" onclick="toggleSettings()" title="系统设置">
+                <i class="fas fa-cog"></i>
+            </div>
+        </nav>
         <main class="main-content">
             <div id="workspace-matrix">
                 <!-- (0,0) Quadrant: Smart Chat & Debugger -->
@@ -461,6 +460,13 @@
                                 <input type="checkbox" id="setting-heatmap-toggle" checked onchange="toggleHeatmapAnimation()">
                                 <span class="slider round"></span>
                             </label>
+                        </div>
+                        <div class="settings-row">
+                            <span class="row-label">操作界面模式 (Interface)</span>
+                            <select class="apple-select" id="setting-interface-mode" onchange="toggleInterfaceMode()" style="width: 200px;">
+                                <option value="desktop">电脑端界面 (Desktop Mode)</option>
+                                <option value="mobile">手机端界面 (Mobile Mode)</option>
+                            </select>
                         </div>
                     </div>
                 </div>

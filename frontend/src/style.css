@@ -1760,57 +1760,57 @@ input:checked + .slider:before {
 
 /* --- Mobile Responsiveness --- */
 @media (max-width: 768px) {
-    :root {
+    body:not(.interface-desktop) {
         --sidebar-width: 80px;
     }
 
-    .sidebar span {
+    body:not(.interface-desktop) .sidebar span {
         display: none;
     }
 
-    .sidebar-nav {
+    body:not(.interface-desktop) .sidebar-nav {
         padding: 10px 4px;
     }
 
-    .nav-item {
+    body:not(.interface-desktop) .nav-item {
         justify-content: center;
         padding: 12px;
     }
 
-    #interaction-flow {
+    body:not(.interface-desktop) #interaction-flow {
         padding: 20px 5%;
     }
 
-    .chat-input-container {
+    body:not(.interface-desktop) .chat-input-container {
         padding: 15px 5%;
     }
 
-    .files-layout-body {
+    body:not(.interface-desktop) .files-layout-body {
         flex-direction: column;
     }
 
-    .files-sidebar-inner {
+    body:not(.interface-desktop) .files-sidebar-inner {
         width: 100%;
         display: flex;
         overflow-x: auto;
         padding-bottom: 10px;
     }
 
-    .storage-group {
+    body:not(.interface-desktop) .storage-group {
         display: flex;
         gap: 10px;
     }
 
-    .storage-item {
+    body:not(.interface-desktop) .storage-item {
         white-space: nowrap;
         margin-bottom: 0;
     }
 
-    .settings-wrapper {
+    body:not(.interface-desktop) .settings-wrapper {
         flex-direction: column;
     }
 
-    .settings-sidebar {
+    body:not(.interface-desktop) .settings-sidebar {
         width: 100%;
         flex-direction: row;
         overflow-x: auto;
@@ -1819,19 +1819,19 @@ input:checked + .slider:before {
         padding: 10px;
     }
 
-    .settings-nav-item span {
+    body:not(.interface-desktop) .settings-nav-item span {
         display: block; /* Show text in settings sidebar even on mobile */
     }
 
-    .settings-content {
+    body:not(.interface-desktop) .settings-content {
         padding: 20px;
     }
 
-    .media-view-layout {
+    body:not(.interface-desktop) .media-view-layout {
         flex-direction: column;
     }
 
-    .media-sidebar-list {
+    body:not(.interface-desktop) .media-sidebar-list {
         width: 100%;
         max-height: 200px;
     }
@@ -2925,4 +2925,168 @@ body.tm-active #cell-0-1 {
 
 .theme-apple .memo-card:hover {
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+}
+
+/* --- Interface Mode Transitions & Smooth Switching --- */
+.app-container {
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                height 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                border-radius 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+body.interface-switching .app-container {
+    opacity: 0 !important;
+    transform: scale(0.95) !important;
+}
+
+body.interface-desktop {
+    overflow: auto !important;
+}
+
+/* --- Simulated Mobile Interface Mode (Desktop Wide View) --- */
+@media (min-width: 769px) {
+    body.interface-mobile {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        height: 100vh !important;
+        min-height: 100vh !important;
+        overflow: hidden !important;
+        background: radial-gradient(circle at center, #1b1b22 0%, #0a0a0d 100%) !important;
+    }
+
+    body.interface-mobile .app-container {
+        width: 380px !important;
+        height: 844px !important;
+        position: relative !important;
+        border-radius: 44px !important;
+        border: 14px solid #1c1c22 !important; /* Premium sleek bezel */
+        box-shadow: 0 35px 80px rgba(0, 0, 0, 0.85),
+                    inset 0 0 4px rgba(255, 255, 255, 0.15),
+                    inset 0 0 20px rgba(0, 0, 0, 0.6) !important;
+        background: #000 !important;
+        overflow: hidden !important;
+        display: flex !important;
+        flex-direction: column !important;
+        backdrop-filter: blur(20px) !important;
+        transform-origin: center !important;
+        margin: auto !important;
+    }
+
+    /* Inside the virtual mobile container */
+    body.interface-mobile .main-content {
+        width: 100% !important;
+        height: 100% !important;
+        border-radius: 32px !important;
+        overflow: hidden !important;
+    }
+
+    body.interface-mobile #workspace-matrix {
+        grid-template-columns: repeat(2, 100%) !important;
+        grid-template-rows: repeat(2, 100%) !important;
+        width: 200% !important;
+        height: 200% !important;
+    }
+
+    body.interface-mobile .matrix-cell {
+        width: 100% !important;
+        height: 100% !important;
+        padding: 16px !important;
+        padding-bottom: 96px !important; /* Extra padding for bottom simulated absolute dock */
+        box-sizing: border-box !important;
+    }
+
+    /* Dock & Island nesting inside the virtual screen */
+    body.interface-mobile .floating-dock {
+        position: absolute !important;
+        bottom: 16px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        width: 90% !important;
+        max-width: 310px !important;
+        height: 60px !important;
+        z-index: 1000 !important;
+        padding: 0 8px !important;
+        border-radius: 18px !important;
+    }
+
+    body.interface-mobile .dock-item {
+        width: 40px !important;
+        height: 40px !important;
+    }
+
+    body.interface-mobile .dock-item i {
+        font-size: 16px !important;
+    }
+
+    body.interface-mobile .dock-divider {
+        height: 24px !important;
+    }
+
+    body.interface-mobile #dynamic-island {
+        position: absolute !important;
+        top: 10px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        z-index: 10001 !important;
+        width: 110px !important;
+        height: 28px !important;
+        font-size: 11px !important;
+        border-radius: 14px !important;
+    }
+
+    /* Adjust standard overlay panels to sit on top of the virtual phone correctly */
+    body.interface-mobile #settings-overlay {
+        position: absolute !important;
+        width: 90% !important;
+        height: 80% !important;
+        top: 10% !important;
+        left: 5% !important;
+        transform: none !important;
+        border-radius: 24px !important;
+        z-index: 10002 !important;
+    }
+
+    body.interface-mobile .settings-wrapper {
+        flex-direction: column !important;
+        height: calc(100% - 50px) !important;
+        overflow-y: auto !important;
+    }
+
+    body.interface-mobile .settings-sidebar {
+        width: 100% !important;
+        flex-direction: row !important;
+        overflow-x: auto !important;
+        border-right: none !important;
+        border-bottom: 1px solid var(--border-color) !important;
+        padding: 6px !important;
+    }
+
+    body.interface-mobile .settings-nav-item {
+        padding: 8px 12px !important;
+        font-size: 12px !important;
+        white-space: nowrap !important;
+    }
+
+    body.interface-mobile .settings-content {
+        padding: 12px !important;
+        font-size: 12px !important;
+    }
+
+    body.interface-mobile .settings-row {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 8px !important;
+    }
+
+    body.interface-mobile .settings-row .apple-select {
+        width: 100% !important;
+    }
+
+    /* Adjust other UI components inside the virtual phone */
+    body.interface-mobile .view-title {
+        font-size: 16px !important;
+    }
 }
