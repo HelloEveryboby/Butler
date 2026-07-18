@@ -169,6 +169,45 @@ def convert_file(input_file_path, output_file_path, output_folder):
     input_ext = os.path.splitext(input_file_path)[1].lower()
     output_ext = os.path.splitext(output_file_path)[1].lower()
 
+    # Map extensions to upper format names
+    from_fmt = input_ext[1:].upper()
+    to_fmt = output_ext[1:].upper()
+    if from_fmt in ["MARKDOWN", "HTM"]: from_fmt = "MD" if "M" in from_fmt else "HTML"
+    if to_fmt in ["MARKDOWN", "HTM"]: to_fmt = "MD" if "M" in to_fmt else "HTML"
+    if from_fmt in ["JPEG", "JPG"]: from_fmt = "JPG"
+    if to_fmt in ["JPEG", "JPG"]: to_fmt = "JPG"
+
+    supported_routes = [
+        # MD target exports
+        ("MD", "HTML"), ("MD", "DOCX"), ("MD", "EPUB"), ("MD", "PNG"), ("MD", "JPG"), ("MD", "PDF"),
+        # HTML target exports & reverse
+        ("HTML", "MD"), ("HTML", "DOCX"), ("HTML", "EPUB"), ("HTML", "PDF"),
+        # DOCX target reverse & cross
+        ("DOCX", "MD"), ("DOCX", "HTML"), ("DOCX", "EPUB"),
+        # PDF reverse
+        ("PDF", "MD"), ("PDF", "HTML"), ("PDF", "DOCX"),
+        # Image targets
+        ("PNG", "WEBP"), ("JPG", "WEBP"), ("PNG", "BASE64"), ("JPG", "BASE64")
+    ]
+
+    if (from_fmt, to_fmt) in supported_routes:
+        print(f"[*] Intercepted: Routing to Butler High-Fidelity Converter Engine ({from_fmt} -> {to_fmt})")
+        # Save path construction
+        target_path = os.path.join(output_folder, os.path.basename(output_file_path)) if output_folder else output_file_path
+        from skills.format_convert.format_convert import handle_request
+        kwargs = {
+            "input": input_file_path,
+            "from": from_fmt,
+            "to": to_fmt,
+            "save_to": target_path
+        }
+        res = handle_request(action="run", **kwargs)
+        if isinstance(res, str) and "Success" in res:
+            print(f"[+] Butler High-Fidelity Converter success: {res}")
+            return
+        else:
+            print(f"[-] Butler High-Fidelity conversion failed: {res}. Trying local package/document backup...")
+
     if input_ext == '.pdf' and output_ext == '.docx':
         process_pdf(input_file_path, output_file_path, output_folder)
     elif input_ext == '.docx' and output_ext == '.pdf':

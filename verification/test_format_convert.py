@@ -3,13 +3,16 @@ import sys
 import unittest
 import base64
 import io
+import tempfile
+import zipfile
 
 # Ensure project root is in path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from skills.format_convert.main import handle_request
+from skills.format_convert.format_convert import handle_request
+from skills.format_convert.core.reverse_converters import html_to_markdown, docx_to_markdown, pdf_to_markdown
 
 
 class TestFormatConvertSkillLocal(unittest.TestCase):
@@ -170,15 +173,114 @@ This is **important** text."""
         except ImportError:
             self.skipTest("Pillow not installed, skipping test_image_to_webp_local")
 
-    def test_pdf_local_fallback_error(self):
-        result = handle_request(
-            action="run",
-            input="# Report",
-            from_fmt="MD",
-            to_fmt="PDF"
-        )
-        self.assertTrue(result.startswith("Error: Conversion failed locally:"))
-        self.assertIn("Local fallback for PDF is not supported", result)
+    def test_markdown_to_docx_and_reverse(self):
+        md_text = """# Project Title
+## Subheading
+This is a paragraph with **bold** text and *italic* text.
+
+- List item 1
+- List item 2
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_path = os.path.join(tmpdir, "test.docx")
+            res = handle_request(
+                action="run",
+                input=md_text,
+                from_fmt="MD",
+                to_fmt="DOCX",
+                save_to=save_path
+            )
+            self.assertTrue(os.path.exists(save_path))
+
+            # Reverse convert DOCX -> MD
+            rev_md = handle_request(
+                action="run",
+                input=save_path,
+                from_fmt="DOCX",
+                to_fmt="MD"
+            )
+            self.assertIn("Project Title", rev_md)
+            self.assertIn("Subheading", rev_md)
+            self.assertIn("List item 1", rev_md)
+
+    def test_markdown_to_epub_and_reverse(self):
+        md_text = """# E-book Title
+By Butler
+
+Welcome to the digital world.
+- Chapter One
+- Chapter Two
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_path = os.path.join(tmpdir, "test.epub")
+            res = handle_request(
+                action="run",
+                input=md_text,
+                from_fmt="MD",
+                to_fmt="EPUB",
+                save_to=save_path
+            )
+            self.assertTrue(os.path.exists(save_path))
+
+            # Ensure zipfile signature of standard epub
+            self.assertTrue(zipfile.is_zipfile(save_path))
+            with zipfile.ZipFile(save_path, 'r') as zf:
+                files = zf.namelist()
+                self.assertIn("mimetype", files)
+                self.assertIn("OEBPS/content.opf", files)
+                self.assertIn("OEBPS/chapter1.xhtml", files)
+
+    def test_markdown_to_image_drawing(self):
+        md_text = """# Drawing Title
+This is some drawing text to fit standard wrapping.
+- Draw line 1
+- Draw line 2
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_path = os.path.join(tmpdir, "test.png")
+            res = handle_request(
+                action="run",
+                input=md_text,
+                from_fmt="MD",
+                to_fmt="PNG",
+                save_to=save_path
+            )
+            self.assertTrue(os.path.exists(save_path))
+
+            # Read image and verify bytes size > 0
+            self.assertTrue(os.path.getsize(save_path) > 100)
+
+    def test_html_to_markdown_reverse(self):
+        html_text = """<h1>Web Title</h1>
+<p>Hello this is <strong>strong</strong> text and <em>em</em> text.</p>
+<ul>
+  <li>Bullet item A</li>
+  <li>Bullet item B</li>
+</ul>"""
+        md = html_to_markdown(html_text)
+        self.assertIn("Web Title", md)
+        self.assertIn("**strong**", md)
+        self.assertIn("*em*", md)
+        # Bullet list is also matched as standard bullet character
+        self.assertTrue(any(x in md for x in ["- Bullet item A", "* Bullet item A"]))
+
+    def test_cross_conversion_html_to_docx(self):
+        html_text = """<h1>Cross Conversion Header</h1>
+<p>This is a paragraph.</p>"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_path = os.path.join(tmpdir, "cross.docx")
+            res = handle_request(
+                action="run",
+                input=html_text,
+                from_fmt="HTML",
+                to_fmt="DOCX",
+                save_to=save_path
+            )
+            self.assertTrue(os.path.exists(save_path))
+
+            # Reverse docx to md
+            md = docx_to_markdown(save_path)
+            self.assertIn("Cross Conversion Header", md)
 
 
 if __name__ == "__main__":

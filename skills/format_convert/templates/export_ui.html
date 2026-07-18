@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Butler Document Studio | 极简文档工作室</title>
+    <style>
+        :root {
+            --primary-color: #007aff;
+            --primary-hover: #0063cc;
+            --bg-glass: rgba(255, 255, 255, 0.7);
+            --bg-glass-dark: rgba(30, 30, 30, 0.75);
+            --border-glass: rgba(255, 255, 255, 0.3);
+            --border-glass-dark: rgba(255, 255, 255, 0.1);
+            --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.08);
+            --text-color: #1d1d1f;
+            --text-muted: #8e8e93;
+            --bg-page: #f5f5f7;
+            --transition-speed: 0.3s;
+        }
+
+        [data-theme="dark"] {
+            --text-color: #f5f5f7;
+            --text-muted: #8e8e93;
+            --bg-page: #000000;
+            --bg-glass: var(--bg-glass-dark);
+            --border-glass: var(--border-glass-dark);
+            --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-page);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background-color var(--transition-speed), color var(--transition-speed);
+            overflow-x: hidden;
+        }
+
+        /* Ambient colored background blobs for Apple glassmorphic effect */
+        .ambient-glow-1 {
+            position: fixed;
+            top: -200px;
+            left: -200px;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(0, 122, 255, 0.15) 0%, rgba(255, 255, 255, 0) 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .ambient-glow-2 {
+            position: fixed;
+            bottom: -150px;
+            right: -150px;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(58, 203, 114, 0.12) 0%, rgba(255, 255, 255, 0) 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        header {
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-glass);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-icon {
+            font-size: 1.8rem;
+        }
+
+        .brand-text h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-text p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-icon {
+            background: transparent;
+            border: none;
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 1.25rem;
+            padding: 8px;
+            border-radius: 50%;
+            transition: background var(--transition-speed);
+        }
+
+        .btn-icon:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        [data-theme="dark"] .btn-icon:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        main {
+            flex: 1;
+            max-width: 1400px;
+            width: 100%;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 900px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .workspace-panel {
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            box-shadow: var(--shadow-glass);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            height: 75vh;
+        }
+
+        .panel-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-glass);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .workspace-tabs {
+            display: flex;
+            gap: 4px;
+            background: rgba(0, 0, 0, 0.03);
+            padding: 3px;
+            border-radius: 8px;
+        }
+
+        [data-theme="dark"] .workspace-tabs {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 0.8rem;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: #ffffff;
+            color: var(--primary-color);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        [data-theme="dark"] .tab-btn.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+
+        .panel-body {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            resize: none;
+            outline: none;
+            padding: 1.5rem;
+            font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: var(--text-color);
+        }
+
+        .preview-container {
+            width: 100%;
+            height: 100%;
+            padding: 1.5rem;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        [data-theme="dark"] .preview-container {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .format-selector {
+            padding: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .format-card {
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid var(--border-glass);
+            border-radius: 12px;
+            padding: 1rem 0.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        [data-theme="dark"] .format-card {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .format-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary-color);
+            background: #ffffff;
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.1);
+        }
+
+        [data-theme="dark"] .format-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .format-card.active {
+            border-color: var(--primary-color);
+            background: rgba(0, 122, 255, 0.08);
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .format-icon {
+            font-size: 1.6rem;
+        }
+
+        .format-name {
+            font-size: 0.8rem;
+        }
+
+        .settings-grid {
+            padding: 1.5rem;
+            border-top: 1px solid var(--border-glass);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .form-input {
+            background: rgba(0, 0, 0, 0.03);
+            border: 1px solid var(--border-glass);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            color: var(--text-color);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        [data-theme="dark"] .form-input {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .form-input:focus {
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: #ffffff;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: calc(100% - 3rem);
+            margin: 0 1.5rem 1.5rem 1.5rem;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        /* Floating action notifications */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            box-shadow: var(--shadow-glass);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transform: translateY(150px);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+        }
+
+        /* Mini document stylesheet preview mockup */
+        .preview-html h1 { font-size: 1.6em; margin-bottom: 0.8em; }
+        .preview-html h2 { font-size: 1.3em; margin: 1em 0 0.5em 0; border-bottom: 1px solid rgba(0,0,0,0.08); padding-bottom: 0.2em; }
+        .preview-html p { margin-bottom: 0.8em; line-height: 1.5; font-size: 0.95rem; }
+        .preview-html blockquote { border-left: 3px solid var(--primary-color); padding-left: 10px; color: var(--text-muted); margin: 1em 0; font-style: italic; background: rgba(0,0,0,0.02); }
+        .preview-html pre { background: rgba(0,0,0,0.04); padding: 10px; border-radius: 6px; font-family: monospace; overflow-x: auto; margin-bottom: 1em; }
+        .preview-html table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+        .preview-html th, .preview-html td { border: 1px solid rgba(0,0,0,0.08); padding: 6px 10px; font-size: 0.85rem; }
+        .preview-html th { background: rgba(0,0,0,0.04); }
+
+        @media print {
+            header, .workspace-panel:first-child, .workspace-panel:last-child .format-selector, .workspace-panel:last-child .settings-grid, .workspace-panel:last-child .btn-primary, .workspace-panel:last-child .panel-header, .ambient-glow-1, .ambient-glow-2 {
+                display: none !important;
+            }
+            body, .workspace-panel:last-child {
+                background: white !important;
+                color: black !important;
+                box-shadow: none !important;
+                border: none !important;
+                height: auto !important;
+            }
+            .preview-container {
+                background: white !important;
+                overflow: visible !important;
+                padding: 0 !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-glow-1"></div>
+    <div class="ambient-glow-2"></div>
+
+    <header>
+        <div class="brand">
+            <span class="brand-icon">📚</span>
+            <div class="brand-text">
+                <h1>Butler Document Studio</h1>
+                <p>智能文档跨格式导出中心 (AI & Manual Dual-Mode)</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="btn-icon" id="theme-toggle" title="切换主题">🌓</button>
+        </div>
+    </header>
+
+    <main>
+        <!-- Left panel: Markdown Editor -->
+        <section class="workspace-panel">
+            <div class="panel-header">
+                <span class="panel-title">Markdown 编辑器</span>
+                <div class="workspace-tabs">
+                    <button class="tab-btn active" id="btn-edit">编辑</button>
+                    <button class="tab-btn" id="btn-preview">实时预览</button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <textarea id="markdown-input" placeholder="在此粘贴或编写您的 Markdown 文档...
+
+# 极简设计
+支持多种格式的精美导出。
+
+- ⚡️ 一键导出 Word (.docx)
+- 📚 零依赖 EPUB 电子书打包
+- 🎨 精美长图生成
+- 📄 高清无损 PDF 导出
+
+## 引用示例
+> 极简不是缺乏，而是精髓的提炼。
+" style="display: block;"></textarea>
+                <div class="preview-container preview-html" id="html-preview" style="display: none;"></div>
+            </div>
+        </section>
+
+        <!-- Right panel: Export & Cross-Conversion Controls -->
+        <section class="workspace-panel" style="height: auto;">
+            <div class="panel-header">
+                <span class="panel-title">导出与交转换面板</span>
+            </div>
+
+            <!-- Format Selector -->
+            <div class="format-selector">
+                <div class="format-card active" data-format="HTML">
+                    <span class="format-icon">🌐</span>
+                    <span class="format-name">HTML</span>
+                </div>
+                <div class="format-card" data-format="DOCX">
+                    <span class="format-icon">📄</span>
+                    <span class="format-name">Word (.docx)</span>
+                </div>
+                <div class="format-card" data-format="EPUB">
+                    <span class="format-icon">📚</span>
+                    <span class="format-name">EPUB 电子书</span>
+                </div>
+                <div class="format-card" data-format="PNG">
+                    <span class="format-icon">🖼️</span>
+                    <span class="format-name">PNG 长图</span>
+                </div>
+            </div>
+
+            <!-- Parameter settings -->
+            <div class="settings-grid">
+                <div class="form-group">
+                    <label class="form-label">文档标题</label>
+                    <input type="text" id="doc-title" class="form-input" value="未命名文档">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">作者/出品</label>
+                    <input type="text" id="doc-author" class="form-input" value="Butler Autopilot">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">视觉风格</label>
+                    <select id="doc-theme" class="form-input" style="background: var(--bg-page); border: 1px solid var(--border-glass);">
+                        <option value="apple-light">Apple Light 极简</option>
+                        <option value="dark">Cyberpunk Dark</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">附加水印</label>
+                    <select id="doc-water" class="form-input" style="background: var(--bg-page); border: 1px solid var(--border-glass);">
+                        <option value="true">开启安全水印</option>
+                        <option value="false">无水印</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn-primary" id="btn-export">
+                <span>⚡️ 一键编译并导出</span>
+            </button>
+
+            <!-- PDF special print button (Zero-dependency web integration) -->
+            <button class="btn-primary" id="btn-print-pdf" style="background: #34c759; margin-top: -10px;">
+                <span>🖨️ 浏览器无损打印 PDF</span>
+            </button>
+        </section>
+    </main>
+
+    <div class="toast" id="notification">
+        <span id="toast-icon">✨</span>
+        <span id="toast-msg">转换就绪</span>
+    </div>
+
+    <script>
+        // Interactive script with visual controls
+        const themeBtn = document.getElementById('theme-toggle');
+        const inputArea = document.getElementById('markdown-input');
+        const previewContainer = document.getElementById('html-preview');
+        const btnEdit = document.getElementById('btn-edit');
+        const btnPreview = document.getElementById('btn-preview');
+        const formatCards = document.querySelectorAll('.format-card');
+        const btnExport = document.getElementById('btn-export');
+        const btnPrintPdf = document.getElementById('btn-print-pdf');
+        const toast = document.getElementById('notification');
+        const toastMsg = document.getElementById('toast-msg');
+
+        let selectedFormat = 'HTML';
+
+        // Theme management
+        themeBtn.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const targetTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', targetTheme);
+            showToast('🌓 主题已切换');
+        });
+
+        // Tabs management
+        btnEdit.addEventListener('click', () => {
+            btnEdit.classList.add('active');
+            btnPreview.classList.remove('active');
+            inputArea.style.display = 'block';
+            previewContainer.style.display = 'none';
+        });
+
+        btnPreview.addEventListener('click', () => {
+            btnPreview.classList.add('active');
+            btnEdit.classList.remove('active');
+            inputArea.style.display = 'none';
+            previewContainer.style.display = 'block';
+            renderPreview();
+        });
+
+        // Format selection
+        formatCards.forEach(card => {
+            card.addEventListener('click', () => {
+                formatCards.forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+                selectedFormat = card.getAttribute('data-format');
+                showToast(`🎯 已选择导出格式: ${selectedFormat}`);
+            });
+        });
+
+        // HTML instant preview renderer (minimal parser)
+        function renderPreview() {
+            const md = inputArea.value;
+            // Simple visual parsing mapping for inline styling
+            let lines = md.split('\n');
+            let html = '';
+            let inList = false;
+
+            lines.forEach(line => {
+                let s = line.trim();
+                if (!s) {
+                    if (inList) { html += '</ul>'; inList = false; }
+                    return;
+                }
+                if (s.startsWith('# ')) {
+                    if (inList) { html += '</ul>'; inList = false; }
+                    html += `<h1>${s.substring(2)}</h1>`;
+                } else if (s.startsWith('## ')) {
+                    if (inList) { html += '</ul>'; inList = false; }
+                    html += `<h2>${s.substring(3)}</h2>`;
+                } else if (s.startsWith('- ')) {
+                    if (!inList) { html += '<ul>'; inList = true; }
+                    html += `<li>${s.substring(2)}</li>`;
+                } else if (s.startsWith('> ')) {
+                    if (inList) { html += '</ul>'; inList = false; }
+                    html += `<blockquote>${s.substring(2)}</blockquote>`;
+                } else {
+                    if (inList) { html += '</ul>'; inList = false; }
+                    // inline replace bold/italic
+                    let formatted = s
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                        .replace(/`(.*?)`/g, '<code>$1</code>');
+                    html += `<p>${formatted}</p>`;
+                }
+            });
+            if (inList) html += '</ul>';
+            previewContainer.innerHTML = html;
+        }
+
+        // Export handler via fetch API
+        btnExport.addEventListener('click', async () => {
+            const title = document.getElementById('doc-title').value;
+            const author = document.getElementById('doc-author').value;
+            const theme = document.getElementById('doc-theme').value;
+            const withWater = document.getElementById('doc-water').value === 'true';
+            const mdContent = inputArea.value;
+
+            showToast('🔄 正在打包并编译您的文档...');
+
+            try {
+                const response = await fetch('/api/convert', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        input: mdContent,
+                        from: 'MD',
+                        to: selectedFormat,
+                        options: {
+                            theme: theme,
+                            with_water: withWater,
+                            config: {
+                                title: title,
+                                author: author
+                            }
+                        }
+                    })
+                });
+
+                if (!response.ok) throw new Error('网络请求错误');
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    showToast('🎉 文档完美导出成功！');
+                    // Trigger dynamic blob download
+                    const blob = b64ToBlob(data.base64, getMimeType(selectedFormat));
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${title}.${selectedFormat.toLowerCase()}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                } else {
+                    showToast(`❌ 导出失败: ${data.error || '未知错误'}`);
+                }
+            } catch (err) {
+                showToast(`❌ 导出异常: ${err.message}`);
+            }
+        });
+
+        // PDF Web-Print integration
+        btnPrintPdf.addEventListener('click', () => {
+            btnPreview.click(); // ensure preview tab is rendering
+            setTimeout(() => {
+                window.print();
+            }, 300);
+        });
+
+        function showToast(msg) {
+            toastMsg.innerText = msg;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function b64ToBlob(b64Data, contentType='', sliceSize=512) {
+            const byteCharacters = atob(b64Data);
+            const byteArrays = [];
+            for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+                const slice = byteCharacters.slice(offset, offset + sliceSize);
+                const byteNumbers = new Array(slice.length);
+                for (let i = 0; i < slice.length; i++) {
+                    byteNumbers[i] = slice.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                byteArrays.push(byteArray);
+            }
+            return new Blob(byteArrays, {type: contentType});
+        }
+
+        function getMimeType(fmt) {
+            switch(fmt) {
+                case 'HTML': return 'text/html';
+                case 'DOCX': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                case 'EPUB': return 'application/epub+zip';
+                case 'PNG': return 'image/png';
+                default: return 'application/octet-stream';
+            }
+        }
+    </script>
+</body>
+</html>
