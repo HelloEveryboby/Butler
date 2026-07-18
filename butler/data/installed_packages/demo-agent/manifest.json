@@ -1,0 +1,11 @@
+{
+  "name": "demo-agent",
+  "version": "1.0.0",
+  "type": "agent",
+  "permissions": [
+    "filesystem.read",
+    "network"
+  ],
+  "entry": "main.py",
+  "dependencies": {}
+}
