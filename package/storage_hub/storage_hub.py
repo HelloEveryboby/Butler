@@ -32,6 +32,12 @@ class StorageHub:
         self.drivers: Dict[str, AbstractDriver] = {}
         self.default_driver = None
         logger.info("StorageHub initialized")
+
+    def init(self):
+        """Initialize Storage Hub and run all pending database migrations."""
+        from package.storage_hub.migration_manager import MigrationManager
+        manager = MigrationManager()
+        manager.migrate()
     
     def register_driver(self, name: str, driver: AbstractDriver) -> bool:
         """

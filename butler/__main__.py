@@ -3,7 +3,7 @@ import sys
 
 def main():
     # 检测是否在执行全新的 Butler v2.0 Alpha CLI 命令
-    cli_commands = {"start", "agent", "package", "doctor"}
+    cli_commands = {"start", "agent", "package", "doctor", "tool"}
 
     # 如果第一个参数匹配，分发调用 v2.0 命令行主入口
     if len(sys.argv) > 1 and sys.argv[1] in cli_commands:
