@@ -36,9 +36,13 @@ def main():
             from skills.downloader.run import main as run_downloader
             run_downloader()
             return
+        elif idx + 1 < len(sys.argv) and sys.argv[idx + 1] == "format_convert":
+            from skills.format_convert.run import main as run_format_convert
+            run_format_convert()
+            return
 
     parser = argparse.ArgumentParser(description="Butler 资产同步中心 (Asset Sync Hub)")
-    parser.add_argument("--run", choices=["downloader"], help="拉起并独立运行特定的 Butler 模块/技能 (例如: downloader)")
+    parser.add_argument("--run", choices=["downloader", "format_convert"], help="拉起并独立运行特定的 Butler 模块/技能 (例如: downloader, format_convert)")
     subparsers = parser.add_subparsers(dest="command", help="子命令")
 
     # Sync

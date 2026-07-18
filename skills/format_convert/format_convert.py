@@ -1,14 +1,24 @@
 import os
 import json
 import logging
+import base64
+import io
 from butler.core.runner_server import runner_server
 
+# Relative package imports
+from .core.exporter_docx import markdown_to_docx
+from .core.exporter_epub import markdown_to_epub
+from .core.exporter_img import markdown_to_image
+from .core.reverse_converters import html_to_markdown, docx_to_markdown, pdf_to_markdown
+
 logger = logging.getLogger("FormatConvertSkill")
+
 
 def handle_request(action, **kwargs):
     """
     Handle document format conversion requests.
     Supports action: "run" (and others if needed)
+    Supports both direct contents, URL downloads, and file paths.
     """
     entities = kwargs.get("entities", {})
 
@@ -39,11 +49,15 @@ def handle_request(action, **kwargs):
     if to_fmt in ["PNG"]: to_fmt = "PNG"
     if from_fmt in ["JPG", "JPEG"]: from_fmt = "JPG"
     if to_fmt in ["JPG", "JPEG"]: to_fmt = "JPG"
+    if from_fmt in ["DOCX", "WORD"]: from_fmt = "DOCX"
+    if to_fmt in ["DOCX", "WORD"]: to_fmt = "DOCX"
+    if from_fmt in ["EPUB", "EBOOK"]: from_fmt = "EPUB"
+    if to_fmt in ["EPUB", "EBOOK"]: to_fmt = "EPUB"
 
     # Options structure
     opts = {
-        "theme": options.get("theme", "default"),
-        "with_water": options.get("with_water", True),
+        "theme": options.get("theme", "apple-light"),
+        "with_water": options.get("with_water", False),
         "config": options.get("config", {})
     }
 
@@ -51,63 +65,174 @@ def handle_request(action, **kwargs):
     runners = runner_server.list_runners()
     if runners:
         runner_id = runners[0] # Pick the first available runner
-        logger.info(f"Delegating format conversion task to Go Runner: {runner_id}")
+        supported_go_paths = [
+            "MD->HTML", "JSON->CSV", "YAML->CSV", "CSV->XLSX", "JSON->XLSX",
+            "MD->PDF", "HTML->PDF", "JSON->MD", "CSV->MD", "PNG->WEBP", "JPG->WEBP"
+        ]
+        test_key = f"{from_fmt}->{to_fmt}"
+        if test_key in supported_go_paths:
+            logger.info(f"Delegating format conversion task to Go Runner: {runner_id}")
 
-        # Prepare WebSocket payload
-        task_payload = {
-            "input": input_val,
-            "from": from_fmt,
-            "to": to_fmt,
-            "save_to": save_to or "",
-            "options": opts
-        }
+            # Prepare WebSocket payload
+            task_payload = {
+                "input": input_val,
+                "from": from_fmt,
+                "to": to_fmt,
+                "save_to": save_to or "",
+                "options": opts
+            }
 
-        # Use send_command_sync to wait blockingly for the result
-        res = runner_server.send_command_sync(runner_id, "format_convert", json.dumps(task_payload))
-        if res.get("status") == "ok":
-            ret_data = res.get("data")
-            if save_to:
-                return f"Success: {ret_data}"
+            # Use send_command_sync to wait blockingly for the result
+            res = runner_server.send_command_sync(runner_id, "format_convert", json.dumps(task_payload))
+            if res.get("status") == "ok":
+                ret_data = res.get("data")
+                if save_to:
+                    return f"Success: {ret_data}"
+                else:
+                    return ret_data
             else:
-                return ret_data
-        else:
-            err_msg = res.get("error", "Unknown WebSocket conversion error")
-            logger.warning(f"Go Runner conversion failed: {err_msg}. Falling back to local python execution.")
+                err_msg = res.get("error", "Unknown WebSocket conversion error")
+                logger.warning(f"Go Runner conversion failed: {err_msg}. Falling back to local python execution.")
 
-    # 3. Local Fallback Execution (Pure Python)
+    # 3. Local Fallback Execution (Pure Python / Zero-Dependency Design)
     logger.info("Executing format conversion locally (Python Fallback)")
     try:
-        # Resolve source data as text for standard converters
+        # Resolve source data as bytes or string
+        src_is_file = False
+        src_bytes = b""
         src_content = ""
-        # WebP and Base64 converters will re-resolve input_val to binary if needed
-        if from_fmt not in ["PNG", "JPG"] and to_fmt not in ["WEBP", "BASE64"]:
-            if input_val.startswith("http://") or input_val.startswith("https://"):
-                import requests
-                resp = requests.get(input_val, timeout=10)
-                resp.raise_for_status()
-                src_content = resp.text
-            elif os.path.exists(input_val):
-                with open(input_val, 'r', encoding='utf-8') as f:
-                    src_content = f.read()
-            else:
-                src_content = input_val
-        else:
-            src_content = input_val
 
-        # Execute conversion logic based on path
+        # Check if the input is a file path on disk
+        if isinstance(input_val, str) and os.path.exists(input_val):
+            src_is_file = True
+            with open(input_val, 'rb') as f:
+                src_bytes = f.read()
+            try:
+                src_content = src_bytes.decode('utf-8')
+            except UnicodeDecodeError:
+                src_content = "" # Binary file
+        elif isinstance(input_val, str) and (input_val.startswith("http://") or input_val.startswith("https://")):
+            import requests
+            resp = requests.get(input_val, timeout=10)
+            resp.raise_for_status()
+            src_bytes = resp.content
+            try:
+                src_content = src_bytes.decode('utf-8')
+            except UnicodeDecodeError:
+                src_content = ""
+        else:
+            # Direct text input
+            if isinstance(input_val, str):
+                src_content = input_val
+                src_bytes = input_val.encode('utf-8')
+            elif isinstance(input_val, bytes):
+                src_bytes = input_val
+                try:
+                    src_content = input_val.decode('utf-8')
+                except UnicodeDecodeError:
+                    src_content = ""
+
+        # --- Reverse and Cross Conversion Pipeline ---
+        # Normalize non-MD sources by first converting them to MD intermediate representation
+        if from_fmt != "MD":
+            if from_fmt == "HTML":
+                src_content = html_to_markdown(src_content)
+            elif from_fmt == "DOCX":
+                source_input = input_val if (src_is_file and isinstance(input_val, str)) else src_bytes
+                src_content = docx_to_markdown(source_input)
+            elif from_fmt == "PDF":
+                source_input = input_val if (src_is_file and isinstance(input_val, str)) else src_bytes
+                src_content = pdf_to_markdown(source_input)
+            elif from_fmt in ["JSON", "YAML"] and to_fmt == "CSV":
+                # Supported directly below
+                pass
+            elif from_fmt in ["JSON", "CSV"] and to_fmt == "MD":
+                # Supported directly below
+                pass
+            else:
+                logger.info(f"Format {from_fmt} converted to intermediate Markdown before exporting.")
+
+            # Route to MD if target requires standard export, otherwise maintain for specialized handlers
+            if from_fmt in ["PNG", "JPG"] and to_fmt in ["WEBP", "BASE64"]:
+                pass
+            elif from_fmt in ["JSON", "YAML", "CSV"] and to_fmt in ["CSV", "MD", "XLSX"]:
+                pass
+            else:
+                from_fmt = "MD"
+
+        # Execute target conversion logic
         result = ""
         if from_fmt == "MD" and to_fmt == "HTML":
             result = local_md_to_html(src_content, opts)
+        elif from_fmt == "MD" and to_fmt == "DOCX":
+            if save_to:
+                result = markdown_to_docx(src_content, save_to, opts)
+                return f"Success: Saved to {save_to}"
+            else:
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+                    tmp_path = tmp.name
+                try:
+                    markdown_to_docx(src_content, tmp_path, opts)
+                    with open(tmp_path, 'rb') as f:
+                        result = f.read()
+                finally:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+
+        elif from_fmt == "MD" and to_fmt == "EPUB":
+            if save_to:
+                result = markdown_to_epub(src_content, save_to, opts)
+                return f"Success: Saved to {save_to}"
+            else:
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as tmp:
+                    tmp_path = tmp.name
+                try:
+                    markdown_to_epub(src_content, tmp_path, opts)
+                    with open(tmp_path, 'rb') as f:
+                        result = f.read()
+                finally:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+
+        elif from_fmt == "MD" and to_fmt in ["PNG", "JPG"]:
+            if save_to:
+                result = markdown_to_image(src_content, save_to, opts)
+                return f"Success: Saved to {save_to}"
+            else:
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                    tmp_path = tmp.name
+                try:
+                    markdown_to_image(src_content, tmp_path, opts)
+                    with open(tmp_path, 'rb') as f:
+                        result = f.read()
+                finally:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+
         elif from_fmt in ["JSON", "YAML"] and to_fmt == "CSV":
             result = local_data_to_csv(src_content, from_fmt, opts)
         elif to_fmt == "XLSX":
             result = _local_fallback_xlsx(src_content, from_fmt, opts)
         elif to_fmt == "MD":
-            result = _local_fallback_md(src_content, from_fmt, opts)
+            if from_fmt == "MD":
+                result = src_content
+            else:
+                result = _local_fallback_md(src_content, from_fmt, opts)
         elif to_fmt in ["WEBP", "BASE64"] or from_fmt in ["PNG", "JPG"]:
             result = _local_fallback_image(src_content, from_fmt, to_fmt, opts)
         elif to_fmt == "PDF":
             result = _local_fallback_pdf(src_content, from_fmt, opts)
+            if not isinstance(result, bytes) and save_to:
+                with open(save_to, 'w', encoding='utf-8') as f:
+                    f.write(result)
+                return f"Success: Saved to {save_to}"
+            elif isinstance(result, bytes) and save_to:
+                with open(save_to, 'wb') as f:
+                    f.write(result)
+                return f"Success: Saved to {save_to}"
         else:
             return f"Error: Unsupported local conversion path: {from_fmt} -> {to_fmt}"
 
@@ -125,7 +250,6 @@ def handle_request(action, **kwargs):
             return f"Success: Saved to {save_to}"
         else:
             if isinstance(result, bytes):
-                import base64
                 return base64.b64encode(result).decode('utf-8')
             return result
 
@@ -137,8 +261,8 @@ def handle_request(action, **kwargs):
 def local_md_to_html(md_text, opts):
     """Simple pure Python Markdown to HTML parser for zero-dependency local fallback."""
     import re
-    theme = opts.get("theme", "default")
-    with_water = opts.get("with_water", True)
+    theme = opts.get("theme", "apple-light")
+    with_water = opts.get("with_water", False)
 
     lines = md_text.split('\n')
     html_lines = []
@@ -159,7 +283,6 @@ def local_md_to_html(md_text, opts):
             continue
 
         if in_code_block:
-            # Escape HTML characters in code block
             escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
             html_lines.append(escaped)
             continue
@@ -179,7 +302,7 @@ def local_md_to_html(md_text, opts):
         list_match = re.match(r'^[\-\*]\s+(.*)$', stripped)
         if list_match:
             if not in_list:
-                html_lines.append("</ul>")
+                html_lines.append("<ul>")
                 in_list = True
             html_lines.append(f"<li>{list_match.group(1)}</li>")
             continue
@@ -194,7 +317,6 @@ def local_md_to_html(md_text, opts):
                 in_list = False
             cells = [c.strip() for c in stripped.split("|")[1:-1]]
             if len(cells) > 0:
-                # If separator line, ignore
                 if all(re.match(r'^:?-+:?$', c) for c in cells):
                     continue
                 row_str = "".join(f"<td>{c}</td>" for c in cells)
@@ -206,7 +328,6 @@ def local_md_to_html(md_text, opts):
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
-            # Simple Inline replacement
             line_html = stripped
             line_html = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', line_html)
             line_html = re.sub(r'\*(.*?)\*', r'<em>\1</em>', line_html)
@@ -335,8 +456,56 @@ def _local_fallback_xlsx(src_content, from_fmt, opts):
 
 
 def _local_fallback_pdf(src_content, from_fmt, opts):
-    """Local fallback for PDF: PDF formatting is not locally supported, raise exception."""
-    raise ValueError("Local fallback for PDF is not supported. Please connect a Go Runner.")
+    """Local fallback for PDF: Try using reportlab flowable layouting; otherwise fall back."""
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.enums import TA_CENTER
+
+        pdf_buffer = io.BytesIO()
+        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+
+        # Build clean custom styles
+        title_style = ParagraphStyle(
+            'ApplePDFTitle',
+            parent=styles['Heading1'],
+            fontSize=22,
+            leading=26,
+            textColor='#1D1D1F',
+            spaceAfter=15
+        )
+        body_style = ParagraphStyle(
+            'ApplePDFBody',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=15,
+            textColor='#333333',
+            spaceAfter=8
+        )
+
+        story = []
+        for line in src_content.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("# "):
+                story.append(Paragraph(line[2:], title_style))
+                story.append(Spacer(1, 10))
+            elif line.startswith("## "):
+                story.append(Paragraph(line[3:], styles['Heading2']))
+                story.append(Spacer(1, 8))
+            else:
+                story.append(Paragraph(line, body_style))
+                story.append(Spacer(1, 6))
+
+        doc.build(story)
+        return pdf_buffer.getvalue()
+
+    except Exception as e:
+        logger.warning(f"ReportLab PDF generation fallback skipped or failed: {e}. Raising standard exception.")
+        raise ValueError("Local fallback for PDF is not supported. Please connect a Go Runner.")
 
 
 def _local_fallback_md(src_content, from_fmt, opts):
@@ -344,7 +513,6 @@ def _local_fallback_md(src_content, from_fmt, opts):
     import csv
     import io
 
-    # 1. Resolve to standard rows
     rows = []
     if from_fmt == "JSON":
         data = json.loads(src_content)
@@ -386,7 +554,7 @@ def _local_fallback_md(src_content, from_fmt, opts):
         val_str = val_str.replace("\r\n", "<br />").replace("\n", "<br />")
         return val_str
 
-    # 2. Render Table
+    # Render Table
     md_lines = []
     md_lines.append("| " + " | ".join(escape_cell(h) for h in headers) + " |")
     md_lines.append("| " + " | ".join("---" for _ in headers) + " |")
@@ -398,7 +566,6 @@ def _local_fallback_md(src_content, from_fmt, opts):
 
 def _local_fallback_image(src_content, from_fmt, to_fmt, opts):
     """Converts image to WebP or Base64 in pure Python."""
-    import base64
     import io
 
     binary_data = b""
