@@ -1,0 +1,10 @@
+{
+  "name": "email-reader",
+  "version": "1.1.0",
+  "type": "skill",
+  "permissions": [
+    "network"
+  ],
+  "entry": "main.py",
+  "dependencies": {}
+}
