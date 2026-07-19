@@ -3090,3 +3090,186 @@ body.interface-desktop {
         font-size: 16px !important;
     }
 }
+
+/* --- Mobile Typography & Layout Adaptation (手机端字与排版适配) --- */
+/* Target simulated Mobile Mode on PC and real Mobile screens */
+body.interface-mobile,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) {
+        /* Scale down massive welcome text on mobile viewports */
+        --font-scale: 0.85;
+    }
+}
+
+/* Unified Overrides for Simulated Mobile Mode AND Actual Mobile Devices (excluding Desktop force) */
+body.interface-mobile .welcome-message,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .welcome-message {
+        margin-top: 3vh !important;
+    }
+}
+
+body.interface-mobile .welcome-message h1,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .welcome-message h1 {
+        font-size: 1.8rem !important;
+        margin-bottom: 6px !important;
+        line-height: 1.25 !important;
+    }
+}
+
+body.interface-mobile .welcome-message p,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .welcome-message p {
+        font-size: 0.95rem !important;
+        line-height: 1.4 !important;
+        padding: 0 10px !important;
+    }
+}
+
+body.interface-mobile .quick-actions-container,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .quick-actions-container {
+        margin-top: 16px !important;
+        gap: 8px !important;
+        padding: 4px 10px !important;
+    }
+}
+
+body.interface-mobile .quick-action-card,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .quick-action-card {
+        min-width: 125px !important;
+        padding: 10px !important;
+        border-radius: 10px !important;
+    }
+}
+
+body.interface-mobile .quick-action-title,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .quick-action-title {
+        font-size: 12px !important;
+    }
+}
+
+body.interface-mobile .quick-action-desc,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .quick-action-desc {
+        font-size: 10px !important;
+        line-height: 1.3 !important;
+    }
+}
+
+/* Chat Input adaptation: prevent overflow on small screens */
+body.interface-mobile .chat-input-container,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .chat-input-container {
+        padding: 10px 8px !important;
+        gap: 8px !important;
+    }
+}
+
+body.interface-mobile .input-wrapper,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .input-wrapper {
+        padding: 6px 14px !important;
+        border-radius: 18px !important;
+    }
+}
+
+body.interface-mobile #chat-input,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) #chat-input {
+        font-size: 14px !important;
+    }
+}
+
+/* Chat message bubbles scaling and wrapping */
+body.interface-mobile .interaction-line,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .interaction-line {
+        padding: 10px 14px !important;
+        font-size: 14px !important;
+        border-radius: 14px !important;
+        max-width: 90% !important;
+        line-height: 1.4 !important;
+    }
+}
+
+/* Workspace header titles compact layout */
+body.interface-mobile .workspace-header,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .workspace-header {
+        padding: 10px 14px !important;
+        margin-bottom: 8px !important;
+    }
+}
+
+body.interface-mobile .view-title,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .view-title {
+        font-size: 15px !important;
+    }
+}
+
+/* Compact Memo Cards and always-on actions for touch users */
+body.interface-mobile .memo-card,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .memo-card {
+        padding: 12px !important;
+        border-radius: 10px !important;
+    }
+}
+
+body.interface-mobile .memo-card-content,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .memo-card-content {
+        font-size: 13px !important;
+        line-height: 1.45 !important;
+    }
+}
+
+body.interface-mobile .memo-card-footer,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .memo-card-footer {
+        opacity: 1 !important;
+        margin-top: 8px !important;
+    }
+}
+
+/* Scale down other generic panels and list paddings */
+body.interface-mobile .storage-item,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .storage-item {
+        padding: 10px !important;
+    }
+}
+
+body.interface-mobile .storage-name,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .storage-name {
+        font-size: 13px !important;
+    }
+}
+
+body.interface-mobile .storage-meta,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .storage-meta {
+        font-size: 11px !important;
+    }
+}
+
+body.interface-mobile .terminal-container,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .terminal-container {
+        padding: 12px !important;
+    }
+}
+
+body.interface-mobile .terminal-output,
+@media (max-width: 768px) {
+    body:not(.interface-desktop) .terminal-output {
+        font-size: 11px !important;
+        line-height: 1.35 !important;
+    }
+}
