@@ -720,6 +720,16 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Restore Legacy Handlers
+window.toggleSkillsManager = () => {
+    const el = document.getElementById('skills-manager-overlay');
+    if (el) {
+        el.classList.toggle('hidden');
+        if (!el.classList.contains('hidden') && window.skillsManager) {
+            window.skillsManager.init();
+        }
+    }
+};
+
 window.toggleTerminal = () => {
     const el = document.getElementById('terminal-overlay');
     el.classList.toggle('hidden');

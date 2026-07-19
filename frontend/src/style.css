@@ -2276,6 +2276,40 @@ body.tm-active #cell-0-1 {
     padding: 20px;
 }
 
+/* Skills Manager Styles */
+.skills-nav-filter {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+}
+
+.skills-nav-filter:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}
+
+.skills-nav-filter.active {
+    background: rgba(0, 122, 255, 0.1) !important;
+    color: var(--accent-color) !important;
+}
+
+body.theme-dark .skills-nav-filter.active {
+    background: rgba(10, 132, 255, 0.15) !important;
+    color: #0A84FF !important;
+}
+
+.skill-manager-card {
+    transition: transform 0.25s var(--apple-easing), box-shadow 0.25s var(--apple-easing), border-color 0.25s var(--apple-easing);
+}
+
+.skill-manager-card:hover {
+    border-color: rgba(0, 122, 255, 0.3) !important;
+}
+
+body.theme-dark .skill-manager-card:hover {
+    border-color: rgba(10, 132, 255, 0.4) !important;
+}
+
 /* Overlay Panels */
 .overlay-panel {
     position: fixed;

@@ -149,6 +149,7 @@
                     <div class="view-header">
                         <div class="view-title" id="skills-view-title">技能仓储 (Skills & Files)</div>
                         <div class="header-actions">
+                            <button class="icon-btn-small" onclick="toggleSkillsManager()" title="管理内置/外部技能" style="color: var(--accent-color); font-weight: 600;"><i class="fas fa-briefcase"></i> 技能管理</button>
                             <button class="icon-btn-small" onclick="toggleTerminal()" title="打开终端"><i class="fas fa-terminal"></i></button>
                             <button class="icon-btn-small" onclick="toggleMemos()" title="备忘录"><i class="fas fa-sticky-note"></i></button>
                         </div>
@@ -184,6 +185,71 @@
             <div style="width: 52px;"></div>
         </div>
         <div id="terminal-container"></div>
+    </div>
+
+    <!-- Overlay Skills Manager -->
+    <div id="skills-manager-overlay" class="hidden glass-surface overlay-panel" style="width: 85%; height: 85%; max-width: 1200px; display: flex; flex-direction: column;">
+        <div class="panel-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 15px;">
+            <div class="window-controls">
+                <span class="control-dot close" onclick="toggleSkillsManager()"></span>
+                <span class="control-dot minimize"></span>
+                <span class="control-dot maximize"></span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 16px; font-weight: 700; color: var(--text-primary);"><i class="fas fa-briefcase" style="color: var(--accent-color);"></i> 技能与插件控制中枢</span>
+                <span style="font-size: 11px; background: rgba(52,199,89,0.15); color: #34C759; padding: 2px 6px; border-radius: 10px; font-weight: 600;">即插即用安全隔离</span>
+            </div>
+            <div style="width: 52px;"></div>
+        </div>
+
+        <div class="skills-manager-layout" style="display: flex; flex: 1; overflow: hidden; gap: 20px;">
+            <!-- Left sidebar navigation and filters -->
+            <div class="skills-manager-sidebar" style="width: 240px; border-right: 1px solid var(--border-color); padding-right: 15px; display: flex; flex-direction: column; gap: 10px;">
+                <div class="skills-nav-filter active" id="filter-all" onclick="skillsManager.setFilter('all')" style="display: flex; align-items: center; gap: 10px; padding: 10px 15px; border-radius: 10px; cursor: pointer; transition: all 0.2s;">
+                    <i class="fas fa-cubes" style="color: #007AFF;"></i>
+                    <span style="font-weight: 600; font-size: 14px;">全部技能</span>
+                    <span class="badge" id="count-all" style="margin-left: auto; font-size: 11px; opacity: 0.7;">0</span>
+                </div>
+                <div class="skills-nav-filter" id="filter-builtin" onclick="skillsManager.setFilter('builtin')" style="display: flex; align-items: center; gap: 10px; padding: 10px 15px; border-radius: 10px; cursor: pointer; transition: all 0.2s;">
+                    <i class="fas fa-anchor" style="color: #34C759;"></i>
+                    <span style="font-weight: 600; font-size: 14px;">系统内置技能</span>
+                    <span class="badge" id="count-builtin" style="margin-left: auto; font-size: 11px; opacity: 0.7;">0</span>
+                </div>
+                <div class="skills-nav-filter" id="filter-external" onclick="skillsManager.setFilter('external')" style="display: flex; align-items: center; gap: 10px; padding: 10px 15px; border-radius: 10px; cursor: pointer; transition: all 0.2s;">
+                    <i class="fas fa-puzzle-piece" style="color: #FF9500;"></i>
+                    <span style="font-weight: 600; font-size: 14px;">外部扩展插件</span>
+                    <span class="badge" id="count-external" style="margin-left: auto; font-size: 11px; opacity: 0.7;">0</span>
+                </div>
+                <div class="skills-nav-filter" id="filter-security" onclick="skillsManager.setFilter('security')" style="display: flex; align-items: center; gap: 10px; padding: 10px 15px; border-radius: 10px; cursor: pointer; transition: all 0.2s;">
+                    <i class="fas fa-shield-halved" style="color: #FF3B30;"></i>
+                    <span style="font-weight: 600; font-size: 14px;">安全审计与分级</span>
+                    <span class="badge" id="count-security" style="margin-left: auto; font-size: 11px; opacity: 0.7;">0</span>
+                </div>
+
+                <div class="install-card glass-surface" style="margin-top: auto; padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px;">
+                    <div style="font-size: 12px; font-weight: 700; color: var(--text-primary); text-transform: uppercase;"><i class="fas fa-cloud-download-alt"></i> 安装新插件</div>
+                    <input type="text" id="install-skill-url" placeholder="Git URL / 本地路径" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 12px; padding: 8px 10px; border-radius: 8px; outline: none; width: calc(100% - 22px);">
+                    <input type="text" id="install-skill-name" placeholder="技能名称 (选填)" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 12px; padding: 8px 10px; border-radius: 8px; outline: none; width: calc(100% - 22px);">
+                    <button class="apple-btn-primary" onclick="skillsManager.installSkill()" style="padding: 8px; font-size: 12px; border-radius: 8px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;"><i class="fas fa-plus"></i> 一键安全部署</button>
+                </div>
+            </div>
+
+            <!-- Right list panel with smooth scroll -->
+            <div class="skills-manager-content" style="flex: 1; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px;">
+                <div class="search-and-stats" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                    <div class="skills-search-bar" style="flex: 1; min-width: 200px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); border-radius: 10px; display: flex; align-items: center; padding: 0 12px; gap: 8px;">
+                        <i class="fas fa-search" style="color: var(--text-secondary);"></i>
+                        <input type="text" id="skills-search-input" oninput="skillsManager.search(this.value)" placeholder="搜索技能名称、意图描述或风险标识..." style="background: transparent; border: none; color: var(--text-primary); flex: 1; padding: 8px 0; outline: none; font-size: 13px;">
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary);"><i class="fas fa-info-circle"></i> 点击技能可一键加载或唤醒专用图形控制台</div>
+                </div>
+
+                <!-- Skill Cards Grid -->
+                <div id="skills-manager-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding-bottom: 20px;">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Overlay Memos -->
@@ -522,6 +588,7 @@
     <script src="src/components/vault.js"></script>
     <script src="src/components/modal.js"></script>
     <script src="src/components/memos.js"></script>
+    <script src="src/components/skills_manager.js"></script>
     <script src="src/main.js"></script>
     <script src="src/components/skill_ui_loader.js"></script>
 

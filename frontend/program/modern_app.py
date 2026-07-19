@@ -317,6 +317,44 @@ class ModernBridge:
                 })
         return ui_skills
 
+    def get_all_skills_detailed(self):
+        """Returns detailed status of all skills categorized by built-in vs external."""
+        skills_info = []
+        for s_id, manifest in self.jarvis.skill_manager.manifests.items():
+            is_core = manifest.get('is_core', False)
+            # Define heuristic for built-in vs external skills
+            # Core plugins, system essentials (memos, downloader, storage_hub, format_convert, sys_cleaner) are built-in
+            built_in_ids = ['memos', 'downloader', 'storage_hub', 'format_convert', 'sys_cleaner', 'media_manager', 'archive_manager']
+            is_builtin = is_core or (s_id in built_in_ids) or ('core_plugins' in manifest.get('path', ''))
+
+            # Risk and sandbox audit details
+            risk = manifest.get('risk', 'low')
+            provides = manifest.get('provides', [])
+            requires = manifest.get('requires', {})
+            has_python = manifest.get('has_python', False)
+            has_binary = manifest.get('has_binary', False)
+            has_frontend = manifest.get('has_frontend', False)
+            frontend_path = manifest.get('frontend_path', '')
+
+            skills_info.append({
+                "id": s_id,
+                "name": manifest.get('name', s_id),
+                "description": manifest.get('description', '无描述'),
+                "version": manifest.get('version', '1.0.0'),
+                "author": manifest.get('author', 'Butler Team'),
+                "is_builtin": is_builtin,
+                "is_core": is_core,
+                "risk": risk,
+                "provides": provides,
+                "requires": requires,
+                "has_python": has_python,
+                "has_binary": has_binary,
+                "has_frontend": has_frontend,
+                "frontend_path": frontend_path,
+                "path": manifest.get('path', '')
+            })
+        return skills_info
+
     def load_skill_frontend(self, frontend_path: str):
         """Navigate the webview container to a skill's frontend HTML file."""
         import os
