@@ -22,7 +22,11 @@ class MatrixController {
         const render = () => {
             const x = window.stateMatrix.get('matrix.x');
             const y = window.stateMatrix.get('matrix.y');
-            this.matrix.style.transform = `translate(${-x * 100}vw, ${-y * 100}vh)`;
+            if (document.body.classList.contains('interface-mobile') && window.innerWidth > 768) {
+                this.matrix.style.transform = `translate(${-x * 100}%, ${-y * 100}%)`;
+            } else {
+                this.matrix.style.transform = `translate(${-x * 100}vw, ${-y * 100}vh)`;
+            }
             requestAnimationFrame(render);
         };
         requestAnimationFrame(render);
@@ -93,6 +97,18 @@ class MatrixController {
                 item.classList.add('active');
             } else if (item.id.startsWith('dock-')) {
                 item.classList.remove('active');
+            }
+        });
+
+        // Dynamic PM Matrix non-linear zoom and blur spatial transition
+        const targetCellId = `cell-${nx}-${ny}`;
+        document.querySelectorAll('.matrix-cell').forEach(cell => {
+            if (cell.id === targetCellId) {
+                cell.classList.add('active-cell');
+                cell.classList.remove('inactive-cell');
+            } else {
+                cell.classList.add('inactive-cell');
+                cell.classList.remove('active-cell');
             }
         });
     }

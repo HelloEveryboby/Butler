@@ -8,27 +8,46 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        /* Glassmorphism Styles matching Butler UI 3.0 */
+        /* Apple-style Unified variables and Glassmorphism */
         :root {
-            --bg-color: #0c0e12;
-            --panel-bg: rgba(18, 22, 28, 0.7);
-            --panel-border: rgba(255, 255, 255, 0.08);
-            --text-primary: #f3f4f6;
-            --text-secondary: #9ca3af;
+            --bg-color: #f5f5f7;
+            --panel-bg: rgba(255, 255, 255, 0.65);
+            --panel-border: rgba(0, 0, 0, 0.08);
+            --item-bg: rgba(0, 0, 0, 0.03);
+            --item-border: rgba(0, 0, 0, 0.05);
+            --text-primary: #1d1d1f;
+            --text-secondary: #86868b;
             --accent-blue: #007aff;
             --accent-green: #34c759;
             --accent-red: #ff3b30;
-            --glass-blur: blur(30px);
+            --accent-orange: #ff9500;
+            --glass-blur: blur(25px);
+            --apple-easing: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .theme-dark {
+            --bg-color: #121214;
+            --panel-bg: rgba(28, 28, 30, 0.75);
+            --panel-border: rgba(255, 255, 255, 0.1);
+            --item-bg: rgba(255, 255, 255, 0.04);
+            --item-border: rgba(255, 255, 255, 0.06);
+            --text-primary: #f5f5f7;
+            --text-secondary: #8e8e93;
+            --accent-blue: #0a84ff;
+            --accent-green: #30d158;
+            --accent-red: #ff453a;
+            --accent-orange: #ff9f0a;
         }
 
         body {
             background-color: var(--bg-color);
             color: var(--text-primary);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-image: radial-gradient(circle at 10% 20%, rgba(0, 122, 255, 0.08) 0%, transparent 40%),
-                              radial-gradient(circle at 90% 80%, rgba(52, 199, 89, 0.06) 0%, transparent 40%);
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", "Segoe UI", Roboto, sans-serif;
+            background-image: radial-gradient(circle at 10% 20%, rgba(0, 122, 255, 0.05) 0%, transparent 40%),
+                              radial-gradient(circle at 90% 80%, rgba(52, 199, 89, 0.04) 0%, transparent 40%);
             background-attachment: fixed;
             min-height: 100vh;
+            transition: background-color 0.3s var(--apple-easing), color 0.3s var(--apple-easing);
         }
 
         /* Standard responsive styling for premium feel */
@@ -37,27 +56,31 @@
             backdrop-filter: var(--glass-blur);
             -webkit-backdrop-filter: var(--glass-blur);
             border: 1px solid var(--panel-border);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            border-radius: 18px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+        }
+
+        .theme-dark .glass-panel {
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
         }
 
         .glass-card {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--item-bg);
+            border: 1px solid var(--item-border);
+            border-radius: 14px;
+            transition: all 0.3s var(--apple-easing);
         }
 
         .glass-card:hover {
-            background: rgba(255, 255, 255, 0.06);
-            border-color: rgba(0, 122, 255, 0.3);
+            background: rgba(120, 120, 128, 0.06);
+            border-color: var(--accent-blue);
             transform: translateY(-2px);
         }
 
         .active-tab {
-            background: linear-gradient(135deg, var(--accent-blue) 0%, #0056b3 100%);
-            box-shadow: 0 4px 14px 0 rgba(0, 122, 255, 0.4);
-            color: white;
+            background: var(--accent-blue);
+            box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35);
+            color: white !important;
         }
 
         .piece-block {
@@ -68,20 +91,95 @@
             display: inline-block;
         }
 
+        /* Apple-style Custom Select/Inputs */
+        .apple-input, .apple-textarea {
+            background: var(--item-bg);
+            border: 1px solid var(--panel-border);
+            color: var(--text-primary);
+            border-radius: 12px;
+            outline: none;
+            transition: all 0.3s var(--apple-easing);
+        }
+
+        .apple-input:focus, .apple-textarea:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+            background: var(--panel-bg);
+        }
+
+        /* Tab Buttons default style overrides */
+        .tab-btn-custom {
+            background: var(--item-bg);
+            border: 1px solid var(--panel-border);
+            color: var(--text-secondary);
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.25s var(--apple-easing);
+        }
+
+        .tab-btn-custom:hover {
+            background: rgba(120, 120, 128, 0.08);
+            color: var(--text-primary);
+        }
+
+        /* iOS-style toggle switches */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(120, 120, 128, 0.16);
+            transition: .4s var(--apple-easing);
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s var(--apple-easing);
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent-green);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
         /* Scrollbars */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
         }
         ::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.1);
+            background: transparent;
         }
         ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.15);
+            background: rgba(120, 120, 128, 0.15);
             border-radius: 3px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(120, 120, 128, 0.3);
         }
 
         /* Toast notifications styling */
@@ -92,7 +190,9 @@
             z-index: 1000;
             transform: translateY(100px);
             opacity: 0;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-radius: 14px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            transition: all 0.3s var(--apple-easing);
         }
         .toast.show {
             transform: translateY(0);
@@ -121,8 +221,11 @@
         </div>
         <!-- Global Actions and Status -->
         <div class="flex items-center space-x-3">
-            <button id="btn-back-home" onclick="window.history.back()" class="px-4 py-2 rounded-lg text-sm bg-gray-800 hover:bg-gray-700 transition flex items-center space-x-2">
+            <button id="btn-back-home" onclick="window.history.back()" class="px-4 py-2 rounded-lg text-sm tab-btn-custom flex items-center space-x-2">
                 <i class="fas fa-arrow-left"></i> <span>返回主页</span>
+            </button>
+            <button id="btn-toggle-theme" onclick="toggleLocalTheme()" class="px-4 py-2 rounded-lg text-sm tab-btn-custom flex items-center space-x-2">
+                <i class="fas fa-circle-half-stroke"></i> <span>🌓 主题</span>
             </button>
             <div id="scheduler-badge" class="px-3 py-1.5 rounded-full text-xs font-bold bg-green-500 bg-opacity-20 text-green-400 border border-green-500 border-opacity-30 flex items-center space-x-1.5">
                 <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
@@ -136,19 +239,19 @@
         <button onclick="switchTab('queue')" id="tab-queue" class="active-tab px-4 py-3 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
             <i class="fas fa-list-check"></i> <span class="hidden md:inline">任务队列</span>
         </button>
-        <button onclick="switchTab('add')" id="tab-add" class="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
+        <button onclick="switchTab('add')" id="tab-add" class="tab-btn-custom px-4 py-3 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
             <i class="fas fa-circle-plus"></i> <span class="hidden md:inline">新建下载</span>
         </button>
-        <button onclick="switchTab('search')" id="tab-search" class="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
+        <button onclick="switchTab('search')" id="tab-search" class="tab-btn-custom px-4 py-3 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
             <i class="fas fa-magnifying-glass"></i> <span class="hidden md:inline">搜索与嗅探</span>
         </button>
-        <button onclick="switchTab('storage')" id="tab-storage" class="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
+        <button onclick="switchTab('storage')" id="tab-storage" class="tab-btn-custom px-4 py-3 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
             <i class="fas fa-cloud-arrow-up"></i> <span class="hidden md:inline">存储同步</span>
         </button>
-        <button onclick="switchTab('diagnose')" id="tab-diagnose" class="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
+        <button onclick="switchTab('diagnose')" id="tab-diagnose" class="tab-btn-custom px-4 py-3 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
             <i class="fas fa-shield-halved"></i> <span class="hidden md:inline">网络诊断</span>
         </button>
-        <button onclick="switchTab('settings')" id="tab-settings" class="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
+        <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn-custom px-4 py-3 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200">
             <i class="fas fa-sliders"></i> <span class="hidden md:inline">设置中心</span>
         </button>
     </div>
@@ -230,13 +333,13 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">资源链接 (支持批量添加，每行一个)</label>
-                    <textarea id="add-url" rows="5" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-3 text-sm focus:outline-none focus:border-blue-500 text-gray-100 placeholder-gray-600 font-mono" placeholder="支持常见协议：&#10;• HTTP / HTTPS 下载链接&#10;• magnet:?xt=urn:btih:... (磁力链接)&#10;• thunder://... (迅雷专用链，一键自动解码)&#10;• ed2k://... (电驴电驴分流)&#10;• pan.baidu.com... (百度网盘分享提取)"></textarea>
+                    <textarea id="add-url" rows="5" class="w-full apple-textarea p-3 text-sm placeholder-gray-500 font-mono" placeholder="支持常见协议：&#10;• HTTP / HTTPS 下载链接&#10;• magnet:?xt=urn:btih:... (磁力链接)&#10;• thunder://... (迅雷专用链，一键自动解码)&#10;• ed2k://... (电驴电驴分流)&#10;• pan.baidu.com... (百度网盘分享提取)"></textarea>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">文件类型自动归类</label>
-                        <select id="add-category" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-3 text-sm focus:outline-none focus:border-blue-500 text-gray-100 font-medium">
+                        <select id="add-category" class="w-full apple-input p-3 text-sm font-medium">
                             <option value="movie">🎬 影视多媒体 (优先 P2P/边下边播)</option>
                             <option value="software">💻 精选软件 (自动安全沙盒检测)</option>
                             <option value="document">📄 文档资料 (高强数据完整性校验)</option>
@@ -245,7 +348,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">定时下载调度 (可选)</label>
-                        <input type="time" id="add-time" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-sm focus:outline-none focus:border-blue-500 text-gray-100 font-mono">
+                        <input type="time" id="add-time" class="w-full apple-input p-2.5 text-sm font-mono">
                     </div>
                     <div class="flex items-end">
                         <button onclick="createDownloadTask()" class="w-full bg-gradient-to-tr from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold tracking-wider py-3 px-4 rounded-xl shadow-lg transition-all flex items-center justify-center space-x-2">
@@ -282,7 +385,7 @@
                     <span>聚合搜索资源库</span>
                 </h2>
                 <div class="flex space-x-2 mb-4">
-                    <input type="text" id="search-query" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 text-gray-100 placeholder-gray-500" placeholder="输入影视、软件或文档名称，如: 毒液 / Office">
+                    <input type="text" id="search-query" class="flex-1 apple-input px-4 py-2.5 text-sm placeholder-gray-500" placeholder="输入影视、软件或文档名称，如: 毒液 / Office">
                     <button onclick="triggerSearch()" class="bg-blue-600 hover:bg-blue-500 px-5 rounded-xl text-sm font-bold flex items-center space-x-2 transition">
                         <i class="fas fa-magnifying-glass"></i> <span>检索</span>
                     </button>
@@ -303,7 +406,7 @@
                     <span>网页智能嗅探器</span>
                 </h2>
                 <div class="flex space-x-2 mb-4">
-                    <input type="text" id="sniff-url" class="flex-1 bg-gray-900 border border-gray-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 text-gray-100 placeholder-gray-500" placeholder="复制黏贴需要提取媒体资源的网页 URL">
+                    <input type="text" id="sniff-url" class="flex-1 apple-input px-4 py-2.5 text-sm placeholder-gray-500" placeholder="复制黏贴需要提取媒体资源的网页 URL">
                     <button onclick="triggerSniff()" class="bg-indigo-600 hover:bg-indigo-500 px-5 rounded-xl text-sm font-bold flex items-center space-x-2 transition">
                         <i class="fas fa-wand-magic-sparkles"></i> <span>嗅探</span>
                     </button>
@@ -367,16 +470,16 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs text-gray-400 mb-1">分块最大并发线程</label>
-                            <input type="number" id="settings-threads" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-sm text-gray-100" value="16">
+                            <input type="number" id="settings-threads" class="w-full apple-input p-2.5 text-sm" value="16">
                         </div>
                         <div>
                             <label class="block text-xs text-gray-400 mb-1">“摸鱼模式”限速 (KB/s)</label>
-                            <input type="number" id="settings-speedlimit" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-sm text-gray-100" value="200">
+                            <input type="number" id="settings-speedlimit" class="w-full apple-input p-2.5 text-sm" value="200">
                         </div>
                     </div>
                     <div class="mt-4">
                         <label class="block text-xs text-gray-400 mb-1">默认下载保存路径</label>
-                        <input type="text" id="settings-downloadpath" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-sm text-gray-100 font-mono" placeholder="不填则使用系统默认相对路径">
+                        <input type="text" id="settings-downloadpath" class="w-full apple-input p-2.5 text-sm font-mono" placeholder="不填则使用系统默认相对路径">
                     </div>
                 </div>
 
@@ -385,11 +488,11 @@
                     <div class="grid grid-cols-1 gap-4">
                         <div>
                             <label class="block text-xs text-gray-400 mb-1">Server酱 SendKey (微信推送)</label>
-                            <input type="password" id="settings-serverchan" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-sm text-gray-100" placeholder="输入 SCTXXXXXXXXX">
+                            <input type="password" id="settings-serverchan" class="w-full apple-input p-2.5 text-sm" placeholder="输入 SCTXXXXXXXXX">
                         </div>
                         <div>
                             <label class="block text-xs text-gray-400 mb-1">PushPlus Token (微信即时推)</label>
-                            <input type="password" id="settings-pushplus" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-sm text-gray-100" placeholder="输入 32位 令牌密钥">
+                            <input type="password" id="settings-pushplus" class="w-full apple-input p-2.5 text-sm" placeholder="输入 32位 令牌密钥">
                         </div>
                     </div>
                 </div>
@@ -431,13 +534,13 @@
             <div class="space-y-4 text-sm">
                 <div>
                     <label class="block text-xs text-gray-400 mb-1">选择云盘/目标驱动器</label>
-                    <select id="sync-drive-select" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-3 text-gray-100">
+                    <select id="sync-drive-select" class="w-full apple-input p-3 text-sm">
                         <!-- Loaded dynamically -->
                     </select>
                 </div>
                 <div>
                     <label class="block text-xs text-gray-400 mb-1">存储路径目录</label>
-                    <input type="text" id="sync-path-input" class="w-full bg-gray-900 border border-gray-800 rounded-xl p-3 text-gray-100" value="/Backup/Downloads">
+                    <input type="text" id="sync-path-input" class="w-full apple-input p-3 text-sm" value="/Backup/Downloads">
                 </div>
                 <button onclick="confirmStorageHubSync()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition">
                     立即一键云上传
@@ -451,6 +554,19 @@
         let currentTab = 'queue';
         let tasksUpdateInterval = null;
         let isMock = false;
+
+        // Theme sync and toggle
+        function toggleLocalTheme() {
+            if (document.documentElement.classList.contains('theme-dark')) {
+                document.documentElement.classList.remove('theme-dark');
+                localStorage.setItem('setting_theme', 'light');
+                showToast("主题切换", "已切换至亮色模式");
+            } else {
+                document.documentElement.classList.add('theme-dark');
+                localStorage.setItem('setting_theme', 'dark');
+                showToast("主题切换", "已切换至暗色模式");
+            }
+        }
 
         // Toast Helper
         function showToast(title, content, type = 'success') {
@@ -473,6 +589,13 @@
 
         // Initialize connection
         document.addEventListener('DOMContentLoaded', () => {
+            // Theme sync on startup
+            if (localStorage.getItem('setting_theme') === 'dark') {
+                document.documentElement.classList.add('theme-dark');
+            } else {
+                document.documentElement.classList.remove('theme-dark');
+            }
+
             isMock = typeof window.pywebview === 'undefined' || typeof window.pywebview.api === 'undefined';
 
             // Render beautiful mock P2P block grids
@@ -591,11 +714,12 @@
             tabs.forEach(t => {
                 const btn = document.getElementById(`tab-${t}`);
                 const panel = document.getElementById(`content-${t}`);
+                if (!btn) return;
                 if (t === tabId) {
                     btn.className = 'active-tab px-4 py-3 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200';
                     panel.classList.remove('hidden');
                 } else {
-                    btn.className = 'px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200';
+                    btn.className = 'tab-btn-custom px-4 py-3 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center justify-center space-x-2 transition-all duration-200';
                     panel.classList.add('hidden');
                 }
             });
