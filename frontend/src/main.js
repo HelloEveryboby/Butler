@@ -23,6 +23,34 @@ window.triggerQuickAction = (command, emoji) => {
     }
 };
 
+// Toggle Operation Interface Mode (Desktop vs Mobile)
+window.toggleInterfaceMode = () => {
+    const select = document.getElementById('setting-interface-mode');
+    if (select) {
+        const val = select.value;
+        // Apply smooth transition overlay
+        document.body.classList.add('interface-switching');
+
+        setTimeout(() => {
+            if (val === 'mobile') {
+                document.body.classList.remove('interface-desktop');
+                document.body.classList.add('interface-mobile');
+                localStorage.setItem('setting_interface_mode', 'mobile');
+                window.showToast("操作界面", "已切换至手机端模拟界面模式。", "success");
+            } else {
+                document.body.classList.remove('interface-mobile');
+                document.body.classList.add('interface-desktop');
+                localStorage.setItem('setting_interface_mode', 'desktop');
+                window.showToast("操作界面", "已切换至电脑端界面模式。", "success");
+            }
+
+            setTimeout(() => {
+                document.body.classList.remove('interface-switching');
+            }, 150);
+        }, 150);
+    }
+};
+
 // Onboarding Steps Definitions
 const onboardingSteps = [
     {
@@ -562,6 +590,9 @@ function loadSettingsForm() {
         const isDark = (localStorage.getItem('setting_theme') === 'dark');
         document.getElementById('setting-theme-toggle').checked = isDark;
     }
+    if (localStorage.getItem('setting_interface_mode')) {
+        document.getElementById('setting-interface-mode').value = localStorage.getItem('setting_interface_mode');
+    }
     if (localStorage.getItem('setting_blur')) {
         const blur = localStorage.getItem('setting_blur');
         document.getElementById('setting-blur-slider').value = blur;
@@ -605,6 +636,15 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         document.body.classList.remove('theme-dark');
         document.body.classList.add('theme-apple');
+    }
+
+    const savedInterface = localStorage.getItem('setting_interface_mode') || 'desktop';
+    if (savedInterface === 'mobile') {
+        document.body.classList.remove('interface-desktop');
+        document.body.classList.add('interface-mobile');
+    } else {
+        document.body.classList.remove('interface-mobile');
+        document.body.classList.add('interface-desktop');
     }
 
     const savedBlur = localStorage.getItem('setting_blur');
