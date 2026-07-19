@@ -19,6 +19,18 @@
     --radius-medium: 12px;
 }
 
+body.theme-dark {
+    --glass-bg: rgba(28, 28, 30, 0.75);
+    --glass-bg-hover: rgba(38, 38, 40, 0.85);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-border-hover: rgba(255, 255, 255, 0.18);
+    --text-primary: #f5f5f7;
+    --text-secondary: rgba(255, 255, 255, 0.65);
+    --text-tertiary: rgba(255, 255, 255, 0.45);
+    --accent-color: #0a84ff;
+    background: #121214 !important;
+}
+
 body {
     margin: 0;
     padding: 0;
@@ -27,6 +39,7 @@ body {
     background: #f5f5f7; /* Apple premium light gray background */
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
+    transition: background 0.3s var(--apple-easing), color 0.3s var(--apple-easing);
 }
 
 .container {

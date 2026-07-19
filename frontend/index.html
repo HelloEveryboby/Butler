@@ -174,21 +174,31 @@
 
     <!-- Overlay Terminal -->
     <div id="terminal-overlay" class="hidden glass-surface overlay-panel">
-        <div class="panel-header">
-            <span>终端会话</span>
-            <button class="icon-btn-small" onclick="toggleTerminal()"><i class="fas fa-times"></i></button>
+        <div class="panel-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 15px;">
+            <div class="window-controls">
+                <span class="control-dot close" onclick="toggleTerminal()"></span>
+                <span class="control-dot minimize"></span>
+                <span class="control-dot maximize"></span>
+            </div>
+            <span style="font-size: 15px; font-weight: 600; color: var(--text-primary);"><i class="fas fa-terminal" style="color: var(--accent-color); margin-right: 6px;"></i> 终端会话 (Terminal)</span>
+            <div style="width: 52px;"></div>
         </div>
         <div id="terminal-container"></div>
     </div>
 
     <!-- Overlay Memos -->
     <div id="memos-overlay" class="hidden glass-surface overlay-panel" style="width: 85%; height: 85%; max-width: 1200px;">
-        <div class="panel-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 15px;">
+        <div class="panel-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 15px;">
+            <div class="window-controls">
+                <span class="control-dot close" onclick="toggleMemos()"></span>
+                <span class="control-dot minimize"></span>
+                <span class="control-dot maximize"></span>
+            </div>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 18px; font-weight: 700; color: var(--text-primary);"><i class="fas fa-sticky-note" style="color: var(--accent-color);"></i> Memos 备忘空间</span>
+                <span style="font-size: 16px; font-weight: 700; color: var(--text-primary);"><i class="fas fa-sticky-note" style="color: var(--accent-color);"></i> Memos 备忘空间</span>
                 <span style="font-size: 11px; background: rgba(0,122,255,0.15); color: var(--accent-color); padding: 2px 6px; border-radius: 10px; font-weight: 600;">Butler AI Brain v2.5</span>
             </div>
-            <button class="icon-btn-small" onclick="toggleMemos()"><i class="fas fa-times"></i></button>
+            <div style="width: 52px;"></div>
         </div>
 
         <div class="memos-main-layout" style="display: flex; flex: 1; overflow: hidden; position: relative; gap: 20px; width: 100%; height: 100%;">
@@ -330,9 +340,14 @@
 
     <!-- Overlay Settings -->
     <div id="settings-overlay" class="hidden glass-surface overlay-panel" style="width: 80%; height: 80%; max-width: 1000px;">
-        <div class="panel-header">
-            <span>系统设置 (Settings)</span>
-            <button class="icon-btn-small" onclick="toggleSettings()"><i class="fas fa-times"></i></button>
+        <div class="panel-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 15px;">
+            <div class="window-controls">
+                <span class="control-dot close" onclick="toggleSettings()"></span>
+                <span class="control-dot minimize"></span>
+                <span class="control-dot maximize"></span>
+            </div>
+            <span style="font-size: 15px; font-weight: 600; color: var(--text-primary);"><i class="fas fa-cog" style="color: var(--accent-color); margin-right: 6px;"></i> 系统设置 (Settings)</span>
+            <div style="width: 52px;"></div>
         </div>
         <div class="settings-wrapper">
             <div class="settings-sidebar">
@@ -466,6 +481,25 @@
                             <select class="apple-select" id="setting-interface-mode" onchange="toggleInterfaceMode()" style="width: 200px;">
                                 <option value="desktop">电脑端界面 (Desktop Mode)</option>
                                 <option value="mobile">手机端界面 (Mobile Mode)</option>
+                            </select>
+                        </div>
+                        <div class="settings-row">
+                            <span class="row-label">系统字体样式 (Font Family)</span>
+                            <select class="apple-select" id="setting-font-family" onchange="updateFontFamily(this.value)" style="width: 200px;">
+                                <option value="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', sans-serif">苹果原生 SF 字体</option>
+                                <option value="'Inter', -apple-system, sans-serif">Inter 极简字体</option>
+                                <option value="'SF Mono', 'PingFang SC', 'JetBrains Mono', monospace">等宽极客字体</option>
+                                <option value="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif">苹方简约黑体</option>
+                            </select>
+                        </div>
+                        <div class="settings-row">
+                            <span class="row-label">系统字体大小 (Font Size)</span>
+                            <select class="apple-select" id="setting-font-size" onchange="updateFontSize(this.value)" style="width: 200px;">
+                                <option value="13px">13px (小 / Compact)</option>
+                                <option value="14px">14px (标准 / Default)</option>
+                                <option value="15px" selected>15px (舒适 / Comfortable)</option>
+                                <option value="16px">16px (大气 / Large)</option>
+                                <option value="18px">18px (极高 / X-Large)</option>
                             </select>
                         </div>
                     </div>

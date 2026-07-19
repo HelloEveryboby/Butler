@@ -549,6 +549,20 @@ window.updateBlurValue = (val) => {
     localStorage.setItem('setting_blur', val);
 };
 
+// Update Font Family globally
+window.updateFontFamily = (val) => {
+    document.documentElement.style.setProperty('--font-family', val);
+    localStorage.setItem('setting_font_family', val);
+    window.showToast("字体样式", "系统字体样式已成功更新。", "success");
+};
+
+// Update Font Size globally
+window.updateFontSize = (val) => {
+    document.documentElement.style.setProperty('--font-size', val);
+    localStorage.setItem('setting_font_size', val);
+    window.showToast("字体大小", `系统基本字号已调整为 ${val}。`, "success");
+};
+
 // Toggle Heatmap background
 window.toggleHeatmapAnimation = () => {
     const toggle = document.getElementById('setting-heatmap-toggle');
@@ -604,6 +618,12 @@ function loadSettingsForm() {
         const canvas = document.getElementById('substrate-heatmap');
         if (canvas) canvas.style.display = heatmapOn ? 'block' : 'none';
     }
+    if (localStorage.getItem('setting_font_family')) {
+        document.getElementById('setting-font-family').value = localStorage.getItem('setting_font_family');
+    }
+    if (localStorage.getItem('setting_font_size')) {
+        document.getElementById('setting-font-size').value = localStorage.getItem('setting_font_size');
+    }
 }
 
 // Vault Unlock Event
@@ -656,6 +676,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedHeatmap === 'false') {
         const canvas = document.getElementById('substrate-heatmap');
         if (canvas) canvas.style.display = 'none';
+    }
+
+    const savedFontFamily = localStorage.getItem('setting_font_family');
+    if (savedFontFamily) {
+        document.documentElement.style.setProperty('--font-family', savedFontFamily);
+    }
+
+    const savedFontSize = localStorage.getItem('setting_font_size');
+    if (savedFontSize) {
+        document.documentElement.style.setProperty('--font-size', savedFontSize);
     }
 });
 

@@ -543,7 +543,14 @@
             const currentTheme = document.documentElement.getAttribute('data-theme');
             const targetTheme = currentTheme === 'dark' ? 'light' : 'dark';
             document.documentElement.setAttribute('data-theme', targetTheme);
+            localStorage.setItem('setting_theme', targetTheme);
             showToast('🌓 主题已切换');
+        });
+
+        // Auto theme matching on load
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('setting_theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
         });
 
         // Tabs management

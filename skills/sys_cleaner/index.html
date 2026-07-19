@@ -35,6 +35,16 @@
             </button>
         </div>
     </div>
+    <script>
+        // Sync theme with master Butler theme preference
+        document.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('setting_theme') === 'dark') {
+                document.body.classList.add('theme-dark');
+            } else {
+                document.body.classList.remove('theme-dark');
+            }
+        });
+    </script>
     <script src="script.js"></script>
 </body>
 </html>
