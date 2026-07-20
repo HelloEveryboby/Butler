@@ -1,0 +1,140 @@
+import os
+import sys
+import json
+import socket
+import threading
+import subprocess
+import logging
+import time
+
+logger = logging.getLogger("PixelPet")
+
+# Constants
+UDP_HOST = "127.0.0.1"
+UDP_PORT = 50007
+SKILL_DIR = os.path.dirname(os.path.abspath(__file__))
+_context = None
+
+def send_udp_event(payload):
+    """Sends a JSON-encoded event over UDP to port 50007."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        message = json.dumps(payload).encode("utf-8")
+        sock.sendto(message, (UDP_HOST, UDP_PORT))
+        sock.close()
+    except Exception as e:
+        logger.debug(f"Failed to send UDP event: {e}")
+
+def on_pet_event(payload):
+    """Callback for global event_bus events."""
+    send_udp_event(payload)
+
+def initialize_core(context) -> None:
+    """
+    Hook called by SkillManager upon load.
+    Runs inside the main Butler process.
+    """
+    global _context
+    _context = context
+    logger.info("Pixel Pet core plugin successfully initialized in main process.")
+
+    # 1. Subscribe to the global Python event bus
+    _context.event_bus.subscribe("pet_event", on_pet_event)
+
+    # 2. Spawn the transparent UI window in a separate Python subprocess to avoid webview thread lock conflicts.
+    try:
+        # Run main.py as a script in the correct directory
+        entry_script = os.path.join(SKILL_DIR, "main.py")
+        subprocess.Popen([sys.executable, entry_script], cwd=SKILL_DIR, start_new_session=True)
+        logger.info("Pixel Pet UI subprocess spawned successfully.")
+    except Exception as e:
+        logger.error(f"Failed to spawn Pixel Pet UI subprocess: {e}")
+
+def handle_request(action: str, **kwargs):
+    """Fallback execution handler."""
+    if action == "trigger_state":
+        event = kwargs.get("event", "ai_thinking")
+        msg = kwargs.get("message", "Triggered via action")
+        send_udp_event({"event": event, "message": msg})
+        return {"status": "success", "message": f"State triggered: {event}"}
+    return {"status": "ok", "message": "Pixel Pet core skill is active."}
+
+
+# --- UI Subprocess Code ---
+
+def start_udp_listener(window):
+    """Runs inside the UI subprocess to receive events and evaluate JS on the webview window."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        sock.bind((UDP_HOST, UDP_PORT))
+    except Exception as e:
+        logger.error(f"Failed to bind UDP listener on port {UDP_PORT}: {e}")
+        return
+
+    logger.info(f"UDP event listener bound to {UDP_HOST}:{UDP_PORT}")
+    while True:
+        try:
+            data, addr = sock.recvfrom(4096)
+            if not data:
+                continue
+            payload = json.loads(data.decode("utf-8"))
+
+            # Forward event to UI
+            js_code = f"if (window.ButlerPet) {{ window.ButlerPet.onEvent({json.dumps(payload)}); }}"
+            window.evaluate_js(js_code)
+        except Exception as e:
+            logger.error(f"Error in UDP receiver loop: {e}")
+            time.sleep(1)
+
+def run_ui():
+    """Builds and runs the transparent PyWebview desktop window."""
+    import webview
+
+    html_path = os.path.join(SKILL_DIR, "ui", "index.html")
+    if not os.path.exists(html_path):
+        logger.error(f"HTML entrypoint not found at: {html_path}")
+        return
+
+    # Window sizes (Aesthetic Scheme A: micro-width 90px, height 150px for bubble dialogues)
+    w_width = 90
+    w_height = 150
+
+    # Create the window with zero background color, frameless and transparent settings
+    window = webview.create_window(
+        title="Butler Pixel Pet",
+        url=f"file://{html_path}",
+        transparent=True,
+        frameless=True,
+        on_top=True,
+        background_color='#000000',
+        width=w_width,
+        height=w_height
+    )
+
+    # Start the UDP Listener background thread
+    listener_thread = threading.Thread(target=start_udp_listener, args=(window,), daemon=True)
+    listener_thread.start()
+
+    # Move to bottom right corner once started
+    def on_loaded():
+        try:
+            screens = webview.screens
+            if screens:
+                primary = screens[0]
+                # Offset slightly from taskbars
+                pos_x = primary.width - w_width - 20
+                pos_y = primary.height - w_height - 60
+                window.move(pos_x, pos_y)
+        except Exception as e:
+            logger.error(f"Failed to position window: {e}")
+
+    window.events.loaded += on_loaded
+
+    # Run PyWebview main thread blocking loop
+    webview.start(debug=True)
+
+if __name__ == '__main__':
+    # Initialize basic logging for standalone execution
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    run_ui()

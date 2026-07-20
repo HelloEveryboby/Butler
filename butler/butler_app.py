@@ -186,6 +186,8 @@ class Jarvis:
         self.ui_suggested = False
         self.waiting_for_ui_confirm = False
         self._interaction_count = 0
+        self.last_activity_time = time.time()
+        self._idle_emitted = False
 
     def _print_startup_banner(self, headless):
         # 1. Determine Memory Backend
@@ -399,6 +401,10 @@ class Jarvis:
     def handle_user_command(self, command, programs=None):
         if not command: return
         cmd = command.strip()
+
+        # Update activity time
+        self.last_activity_time = time.time()
+        self._idle_emitted = False
 
         # Notify proactive agent of activity
         self.proactive_agent.update_activity()
@@ -817,6 +823,13 @@ class Jarvis:
                 if self.standalone_manager:
                     status = self.standalone_manager.get_status()
                     event_bus.emit("link_status", status["connection"] == "Connected", status["devices"][0] if status["devices"] else "")
+            except Exception: pass
+
+            # User idle check
+            try:
+                if time.time() - self.last_activity_time > 180 and not self._idle_emitted:
+                    event_bus.emit("pet_event", {"event": "user_idle", "message": "休眠中"})
+                    self._idle_emitted = True
             except Exception: pass
 
             # KAIROS Nap: 根据电池状态动态调整 UI 刷新频率

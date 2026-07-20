@@ -1,0 +1,231 @@
+/* Zero out body/margins to support perfect alpha transparency */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background-color: transparent !important;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    font-family: 'SF Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Base Container */
+.pet-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    padding-bottom: 10px;
+    box-sizing: border-box;
+}
+
+/* Glassmorphism Dialogue Dialog Bubble */
+.glass-dialog {
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    transform: translateX(-50%) scale(0.9);
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    padding: 6px 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    color: #1d1d1f;
+    font-size: 10px;
+    text-align: center;
+    white-space: normal;
+    width: 80px;
+    box-sizing: border-box;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none; /* Mouse-through bubble text */
+    word-break: break-all;
+    line-height: 1.2;
+}
+
+.glass-dialog.show {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+}
+
+/* Base Avatar Styles with Native Drag Area */
+.butler-pet-avatar {
+    width: 64px;
+    height: 64px;
+    cursor: grab;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    -webkit-app-region: drag; /* Support native seamless drag on desktop */
+}
+
+.butler-pet-avatar:active {
+    cursor: grabbing;
+    transform: scale(0.95);
+}
+
+.pet-svg {
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+}
+
+/* Default status elements hidden */
+.status-icon {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+/* --- STATE 1: IDLE --- */
+.butler-pet-avatar.state-idle {
+    animation: pet-breath 3s ease-in-out infinite;
+}
+
+.state-idle .ring-outer {
+    animation: ring-rotate-clockwise 15s linear infinite;
+}
+
+.state-idle .ring-inner {
+    animation: ring-rotate-counter 10s linear infinite;
+}
+
+/* --- STATE 2: THINKING --- */
+.butler-pet-avatar.state-thinking {
+    animation: pet-pulse 1.5s ease-in-out infinite;
+}
+
+.state-thinking .ring-outer {
+    stroke: rgba(217, 119, 6, 0.8);
+    animation: ring-rotate-clockwise 2s linear infinite;
+}
+
+.state-thinking .ring-inner {
+    stroke: rgba(245, 158, 11, 0.9);
+    animation: ring-rotate-counter 1.5s linear infinite;
+}
+
+.state-thinking .robot-eye {
+    fill: #fbbf24;
+}
+
+/* --- STATE 3: GENERATING (STREAMING) --- */
+.butler-pet-avatar.state-generating {
+    animation: pet-tremble 0.15s linear infinite;
+}
+
+.state-generating .ring-outer {
+    stroke: rgba(59, 130, 246, 0.8);
+    animation: ring-rotate-clockwise 0.8s linear infinite;
+}
+
+.state-generating .ring-inner {
+    stroke: rgba(96, 165, 250, 0.9);
+    animation: ring-rotate-counter 0.5s linear infinite;
+}
+
+.state-generating .robot-face {
+    stroke: #3b82f6;
+}
+
+.state-generating .robot-eye {
+    animation: eye-blink 0.3s steps(2) infinite;
+}
+
+/* --- STATE 4: SUCCESS --- */
+.butler-pet-avatar.state-success {
+    animation: pet-bounce 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) 1;
+}
+
+.state-success .ring-outer, .state-success .ring-inner {
+    stroke: #10b981;
+}
+
+.state-success .robot-face {
+    stroke: #10b981;
+    fill: #ecfdf5;
+}
+
+.state-success .robot-eye {
+    fill: #10b981;
+}
+
+.state-success .success-tick {
+    opacity: 1;
+}
+
+/* --- STATE 5: ERROR --- */
+.butler-pet-avatar.state-error {
+    animation: pet-wobble 1s ease-in-out infinite;
+}
+
+.state-error .ring-outer, .state-error .ring-inner {
+    stroke: #ef4444;
+}
+
+.state-error .robot-face {
+    stroke: #ef4444;
+    fill: #fef2f2;
+}
+
+.state-error .robot-eye {
+    fill: #ef4444;
+}
+
+.state-error .error-cross {
+    opacity: 1;
+}
+
+/* --- ANIMATIONS DEFINITIONS --- */
+@keyframes pet-breath {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+
+@keyframes ring-rotate-clockwise {
+    from { transform: rotate(0deg); transform-origin: 32px 32px; }
+    to { transform: rotate(360deg); transform-origin: 32px 32px; }
+}
+
+@keyframes ring-rotate-counter {
+    from { transform: rotate(360deg); transform-origin: 32px 32px; }
+    to { transform: rotate(0deg); transform-origin: 32px 32px; }
+}
+
+@keyframes pet-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+@keyframes pet-tremble {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(-1px, 1px); }
+    50% { transform: translate(1px, -1px); }
+    75% { transform: translate(-1px, -1px); }
+}
+
+@keyframes pet-bounce {
+    0% { transform: translateY(0) scale(1); }
+    30% { transform: translateY(-15px) scale(1.1); }
+    50% { transform: translateY(0) scale(0.9); }
+    70% { transform: translateY(-4px) scale(1.03); }
+    100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes pet-wobble {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-5deg); }
+    75% { transform: rotate(5deg); }
+}
+
+@keyframes eye-blink {
+    0%, 100% { fill: #60a5fa; }
+    50% { fill: transparent; }
+}
