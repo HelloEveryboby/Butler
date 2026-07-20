@@ -36,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private var kernelRunner: Runner? = null
     private var nativePort: WebMessagePort? = null
     private var batteryReceiver: BroadcastReceiver? = null
+    private val skillExecutor = java.util.concurrent.Executors.newFixedThreadPool(4)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -210,7 +211,28 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun callSkill(skillId: String, action: String, paramsJson: String) {
-            butlerModule?.callAttr("call_plugin", skillId, action, paramsJson)
+            skillExecutor.execute {
+                try {
+                    val resultJson = butlerModule?.callAttr("call_plugin", skillId, action, paramsJson)?.toString()
+                    if (resultJson != null) {
+                        val result = JSONObject(resultJson)
+                        if (result.optString("status") == "error") {
+                            val errorType = result.optString("error_type")
+                            val message = result.optString("message")
+                            val traceback = result.optString("traceback")
+                            Log.e("ButlerBridge", "Skill execution error ($errorType): $message\n$traceback")
+                            // Report to Go Kernel
+                            kernelRunner?.ReportError("PythonSkillError_$skillId", "[$errorType] $message", traceback)
+                        } else {
+                            Log.d("ButlerBridge", "Skill $skillId execution success: ${result.optString("data")}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    val tb = Log.getStackTraceString(e)
+                    Log.e("ButlerBridge", "Java/Kotlin bridge exception calling skill $skillId: ${e.message}", e)
+                    kernelRunner?.ReportError("JavaBridgeError_$skillId", e.message ?: "Unknown error", tb)
+                }
+            }
         }
     }
 

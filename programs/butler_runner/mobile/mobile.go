@@ -144,6 +144,17 @@ func (r *Runner) UpdateSystemState(temp float64, battery int, isCharging bool) {
 	}
 }
 
+// ReportError reports an error or warning log from the Java/Python side to the Go Kernel
+func (r *Runner) ReportError(tag string, msg string, traceback string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	fullMsg := fmt.Sprintf("[%s] %s", tag, msg)
+	if traceback != "" {
+		fullMsg = fmt.Sprintf("%s\nTraceback:\n%s", fullMsg, traceback)
+	}
+	r.emitLog(fullMsg)
+}
+
 func (r *Runner) watchChildProcesses() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGCHLD)
