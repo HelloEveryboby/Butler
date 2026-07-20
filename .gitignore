@@ -39,3 +39,11 @@ sync_hub.log
 server.log
 sync_cache.json
 .sync_cache.json
+
+# Gradle and Android build artifacts
+.gradle/
+**/build/
+*.aar
+*.jar
+**/.gradle/
+local.properties

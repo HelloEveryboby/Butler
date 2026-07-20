@@ -17,8 +17,13 @@ android {
             abiFilters "arm64-v8a"
         }
 
+        // Chaquopy minimal configuration with core packages only
         python {
-            version "3.11"
+            version "3.10"
+            pip {
+                install "requests==2.31.0"
+                install "pyyaml==6.0.1"
+            }
         }
     }
 
