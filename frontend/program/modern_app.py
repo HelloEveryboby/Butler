@@ -84,6 +84,7 @@ class ModernBridge:
 
     def _run_command(self, command):
         try:
+            event_bus.emit("pet_event", {"event": "ai_thinking", "message": "Butler 正在思考..."})
             self.window.evaluate_js("window.onAIStreamStart()")
 
             # We need to capture the output from Jarvis.
@@ -91,6 +92,8 @@ class ModernBridge:
             original_ui_print = self.jarvis.ui_print
 
             def web_ui_print(message, tag='ai_response', response_id=None):
+                # Emit streaming event to the event bus
+                event_bus.emit("pet_event", {"event": "ai_streaming", "message": message})
                 if tag == 'status_update':
                      # Handle progress bars for Modern UI
                      try:
@@ -123,8 +126,10 @@ class ModernBridge:
             self.jarvis.ui_print = original_ui_print
 
             self.window.evaluate_js("window.onAIStreamEnd()")
+            event_bus.emit("pet_event", {"event": "task_success", "message": "执行完毕"})
         except Exception as e:
             self.logger.error(f"Error in ModernBridge: {e}")
+            event_bus.emit("pet_event", {"event": "task_failed", "message": str(e)})
             self.window.evaluate_js(f"window.onAIStreamChunk(' Error: {str(e)}')")
             self.window.evaluate_js("window.onAIStreamEnd()")
 

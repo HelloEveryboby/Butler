@@ -1,0 +1,13 @@
+{
+  "id": "pixel_pet",
+  "name": "Pixel Pet",
+  "version": "1.0.0",
+  "description": "极致优雅、伴随启动、基于 PyWebview 独立透明置顶微型窗口的 Butler 像素电子宠物。",
+  "author": "Butler Developer",
+  "entry_point": "main.py",
+  "frontend": "ui/index.html",
+  "icon": "fa-ghost",
+  "is_core": true,
+  "is_long_running": true,
+  "permissions": []
+}
