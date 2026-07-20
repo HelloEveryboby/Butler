@@ -25,9 +25,55 @@ def send_udp_event(payload):
     except Exception as e:
         logger.debug(f"Failed to send UDP event: {e}")
 
+class EventThrottler:
+    """Throttles high-frequency streaming events to prevent UI and socket flooding."""
+    def __init__(self, interval=0.1):
+        self.interval = interval
+        self.last_sent = 0.0
+        self.lock = threading.Lock()
+        self.pending_payload = None
+        self.timer = None
+
+    def throttle(self, payload):
+        event_type = payload.get("event")
+        if event_type != "ai_streaming":
+            # Immediate send for non-streaming events, cancel pending timers
+            with self.lock:
+                if self.timer:
+                    self.timer.cancel()
+                    self.timer = None
+                self.pending_payload = None
+            send_udp_event(payload)
+            return
+
+        with self.lock:
+            self.pending_payload = payload
+            now = time.time()
+            elapsed = now - self.last_sent
+            if elapsed >= self.interval:
+                self._send_pending()
+            else:
+                if self.timer is None:
+                    remaining = self.interval - elapsed
+                    self.timer = threading.Timer(remaining, self._timer_callback)
+                    self.timer.start()
+
+    def _timer_callback(self):
+        with self.lock:
+            self.timer = None
+            self._send_pending()
+
+    def _send_pending(self):
+        if self.pending_payload:
+            send_udp_event(self.pending_payload)
+            self.pending_payload = None
+            self.last_sent = time.time()
+
+throttler = EventThrottler(interval=0.1)
+
 def on_pet_event(payload):
     """Callback for global event_bus events."""
-    send_udp_event(payload)
+    throttler.throttle(payload)
 
 def initialize_core(context) -> None:
     """
@@ -45,7 +91,8 @@ def initialize_core(context) -> None:
     try:
         # Run main.py as a script in the correct directory
         entry_script = os.path.join(SKILL_DIR, "main.py")
-        subprocess.Popen([sys.executable, entry_script], cwd=SKILL_DIR, start_new_session=True)
+        # Pass the main process PID so the subprocess can monitor its survival
+        subprocess.Popen([sys.executable, entry_script, str(os.getpid())], cwd=SKILL_DIR, start_new_session=True)
         logger.info("Pixel Pet UI subprocess spawned successfully.")
     except Exception as e:
         logger.error(f"Failed to spawn Pixel Pet UI subprocess: {e}")
@@ -87,7 +134,7 @@ def start_udp_listener(window):
             logger.error(f"Error in UDP receiver loop: {e}")
             time.sleep(1)
 
-def run_ui():
+def run_ui(parent_pid=None):
     """Builds and runs the transparent PyWebview desktop window."""
     import webview
 
@@ -116,6 +163,46 @@ def run_ui():
     listener_thread = threading.Thread(target=start_udp_listener, args=(window,), daemon=True)
     listener_thread.start()
 
+    # Start the Parent PID Survival Monitor daemon thread
+    if parent_pid is not None:
+        def monitor_parent():
+            logger.info(f"Subprocess started with Parent PID Monitor for PID: {parent_pid}")
+            import os
+            import signal
+            while True:
+                time.sleep(1.0)
+                # Check if parent is still alive
+                alive = False
+                try:
+                    if sys.platform == "win32":
+                        # Windows PID checking using tasklist or ctypes openprocess
+                        import ctypes
+                        kernel32 = ctypes.windll.kernel32
+                        PROCESS_QUERY_INFORMATION = 0x0400
+                        process_handle = kernel32.OpenProcess(PROCESS_QUERY_INFORMATION, False, parent_pid)
+                        if process_handle:
+                            # If we can query, it exists
+                            kernel32.CloseHandle(process_handle)
+                            alive = True
+                    else:
+                        # POSIX PID checking using kill(pid, 0)
+                        os.kill(parent_pid, 0)
+                        alive = True
+                except Exception:
+                    alive = False
+
+                if not alive:
+                    logger.warning(f"Parent process PID {parent_pid} has died. Self-terminating Subprocess...")
+                    try:
+                        window.destroy()
+                    except Exception:
+                        pass
+                    # Hard exit to prevent any leaks
+                    os._exit(0)
+
+        monitor_thread = threading.Thread(target=monitor_parent, daemon=True)
+        monitor_thread.start()
+
     # Move to bottom right corner once started
     def on_loaded():
         try:
@@ -137,4 +224,12 @@ def run_ui():
 if __name__ == '__main__':
     # Initialize basic logging for standalone execution
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-    run_ui()
+
+    parent_pid = None
+    if len(sys.argv) > 1:
+        try:
+            parent_pid = int(sys.argv[1])
+        except ValueError:
+            pass
+
+    run_ui(parent_pid=parent_pid)

@@ -41,31 +41,31 @@ def generate_screenshots():
         # Capture state 1: Idle
         print("Capturing state: IDLE")
         page.evaluate('window.ButlerPet.onEvent({"event": "user_idle", "message": "Butler 正在安全守护中"})')
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(1500)
         page.screenshot(path=str(project_root / "assets/pet_state_idle.png"))
 
         # Capture state 2: Thinking
         print("Capturing state: THINKING")
         page.evaluate('window.ButlerPet.onEvent({"event": "ai_thinking", "message": "智能助手正在深入思考..."})')
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(1500)
         page.screenshot(path=str(project_root / "assets/pet_state_thinking.png"))
 
         # Capture state 3: Generating
         print("Capturing state: GENERATING")
         page.evaluate('window.ButlerPet.onEvent({"event": "ai_streaming", "message": "正在高速流式传输中..."})')
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(1500)
         page.screenshot(path=str(project_root / "assets/pet_state_generating.png"))
 
         # Capture state 4: Success
         print("Capturing state: SUCCESS")
         page.evaluate('window.ButlerPet.onEvent({"event": "task_success", "message": "任务成功完成！"})')
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(1500)
         page.screenshot(path=str(project_root / "assets/pet_state_success.png"))
 
         # Capture state 5: Error
         print("Capturing state: ERROR")
         page.evaluate('window.ButlerPet.onEvent({"event": "task_failed", "message": "警告: 触发异常错误!"})')
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(1500)
         page.screenshot(path=str(project_root / "assets/pet_state_error.png"))
 
         # Let's create a stitched HTML dashboard to present all 5 states in a single gorgeous preview image!
@@ -166,7 +166,10 @@ def generate_screenshots():
                     const run = () => {
                         try {
                             if (iframe.contentWindow && iframe.contentWindow.ButlerPet) {
-                                iframe.contentWindow.ButlerPet.onEvent({"event": event, "message": message});
+                                // Wait slightly to make sure the iframe's own initial resetToIdle has finished executing
+                                setTimeout(() => {
+                                    iframe.contentWindow.ButlerPet.onEvent({"event": event, "message": message});
+                                }, 200);
                             } else {
                                 setTimeout(run, 50);
                             }

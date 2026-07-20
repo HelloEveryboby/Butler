@@ -112,8 +112,12 @@ html, body {
     animation: ring-rotate-counter 1.5s linear infinite;
 }
 
-.state-thinking .robot-eye {
-    fill: #fbbf24;
+.state-thinking .dog-eye {
+    fill: #d97706;
+}
+
+.state-thinking .dog-tongue {
+    animation: dog-tongue-wag 0.5s ease-in-out infinite alternate;
 }
 
 /* --- STATE 3: GENERATING (STREAMING) --- */
@@ -131,12 +135,25 @@ html, body {
     animation: ring-rotate-counter 0.5s linear infinite;
 }
 
-.state-generating .robot-face {
-    stroke: #3b82f6;
+.state-generating .dog-face {
+    stroke: #2563eb;
+    fill: #3b82f6;
 }
 
-.state-generating .robot-eye {
+.state-generating .dog-ear {
+    fill: #2563eb;
+}
+
+.state-generating .dog-snout {
+    stroke: #2563eb;
+}
+
+.state-generating .dog-eye {
     animation: eye-blink 0.3s steps(2) infinite;
+}
+
+.state-generating .dog-tongue {
+    animation: dog-tongue-wag 0.2s steps(2) infinite alternate;
 }
 
 /* --- STATE 4: SUCCESS --- */
@@ -148,13 +165,21 @@ html, body {
     stroke: #10b981;
 }
 
-.state-success .robot-face {
+.state-success .dog-face {
     stroke: #10b981;
-    fill: #ecfdf5;
+    fill: #34d399;
 }
 
-.state-success .robot-eye {
+.state-success .dog-ear {
     fill: #10b981;
+}
+
+.state-success .dog-snout {
+    stroke: #10b981;
+}
+
+.state-success .dog-eye {
+    fill: #064e3b;
 }
 
 .state-success .success-tick {
@@ -170,13 +195,21 @@ html, body {
     stroke: #ef4444;
 }
 
-.state-error .robot-face {
+.state-error .dog-face {
     stroke: #ef4444;
-    fill: #fef2f2;
+    fill: #f87171;
 }
 
-.state-error .robot-eye {
+.state-error .dog-ear {
     fill: #ef4444;
+}
+
+.state-error .dog-snout {
+    stroke: #ef4444;
+}
+
+.state-error .dog-eye {
+    fill: #7f1d1d;
 }
 
 .state-error .error-cross {
@@ -226,6 +259,11 @@ html, body {
 }
 
 @keyframes eye-blink {
-    0%, 100% { fill: #60a5fa; }
+    0%, 100% { fill: #1e293b; }
     50% { fill: transparent; }
+}
+
+@keyframes dog-tongue-wag {
+    0% { transform: scaleY(1); transform-origin: 32px 35px; }
+    100% { transform: scaleY(1.5); transform-origin: 32px 35px; }
 }
