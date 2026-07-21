@@ -563,6 +563,25 @@ window.updateFontSize = (val) => {
     window.showToast("字体大小", `系统基本字号已调整为 ${val}。`, "success");
 };
 
+// Launch Desktop Pixel Pet Widget
+window.launchPixelPet = async () => {
+    try {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.call_skill) {
+            const res = await window.pywebview.api.call_skill("pixel_pet", "launch");
+            if (res && res.status === "success") {
+                window.showToast("电子宠物", "桌面电子小狗已成功启动！快去桌面右下角看看吧 🐾", "success");
+            } else {
+                window.showToast("电子宠物", "启动电子宠物失败：" + (res ? res.message : "未知错误"), "error");
+            }
+        } else {
+            // Standalone mode fallback
+            window.showToast("电子宠物", "当前处于浏览器预览模式，无法运行本地桌面小部件。请在 Butler 桌面客户端中启动 🐾", "warning");
+        }
+    } catch (e) {
+        window.showToast("电子宠物", "启动失败：" + e.message, "error");
+    }
+};
+
 // Toggle Heatmap background
 window.toggleHeatmapAnimation = () => {
     const toggle = document.getElementById('setting-heatmap-toggle');

@@ -1,0 +1,425 @@
+/* ================================================================
+   1. 基础重置 & 页面透明设置 (Alpha Transparency)
+   ================================================================ */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background-color: transparent !important;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: 'Press Start 2P', monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ================================================================
+   2. 挂件模式 (Widget Mode) 极其精简无遮挡样式
+   ================================================================ */
+body.mode-widget {
+  background: transparent !important;
+}
+
+body.mode-widget.standalone {
+  background: radial-gradient(circle, #1a1a2e 0%, #0f0c29 100%) !important;
+}
+
+/* 挂件模式下隐藏一切多余元素 */
+body.mode-widget .title,
+body.mode-widget .status,
+body.mode-widget .traits-panel,
+body.mode-widget .controls,
+body.mode-widget .mood-label,
+body.mode-widget .mood-row,
+body.mode-widget .event-bus,
+body.mode-widget .shadow-ellipse,
+body.mode-widget .bg-star {
+  display: none !important;
+}
+
+/* 挂件模式下的卡片：完全透明且无边框阴影 */
+body.mode-widget .card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+/* 挂件模式下的画布包装：缩放、可拖拽区域并微调位置 */
+body.mode-widget .canvas-wrap {
+  transform: scale(0.24) !important;
+  transform-origin: bottom center;
+  cursor: grab;
+  -webkit-app-region: drag; /* 支持桌面应用无缝原生拖拽 */
+  margin-top: 15px;
+}
+
+body.mode-widget .canvas-wrap:active {
+  cursor: grabbing;
+}
+
+/* ================================================================
+   3. 展开卡片模式 (Panel Mode) 极致华美星空玻璃拟态
+   ================================================================ */
+body.mode-panel {
+  background: linear-gradient(135deg, #0f0c29 0%, #1a1a2e 40%, #24243e 100%) !important;
+}
+
+.scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 320px;
+  padding: 10px;
+}
+
+.title {
+  color: #F5C6A5;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-shadow: 0 0 24px rgba(245,198,165,0.35);
+  margin-top: 10px;
+}
+
+.card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 16px 20px 12px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  width: 100%;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  -webkit-app-region: drag; /* 支持卡片整体拖动 */
+}
+
+/* 控件和内容区域不响应拖动，支持正常操作 */
+.controls, .mood-row, .traits-panel, input, button {
+  -webkit-app-region: no-drag;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 48px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+.canvas-wrap {
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.25s ease;
+  will-change: transform;
+}
+
+.canvas-wrap:hover {
+  transform: translateY(-2px);
+}
+
+.canvas-wrap.breathe {
+  animation: breathe 2.8s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  -ms-interpolation-mode: nearest-neighbor;
+}
+
+.shadow-ellipse {
+  width: 110px;
+  height: 10px;
+  margin: 6px auto 0;
+  background: radial-gradient(ellipse, rgba(0,0,0,0.22) 0%, transparent 72%);
+  border-radius: 50%;
+  animation: pulse-shadow 3s ease-in-out infinite;
+}
+
+@keyframes pulse-shadow {
+  0%,100% { transform: scaleX(1); opacity: 0.6; }
+  50% { transform: scaleX(0.88); opacity: 0.35; }
+}
+
+.status {
+  color: rgba(255,255,255,0.45);
+  font-size: 8px;
+  text-align: center;
+  min-height: 14px;
+  letter-spacing: 0.5px;
+  transition: color 0.3s;
+}
+
+/* ================================================================
+   4. 玻璃拟态对话气泡 (Dialogue Bubble)
+   ================================================================ */
+.glass-dialog {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 6px 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  color: #F5C6A5;
+  font-size: 7px;
+  text-align: center;
+  white-space: normal;
+  width: 84px;
+  box-sizing: border-box;
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto; /* 挂件状态下点击对话框也能展开 */
+  cursor: pointer;
+  word-break: break-all;
+  line-height: 1.3;
+  z-index: 999;
+}
+
+.glass-dialog.show {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+/* ================================================================
+   5. 资质与属性面板
+   ================================================================ */
+.traits-panel {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 10px 14px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.traits-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.rarity-badge {
+  font-size: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+}
+
+.rarity-N  { background: rgba(180,180,180,0.2); color: #b0b0b0; }
+.rarity-R  { background: rgba(100,200,255,0.18); color: #64c8ff; }
+.rarity-SR { background: rgba(180,100,255,0.18); color: #b464ff; }
+.rarity-SSR{ background: rgba(255,200,80,0.18);  color: #ffc850; }
+
+.trait-name {
+  font-size: 8px;
+  color: rgba(245,198,165,0.75);
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.stat-label {
+  font-size: 7px;
+  color: rgba(255,255,255,0.35);
+  width: 24px;
+  text-align: right;
+}
+
+.stat-bar-bg {
+  flex: 1;
+  height: 5px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.8s ease;
+}
+
+.stat-val {
+  font-size: 7px;
+  color: rgba(255,255,255,0.45);
+  width: 20px;
+  text-align: left;
+}
+
+/* ================================================================
+   6. 交互控制按钮 & 调色滑动条
+   ================================================================ */
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ctrl-label {
+  color: rgba(255,255,255,0.35);
+  font-size: 7px;
+}
+
+.btn {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.6);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.btn:hover {
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+  border-color: rgba(255,255,255,0.25);
+}
+
+.btn:active {
+  transform: scale(0.95);
+}
+
+.btn.on {
+  background: rgba(245,198,165,0.18);
+  border-color: rgba(245,198,165,0.45);
+  color: #F5C6A5;
+}
+
+.btn.mood-btn {
+  font-size: 6px;
+  padding: 5px 8px;
+  min-width: 44px;
+}
+
+.btn.mood-btn.on {
+  background: rgba(245,198,165,0.22);
+  border-color: rgba(245,198,165,0.5);
+  color: #F5C6A5;
+}
+
+.mood-label {
+  color: rgba(255,255,255,0.28);
+  font-size: 7px;
+  text-align: center;
+  width: 100%;
+  margin-bottom: -6px;
+}
+
+.mood-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 60px;
+  height: 3px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  background: #F5C6A5;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* ================================================================
+   7. 星空背景与粒子系统
+   ================================================================ */
+.bg-star {
+  position: fixed;
+  width: 2px;
+  height: 2px;
+  background: rgba(255,255,255,0.35);
+  border-radius: 50%;
+  animation: twinkle var(--dur) ease-in-out infinite alternate;
+  z-index: -1;
+}
+
+@keyframes twinkle {
+  0% { opacity: 0.15; transform: scale(1); }
+  100% { opacity: 1; transform: scale(1.6); }
+}
+
+.particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.heart {
+  position: absolute;
+  font-size: 14px;
+  animation: float-heart 1.3s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes float-heart {
+  0%   { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+  40%  { opacity: 0.9; transform: translateY(-35px) scale(1.15) rotate(-10deg); }
+  100% { opacity: 0; transform: translateY(-75px) scale(0.5) rotate(12deg); }
+}
+
+.event-bus {
+  color: rgba(255,255,255,0.15);
+  font-size: 6px;
+  text-align: center;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+  font-family: monospace;
+}
