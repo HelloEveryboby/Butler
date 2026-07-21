@@ -69,11 +69,31 @@ Butler UI 3.0 彻底颠覆了传统的单维网页导航，引入了 **$2 \times
 > **💡 完全隔离，解压即用：**
 > Butler 支持完全便携模式。只需运行 `./install.sh`，系统会自动将所有第三方重度依赖（包括 Python 环境、科学计算、音频处理库等）隔离安装至项目文件夹内的 `lib_external/` 目录，不往您的系统全局环境中拉取任何库。解压即用，删文件夹即完美卸载。
 
-### 快速启动
+### 一键极速部署（推荐，支持完全静默安装与环境隔离）
+
+只需在终端输入一行指令，即可全自动完成依赖自检、Python 沙箱隔离构建、极速 `uv` 包管理器搭建、及 CLI 快捷指令注册：
+
+* **Linux / macOS**:
+  ```bash
+  curl -fsSL https://get.butler.agent/install.sh | bash
+  ```
+  *(注：如需在部署时直接无感注入 API 密钥，可在前面追加环境变量，如：`DEEPSEEK_API_KEY="sk-xxx" curl -fsSL https://... | bash`)*
+
+* **Windows (PowerShell)**:
+  ```powershell
+  irm https://get.butler.agent/install.ps1 | iex
+  ```
+  *(注：Windows 同样支持链式预注密钥：`$env:DEEPSEEK_API_KEY="sk-xxx"; iex (irm https://get.butler.agent/install.ps1)`)*
+
+部署完成后，在任意新终端窗口直接运行 **`butler doctor`** 即可对系统执行体检，或者通过 **`butler start`** 拉起数字员工！
+
+---
+
+### 手动快速启动（经典模式）
 
 1. **克隆仓库：**
    ```bash
-   git clone https://github.com/PAYDAY3/Butler.git
+   git clone https://github.com/HelloEveryboby/Butler.git
    cd Butler
    ```
 

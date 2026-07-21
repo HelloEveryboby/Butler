@@ -1,6 +1,34 @@
 # Butler (Jarvis) Deployment Guide
 
-This comprehensive guide provides all the necessary steps to set up, configure, and run the Butler (formerly Jarvis) voice assistant application from the source code.
+This comprehensive guide provides all the necessary steps to set up, configure, and run the Butler (formerly Jarvis) voice assistant application.
+
+## 🚀 One-Command Automatic Deployment (Recommended)
+
+Butler supports fully-automated, sandboxed, and environment-isolated one-command deployment. It automatically provisions a sandbox, downloads the ultra-fast `uv` package manager, checkouts upstream source, initializes the Python virtualenv, and registers a system-wide `butler` CLI command.
+
+### Linux / macOS
+```bash
+curl -fsSL https://get.butler.agent/install.sh | bash
+```
+To bootstrap with your DeepSeek API Key directly:
+```bash
+DEEPSEEK_API_KEY="sk-xxx" curl -fsSL https://get.butler.agent/install.sh | bash
+```
+
+### Windows (PowerShell)
+```powershell
+irm https://get.butler.agent/install.ps1 | iex
+```
+To bootstrap with your DeepSeek API Key directly:
+```powershell
+$env:DEEPSEEK_API_KEY="sk-xxx"; iex (irm https://get.butler.agent/install.ps1)
+```
+
+Once installed, simply open a new terminal and run **`butler doctor`** for health checks, or **`butler start`** to start the runtime server.
+
+---
+
+## 🛠️ Traditional Manual Deployment Steps
 
 ## 1. Project Analysis
 
