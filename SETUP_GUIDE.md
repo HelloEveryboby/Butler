@@ -1,6 +1,26 @@
-# Butler 一键启动指南
+# Butler 一键启动与极速部署指南
 
-## 快速开始
+## 🚀 极速一键命令部署 (强烈推荐)
+
+Butler 已支持纯静默、环境隔离的一键自动化部署，全自动配置 Python 独立虚拟环境与 CLI 快捷指令：
+
+### Linux / macOS
+```bash
+curl -fsSL https://get.butler.agent/install.sh | bash
+```
+
+### Windows (PowerShell)
+```powershell
+irm https://get.butler.agent/install.ps1 | iex
+```
+
+> **提示**：部署完成后，开启新命令行终端直接运行 **`butler`** 系列命令（例如：`butler doctor` 自检，`butler start` 启动服务）即可。
+
+---
+
+## 🛠️ 传统手动克隆启动流程
+
+如果您已经手动克隆了仓库代码，可以通过以下本地设置脚本完成初始化引导：
 
 ### Windows
 ```bash

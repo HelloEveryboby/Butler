@@ -1,6 +1,36 @@
 # Butler (Jarvis) 部署指南
 
-本指南提供了从源代码设置和运行 Butler（原名 Jarvis）语音助手应用程序的说明。该项目有多个复杂的依赖项，请务必仔细按照步骤操作。
+本指南提供了设置和运行 Butler 语音助手/数字员工应用程序的说明。
+
+## 🚀 极速一键部署 (推荐)
+
+Butler 现已支持全自动、环境隔离的一键部署。通过在终端中输入单行命令，安装脚本会自动为您配置专属沙箱、引导超高速依赖包管理器 `uv`、拉取最新仓库代码、配置虚拟环境并注册全局 CLI 指令 `butler`。
+
+### Linux / macOS
+```bash
+curl -fsSL https://get.butler.agent/install.sh | bash
+```
+若希望在部署时直接写入 DeepSeek 密钥，可使用链式命令：
+```bash
+DEEPSEEK_API_KEY="您的密钥" curl -fsSL https://get.butler.agent/install.sh | bash
+```
+
+### Windows (PowerShell)
+```powershell
+irm https://get.butler.agent/install.ps1 | iex
+```
+若希望在部署时直接写入 DeepSeek 密钥，可使用链式命令：
+```powershell
+$env:DEEPSEEK_API_KEY="您的密钥"; iex (irm https://get.butler.agent/install.ps1)
+```
+
+部署完成后，重启或刷新终端窗口，在任意路径运行 **`butler doctor`** 即可执行系统诊断，或运行 **`butler start`** 运行核心 API 运行时服务。
+
+---
+
+## 🛠️ 传统手动部署步骤
+
+如果您希望自定义手动设置，可以参考以下传统流程。
 
 ## 1. 前置条件
 
