@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>像素电子宠物 (Pixel Pet)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="mode-widget">
+  <!-- Glassmorphism Floating Dialogue Bubble (Shown in Widget Mode) -->
+  <div class="glass-dialog" id="pet-dialog">Butler 正在守护你</div>
+
+  <div class="scene">
+    <div class="title">PIXEL PUPPY</div>
+
+    <div class="card">
+      <div class="canvas-wrap breathe" id="wrap">
+        <canvas id="cv"></canvas>
+        <div class="particles" id="ptcl"></div>
+      </div>
+      <div class="shadow-ellipse"></div>
+    </div>
+
+    <div class="status" id="sts">点击小狗和它互动吧</div>
+
+    <div class="traits-panel" id="traits">
+      <div class="traits-header">
+        <span class="rarity-badge rarity-N" id="rarity">N</span>
+        <span class="trait-name" id="trait">???</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">STR</span>
+        <div class="stat-bar-bg"><div class="stat-bar-fill" id="bar-str" style="width:0%; background:#ff7a7a;"></div></div>
+        <span class="stat-val" id="val-str">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">AGI</span>
+        <div class="stat-bar-bg"><div class="stat-bar-fill" id="bar-agi" style="width:0%; background:#7ad8ff;"></div></div>
+        <span class="stat-val" id="val-agi">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">LUK</span>
+        <div class="stat-bar-bg"><div class="stat-bar-fill" id="bar-luk" style="width:0%; background:#7aff9e;"></div></div>
+        <span class="stat-val" id="val-luk">0</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl-group">
+        <span class="ctrl-label">大小</span>
+        <input type="range" id="sz" min="8" max="28" value="16">
+      </div>
+      <button class="btn on" id="ba">动画: 开</button>
+      <button class="btn" id="be">保存 PNG</button>
+      <button class="btn" id="btn-collapse" style="background: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">收起挂件</button>
+    </div>
+
+    <div class="mood-label">表情切换</div>
+    <div class="mood-row">
+      <button class="btn mood-btn" data-mood="happy">开心</button>
+      <button class="btn mood-btn" data-mood="sad">难过</button>
+      <button class="btn mood-btn" data-mood="angry">生气</button>
+      <button class="btn mood-btn" data-mood="sleepy">困了</button>
+      <button class="btn mood-btn" data-mood="love">喜欢</button>
+    </div>
+
+    <div class="event-bus">[EVENT BUS: CLICK -> PET_INTERACTION]</div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
