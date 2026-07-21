@@ -1,18 +1,24 @@
 import asyncio
-import hmac
 import hashlib
+import hmac
 import json
 import logging
 import threading
 import time
 import uuid
-import websockets
-from typing import Dict, Any, Optional, List, Callable, Tuple
+
+try:
+    import websockets
+except ImportError:
+    websockets = None
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 
 class RunnerInfo:
     """
     用于追踪已连接 Runner 状态的数据类
     """
+
     def __init__(self, runner_id: str, websocket, ip: str, env_info: Dict[str, Any] = None):
         self.runner_id = runner_id
         self.websocket = websocket
@@ -28,29 +34,31 @@ class RunnerInfo:
             "connected_at": self.connected_at,
             "last_seen": self.last_seen,
             "alive_seconds": int(time.time() - self.connected_at),
-            "env_info": self.env_info
+            "env_info": self.env_info,
         }
+
 
 class RunnerServer:
     """
     WebSocket server for managing remote Butler-Runner nodes.
     By default, it binds to 127.0.0.1 for security.
     """
+
     def __init__(self, host: str = "127.0.0.1", port: int = 8000, token: str = None):
         self.host = host
         self.port = port
         self.token = token
         self.logger = logging.getLogger("RunnerServer")
-        
+
         # 核心数据结构重构：存储 RunnerInfo 实例
         self.runners: Dict[str, RunnerInfo] = {}
-        
+
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._server_thread: Optional[threading.Thread] = None
         self._event_callbacks: List[Callable[[str, Dict[str, Any]], None]] = []
         self._pending_requests: Dict[str, asyncio.Future] = {}
         self._request_counts = {}
-        
+
         # 心跳超时时间 (单位: 秒)，默认60秒
         self.heartbeat_timeout = 60.0
 
@@ -79,12 +87,8 @@ class RunnerServer:
             payload_str = str(payload_data)
 
         # 结合关键字段防篡改
-        msg_sig_source = f"{data.get('type','')}:{data.get('request_id','')}:{payload_str}"
-        return hmac.new(
-            token.encode("utf-8"),
-            msg_sig_source.encode("utf-8"),
-            hashlib.sha256
-        ).hexdigest()
+        msg_sig_source = f"{data.get('type', '')}:{data.get('request_id', '')}:{payload_str}"
+        return hmac.new(token.encode("utf-8"), msg_sig_source.encode("utf-8"), hashlib.sha256).hexdigest()
 
     def _verify_signature(self, data: Dict[str, Any], received_sig: str, token: str) -> bool:
         """使用恒定时间比较防止时序攻击[cite: 1]"""
@@ -105,7 +109,7 @@ class RunnerServer:
         try:
             async for message in websocket:
                 now = time.time()
-                
+
                 # 滑动窗口限流 (1s)
                 self._request_counts[ip] = [t for t in self._request_counts.get(ip, []) if now - t < 1.0]
                 if len(self._request_counts[ip]) > 50:
@@ -125,6 +129,7 @@ class RunnerServer:
 
                 # 获取最新 Token (SecretVault 优先)
                 from butler.core.secret_vault import secret_vault
+
                 try:
                     expected_token = secret_vault.get_secret("runner_token") or self.token
                 except Exception:
@@ -132,7 +137,9 @@ class RunnerServer:
 
                 # 1. 拦截不安全的弱密钥配置
                 if not self._verify_token_strength(expected_token):
-                    self.logger.error("RunnerServer blocked access: Token is missing, under 16 chars, or insecure![cite: 1]")
+                    self.logger.error(
+                        "RunnerServer blocked access: Token is missing, under 16 chars, or insecure![cite: 1]"
+                    )
                     await websocket.close(1008, "Insecure Server Token Configuration")
                     return
 
@@ -149,7 +156,7 @@ class RunnerServer:
                     env_info = data.get("data") if isinstance(data.get("data"), dict) else {}
                     self.runners[runner_id] = RunnerInfo(runner_id, websocket, ip, env_info=env_info)
                     self.logger.info(f"Runner registered: {runner_id} from {websocket.remote_address}")
-                    
+
                     # 返回注册成功消息
                     resp = {"status": "ok", "data": f"Registered as {runner_id}"}
                     # 将响应签名发回 Go 端（可选，增强 Go 端对服务端的信任）
@@ -165,8 +172,11 @@ class RunnerServer:
                 req_id = data.get("request_id")
                 if req_id and req_id in self._pending_requests:
                     self._loop.call_soon_threadsafe(
-                        lambda r_id=req_id, d=data: self._pending_requests[r_id].set_result(d)
-                        if r_id in self._pending_requests and not self._pending_requests[r_id].done() else None
+                        lambda r_id=req_id, d=data: (
+                            self._pending_requests[r_id].set_result(d)
+                            if r_id in self._pending_requests and not self._pending_requests[r_id].done()
+                            else None
+                        )
                     )
 
                 # 5. 事件回调分发
@@ -176,8 +186,11 @@ class RunnerServer:
                     except Exception as e:
                         self.logger.error(f"Error in event callback: {e}")
 
-        except websockets.ConnectionClosed:
-            self.logger.info(f"Runner disconnected: {runner_id}")
+        except Exception as e:
+            if websockets is not None and isinstance(e, websockets.ConnectionClosed):
+                self.logger.info(f"Runner disconnected: {runner_id}")
+            else:
+                self.logger.error(f"Error in runner connection handler: {e}")
         finally:
             if runner_id in self.runners:
                 del self.runners[runner_id]
@@ -202,10 +215,11 @@ class RunnerServer:
 
     async def _broadcast_metrics_coro(self, stats: Dict[str, Any]):
         """Internal coroutine for broadcasting metrics with signatures."""
-        if not self.runners: 
+        if not self.runners:
             return
-            
+
         from butler.core.secret_vault import secret_vault
+
         try:
             expected_token = secret_vault.get_secret("runner_token") or self.token
         except Exception:
@@ -222,7 +236,7 @@ class RunnerServer:
     def broadcast_metrics(self, stats: Dict[str, Any]):
         """Thread-safe way to broadcast metrics to all connected clients."""
         cpu = stats.get("cpu", 0)
-        if cpu > 90 and time.time() % 2 < 1: # 50% frame skip in red zone
+        if cpu > 90 and time.time() % 2 < 1:  # 50% frame skip in red zone
             return
 
         if self._loop and self.runners:
@@ -231,14 +245,20 @@ class RunnerServer:
     def start(self):
         """Starts the server in a background thread."""
         if not self._verify_token_strength(self.token):
-             self.logger.error("RunnerServer cannot start: Provided initialization token is too weak or missing.[cite: 1]")
-             return
+            self.logger.error(
+                "RunnerServer cannot start: Provided initialization token is too weak or missing.[cite: 1]"
+            )
+            return
 
         self._server_thread = threading.Thread(target=self._run_server, daemon=True)
         self._server_thread.start()
         self.logger.info(f"RunnerServer starting on {self.host}:{self.port}")
 
     def _run_server(self):
+        if websockets is None:
+            self.logger.error("RunnerServer cannot start: 'websockets' package is not installed.")
+            return
+
         async def main():
             self._loop = asyncio.get_running_loop()
 
@@ -247,6 +267,7 @@ class RunnerServer:
 
             # Setup SSL/TLS context for secure WSS connection[cite: 1]
             import ssl
+
             from butler.core.sec_utils.certs import generate_self_signed_cert
 
             ssl_context = None
@@ -263,7 +284,7 @@ class RunnerServer:
                 self.host,
                 self.port,
                 ssl=ssl_context,
-                max_size=2 * 1024 * 1024 # 2MB limit
+                max_size=2 * 1024 * 1024,  # 2MB limit
             ):
                 await asyncio.Future()  # run forever
 
@@ -272,13 +293,15 @@ class RunnerServer:
         except Exception as e:
             self.logger.error(f"RunnerServer loop crash: {e}")
 
-    def send_command(self, runner_id: str, cmd_type: str, payload: str, skill_config: dict = None, request_id: str = None) -> Tuple[bool, str]:
+    def send_command(
+        self, runner_id: str, cmd_type: str, payload: str, skill_config: dict = None, request_id: str = None
+    ) -> Tuple[bool, str]:
         """Sends a command to a specific runner with automatic signature generation[cite: 1]."""
         if runner_id not in self.runners:
             return False, f"Runner {runner_id} not connected"
 
         websocket = self.runners[runner_id].websocket
-        
+
         # 准备下发的数据结构（不再下发敏感明文 Token，改发 HMAC sig）[cite: 1]
         msg = {
             "type": cmd_type,
@@ -291,6 +314,7 @@ class RunnerServer:
 
         # 动态获取 Token 并为命令计算签名[cite: 1]
         from butler.core.secret_vault import secret_vault
+
         try:
             expected_token = secret_vault.get_secret("runner_token") or self.token
         except Exception:
@@ -305,7 +329,9 @@ class RunnerServer:
         except Exception as e:
             return False, str(e)
 
-    async def send_command_async(self, runner_id: str, cmd_type: str, payload: str, request_id: str = None, timeout: float = 30.0) -> Dict[str, Any]:
+    async def send_command_async(
+        self, runner_id: str, cmd_type: str, payload: str, request_id: str = None, timeout: float = 30.0
+    ) -> Dict[str, Any]:
         """Asynchronously sends a command and waits for a response containing the same request_id."""
         if runner_id not in self.runners:
             return {"status": "fail", "error": f"Runner {runner_id} not connected"}
@@ -314,14 +340,11 @@ class RunnerServer:
             request_id = uuid.uuid4().hex
 
         websocket = self.runners[runner_id].websocket
-        msg = {
-            "type": cmd_type,
-            "payload": payload,
-            "request_id": request_id
-        }
+        msg = {"type": cmd_type, "payload": payload, "request_id": request_id}
 
         # 计算并填充签名[cite: 1]
         from butler.core.secret_vault import secret_vault
+
         try:
             expected_token = secret_vault.get_secret("runner_token") or self.token
         except Exception:
@@ -350,8 +373,7 @@ class RunnerServer:
 
         request_id = uuid.uuid4().hex
         future = asyncio.run_coroutine_threadsafe(
-            self.send_command_async(runner_id, cmd_type, payload, request_id, timeout),
-            self._loop
+            self.send_command_async(runner_id, cmd_type, payload, request_id, timeout), self._loop
         )
         try:
             return future.result(timeout=timeout + 1.0)
@@ -380,6 +402,7 @@ class RunnerServer:
         服务端健康度及状态自检[cite: 1]
         """
         from butler.core.secret_vault import secret_vault
+
         try:
             current_token = secret_vault.get_secret("runner_token") or self.token
         except Exception:
@@ -389,11 +412,13 @@ class RunnerServer:
             "server_running": self._loop is not None and self._loop.is_running(),
             "registered_runners_count": len(self.runners),
             "token_configured": current_token is not None,
-            "token_secure": self._verify_token_strength(current_token)
+            "token_secure": self._verify_token_strength(current_token),
         }
+
 
 # v2 废弃初始化即实例化的不安全做法，提供延迟初始化方法[cite: 1]
 _global_server: Optional[RunnerServer] = None
+
 
 def init_runner_server(host: str = "127.0.0.1", port: int = 8000, token: str = None) -> RunnerServer:
     """初始化并配置全局 RunnerServer 实例[cite: 1]"""
@@ -401,9 +426,11 @@ def init_runner_server(host: str = "127.0.0.1", port: int = 8000, token: str = N
     _global_server = RunnerServer(host=host, port=port, token=token)
     return _global_server
 
+
 def get_runner_server() -> Optional[RunnerServer]:
     """获取全局配置的 RunnerServer 实例[cite: 1]"""
     return _global_server
+
 
 class RunnerServerProxy:
     """
@@ -412,6 +439,7 @@ class RunnerServerProxy:
     no-op defaults otherwise. This preserves full backward compatibility
     for direct imports.
     """
+
     def __getattr__(self, name: str):
         global _global_server
         if _global_server is not None:
@@ -427,6 +455,8 @@ class RunnerServerProxy:
             elif name == "health_check":
                 return {"server_running": False}
             return None
+
         return dummy
+
 
 runner_server = RunnerServerProxy()

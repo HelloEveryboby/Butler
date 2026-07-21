@@ -20,7 +20,7 @@
 
     所以过去几个月，我死磕了 Python 异步协程与底层高性能多语言二进制的混合调用，在本地打造了一个完全属于我自己的、带 **Glassmorphism 玻璃拟态 Web UI** 的智能数字生命：**Butler (Jarvis)**。
 
-    🤵 **项目地址**：https://github.com/PAYDAY3/Butler
+    🤵 **项目地址**：https://github.com/HelloEveryboby/Butler
     ⭐ 如果它击中了你的爽点，欢迎顺手点个 Star，支持一下独立开源创作者！
 
     ---
@@ -59,12 +59,12 @@
 
     ### 🛠️ 快速上手
     只要在 `.env` 中填入一个 `DEEPSEEK_API_KEY` 即可跑通所有核心能力：
-    1. `git clone https://github.com/PAYDAY3/Butler.git`
+    1. `git clone https://github.com/HelloEveryboby/Butler.git`
     2. 双击运行 `run_modern.sh` (Mac/Linux) 或双击对应快捷脚本 (Windows)。
 
     项目文档极其规范（包含 37+ 种内置 Skills），并附带有详尽的开发与技术内参。期待大家的测试与吐槽，非常欢迎各位极客、工程师一起提交 PR，共同构筑真正的本地化个人管家！
 
-    项目地址 👉 https://github.com/PAYDAY3/Butler
+    项目地址 👉 https://github.com/HelloEveryboby/Butler
     ```
 
 ---
@@ -130,5 +130,5 @@
 ### 2. 回复策略：
 1.  **解答核心问题**：给出具体的思路（例如：利用 SQLite FTS5 / 使用嵌入式 C++ Bindings / 隔离 site-packages 文件夹到 `lib_external` 等）。
 2.  **顺理成章推荐**：
-    *   “我在开发我的开源智能管家 **Butler** 时遇到了极其类似的问题。我们的解决方式是将依赖装在本地 `lib_external/`，在没有向量库时自动降级到 SQLite 虚拟表 FTS5，用 STDIN 的二进制 TLV 传输。代码都是开源且结构清晰的，你可以在这里参考我们的解决方案：https://github.com/PAYDAY3/Butler 。希望能给你提供灵感！”
+    *   “我在开发我的开源智能管家 **Butler** 时遇到了极其类似的问题。我们的解决方式是将依赖装在本地 `lib_external/`，在没有向量库时自动降级到 SQLite 虚拟表 FTS5，用 STDIN 的二进制 TLV 传输。代码都是开源且结构清晰的，你可以在这里参考我们的解决方案：https://github.com/HelloEveryboby/Butler 。希望能给你提供灵感！”
 3.  这种不带攻击性、高含金量的回复能让讨论区的极客用户好感度拉满，从而迅速导流。

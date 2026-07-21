@@ -84,7 +84,7 @@ def check_for_updates(server_url: str = None):
     目前实现为模板逻辑，返回是否需要更新。
     """
     if server_url is None:
-        server_url = config_loader.get("update_source.api_latest_release", "https://api.github.com/repos/PAYDAY3/Butler/releases/latest")
+        server_url = config_loader.get("update_source.api_latest_release", "https://api.github.com/repos/HelloEveryboby/Butler/releases/latest")
 
     logger.info(f"正在检查更新: {server_url}...")
     # 模拟逻辑：假设本地版本存放在 .version 文件中

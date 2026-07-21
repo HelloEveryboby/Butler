@@ -1,6 +1,6 @@
-import re
-import os
 import logging
+import os
+import re
 
 logger = logging.getLogger("ReverseConverters")
 
@@ -16,6 +16,7 @@ def _try_markitdown(file_path_or_bytes, suffix=".docx"):
     temp_path = None
     if isinstance(file_path_or_bytes, bytes):
         import tempfile
+
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
             tmp.write(file_path_or_bytes)
             temp_path = tmp.name
@@ -27,6 +28,7 @@ def _try_markitdown(file_path_or_bytes, suffix=".docx"):
         # Strategy A: Microsoft's official markitdown package
         try:
             from markitdown import MarkItDown
+
             mid = MarkItDown()
             result = mid.convert(file_path)
             return result.text_content
@@ -37,11 +39,13 @@ def _try_markitdown(file_path_or_bytes, suffix=".docx"):
         try:
             # Add project root to path for absolute imports if needed
             import sys
+
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
             if project_root not in sys.path:
                 sys.path.insert(0, project_root)
 
             from skills.markitdown.markitdown_app import convert as butler_convert
+
             return butler_convert(file_path)
         except Exception as e:
             logger.info(f"Butler internal markitdown conversion skipped: {e}")
@@ -60,13 +64,14 @@ def html_to_markdown(html_text):
     Converts HTML back to clean Markdown format.
     """
     # Try markitdown first
-    mid_res = _try_markitdown(html_text.encode('utf-8'), suffix=".html")
+    mid_res = _try_markitdown(html_text.encode("utf-8"), suffix=".html")
     if mid_res:
         return mid_res
 
     # Strategy C: markdownify
     try:
         from markdownify import markdownify as md
+
         return md(html_text)
     except ImportError:
         logger.info("markdownify not installed. Running high-strength HTML to Markdown fallback regex parser.")
@@ -74,31 +79,33 @@ def html_to_markdown(html_text):
         text = html_text
 
         # Strip head, scripts, styling metadata
-        text = re.sub(r'<(style|script|head)\b[^>]*>([\s\S]*?)<\/\1>', '', text, flags=re.IGNORECASE)
+        text = re.sub(r"<(style|script|head)\b[^>]*>([\s\S]*?)<\/\1>", "", text, flags=re.IGNORECASE)
 
         # Headings mapping
-        text = re.sub(r'<h1\b[^>]*>(.*?)</h1>', r'# \1\n\n', text, flags=re.IGNORECASE)
-        text = re.sub(r'<h2\b[^>]*>(.*?)</h2>', r'## \1\n\n', text, flags=re.IGNORECASE)
-        text = re.sub(r'<h3\b[^>]*>(.*?)</h3>', r'### \1\n\n', text, flags=re.IGNORECASE)
+        text = re.sub(r"<h1\b[^>]*>(.*?)</h1>", r"# \1\n\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"<h2\b[^>]*>(.*?)</h2>", r"## \1\n\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"<h3\b[^>]*>(.*?)</h3>", r"### \1\n\n", text, flags=re.IGNORECASE)
 
         # Lists mapping
-        text = re.sub(r'<li\b[^>]*>(.*?)</li>', r'- \1\n', text, flags=re.IGNORECASE)
-        text = re.sub(r'</?(ul|ol)>', r'\n', text, flags=re.IGNORECASE)
+        text = re.sub(r"<li\b[^>]*>(.*?)</li>", r"- \1\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"</?(ul|ol)>", r"\n", text, flags=re.IGNORECASE)
 
         # Code blocks mapping
-        text = re.sub(r'<pre\b[^>]*><code\b[^>]*>([\s\S]*?)</code></pre>', r'```\n\1\n```\n\n', text, flags=re.IGNORECASE)
-        text = re.sub(r'<code\b[^>]*>(.*?)</code>', r'`\1`', text, flags=re.IGNORECASE)
+        text = re.sub(
+            r"<pre\b[^>]*><code\b[^>]*>([\s\S]*?)</code></pre>", r"```\n\1\n```\n\n", text, flags=re.IGNORECASE
+        )
+        text = re.sub(r"<code\b[^>]*>(.*?)</code>", r"`\1`", text, flags=re.IGNORECASE)
 
         # Bold & Italic mapping
-        text = re.sub(r'<(strong|b)\b[^>]*>(.*?)</\1>', r'**\2**', text, flags=re.IGNORECASE)
-        text = re.sub(r'<(em|i)\b[^>]*>(.*?)</\1>', r'*\2*', text, flags=re.IGNORECASE)
+        text = re.sub(r"<(strong|b)\b[^>]*>(.*?)</\1>", r"**\2**", text, flags=re.IGNORECASE)
+        text = re.sub(r"<(em|i)\b[^>]*>(.*?)</\1>", r"*\2*", text, flags=re.IGNORECASE)
 
         # Paragraphs & line breaks
-        text = re.sub(r'<p\b[^>]*>(.*?)</p>', r'\1\n\n', text, flags=re.IGNORECASE)
-        text = re.sub(r'<br\s*/?>', r'\n', text, flags=re.IGNORECASE)
+        text = re.sub(r"<p\b[^>]*>(.*?)</p>", r"\1\n\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"<br\s*/?>", r"\n", text, flags=re.IGNORECASE)
 
         # Strip remaining HTML tags
-        text = re.sub(r'<[^>]+>', '', text)
+        text = re.sub(r"<[^>]+>", "", text)
 
         # Decode standard entities
         text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"')
@@ -123,6 +130,7 @@ def docx_to_markdown(docx_path_or_bytes):
     # Load from path or bytes stream
     if isinstance(docx_path_or_bytes, bytes):
         import io
+
         doc = Document(io.BytesIO(docx_path_or_bytes))
     else:
         doc = Document(docx_path_or_bytes)
@@ -177,16 +185,14 @@ def pdf_to_markdown(pdf_path_or_bytes):
     if mid_res:
         return mid_res
 
-    # Try pypdf / pdfplumber
+    # Try pypdf
     try:
         from pypdf import PdfReader
     except ImportError:
-        try:
-            from PyPDF2 import PdfReader
-        except ImportError:
-            raise ImportError("pypdf or PyPDF2 is required for reverse PDF -> MD conversion.")
+        raise ImportError("pypdf is required for reverse PDF -> MD conversion.")
 
     import io
+
     if isinstance(pdf_path_or_bytes, bytes):
         reader = PdfReader(io.BytesIO(pdf_path_or_bytes))
     else:
