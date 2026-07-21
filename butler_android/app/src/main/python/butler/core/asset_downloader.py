@@ -20,7 +20,7 @@ def download_essential_assets():
 
     logger.info("Checking for essential assets...")
 
-    base_url = config_loader.get("update_source.assets_base_url", "https://raw.githubusercontent.com/PAYDAY3/Butler/main/data/external_flash/")
+    base_url = config_loader.get("update_source.assets_base_url", "https://raw.githubusercontent.com/HelloEveryboby/Butler/main/data/external_flash/")
 
     for rel_path in ESSENTIAL_ASSETS:
         url = base_url + rel_path

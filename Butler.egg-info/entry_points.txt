@@ -1,0 +1,2 @@
+[console_scripts]
+butler = butler.butler_app:main

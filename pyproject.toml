@@ -1,0 +1,208 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Butler"
+version = "2.0.0"
+description = "一种基于Python的高级智能助手系统"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "PAYDAY3", email = "error123456ew@outlook.com"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Home Automation",
+    "Topic :: Multimedia :: Sound/Audio :: Speech"
+]
+dependencies = [
+    # default install includes core + office + llm
+    "Flask",
+    "requests>=2.32.0",
+    "python-dotenv",
+    "PyYAML",
+    "psutil",
+    "watchdog",
+    "schedule",
+    "tabulate",
+    "tqdm",
+    "chardet",
+    "beautifulsoup4",
+    "markdownify",
+    "lxml",
+    "defusedxml",
+    "openpyxl",
+    "python-docx",
+    "python-pptx",
+    "pypdf",
+    "pdfplumber",
+    "ebooklib",
+    "rtf-converter",
+    "reportlab",
+    "openai",
+    "anthropic",
+    "deepseek",
+    "instructor"
+]
+
+[project.optional-dependencies]
+core = [
+    "Flask",
+    "requests>=2.32.0",
+    "python-dotenv",
+    "PyYAML",
+    "psutil",
+    "watchdog",
+    "schedule",
+    "tabulate",
+    "tqdm",
+    "chardet",
+    "beautifulsoup4",
+    "markdownify",
+    "lxml",
+    "defusedxml"
+]
+audio = [
+    "pyttsx3",
+    "pydub",
+    "pyaudio",
+    "sounddevice",
+    "pvrecorder",
+    "pypinyin"
+]
+vision = [
+    "opencv-python",
+    "pytesseract",
+    "Pillow",
+    "mss"
+]
+office = [
+    "openpyxl",
+    "python-docx",
+    "python-pptx",
+    "pypdf",
+    "pdfplumber",
+    "ebooklib",
+    "rtf-converter",
+    "reportlab"
+]
+llm = [
+    "openai",
+    "anthropic",
+    "deepseek",
+    "instructor"
+]
+crawler = [
+    "scrapy",
+    "selenium",
+    "webdriver-manager",
+    "twisted>=24.7.0rc1",
+    "requests-toolbelt"
+]
+ml = [
+    "scikit-learn",
+    "scipy",
+    "numpy"
+]
+redis = [
+    "redis",
+    "redisvl"
+]
+cloud = [
+    "bypy",
+    "baidu-aip"
+]
+network = [
+    "paramiko",
+    "websockets"
+]
+security = [
+    "pycryptodome"
+]
+all = [
+    "Flask",
+    "requests>=2.32.0",
+    "python-dotenv",
+    "PyYAML",
+    "psutil",
+    "watchdog",
+    "schedule",
+    "tabulate",
+    "tqdm",
+    "chardet",
+    "beautifulsoup4",
+    "markdownify",
+    "lxml",
+    "defusedxml",
+    "pyttsx3",
+    "pydub",
+    "pyaudio",
+    "sounddevice",
+    "pvrecorder",
+    "pypinyin",
+    "opencv-python",
+    "pytesseract",
+    "Pillow",
+    "mss",
+    "openpyxl",
+    "python-docx",
+    "python-pptx",
+    "pypdf",
+    "pdfplumber",
+    "ebooklib",
+    "rtf-converter",
+    "reportlab",
+    "openai",
+    "anthropic",
+    "deepseek",
+    "instructor",
+    "scrapy",
+    "selenium",
+    "webdriver-manager",
+    "twisted>=24.7.0rc1",
+    "requests-toolbelt",
+    "scikit-learn",
+    "scipy",
+    "numpy",
+    "redis",
+    "redisvl",
+    "bypy",
+    "baidu-aip",
+    "paramiko",
+    "websockets",
+    "pycryptodome"
+]
+
+[project.urls]
+Homepage = "https://github.com/HelloEveryboby/Butler"
+Documentation = "https://github.com/HelloEveryboby/Butler/wiki"
+Source = "https://github.com/HelloEveryboby/Butler"
+Tracker = "https://github.com/HelloEveryboby/Butler/issues"
+
+[project.scripts]
+butler = "butler.butler_app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["butler*", "package*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = []
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
