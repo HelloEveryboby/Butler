@@ -1,0 +1,94 @@
+# Android 同步规则
+# 定义哪些文件需要从主仓库同步到 butler_android
+
+# === Python 代码 ===
+
+[python]
+# 核心模块 (必须)
+include = [
+    "butler/core/",
+    "butler/skills/",
+    "butler/butler_app.py",
+    "package/core_utils/",
+    "package/document/",
+    "package/file_system/",
+    "package/device/hardware_manager.py",
+    "package/algorithm/",
+]
+
+# 排除 (Android 不需要)
+exclude = [
+    "**/__pycache__/",
+    "**/*.pyc",
+    "**/test_*.py",
+    "**/tests/",
+    "**/*_test.py",
+    "**/conftest.py",
+    "butler/gui/",              # Tkinter GUI (桌面专属)
+    "butler/core/hybrid_link/", # Go 混合链路 (桌面专属)
+    "package/device/usb_*.py",  # USB 设备 (桌面专属)
+    "package/device/stm32_*.py",# STM32 (桌面专属)
+    "package/custom_tools/",    # 自定义工具 (按需)
+]
+
+# 精选技能 (只同步能在 Android 上跑的)
+[skills]
+include = [
+    "skills/chat/",
+    "skills/system_info/",
+    "skills/file_manager/",
+    "skills/note/",
+    "skills/weather/",
+    "skills/search/",
+]
+exclude = [
+    "skills/*/test_*",
+    "skills/*/__pycache__/",
+]
+
+# === 前端 ===
+
+[frontend]
+# 源: Vite 构建产物
+source = "frontend/dist/"
+# 目标: Android assets
+target = "butler_android/app/src/main/assets/www/"
+
+# === Python 依赖 (裁剪版) ===
+
+[dependencies]
+# Android 上可用的 pip 包 (Chaquopy 支持)
+include = [
+    "requests>=2.31.0",
+    "pyyaml>=6.0",
+    "chardet>=5.0",
+    "beautifulsoup4",
+    "markdownify",
+    "python-dateutil",
+    "tqdm",
+]
+
+# Android 上不可用或不需要的
+exclude = [
+    "scrapy",
+    "selenium",
+    "webdriver-manager",
+    "twisted",
+    "opencv-python",
+    "pyaudio",
+    "pvrecorder",
+    "pygame",
+    "pyttsx3",
+    "tkinterdnd2",
+    "scikit-learn",
+    "scipy",
+    "torch",
+    "numpy",
+    "redis",
+    "redisvl",
+    "paramiko",
+    "pyautogui",
+    "mss",
+    "bypy",
+    "baidu-aip",
+]

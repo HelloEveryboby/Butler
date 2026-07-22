@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Butler" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/butler_blue</item>
+        <item name="colorPrimaryContainer">@color/butler_blue_light</item>
+    </style>
+
+    <color name="butler_blue">#007AFF</color>
+    <color name="butler_blue_light">#3399FF</color>
+    <color name="butler_dark">#0A0A0F</color>
+</resources>

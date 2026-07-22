@@ -1,105 +1,72 @@
+"""
+Butler Android — Python 端桥接模块
+
+由 Kotlin 通过 Chaquopy 调用。
+提供 initialize() / call_plugin() / cleanup() 三个入口。
+"""
+
 import os
 import sys
-import logging
 import json
+import logging
 import traceback
-from butler.core.skill_manager import SkillManager
 
 logger = logging.getLogger("ButlerAndroid")
 
-skill_manager = None
+# SkillManager 延迟初始化
+_skill_manager = None
+_initialized = False
 
-# Cache Java Log class globally at module-level to avoid expensive JNI lookup on hot-path stdout/stderr logging
-try:
-    from java import jclass
-    Log = jclass("android.util.Log")
-except ImportError:
-    Log = None
 
-class LogStream:
-    def __init__(self, tag, is_stderr=False):
-        self.tag = tag
-        self.is_stderr = is_stderr
-        self.buffer = ""
+def initialize(files_dir: str) -> None:
+    """初始化 Butler 技能管理器"""
+    global _skill_manager, _initialized
 
-    def write(self, message):
-        self.buffer += message
-        while "\n" in self.buffer:
-            line, self.buffer = self.buffer.split("\n", 1)
-            if line.strip():
-                if Log is not None:
-                    if self.is_stderr:
-                        Log.e(self.tag, line)
-                    else:
-                        Log.i(self.tag, line)
-                else:
-                    # Fallback if running outside Chaquopy (e.g. mock unit tests)
-                    if self.is_stderr:
-                        sys.__stderr__.write(line + "\n")
-                    else:
-                        sys.__stdout__.write(line + "\n")
+    if _initialized:
+        logger.warning("Already initialized, skipping")
+        return
 
-    def flush(self):
-        if self.buffer.strip():
-            if Log is not None:
-                if self.is_stderr:
-                    Log.e(self.tag, self.buffer)
-                else:
-                    Log.i(self.tag, self.buffer)
-            else:
-                if self.is_stderr:
-                    sys.__stderr__.write(self.buffer + "\n")
-                else:
-                    sys.__stdout__.write(self.buffer + "\n")
-            self.buffer = ""
-
-def redirect_streams():
     try:
-        sys.stdout = LogStream("Butler_Python", is_stderr=False)
-        sys.stderr = LogStream("Butler_Python", is_stderr=True)
+        # 技能目录
+        skills_path = os.path.join(files_dir, "skills")
+        os.makedirs(skills_path, exist_ok=True)
+
+        # 尝试导入 SkillManager
+        try:
+            from butler.core.skill_manager import SkillManager
+            _skill_manager = SkillManager(skills_dir=skills_path)
+            _skill_manager.load_skills()
+            logger.info(f"SkillManager loaded with skills from {skills_path}")
+        except ImportError:
+            # Butler 核心模块不可用时，使用内置简化版
+            _skill_manager = SimpleSkillManager(skills_path)
+            logger.info("Using SimpleSkillManager (butler core not available)")
+
+        _initialized = True
+
     except Exception as e:
-        logger.error(f"Failed to redirect streams: {e}")
+        logger.error(f"Initialize failed: {e}")
+        raise
 
-def initialize(files_dir=None):
-    global skill_manager
-    # Use provided files_dir or fallback to platform standard
-    if not files_dir:
-        files_dir = os.environ.get("CHAKUOPY_FILES_DIR", "/data/data/com.butler.app/files")
 
-    skills_path = os.path.join(files_dir, "skills")
-
-    logger.info(f"Initializing Butler SkillManager at {skills_path}")
-    skill_manager = SkillManager(skills_dir=skills_path)
-    skill_manager.load_skills()
-
-    # Redirect sys.stdout and sys.stderr to android Logcat under tag Butler_Python
-    redirect_streams()
-
-def call_plugin(skill_id, action, params_json):
-    if not skill_manager:
+def call_plugin(skill_id: str, action: str, params_json: str) -> str:
+    """调用技能插件"""
+    if not _initialized:
         return json.dumps({
             "status": "error",
-            "error_type": "InitializationError",
-            "message": "SkillManager not initialized",
-            "traceback": ""
+            "error_type": "NotInitialized",
+            "message": "Butler not initialized"
         })
 
     try:
-        params = json.loads(params_json)
-        # Execute skill via Chaquopy and return structured result
-        result = skill_manager.execute(skill_id, action, **params)
+        params = json.loads(params_json) if params_json else {}
+        result = _skill_manager.execute(skill_id, action, **params)
         return json.dumps({
             "status": "success",
             "data": result
         })
     except Exception as e:
         tb = traceback.format_exc()
-        if Log is not None:
-            Log.e("Butler_Python", f"Error executing plugin {skill_id} action {action}: {str(e)}\n{tb}")
-        else:
-            # Fallback for mock environments
-            sys.__stderr__.write(f"Error executing plugin {skill_id}: {str(e)}\n{tb}\n")
-
         return json.dumps({
             "status": "error",
             "error_type": type(e).__name__,
@@ -107,7 +74,92 @@ def call_plugin(skill_id, action, params_json):
             "traceback": tb
         })
 
-def cleanup():
-    global skill_manager
-    if skill_manager:
-        skill_manager.stop_monitoring()
+
+def cleanup() -> None:
+    """清理资源"""
+    global _skill_manager, _initialized
+    if _skill_manager and hasattr(_skill_manager, 'stop_monitoring'):
+        _skill_manager.stop_monitoring()
+    _skill_manager = None
+    _initialized = False
+
+
+class SimpleSkillManager:
+    """
+    内置简化技能管理器
+    当 butler 核心模块不可用时使用。
+    提供基础的聊天和系统信息功能。
+    """
+
+    def __init__(self, skills_dir: str):
+        self.skills_dir = skills_dir
+        self.skills = {
+            "chat": {"name": "聊天", "description": "AI 对话", "enabled": True},
+            "system": {"name": "系统", "description": "系统信息", "enabled": True},
+            "file": {"name": "文件", "description": "文件管理", "enabled": True},
+        }
+
+    def load_skills(self):
+        """扫描技能目录"""
+        if not os.path.exists(self.skills_dir):
+            return
+        for name in os.listdir(self.skills_dir):
+            skill_path = os.path.join(self.skills_dir, name)
+            if os.path.isdir(skill_path):
+                self.skills[name] = {
+                    "name": name,
+                    "description": f"技能: {name}",
+                    "enabled": True,
+                    "path": skill_path
+                }
+
+    def execute(self, skill_id: str, action: str, **params) -> dict:
+        """执行技能"""
+        if skill_id == "skill_manager" and action == "list":
+            return {
+                "skills": [
+                    {"id": sid, **info}
+                    for sid, info in self.skills.items()
+                ]
+            }
+
+        if skill_id == "chat":
+            return self._handle_chat(action, params)
+
+        if skill_id == "system":
+            return self._handle_system(action, params)
+
+        return {"error": f"Unknown skill: {skill_id}"}
+
+    def _handle_chat(self, action: str, params: dict) -> dict:
+        """处理聊天请求"""
+        message = params.get("message", "")
+
+        if action == "process":
+            # 简单的本地响应 (无 LLM 时)
+            responses = {
+                "/help": "可用命令:\n/help - 帮助\n/status - 系统状态\n/skills - 技能列表",
+                "/status": f"✅ Butler Android 运行中\nPython: {sys.version}",
+                "/skills": "技能: " + ", ".join(self.skills.keys()),
+            }
+
+            if message in responses:
+                return {"response": responses[message]}
+
+            # 默认回复
+            return {
+                "response": f"收到: {message}\n\n💡 配置远程服务器后可使用完整 AI 功能。"
+            }
+
+        return {"error": f"Unknown chat action: {action}"}
+
+    def _handle_system(self, action: str, params: dict) -> dict:
+        """系统信息"""
+        if action == "info":
+            return {
+                "platform": sys.platform,
+                "python_version": sys.version,
+                "prefix": sys.prefix,
+                "skills_count": len(self.skills)
+            }
+        return {"error": f"Unknown system action: {action}"}

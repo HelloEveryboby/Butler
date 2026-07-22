@@ -1,0 +1,621 @@
+/**
+ * Butler 移动端完整适配 (性能优化版)
+ *
+ * 优化策略:
+ * 1. 移动端禁用 backdrop-filter (GPU 杀手)
+ * 2. 用半透明纯色替代毛玻璃
+ * 3. 减少 transition 到最小范围
+ * 4. 用 transform 替代 layout 属性动画
+ * 5. 避免 will-change 滥用
+ */
+
+/* ==========================================
+   移动端断点: 768px 以下
+   ========================================== */
+@media (max-width: 768px) {
+  :root {
+    --cell-padding: var(--space-4);
+    --dock-height: 60px;
+    --header-height: 48px;
+  }
+
+  /* === 布局: 单页 Tab 模式 === */
+  .workspace-matrix {
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    height: calc(100vh - var(--dock-height));
+    /* 禁用桌面端的 transform 动画 */
+    transform: none !important;
+    transition: none !important;
+    will-change: auto !important;
+  }
+
+  .matrix-cell {
+    width: 100vw;
+    height: auto;
+    min-height: calc(100vh - var(--dock-height));
+    display: none;
+    padding: var(--cell-padding);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .matrix-cell.active-cell {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* === 顶部标题栏 === */
+  .cell-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) 0;
+    margin-bottom: var(--space-2);
+    /* 纯色替代毛玻璃 */
+    background: var(--color-bg-primary);
+  }
+
+  .cell-header h2 {
+    font-size: var(--text-xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  /* === 底部导航栏 === */
+  .dock-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transform: none;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    height: var(--dock-height);
+    padding: var(--space-1) 0;
+    /* 纯色替代毛玻璃 (性能关键) */
+    background: rgba(10, 10, 15, 0.96);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    z-index: 100;
+    /* 禁用 blur */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .dock-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 64px;
+    height: 52px;
+    border-radius: var(--radius-md);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    /* 只过渡颜色，不动 layout */
+    transition: none;
+  }
+
+  .dock-item .dock-icon {
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .dock-item .dock-label {
+    font-size: 10px;
+    color: var(--color-text-muted);
+    font-weight: 500;
+  }
+
+  .dock-item.active {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .dock-item.active .dock-label {
+    color: var(--theme-accent, var(--color-accent-blue));
+    font-weight: 600;
+  }
+
+  /* 活跃指示器 */
+  .dock-item.active::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--theme-accent, var(--color-accent-blue));
+  }
+
+  /* === 聊天界面 === */
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-2) 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .chat-message {
+    display: flex;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+    padding: 0 var(--space-1);
+  }
+
+  .message-user {
+    flex-direction: row-reverse;
+  }
+
+  .message-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+    font-size: var(--text-base);
+  }
+
+  .message-content {
+    max-width: 82%;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.06);
+    font-size: var(--text-base);
+    line-height: var(--leading-relaxed);
+    word-break: break-word;
+  }
+
+  .message-user .message-content {
+    background: var(--theme-accent, var(--color-accent-blue));
+    color: #fff;
+    border-bottom-right-radius: var(--radius-sm);
+  }
+
+  .message-assistant .message-content {
+    border-bottom-left-radius: var(--radius-sm);
+  }
+
+  /* === 输入区 === */
+  .chat-input-area {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-end;
+    padding: var(--space-3);
+    /* 纯色替代毛玻璃 */
+    background: rgba(10, 10, 15, 0.96);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    /* 禁用 blur */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .chat-input {
+    flex: 1;
+    min-height: 44px;
+    max-height: 120px;
+    padding: var(--space-3) var(--space-4);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 22px;
+    color: var(--color-text-primary);
+    font-size: 16px;
+    line-height: 1.4;
+    outline: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .chat-input:focus {
+    border-color: var(--theme-accent, var(--color-accent-blue));
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .chat-input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .chat-input-area .glass-btn-primary {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    padding: 0;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--text-lg);
+  }
+
+  /* === 欢迎消息 === */
+  .welcome-message {
+    text-align: center;
+    padding: var(--space-8) var(--space-4);
+  }
+
+  .welcome-message h1 {
+    font-size: var(--text-3xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: var(--space-2);
+  }
+
+  .welcome-message p {
+    font-size: var(--text-base);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-6);
+  }
+
+  /* === 快捷操作 === */
+  .quick-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .quick-actions .glass-btn {
+    width: 100%;
+    padding: var(--space-4);
+    font-size: var(--text-base);
+    justify-content: flex-start;
+    gap: var(--space-3);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-lg);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .quick-actions .glass-btn:active {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  /* === 技能卡片 === */
+  .skill-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-2);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .skill-card:active {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .skill-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 122, 255, 0.12);
+    font-size: var(--text-xl);
+    flex-shrink: 0;
+  }
+
+  /* === 时光机 === */
+  .timemachine-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .timemachine-metrics .glass-card {
+    padding: var(--space-4);
+    text-align: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-lg);
+  }
+
+  .timemachine-metrics .glass-card strong {
+    display: block;
+    font-size: var(--text-2xl);
+    font-weight: 700;
+    margin-top: var(--space-1);
+  }
+
+  .timemachine-metrics .glass-card span {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .timemachine-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+  }
+
+  .timemachine-controls input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-full);
+    outline: none;
+  }
+
+  .timemachine-controls input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--theme-accent, var(--color-accent-blue));
+  }
+
+  /* === DAG 画布 === */
+  #dag-canvas {
+    width: 100%;
+    flex: 1;
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  /* === Toast === */
+  .toast-container {
+    left: var(--space-3);
+    right: var(--space-3);
+    top: var(--space-3);
+  }
+
+  .toast {
+    min-width: auto;
+    max-width: 100%;
+    /* 纯色替代毛玻璃 */
+    background: rgba(20, 20, 30, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-lg);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* === 弹窗 (底部抽屉) === */
+  .modal-overlay {
+    align-items: flex-end;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .modal-dialog {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 85vh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    background: var(--color-bg-secondary);
+  }
+
+  .modal-header {
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .modal-body {
+    padding: var(--space-4) var(--space-5);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* === 编辑器 === */
+  .editor-container {
+    inset: 0;
+    border-radius: 0;
+    z-index: 200;
+    background: var(--color-bg-primary);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* === 新手引导 === */
+  .onboarding-content {
+    padding: var(--space-6);
+    text-align: center;
+  }
+
+  .onboarding-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+  }
+
+  .onboarding-actions .glass-btn {
+    flex: 1;
+    padding: var(--space-3);
+  }
+}
+
+/* ==========================================
+   小屏手机: 480px 以下
+   ========================================== */
+@media (max-width: 480px) {
+  :root {
+    --cell-padding: var(--space-3);
+    --dock-height: 56px;
+  }
+
+  .dock-item {
+    width: 56px;
+    height: 48px;
+  }
+
+  .dock-item .dock-icon {
+    font-size: 20px;
+  }
+
+  .dock-item .dock-label {
+    font-size: 9px;
+  }
+
+  .message-content {
+    max-width: 88%;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+  }
+
+  .chat-input {
+    padding: var(--space-2) var(--space-4);
+    font-size: 16px;
+  }
+
+  .welcome-message h1 {
+    font-size: var(--text-2xl);
+  }
+}
+
+/* ==========================================
+   触摸设备优化
+   ========================================== */
+@media (pointer: coarse) {
+  .dock-item,
+  .glass-btn,
+  .glass-input,
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* 禁用 hover 变换 */
+  .dock-item:hover,
+  .glass-card:hover,
+  .glass-btn:hover {
+    transform: none;
+    background: inherit;
+  }
+
+  /* 按下反馈 */
+  .dock-item:active,
+  .glass-btn:active,
+  .skill-card:active {
+    opacity: 0.7;
+  }
+
+  * {
+    -webkit-touch-callout: none;
+  }
+}
+
+/* ==========================================
+   横屏适配
+   ========================================== */
+@media (max-height: 500px) and (orientation: landscape) {
+  :root {
+    --dock-height: 48px;
+  }
+
+  .dock-item {
+    flex-direction: row;
+    gap: var(--space-1);
+    width: auto;
+    padding: 0 var(--space-3);
+    height: 40px;
+  }
+
+  .dock-item .dock-icon {
+    font-size: 18px;
+  }
+
+  .dock-item .dock-label {
+    font-size: 11px;
+  }
+
+  .dock-item.active::after {
+    bottom: auto;
+    top: -2px;
+  }
+
+  .welcome-message {
+    padding: var(--space-4);
+  }
+
+  .welcome-message h1 {
+    font-size: var(--text-xl);
+  }
+
+  .timemachine-metrics {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ==========================================
+   安全区域 (刘海屏 / 灵动岛 / 底部横条)
+   ========================================== */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .cell-header {
+    padding-top: max(var(--space-3), env(safe-area-inset-top));
+  }
+
+  .dock-bar {
+    padding-bottom: max(var(--space-1), env(safe-area-inset-bottom));
+    height: calc(var(--dock-height) + env(safe-area-inset-bottom));
+  }
+
+  .chat-input-area {
+    padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  }
+}
+
+/* ==========================================
+   PC 端隐藏移动端元素
+   ========================================== */
+@media (min-width: 769px) {
+  .dock-label {
+    display: none;
+  }
+}
+
+/* ==========================================
+   全局: 禁用所有毛玻璃 (移动端兜底)
+   ========================================== */
+@media (max-width: 768px) {
+  /* 移动端全局禁用 backdrop-filter */
+  .glass-panel,
+  .glass-card,
+  .glass-bg::before,
+  .glass-input,
+  .glass-btn,
+  .toast,
+  .modal-overlay,
+  .dock-bar,
+  .chat-input-area,
+  .editor-container {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* 禁用所有 transform hover */
+  *:hover {
+    transform: none !important;
+  }
+
+  /* 只保留 opacity 过渡 */
+  .glass-btn,
+  .dock-item,
+  .skill-card {
+    transition: opacity 0.15s ease !important;
+  }
+}

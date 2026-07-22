@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self' 'unsafe-inline';
+                 style-src 'self' 'unsafe-inline';
+                 connect-src 'self' http://localhost:5001;
+                 font-src 'self';
+                 object-src 'none';
+                 base-uri 'self';
+                 frame-ancestors 'none';">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="X-Frame-Options" content="DENY">
+  <meta name="referrer" content="no-referrer">
+  <title>Flash Input</title>
+  <style>
+    body {
+      background: transparent !important;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    .flash-container {
+      width: 90%;
+      max-width: 600px;
+      background: rgba(30, 30, 30, 0.75);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes slideIn {
+      from { transform: translateY(-20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .input-box {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.05);
+      border: none;
+      outline: none;
+      color: #ffffff;
+      font-size: 18px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      transition: all 0.2s;
+    }
+    .input-box:focus {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .input-box::placeholder {
+      color: rgba(255, 255, 255, 0.3);
+    }
+    .flash-icon {
+      color: #007aff;
+      font-size: 24px;
+      margin-left: 8px;
+    }
+    .hint {
+      position: absolute;
+      bottom: -25px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.4);
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body class="theme-apple">
+  <div class="flash-container">
+    <span class="flash-icon">⚡</span>
+    <input type="text" id="main-input" class="input-box" placeholder="记录灵感、执行命令或搜索..." autofocus>
+    <div class="hint">按下 <b>Enter</b> 闪击发送 | <b>Esc</b> 退出</div>
+  </div>
+
+  <script type="module" src="/src/flash-input.ts"></script>
+</body>
+</html>

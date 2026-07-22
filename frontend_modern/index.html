@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self' 'unsafe-inline';
+                 style-src 'self' 'unsafe-inline';
+                 img-src 'self' data: blob:;
+                 connect-src 'self' http://localhost:5001 ws://localhost:5001;
+                 font-src 'self';
+                 object-src 'none';
+                 base-uri 'self';
+                 form-action 'self';
+                 frame-ancestors 'none';">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="X-Frame-Options" content="DENY">
+  <meta name="referrer" content="no-referrer">
+  <title>Butler — 智能管家</title>
+  <link rel="icon" href="/assets/butler_logo.svg" type="image/svg+xml">
+</head>
+<body class="theme-apple interface-desktop glass-bg">
+
+  <!-- 2x2 矩阵容器 -->
+  <div class="main-content">
+    <div id="workspace-matrix" class="workspace-matrix">
+
+      <!-- 象限 (0,0) 智能对话 -->
+      <div id="cell-0-0" class="matrix-cell">
+        <div class="cell-header">
+          <h2>💬 智能对话</h2>
+        </div>
+        <div class="welcome-message">
+          <h1>🤵 Butler</h1>
+          <p>您的本地优先智能管家</p>
+          <div class="quick-actions">
+            <button class="glass-btn" id="btn-doctor">🩺 系统自检</button>
+            <button class="glass-btn" id="btn-clean">🧹 清理缓存</button>
+            <button class="glass-btn" id="btn-voice">🎙️ 语音模式</button>
+          </div>
+        </div>
+        <div id="chat-messages" class="chat-messages"></div>
+        <div class="chat-input-area">
+          <div id="chat-input" class="glass-input chat-input" contenteditable="true" data-placeholder="输入消息或命令..."></div>
+          <button id="send-command-btn" class="glass-btn-primary glass-btn">发送</button>
+        </div>
+      </div>
+
+      <!-- 象限 (1,0) 时光机 -->
+      <div id="cell-1-0" class="matrix-cell">
+        <div class="cell-header">
+          <h2>🕰️ 时光机</h2>
+        </div>
+        <div id="timemachine-content"></div>
+      </div>
+
+      <!-- 象限 (0,1) DAG 画布 -->
+      <div id="cell-0-1" class="matrix-cell">
+        <div class="cell-header">
+          <h2>📊 DAG 画布</h2>
+        </div>
+        <canvas id="dag-canvas"></canvas>
+      </div>
+
+      <!-- 象限 (1,1) 技能仓 -->
+      <div id="cell-1-1" class="matrix-cell">
+        <div class="cell-header">
+          <h2>📦 技能仓</h2>
+        </div>
+        <div id="skills-content"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Dock 导航栏 -->
+  <nav class="dock-bar">
+    <button id="dock-0-0" class="dock-item active" title="对话">
+      <span class="dock-icon">💬</span>
+      <span class="dock-label">对话</span>
+    </button>
+    <button id="dock-1-0" class="dock-item" title="时光机">
+      <span class="dock-icon">🕰️</span>
+      <span class="dock-label">时光机</span>
+    </button>
+    <button id="dock-0-1" class="dock-item" title="DAG">
+      <span class="dock-icon">📊</span>
+      <span class="dock-label">工作流</span>
+    </button>
+    <button id="dock-1-1" class="dock-item" title="技能">
+      <span class="dock-icon">📦</span>
+      <span class="dock-label">技能</span>
+    </button>
+  </nav>
+
+  <!-- 新手引导 Overlay -->
+  <div id="onboarding-tour-overlay" class="glass-panel" style="display:none;">
+    <div class="onboarding-content">
+      <h3 class="onboarding-title"></h3>
+      <p class="onboarding-text"></p>
+      <span class="onboarding-progress"></span>
+      <div class="onboarding-actions">
+        <button class="glass-btn" id="btn-skip-onboarding">跳过</button>
+        <button class="glass-btn-primary glass-btn" id="btn-next-onboarding">下一步</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vite 入口 -->
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

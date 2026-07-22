@@ -1,0 +1,1 @@
+export { MemosManager } from './MemosManager';

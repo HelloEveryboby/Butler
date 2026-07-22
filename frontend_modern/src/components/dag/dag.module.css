@@ -1,0 +1,46 @@
+/* dag 组件样式 */
+.dagCanvas {
+  width: 100%;
+  height: calc(100% - var(--header-height));
+  cursor: crosshair;
+}
+
+.dagNode {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  cursor: grab;
+  transition: all var(--transition-fast);
+}
+
+.dagNode:hover {
+  border-color: var(--color-accent-blue);
+  box-shadow: var(--shadow-glow-blue);
+}
+
+.dagNodeRunning {
+  border-color: var(--color-status-running);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.dagNodeCompleted {
+  border-color: var(--color-status-success);
+}
+
+.dagNodeFailed {
+  border-color: var(--color-status-error);
+}
+
+.dagEdge {
+  stroke: rgba(0, 122, 255, 0.6);
+  stroke-width: 2;
+  fill: none;
+  stroke-dasharray: 5 5;
+  animation: flowDash 0.5s linear infinite;
+}

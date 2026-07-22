@@ -192,17 +192,107 @@ butler = "butler.butler_app:main"
 where = ["."]
 include = ["butler*", "package*"]
 
+# ==========================================
+# Ruff 配置 — Butler 项目代码规范
+# ==========================================
+
 [tool.ruff]
-line-length = 120
 target-version = "py310"
+line-length = 120
+
+# 排除不需要检查的目录
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "lib_external",
+    "temp_android_repo",
+    ".gradle",
+    "node_modules",
+    "frontend",
+    "frontend_modern",
+    "butler_android",
+    "butler_android_b",
+    "butler_android_c",
+    "butler-cloud-hub",
+    "butler-frontend-upgrade",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W"]
-ignore = []
+# 启用的规则集
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort (import sorting)
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "S",    # flake8-bandit (security)
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+    "RUF",  # ruff-specific rules
+]
+
+# 忽略的规则
+ignore = [
+    "E501",   # line too long (由 formatter 处理)
+    "S101",   # assert allowed (测试中需要)
+    "S603",   # subprocess call (Butler 需要执行系统命令)
+    "S607",   # partial executable path
+    "S604",   # function call with shell=True
+    "B008",   # function call in default argument
+    "UP007",  # use X | Y for union types (兼容 3.9)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 测试文件允许 assert、magic methods
+"tests/**/*.py" = ["S101", "S106"]
+# 允许 __init__.py 的 wildcard import
+"__init__.py" = ["F401"]
+# scripts 允许 shell 调用
+"scripts/**/*.py" = ["S603", "S607"]
+# install 脚本允许各种 security check / bugbear bypass
+"install*.py" = ["S", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["butler", "package"]
+force-single-line = false
+lines-after-imports = 2
+
+[tool.ruff.lint.pep8-naming]
+classmethod-decorators = ["classmethod", "pydantic.validator", "pydantic.root_validator"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# ==========================================
+# pytest 配置
+# ==========================================
 
 [tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "-ra -q"
-testpaths = [
-    "tests",
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "-x",  # 遇到第一个失败就停止
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests requiring external services",
+    "security: marks security-related tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
 ]
