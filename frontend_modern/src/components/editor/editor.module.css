@@ -1,0 +1,40 @@
+/* editor 组件样式 */
+.editorContainer {
+  position: fixed;
+  inset: var(--space-8);
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  animation: fadeInScale var(--duration-slow) var(--ease-out-expo);
+}
+
+.editorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.editorFilename {
+  color: var(--color-text-secondary);
+}
+
+.editorActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.editorTextarea {
+  flex: 1;
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: var(--space-4);
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  tab-size: 2;
+}

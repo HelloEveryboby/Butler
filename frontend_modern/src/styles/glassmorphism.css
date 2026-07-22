@@ -1,0 +1,130 @@
+/**
+ * Butler 玻璃拟态 (Glassmorphism) 基础样式
+ * 2x2 矩阵 UI 的核心视觉风格
+ */
+
+/* 玻璃面板基础 */
+.glass-panel {
+  background: var(--color-bg-glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  transition: all var(--transition-normal);
+}
+
+.glass-panel:hover {
+  background: var(--color-bg-glass-hover);
+  border: var(--glass-border-hover);
+}
+
+/* 玻璃卡片 */
+.glass-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-normal);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* 毛玻璃背景 */
+.glass-bg {
+  background: var(--color-bg-primary);
+  position: relative;
+}
+
+.glass-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at 20% 50%, rgba(0, 122, 255, 0.08) 0%, transparent 50%),
+              radial-gradient(ellipse at 80% 20%, rgba(175, 82, 222, 0.06) 0%, transparent 50%),
+              radial-gradient(ellipse at 50% 80%, rgba(52, 199, 89, 0.04) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* 主题变体 */
+.theme-apple {
+  --theme-accent: var(--color-accent-blue);
+  --theme-accent-hover: var(--color-accent-blue-hover);
+}
+
+.theme-green {
+  --theme-accent: var(--color-accent-green);
+  --theme-accent-hover: #2aa148;
+}
+
+.theme-purple {
+  --theme-accent: var(--color-accent-purple);
+  --theme-accent-hover: #9333d1;
+}
+
+/* 玻璃输入框 */
+.glass-input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-base);
+  transition: all var(--transition-fast);
+  outline: none;
+}
+
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--theme-accent, var(--color-accent-blue));
+  box-shadow: var(--shadow-glow-blue);
+}
+
+.glass-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* 玻璃按钮 */
+.glass-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.glass-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.glass-btn:active {
+  transform: translateY(0);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.glass-btn-primary {
+  background: var(--theme-accent, var(--color-accent-blue));
+  border-color: transparent;
+}
+
+.glass-btn-primary:hover {
+  background: var(--theme-accent-hover, var(--color-accent-blue-hover));
+}

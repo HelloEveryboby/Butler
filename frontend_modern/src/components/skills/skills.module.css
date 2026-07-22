@@ -1,0 +1,33 @@
+/* skills 组件样式 */
+.skillCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.skillCard:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(4px);
+}
+
+.skillIcon {
+  font-size: var(--text-xl);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.skillName {
+  font-size: var(--text-base);
+}
+
+.skillDesc {
+  font-size: var(--text-xs);
+  margin-top: var(--space-1);
+}

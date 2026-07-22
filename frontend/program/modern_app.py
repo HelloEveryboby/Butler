@@ -26,6 +26,7 @@ from package.core_utils.task_master.progress_tracker import ProgressTracker
 import keyboard
 from butler.core.event_bus import event_bus
 from butler.core.notifier_system import notifier
+from butler_cloud_hub.local_hub import LocalCloudHub
 
 class ModernBridge:
     def __init__(self, jarvis, window):
@@ -39,6 +40,10 @@ class ModernBridge:
         self.migration_engine = SmartMigrationEngine()
         self.hardware = HardwareManager() # Default to auto-detect later or config
         self.progress_tracker = ProgressTracker(self.hardware)
+
+        # Initialize Cloud Storage Hub
+        self.cloud_hub = LocalCloudHub(config_dir=os.path.join(project_root, "data", "cloud"))
+        self.cloud_hub.init()
 
         # Subscribe to progress updates
         event_bus.subscribe("PROGRESS_UPDATE", self._on_progress_update)
@@ -370,6 +375,32 @@ class ModernBridge:
     def hide_flash(self):
         """Hides the flash input window."""
         event_bus.emit("flash_hide")
+
+    def cloud_list_storages(self):
+        """列出所有已配置的云存储"""
+        return self.cloud_hub.list_storages()
+
+    def cloud_list_files(self, storage, path="/"):
+        """列出指定存储的文件"""
+        return self.cloud_hub.list_files(storage, path)
+
+    def cloud_search(self, keyword, storage=None):
+        """搜索文件 (指定存储或全局)"""
+        return self.cloud_hub.search(keyword, storage)
+
+    def cloud_add_storage(self, name, storage_type, config_json):
+        """添加新的云存储"""
+        import json
+        config = json.loads(config_json) if isinstance(config_json, str) else config_json
+        return self.cloud_hub.add_storage(name, storage_type, config)
+
+    def cloud_remove_storage(self, name):
+        """移除云存储"""
+        return self.cloud_hub.remove_storage(name)
+
+    def cloud_transfer(self, src_storage, src_path, dst_storage, dst_path):
+        """跨盘传输文件"""
+        return self.cloud_hub.transfer(src_storage, src_path, dst_storage, dst_path)
 
 def main():
     # Initialize Jarvis in headless mode (no Tkinter root)

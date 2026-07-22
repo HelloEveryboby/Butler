@@ -1,0 +1,119 @@
+/**
+ * Butler 设计令牌 (Design Tokens)
+ * 所有视觉参数的单一来源，便于主题切换和全局调整
+ */
+
+:root {
+  /* === 颜色系统 === */
+  --color-bg-primary: #0a0a0f;
+  --color-bg-secondary: #12121a;
+  --color-bg-tertiary: #1a1a2e;
+  --color-bg-glass: rgba(30, 30, 30, 0.75);
+  --color-bg-glass-hover: rgba(255, 255, 255, 0.1);
+  --color-bg-glass-active: rgba(255, 255, 255, 0.15);
+
+  --color-text-primary: #ffffff;
+  --color-text-secondary: rgba(255, 255, 255, 0.7);
+  --color-text-muted: rgba(255, 255, 255, 0.4);
+  --color-text-inverse: #000000;
+
+  --color-accent-blue: #007aff;
+  --color-accent-blue-hover: #0056cc;
+  --color-accent-green: #34c759;
+  --color-accent-red: #ff3b30;
+  --color-accent-orange: #ff9500;
+  --color-accent-yellow: #ffcc00;
+  --color-accent-purple: #af52de;
+  --color-accent-cyan: #5ac8fa;
+  --color-accent-pink: #ff2d55;
+
+  /* 状态颜色 */
+  --color-status-success: #34c759;
+  --color-status-warning: #ff9500;
+  --color-status-error: #ff3b30;
+  --color-status-info: #007aff;
+  --color-status-running: #2196f3;
+
+  /* === 间距系统 (4px 基准) === */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* === 圆角 === */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* === 字体 === */
+  --font-sans: 'Inter', 'SF Pro Display', 'Segoe UI', -apple-system, BlinkMacSystemFont,
+    'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', 'Consolas', monospace;
+
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 36px;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+
+  /* === 阴影 === */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.8);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
+  --shadow-glow-blue: 0 0 20px rgba(0, 122, 255, 0.3);
+  --shadow-glow-green: 0 0 20px rgba(52, 199, 89, 0.3);
+  --shadow-glow-red: 0 0 20px rgba(255, 59, 48, 0.3);
+
+  /* === 过渡 === */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --duration-fast: 100ms;
+  --duration-normal: 200ms;
+  --duration-slow: 350ms;
+  --duration-slower: 500ms;
+
+  --transition-fast: var(--duration-fast) var(--ease-out-expo);
+  --transition-normal: var(--duration-normal) var(--ease-out-expo);
+  --transition-slow: var(--duration-slow) var(--ease-out-expo);
+
+  /* === 玻璃拟态 === */
+  --glass-blur: blur(20px) saturate(180%);
+  --glass-blur-heavy: blur(40px) saturate(200%);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+  --glass-border-hover: 1px solid rgba(255, 255, 255, 0.15);
+
+  /* === Z-Index 层级 === */
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-flash: 600;
+  --z-tooltip: 700;
+
+  /* === 布局 === */
+  --dock-height: 56px;
+  --sidebar-width: 280px;
+  --header-height: 48px;
+  --cell-padding: var(--space-6);
+}

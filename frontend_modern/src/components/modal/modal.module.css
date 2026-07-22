@@ -1,0 +1,57 @@
+/* modal 组件样式 */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  animation: fadeIn var(--duration-normal) var(--ease-out-expo);
+}
+
+.modalDialog {
+  background: var(--color-bg-secondary);
+  border: var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: fadeInScale var(--duration-slow) var(--ease-out-expo);
+}
+
+.modalSm { width: 360px; }
+.modalMd { width: 520px; }
+.modalLg { width: 720px; }
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.modalClose {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+}
+
+.modalClose:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-primary);
+}
+
+.modalBody {
+  padding: var(--space-5);
+  overflow-y: auto;
+}

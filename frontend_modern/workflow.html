@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self' 'unsafe-inline';
+                 style-src 'self' 'unsafe-inline';
+                 connect-src 'self' http://localhost:5001;
+                 font-src 'self';
+                 object-src 'none';
+                 base-uri 'self';
+                 frame-ancestors 'none';">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="X-Frame-Options" content="DENY">
+  <meta name="referrer" content="no-referrer">
+  <title>Butler 工作流中心</title>
+  <link rel="stylesheet" href="/src/styles/variables.css">
+  <link rel="stylesheet" href="/src/styles/reset.css">
+  <link rel="stylesheet" href="/src/styles/glassmorphism.css">
+  <link rel="stylesheet" href="/src/styles/global.css">
+  <style>
+    body { background: var(--color-bg-primary); color: var(--color-text-primary); }
+    .workflow-container { padding: 20px; }
+    .workflow-card {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 15px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .step-list { margin-top: 10px; padding-left: 20px; }
+    .step-item { margin: 5px 0; padding: 5px; border-left: 2px solid #4CAF50; }
+  </style>
+</head>
+<body>
+  <div class="workflow-container">
+    <h1>🛠️ 工作流中心 (Workflow Center)</h1>
+    <div id="workflow-list">
+      <div class="workflow-card">
+        <p>正在同步活跃工作流状态...</p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/workflow.ts"></script>
+</body>
+</html>

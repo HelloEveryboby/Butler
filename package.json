@@ -1,0 +1,14 @@
+{
+  "name": "butler-root",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Butler 智能管家项目根工作区",
+  "scripts": {
+    "dev": "npm run --prefix frontend_modern dev",
+    "build": "npm run --prefix frontend_modern build",
+    "android:native": "python3 scripts/sync_android.py --target native",
+    "android:flutter": "python3 scripts/sync_android.py --target flutter",
+    "android:native:build": "python3 scripts/sync_android.py --target native --build",
+    "android:flutter:build": "python3 scripts/sync_android.py --target flutter --build"
+  }
+}
