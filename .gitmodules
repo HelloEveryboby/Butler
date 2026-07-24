@@ -1,3 +1,6 @@
 [submodule "butler_android"]
 	path = butler_android
 	url = https://github.com/HelloEveryboby/Butler-Android
+[submodule "hardware_stm32"]
+	path = hardware_stm32
+	url = https://github.com/HelloEveryboby/Butler-Hardware-STM32
