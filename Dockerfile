@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖和配置文件（利用 Docker layer cache）
-COPY pyproject.toml setup.py README.md ./
+COPY pyproject.toml README.md ./
 
 # 安装依赖
 RUN pip install --no-cache-dir .

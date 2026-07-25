@@ -150,10 +150,18 @@ def run():
     print("      Butler 路径优化算法 (Algorithm1 - 完整版)")
     print("="*50)
 
-    config_file = "module_execution_config.txt"
+    # 优先加载 config/ 中的配置文件，不存在则尝试回退到当前工作目录下的文件
+    config_file = os.path.join("config", "module_execution_config.txt")
     if not os.path.exists(config_file):
-        print(f"正在创建演示配置: {config_file}")
-        create_demo_config(config_file)
+        fallback_file = "module_execution_config.txt"
+        if os.path.exists(fallback_file):
+            config_file = fallback_file
+        else:
+            # 若两个路径都不存在，则默认在 config/ 下创建演示配置文件
+            print(f"正在创建演示配置: {config_file}")
+            # 确保 config 目录存在
+            os.makedirs("config", exist_ok=True)
+            create_demo_config(config_file)
 
     optimizer = ModulePathOptimizer()
     try:

@@ -23,7 +23,7 @@ jobs:
         run: pip install ruff
 
       - name: Run Ruff Check
-        run: ruff check tests/ pyproject.toml setup.py
+        run: ruff check tests/ pyproject.toml
 
   test:
     name: Python Smoke Tests
