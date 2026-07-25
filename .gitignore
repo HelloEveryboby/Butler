@@ -48,3 +48,9 @@ sync_cache.json
 *.jar
 **/.gradle/
 local.properties
+
+# Build and Packaging artifacts
+dist/
+build/
+*.egg-info/
+Butler.egg-info/
