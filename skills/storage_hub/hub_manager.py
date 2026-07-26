@@ -337,6 +337,100 @@ class HubManager:
                 except Exception as e:
                     return {"status": "error", "message": str(e)}
 
+        if action == "delete_file":
+            drive_name = kwargs.get("drive")
+            path = kwargs.get("path")
+            if not drive_name or drive_name not in self.adapters:
+                return {"status": "error", "message": f"Drive {drive_name} not found"}
+            adapter = self.adapters[drive_name]
+            try:
+                success = adapter.delete_file(path)
+                if success:
+                    parent_path = '/'.join(path.rstrip('/').split('/')[:-1]) or "/"
+                    self.cache.set_files(drive_name, parent_path, [])
+                    return {"status": "ok"}
+                else:
+                    return {"status": "error", "message": "Failed to delete file"}
+            except Exception as e:
+                return {"status": "error", "message": str(e)}
+
+        if action == "rename_file":
+            drive_name = kwargs.get("drive")
+            path = kwargs.get("path")
+            new_name = kwargs.get("new_name")
+            if not drive_name or drive_name not in self.adapters:
+                return {"status": "error", "message": f"Drive {drive_name} not found"}
+            adapter = self.adapters[drive_name]
+            try:
+                success = adapter.rename_file(path, new_name)
+                if success:
+                    parent_path = '/'.join(path.rstrip('/').split('/')[:-1]) or "/"
+                    self.cache.set_files(drive_name, parent_path, [])
+                    return {"status": "ok"}
+                else:
+                    return {"status": "error", "message": "Failed to rename file"}
+            except Exception as e:
+                return {"status": "error", "message": str(e)}
+
+        if action == "copy_file":
+            drive_name = kwargs.get("drive")
+            src_path = kwargs.get("src_path")
+            dst_path = kwargs.get("dst_path")
+            if not drive_name or drive_name not in self.adapters:
+                return {"status": "error", "message": f"Drive {drive_name} not found"}
+            adapter = self.adapters[drive_name]
+            try:
+                success = adapter.copy_file(src_path, dst_path)
+                if success:
+                    src_parent = '/'.join(src_path.rstrip('/').split('/')[:-1]) or "/"
+                    dst_parent = '/'.join(dst_path.rstrip('/').split('/')[:-1]) or "/"
+                    self.cache.set_files(drive_name, src_parent, [])
+                    if src_parent != dst_parent:
+                        self.cache.set_files(drive_name, dst_parent, [])
+                    return {"status": "ok"}
+                else:
+                    return {"status": "error", "message": "Failed to copy file"}
+            except Exception as e:
+                return {"status": "error", "message": str(e)}
+
+        if action == "move_file":
+            drive_name = kwargs.get("drive")
+            src_path = kwargs.get("src_path")
+            dst_path = kwargs.get("dst_path")
+            if not drive_name or drive_name not in self.adapters:
+                return {"status": "error", "message": f"Drive {drive_name} not found"}
+            adapter = self.adapters[drive_name]
+            try:
+                success = adapter.move_file(src_path, dst_path)
+                if success:
+                    src_parent = '/'.join(src_path.rstrip('/').split('/')[:-1]) or "/"
+                    dst_parent = '/'.join(dst_path.rstrip('/').split('/')[:-1]) or "/"
+                    self.cache.set_files(drive_name, src_parent, [])
+                    if src_parent != dst_parent:
+                        self.cache.set_files(drive_name, dst_parent, [])
+                    return {"status": "ok"}
+                else:
+                    return {"status": "error", "message": "Failed to move file"}
+            except Exception as e:
+                return {"status": "error", "message": str(e)}
+
+        if action == "create_directory":
+            drive_name = kwargs.get("drive")
+            path = kwargs.get("path")
+            if not drive_name or drive_name not in self.adapters:
+                return {"status": "error", "message": f"Drive {drive_name} not found"}
+            adapter = self.adapters[drive_name]
+            try:
+                success = adapter.create_directory(path)
+                if success:
+                    parent_path = '/'.join(path.rstrip('/').split('/')[:-1]) or "/"
+                    self.cache.set_files(drive_name, parent_path, [])
+                    return {"status": "ok"}
+                else:
+                    return {"status": "error", "message": "Failed to create directory"}
+            except Exception as e:
+                return {"status": "error", "message": str(e)}
+
         if action == "transfer":
             src_drive = kwargs.get("src_drive")
             dst_drive = kwargs.get("dst_drive")
@@ -379,24 +473,51 @@ class HubManager:
         if action == "search_all":
             query = kwargs.get("query", "")
             results = []
-            for drive_id, adapter in self.adapters.items():
-                files = self.cache.get_files(drive_id, "/")
-                if not files:
-                    try:
-                        files = adapter.list_files("/")
-                        self.cache.set_files(drive_id, "/", files)
-                    except Exception:
-                        files = []
-                for f in files:
-                    if query.lower() in f["name"].lower():
-                        results.append({
-                            "drive": drive_id,
-                            "name": f["name"],
-                            "size": f["size"],
-                            "is_dir": f["is_dir"],
-                            "id": f["id"],
-                            "path": f["path"]
-                        })
+
+            # Fetch all files from MetaCache database (deep search)
+            try:
+                import sqlite3
+                with sqlite3.connect(self.cache_path) as conn:
+                    cursor = conn.execute("SELECT drive_id, parent_path, file_data FROM file_cache")
+                    rows = cursor.fetchall()
+                    for drive_id, parent_path, file_data in rows:
+                        try:
+                            files = json.loads(file_data)
+                            for f in files:
+                                if query.lower() in f["name"].lower():
+                                    results.append({
+                                        "drive": drive_id,
+                                        "name": f["name"],
+                                        "size": f["size"],
+                                        "is_dir": f.get("is_dir", False),
+                                        "id": f.get("id"),
+                                        "path": f.get("path") or f"{parent_path.rstrip('/')}/{f['name']}"
+                                    })
+                        except Exception:
+                            continue
+            except Exception as e:
+                logger.error(f"Failed to query cache for search_all: {e}")
+
+            # If nothing in cache or no matches, fallback to listing root of all adapters
+            if not results:
+                for drive_id, adapter in self.adapters.items():
+                    files = self.cache.get_files(drive_id, "/")
+                    if not files:
+                        try:
+                            files = adapter.list_files("/")
+                            self.cache.set_files(drive_id, "/", files)
+                        except Exception:
+                            files = []
+                    for f in files:
+                        if query.lower() in f["name"].lower():
+                            results.append({
+                                "drive": drive_id,
+                                "name": f["name"],
+                                "size": f["size"],
+                                "is_dir": f["is_dir"],
+                                "id": f["id"],
+                                "path": f["path"]
+                            })
             return {"status": "ok", "results": results}
 
         if action == "find_duplicates":

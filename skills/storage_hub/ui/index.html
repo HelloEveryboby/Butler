@@ -99,7 +99,19 @@
                     </nav>
                 </div>
 
+                <!-- 模糊搜索栏 -->
+                <div class="search-bar-wrap">
+                    <div class="search-input-container">
+                        <input type="text" id="search-input" class="search-input-field" placeholder="搜索当前目录... 支持 path: 语法（如 path:/docs）" oninput="ui.onSearchInput(this.value)">
+                    </div>
+                    <label class="search-all-toggle">
+                        <input type="checkbox" id="search-all-checkbox" onchange="ui.onSearchAllToggle(this.checked)">
+                        <span>全量搜索 (Search All)</span>
+                    </label>
+                </div>
+
                 <div class="file-list-header">
+                    <span class="checkbox-col"><input type="checkbox" id="select-all-checkbox" class="apple-checkbox" onclick="ui.toggleSelectAll(this.checked)"></span>
                     <span>类型</span>
                     <span>名称</span>
                     <span class="align-right">大小</span>
@@ -111,6 +123,53 @@
                 </div>
             </div>
         </main>
+
+        <!-- 悬浮批量操作面板 -->
+        <div id="batch-panel" class="floating-batch-panel">
+            <div class="batch-info">已选择 <span id="batch-count">0</span> 项</div>
+            <div class="batch-actions">
+                <button class="batch-btn" onclick="ui.startBatchCopy()"><span class="btn-icon">📋</span> 复制到</button>
+                <button class="batch-btn" onclick="ui.startBatchMove()"><span class="btn-icon">📦</span> 移动到</button>
+                <button class="batch-btn danger" onclick="ui.startBatchDelete()"><span class="btn-icon">🗑️</span> 批量删除</button>
+            </div>
+        </div>
+
+        <!-- Lightbox 图片预览 -->
+        <div id="lightbox-modal" class="lightbox-overlay hidden">
+            <div class="lightbox-header">
+                <span class="lightbox-title" id="lightbox-title">图片预览</span>
+                <button class="lightbox-close" onclick="ui.closeLightbox()">×</button>
+            </div>
+            <div class="lightbox-main">
+                <button class="lightbox-btn" onclick="ui.prevImage()">❮</button>
+                <div class="lightbox-img-container" id="lightbox-img-container" onclick="ui.toggleZoomImage()">
+                    <img id="lightbox-img" class="lightbox-img" src="" alt="预览">
+                </div>
+                <button class="lightbox-btn" onclick="ui.nextImage()">❯</button>
+            </div>
+            <div class="lightbox-footer">
+                <div class="lightbox-thumbnails" id="lightbox-thumbnails">
+                    <!-- 缩略图导航 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 目录树选择模态框 -->
+        <div id="directory-chooser-modal" class="directory-chooser-overlay hidden">
+            <div class="directory-chooser-card">
+                <div class="config-modal-header">
+                    <h3 id="dir-chooser-title">📁 选择目标文件夹</h3>
+                    <button class="close-btn" onclick="ui.closeDirectoryChooser()">×</button>
+                </div>
+                <div class="directory-tree-container" id="directory-tree">
+                    <!-- 动态生成目录节点 -->
+                </div>
+                <div class="form-actions" style="padding: 15px 24px; border-top: 1px solid var(--glass-border);">
+                    <button class="btn-secondary" onclick="ui.closeDirectoryChooser()">取消</button>
+                    <button class="btn-primary" onclick="ui.confirmDirectoryChooser()">确认选择</button>
+                </div>
+            </div>
+        </div>
 
         <!-- 配置配置模态框 (Glassmorphic Slider Overlay) -->
         <div id="config-modal" class="config-modal-overlay hidden">

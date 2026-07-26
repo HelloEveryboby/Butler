@@ -122,24 +122,27 @@ class WebDAVAdapter(BaseDriveAdapter):
             })
         return results
 
+    def _get_full_url(self, path: str) -> str:
+        """Helper to get a properly quoted full URL for a given remote path."""
+        # Unquote first to avoid double encoding
+        decoded_path = unquote(path)
+        # Handle cases where path is a full URL or absolute path already containing base_url path
+        parsed_base = urlparse(self.base_url)
+        if decoded_path.startswith("http://") or decoded_path.startswith("https://"):
+            parsed_path = urlparse(decoded_path)
+            decoded_path = parsed_path.path
+
+        base_path = parsed_base.path.rstrip('/')
+        if decoded_path.startswith(base_path):
+            decoded_path = decoded_path[len(base_path):]
+
+        parts = [quote(p) for p in decoded_path.split('/')]
+        quoted_path = '/'.join(parts).lstrip('/')
+        return urljoin(self.base_url, quoted_path)
+
     def get_download_link(self, file_id: str) -> str:
         """Get the full absolute URL for the file, including Basic Auth if present."""
-        # file_id is the decoded href. We need to re-quote path segments.
-        # But wait, if file_id is absolute path like /dav/foo bar.txt
-        # we should quote it properly.
-        quoted_path = quote(file_id)
-
-        parsed_base = urlparse(self.base_url)
-        # Construct the URL with proper path
-        if file_id.startswith('/'):
-            # If absolute path, replace path in base
-            url_parts = list(parsed_base)
-            url_parts[2] = quoted_path
-            url = urlunparse(url_parts)
-        else:
-            # If relative, join with base
-            url = urljoin(self.base_url, quoted_path)
-
+        url = self._get_full_url(file_id)
         if self.username and self.password:
             parsed = urlparse(url)
             # Reconstruct URL with URL-encoded credentials
@@ -148,6 +151,53 @@ class WebDAVAdapter(BaseDriveAdapter):
             netloc = f"{safe_user}:{safe_pass}@{parsed.netloc}"
             url = parsed._replace(netloc=netloc).geturl()
         return url
+
+    def delete_file(self, remote_path: str) -> bool:
+        url = self._get_full_url(remote_path)
+        try:
+            resp = requests.request("DELETE", url, auth=self.auth, timeout=15)
+            return resp.status_code in [200, 204, 207]
+        except Exception as e:
+            logger.error(f"WebDAV delete failed for {remote_path}: {e}")
+            return False
+
+    def rename_file(self, remote_path: str, new_name: str) -> bool:
+        parent_dir = '/'.join(unquote(remote_path).rstrip('/').split('/')[:-1])
+        if not parent_dir:
+            parent_dir = '/'
+        new_path = f"{parent_dir.rstrip('/')}/{new_name}"
+        return self.move_file(remote_path, new_path)
+
+    def copy_file(self, src_path: str, dst_path: str) -> bool:
+        src_url = self._get_full_url(src_path)
+        dst_url = self._get_full_url(dst_path)
+        headers = {"Destination": dst_url, "Overwrite": "T"}
+        try:
+            resp = requests.request("COPY", src_url, auth=self.auth, headers=headers, timeout=15)
+            return resp.status_code in [200, 201, 204, 207]
+        except Exception as e:
+            logger.error(f"WebDAV copy failed from {src_path} to {dst_path}: {e}")
+            return False
+
+    def move_file(self, src_path: str, dst_path: str) -> bool:
+        src_url = self._get_full_url(src_path)
+        dst_url = self._get_full_url(dst_path)
+        headers = {"Destination": dst_url, "Overwrite": "T"}
+        try:
+            resp = requests.request("MOVE", src_url, auth=self.auth, headers=headers, timeout=15)
+            return resp.status_code in [200, 201, 204, 207]
+        except Exception as e:
+            logger.error(f"WebDAV move failed from {src_path} to {dst_path}: {e}")
+            return False
+
+    def create_directory(self, remote_path: str) -> bool:
+        url = self._get_full_url(remote_path).rstrip('/') + '/'
+        try:
+            resp = requests.request("MKCOL", url, auth=self.auth, timeout=15)
+            return resp.status_code in [200, 201, 207]
+        except Exception as e:
+            logger.error(f"WebDAV MKCOL failed for {remote_path}: {e}")
+            return False
 
     def get_quota(self) -> Dict[str, int]:
         """Fetch storage quota if supported by the server."""
