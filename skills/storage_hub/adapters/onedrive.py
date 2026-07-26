@@ -121,3 +121,131 @@ class OneDriveAdapter(BaseDriveAdapter):
             "method": "PUT",
             "headers": {"Authorization": f"Bearer {tokens['access_token']}"}
         }
+
+    def _get_item_url(self, item_ref: str) -> str:
+        """Helper to get correct item URL by ID or Path."""
+        if '/' in item_ref:
+            if not item_ref.startswith('/'):
+                item_ref = '/' + item_ref
+            return f"{self.API_BASE}/drive/root:{item_ref}"
+        else:
+            return f"{self.API_BASE}/drive/items/{item_ref}"
+
+    def delete_file(self, remote_path: str) -> bool:
+        if not self.login_auth():
+            return False
+        tokens = self._get_stored_tokens()
+        headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+        url = self._get_item_url(remote_path)
+        try:
+            resp = requests.delete(url, headers=headers, timeout=15)
+            return resp.status_code in [200, 204]
+        except Exception as e:
+            logger.error(f"OneDrive delete failed for {remote_path}: {e}")
+            return False
+
+    def rename_file(self, remote_path: str, new_name: str) -> bool:
+        if not self.login_auth():
+            return False
+        tokens = self._get_stored_tokens()
+        headers = {
+            "Authorization": f"Bearer {tokens['access_token']}",
+            "Content-Type": "application/json"
+        }
+        url = self._get_item_url(remote_path)
+        try:
+            resp = requests.patch(url, headers=headers, json={"name": new_name}, timeout=15)
+            return resp.status_code in [200, 204]
+        except Exception as e:
+            logger.error(f"OneDrive rename failed for {remote_path}: {e}")
+            return False
+
+    def copy_file(self, src_path: str, dst_path: str) -> bool:
+        if not self.login_auth():
+            return False
+        tokens = self._get_stored_tokens()
+        headers = {
+            "Authorization": f"Bearer {tokens['access_token']}",
+            "Content-Type": "application/json"
+        }
+
+        parts = dst_path.rstrip('/').split('/')
+        new_name = parts[-1]
+        parent_dir = '/'.join(parts[:-1])
+        if not parent_dir:
+            parent_dir = '/'
+
+        url = self._get_item_url(src_path) + "/copy"
+        body = {
+            "parentReference": {
+                "path": f"/drive/root:{parent_dir.rstrip('/')}"
+            },
+            "name": new_name
+        }
+        try:
+            resp = requests.post(url, headers=headers, json=body, timeout=15)
+            return resp.status_code in [200, 202]
+        except Exception as e:
+            logger.error(f"OneDrive copy failed from {src_path} to {dst_path}: {e}")
+            return False
+
+    def move_file(self, src_path: str, dst_path: str) -> bool:
+        if not self.login_auth():
+            return False
+        tokens = self._get_stored_tokens()
+        headers = {
+            "Authorization": f"Bearer {tokens['access_token']}",
+            "Content-Type": "application/json"
+        }
+
+        parts = dst_path.rstrip('/').split('/')
+        new_name = parts[-1]
+        parent_dir = '/'.join(parts[:-1])
+        if not parent_dir:
+            parent_dir = '/'
+
+        url = self._get_item_url(src_path)
+        body = {
+            "parentReference": {
+                "path": f"/drive/root:{parent_dir.rstrip('/')}"
+            },
+            "name": new_name
+        }
+        try:
+            resp = requests.patch(url, headers=headers, json=body, timeout=15)
+            return resp.status_code in [200, 204]
+        except Exception as e:
+            logger.error(f"OneDrive move failed from {src_path} to {dst_path}: {e}")
+            return False
+
+    def create_directory(self, remote_path: str) -> bool:
+        if not self.login_auth():
+            return False
+        tokens = self._get_stored_tokens()
+        headers = {
+            "Authorization": f"Bearer {tokens['access_token']}",
+            "Content-Type": "application/json"
+        }
+
+        parts = remote_path.rstrip('/').split('/')
+        folder_name = parts[-1]
+        parent_dir = '/'.join(parts[:-1])
+        if not parent_dir:
+            parent_dir = '/'
+
+        if parent_dir == "/":
+            url = f"{self.API_BASE}/drive/root/children"
+        else:
+            url = f"{self.API_BASE}/drive/root:{parent_dir}:/children"
+
+        body = {
+            "name": folder_name,
+            "folder": {},
+            "@microsoft.graph.conflictBehavior": "rename"
+        }
+        try:
+            resp = requests.post(url, headers=headers, json=body, timeout=15)
+            return resp.status_code in [200, 201]
+        except Exception as e:
+            logger.error(f"OneDrive create directory failed for {remote_path}: {e}")
+            return False

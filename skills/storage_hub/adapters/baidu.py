@@ -155,3 +155,68 @@ class BaiduAdapter(BaseDriveAdapter):
             "method": "POST",
             "headers": {}
         }
+
+    def delete_file(self, remote_path: str) -> bool:
+        self._restore_bypy_json()
+        try:
+            from bypy import ByPy
+            bp = ByPy(quit_when_fail=False)
+            bp.delete(remote_path)
+            return True
+        except Exception as e:
+            logger.error(f"Baidu PCS delete failed: {e}")
+            return False
+
+    def rename_file(self, remote_path: str, new_name: str) -> bool:
+        parent_dir = '/'.join(remote_path.rstrip('/').split('/')[:-1])
+        if not parent_dir:
+            parent_dir = '/'
+        new_path = f"{parent_dir.rstrip('/')}/{new_name}"
+        return self.move_file(remote_path, new_path)
+
+    def copy_file(self, src_path: str, dst_path: str) -> bool:
+        self._restore_bypy_json()
+        try:
+            token = self._get_access_token()
+            if not token:
+                return False
+            import requests
+            url = f"https://pcs.baidu.com/rest/2.0/pcs/file?method=copy&access_token={token}"
+            payload = {
+                "from": f"/apps/bypy/{src_path.lstrip('/')}",
+                "to": f"/apps/bypy/{dst_path.lstrip('/')}"
+            }
+            resp = requests.post(url, data=payload, timeout=15)
+            return resp.status_code == 200
+        except Exception as e:
+            logger.error(f"Baidu PCS copy failed: {e}")
+            return False
+
+    def move_file(self, src_path: str, dst_path: str) -> bool:
+        self._restore_bypy_json()
+        try:
+            token = self._get_access_token()
+            if not token:
+                return False
+            import requests
+            url = f"https://pcs.baidu.com/rest/2.0/pcs/file?method=move&access_token={token}"
+            payload = {
+                "from": f"/apps/bypy/{src_path.lstrip('/')}",
+                "to": f"/apps/bypy/{dst_path.lstrip('/')}"
+            }
+            resp = requests.post(url, data=payload, timeout=15)
+            return resp.status_code == 200
+        except Exception as e:
+            logger.error(f"Baidu PCS move failed: {e}")
+            return False
+
+    def create_directory(self, remote_path: str) -> bool:
+        self._restore_bypy_json()
+        try:
+            from bypy import ByPy
+            bp = ByPy(quit_when_fail=False)
+            bp.mkdir(remote_path)
+            return True
+        except Exception as e:
+            logger.error(f"Baidu PCS mkdir failed: {e}")
+            return False

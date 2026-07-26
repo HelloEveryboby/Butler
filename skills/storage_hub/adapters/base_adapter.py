@@ -32,3 +32,23 @@ class BaseDriveAdapter(ABC):
     def get_upload_params(self, remote_path: str) -> Dict[str, Any]:
         """获取上传参数: {'url': '...', 'method': 'PUT', 'headers': {...}}"""
         pass
+
+    def delete_file(self, remote_path: str) -> bool:
+        """删除文件或目录"""
+        raise NotImplementedError
+
+    def rename_file(self, remote_path: str, new_name: str) -> bool:
+        """重命名文件或目录"""
+        raise NotImplementedError
+
+    def copy_file(self, src_path: str, dst_path: str) -> bool:
+        """同盘复制文件/目录"""
+        raise NotImplementedError
+
+    def move_file(self, src_path: str, dst_path: str) -> bool:
+        """同盘移动文件/目录"""
+        raise NotImplementedError
+
+    def create_directory(self, remote_path: str) -> bool:
+        """创建目录"""
+        raise NotImplementedError

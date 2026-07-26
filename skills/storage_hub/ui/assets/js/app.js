@@ -6,8 +6,47 @@ class StorageHubUI {
         this.isMockMode = false;
         this.activePollingInterval = null;
 
+        // Selection & Search state
+        this.allFiles = [];
+        this.selectedFiles = []; // array of selected indices in this.allFiles
+        this.singleSelectedIndex = null; // index for single action in popup menu
+        this.selectedChooserPath = "/";
+        this.chooserAction = null; // 'copy', 'move', 'batch_copy', 'batch_move'
+        this.lightboxImages = [];
+        this.lightboxIndex = -1;
+
         // Mock state persistence for browser standalone fallback
         this.mockConfigSaved = false;
+
+        // Initialize persistent mock files in localStorage
+        const defaultMockFiles = {
+            "microsoft_onedrive": [
+                { name: "学习资料", is_dir: true, size: 0, path: "/学习资料" },
+                { name: "工作汇报.docx", is_dir: false, size: 1024 * 412, path: "/工作汇报.docx" },
+                { name: "Butler_Architecture_v2.pdf", is_dir: false, size: 1024 * 1024 * 12.4, path: "/Butler_Architecture_v2.pdf" },
+                { name: "演示幻灯片.pptx", is_dir: false, size: 1024 * 1024 * 3.5, path: "/演示幻灯片.pptx" },
+                { name: "Butler_Logo.png", is_dir: false, size: 1024 * 512, path: "/Butler_Logo.png" }
+            ],
+            "baidu_netdisk": [
+                { name: "电影视频", is_dir: true, size: 0, path: "/电影视频" },
+                { name: "备份照片.zip", is_dir: false, size: 1024 * 1024 * 145.2, path: "/备份照片.zip" },
+                { name: "我的简历.pdf", is_dir: false, size: 1024 * 380, path: "/我的简历.pdf" },
+                { name: "风景照片.jpg", is_dir: false, size: 1024 * 840, path: "/风景照片.jpg" }
+            ],
+            "alist_webdav": [
+                { name: "Media_Streaming", is_dir: true, size: 0, path: "/Media_Streaming" },
+                { name: "Ubuntu_24.04_LTS.iso", is_dir: false, size: 1024 * 1024 * 1024 * 3.8, path: "/Ubuntu_24.04_LTS.iso" },
+                { name: "Readme_Guide.txt", is_dir: false, size: 4096, path: "/Readme_Guide.txt" },
+                { name: "系统壁纸.png", is_dir: false, size: 1024 * 1200, path: "/系统壁纸.png" }
+            ]
+        };
+
+        for (const driveId in defaultMockFiles) {
+            const key = `butler_mock_files_${driveId}`;
+            if (!localStorage.getItem(key)) {
+                localStorage.setItem(key, JSON.stringify(defaultMockFiles[driveId]));
+            }
+        }
 
         this.init();
     }
@@ -72,7 +111,6 @@ class StorageHubUI {
         if (res && res.status === "ok") {
             this.drives = res.drives || [];
         } else if (res && Array.isArray(res)) {
-            // Backward compatibility
             this.drives = res;
         } else {
             this.drives = [];
@@ -95,7 +133,6 @@ class StorageHubUI {
 
         grid.innerHTML = this.drives.map(drive => {
             const percent = drive.total > 0 ? (drive.used / drive.total) * 100 : 0;
-            // Adaptive gradient colors based on storage pressure
             let progressColor = "var(--accent-color)";
             if (percent >= 90) progressColor = "#ff453a"; // Red
             else if (percent >= 70) progressColor = "#ff9f0a"; // Amber
@@ -125,22 +162,18 @@ class StorageHubUI {
             totalCloud += d.total;
         });
 
-        // Set values
         document.getElementById('quota-used-text').innerText = `${totalUsed.toFixed(1)} GB`;
         document.getElementById('quota-total-text').innerText = `${totalCloud.toFixed(1)} GB`;
 
-        // Update Circular SVG Quota Progress Ring
         const percent = totalCloud > 0 ? (totalUsed / totalCloud) * 100 : 0;
         document.getElementById('quota-percent-num').innerText = `${Math.round(percent)}%`;
 
         const ring = document.getElementById('quota-svg-ring');
         if (ring) {
-            // Stroke dasharray diameter logic: r = 26 => C = 2 * PI * 26 = ~163.36
             const circumference = 163.36;
             const offset = circumference - (percent / 100) * circumference;
             ring.style.strokeDashoffset = offset;
 
-            // Update circle stroke color based on pressure
             if (percent >= 90) ring.style.stroke = "#ff453a";
             else if (percent >= 70) ring.style.stroke = "#ff9f0a";
             else ring.style.stroke = "var(--accent-color)";
@@ -162,11 +195,16 @@ class StorageHubUI {
         this.currentDrive = null;
         document.getElementById('drive-grid-container').classList.remove('hidden');
         document.getElementById('file-explorer').classList.add('hidden');
+        this.selectedFiles = [];
+        this.updateBatchPanel();
     }
 
     async loadFiles(path) {
         this.currentPath = path;
         document.getElementById('current-path').innerText = path === "/" ? "根目录" : path;
+
+        // Reset search field
+        document.getElementById('search-input').value = "";
 
         const res = await this.callBackend("list_files", { drive: this.currentDrive, path: path });
         if (res && res.status === "ok") {
@@ -178,6 +216,10 @@ class StorageHubUI {
     }
 
     renderFiles(files) {
+        this.allFiles = files;
+        this.selectedFiles = [];
+        this.updateBatchPanel();
+
         const list = document.getElementById('file-list');
         if (files.length === 0) {
             list.innerHTML = `
@@ -192,11 +234,18 @@ class StorageHubUI {
             const sizeStr = file.is_dir ? '--' : this.formatSize(file.size);
             const escapedName = file.name.replace(/'/g, "\\'");
             const escapedId = (file.id || "").replace(/'/g, "\\'");
+
+            const isImg = this.isImageFile(file.name);
+            const onclickAttr = isImg ? `onclick="ui.openLightbox(${idx})"` : `onclick="ui.onFileClick(${idx})"`;
+
             return `
             <div class="file-item" draggable="true" ondragstart="ui.onFileDragStart(event, ${idx}, '${escapedName}', '${escapedId}', ${file.size || 0})">
-                <span class="icon">${file.is_dir ? '📁' : '📄'}</span>
-                <span class="name">${file.name}</span>
-                <span class="size">${sizeStr}</span>
+                <span class="checkbox-col" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="apple-checkbox file-item-checkbox" data-idx="${idx}" onchange="ui.onFileSelectChange(${idx}, this.checked)">
+                </span>
+                <span class="icon" ${onclickAttr}>${file.is_dir ? '📁' : '📄'}</span>
+                <span class="name" ${onclickAttr}>${file.name}</span>
+                <span class="size" ${onclickAttr}>${sizeStr}</span>
                 <div class="actions">
                     <button class="btn-icon-more" onclick="ui.showContextMenu(event, ${idx}, '${escapedName}')">⋮</button>
                 </div>
@@ -221,6 +270,409 @@ class StorageHubUI {
         };
     }
 
+    joinPath(base, segment) {
+        const b = base.replace(/\/+$/, "");
+        const s = segment.replace(/^\/+/, "");
+        return b === "" ? "/" + s : b + "/" + s;
+    }
+
+    onFileClick(idx) {
+        const file = this.allFiles[idx];
+        if (file && file.is_dir) {
+            const newPath = this.joinPath(this.currentPath, file.name);
+            this.loadFiles(newPath);
+        }
+    }
+
+    // --- Image File Helper ---
+    isImageFile(name) {
+        const ext = name.split('.').pop().toLowerCase();
+        return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext);
+    }
+
+    // --- Search Logic ---
+    onSearchInput(value) {
+        const query = value.trim().toLowerCase();
+        const searchAll = document.getElementById('search-all-checkbox').checked;
+
+        if (searchAll) {
+            if (query.length >= 2) {
+                this.executeSearchAll(query);
+            }
+            return;
+        }
+
+        if (!query) {
+            this.renderFilteredFiles(this.allFiles);
+            return;
+        }
+
+        // Support path: prefix syntax
+        if (query.startsWith('path:')) {
+            const targetPath = query.substring(5).trim();
+            const filtered = this.allFiles.filter(f => f.path && f.path.toLowerCase().includes(targetPath));
+            this.renderFilteredFiles(filtered);
+            return;
+        }
+
+        const filtered = this.allFiles.filter(f => f.name.toLowerCase().includes(query));
+        this.renderFilteredFiles(filtered);
+    }
+
+    async executeSearchAll(query) {
+        const res = await this.callBackend("search_all", { query: query });
+        if (res && res.status === "ok") {
+            const results = (res.results || []).filter(r => r.drive === this.currentDrive);
+            this.renderFilteredFiles(results);
+        }
+    }
+
+    onSearchAllToggle(checked) {
+        const searchInput = document.getElementById('search-input');
+        if (!checked) {
+            this.renderFilteredFiles(this.allFiles);
+        } else if (searchInput.value.trim().length >= 2) {
+            this.executeSearchAll(searchInput.value.trim());
+        }
+    }
+
+    renderFilteredFiles(files) {
+        const list = document.getElementById('file-list');
+        if (files.length === 0) {
+            list.innerHTML = `
+                <div style="padding: 40px; text-align: center; color: var(--text-tertiary); font-size: 13px;">
+                    🔍 未找到匹配的文件
+                </div>
+            `;
+            return;
+        }
+
+        list.innerHTML = files.map((file) => {
+            const sizeStr = file.is_dir ? '--' : this.formatSize(file.size);
+            const escapedName = file.name.replace(/'/g, "\\'");
+            const escapedId = (file.id || "").replace(/'/g, "\\'");
+
+            const idx = this.allFiles.findIndex(f => f.name === file.name);
+            const isImg = this.isImageFile(file.name);
+            const onclickAttr = isImg ? `onclick="ui.openLightbox(${idx})"` : `onclick="ui.onFileClick(${idx})"`;
+
+            return `
+            <div class="file-item" draggable="true" ondragstart="ui.onFileDragStart(event, ${idx}, '${escapedName}', '${escapedId}', ${file.size || 0})">
+                <span class="checkbox-col" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="apple-checkbox file-item-checkbox" data-idx="${idx}" onchange="ui.onFileSelectChange(${idx}, this.checked)">
+                </span>
+                <span class="icon" ${onclickAttr}>${file.is_dir ? '📁' : '📄'}</span>
+                <span class="name" ${onclickAttr}>${file.name}</span>
+                <span class="size" ${onclickAttr}>${sizeStr}</span>
+                <div class="actions">
+                    <button class="btn-icon-more" onclick="ui.showContextMenu(event, ${idx}, '${escapedName}')">⋮</button>
+                </div>
+            </div>
+            `;
+        }).join('');
+    }
+
+    // --- Checkbox selection handlers ---
+    onFileSelectChange(idx, checked) {
+        if (checked) {
+            if (!this.selectedFiles.includes(idx)) {
+                this.selectedFiles.push(idx);
+            }
+        } else {
+            this.selectedFiles = this.selectedFiles.filter(i => i !== idx);
+        }
+        this.updateBatchPanel();
+    }
+
+    toggleSelectAll(checked) {
+        document.querySelectorAll('.file-item-checkbox').forEach(cb => {
+            cb.checked = checked;
+            const idx = parseInt(cb.getAttribute('data-idx'));
+            if (checked) {
+                if (!this.selectedFiles.includes(idx)) this.selectedFiles.push(idx);
+            } else {
+                this.selectedFiles = this.selectedFiles.filter(i => i !== idx);
+            }
+        });
+        this.updateBatchPanel();
+    }
+
+    updateBatchPanel() {
+        const panel = document.getElementById('batch-panel');
+        const count = document.getElementById('batch-count');
+        const selectAllCb = document.getElementById('select-all-checkbox');
+
+        if (this.selectedFiles.length > 0) {
+            panel.classList.add('active');
+            count.innerText = this.selectedFiles.length;
+            if (selectAllCb) {
+                selectAllCb.checked = this.selectedFiles.length === this.allFiles.length;
+            }
+        } else {
+            panel.classList.remove('active');
+            if (selectAllCb) selectAllCb.checked = false;
+        }
+    }
+
+    // --- Directory Chooser tree Modal ---
+    openDirectoryChooser(actionType) {
+        this.chooserAction = actionType;
+        const modal = document.getElementById('directory-chooser-modal');
+        const container = document.getElementById('directory-tree');
+
+        const dirs = [{ name: "根目录 (/)", path: "/" }];
+        if (this.allFiles) {
+            this.allFiles.forEach(f => {
+                if (f.is_dir) {
+                    dirs.push({
+                        name: f.name,
+                        path: this.joinPath(this.currentPath, f.name)
+                    });
+                }
+            });
+        }
+
+        this.selectedChooserPath = "/";
+
+        container.innerHTML = dirs.map(d => `
+            <div class="directory-node ${d.path === '/' ? 'selected' : ''}" data-path="${d.path}" onclick="ui.onSelectChooserPath(this, '${d.path}')">
+                📁 ${d.name}
+            </div>
+        `).join('');
+
+        modal.classList.remove('hidden');
+    }
+
+    onSelectChooserPath(element, path) {
+        document.querySelectorAll('.directory-node').forEach(n => n.classList.remove('selected'));
+        element.classList.add('selected');
+        this.selectedChooserPath = path;
+    }
+
+    closeDirectoryChooser() {
+        document.getElementById('directory-chooser-modal').classList.add('hidden');
+    }
+
+    async confirmDirectoryChooser() {
+        const targetPath = this.selectedChooserPath;
+        this.closeDirectoryChooser();
+
+        if (this.chooserAction === 'copy') {
+            const file = this.allFiles[this.singleSelectedIndex];
+            const srcPath = this.joinPath(this.currentPath, file.name);
+            const dstPath = this.joinPath(targetPath, file.name);
+
+            this.showToast("正在复制", `正在复制 "${file.name}"...`, "success");
+            const res = await this.callBackend("copy_file", { drive: this.currentDrive, src_path: srcPath, dst_path: dstPath });
+            if (res && res.status === "ok") {
+                this.showToast("复制成功", `已成功复制到 ${targetPath}`, "success");
+                this.loadFiles(this.currentPath);
+            } else {
+                this.showToast("复制失败", res.message || "操作无法完成", "error");
+            }
+        } else if (this.chooserAction === 'move') {
+            const file = this.allFiles[this.singleSelectedIndex];
+            const srcPath = this.joinPath(this.currentPath, file.name);
+            const dstPath = this.joinPath(targetPath, file.name);
+
+            this.showToast("正在移动", `正在移动 "${file.name}"...`, "success");
+            const res = await this.callBackend("move_file", { drive: this.currentDrive, src_path: srcPath, dst_path: dstPath });
+            if (res && res.status === "ok") {
+                this.showToast("移动成功", `已成功移动到 ${targetPath}`, "success");
+                this.loadFiles(this.currentPath);
+            } else {
+                this.showToast("移动失败", res.message || "操作无法完成", "error");
+            }
+        } else if (this.chooserAction === 'batch_copy') {
+            this.showToast("正在批量复制", `正在复制 ${this.selectedFiles.length} 个项目...`, "success");
+            let successCount = 0;
+            let failCount = 0;
+            for (const idx of this.selectedFiles) {
+                const file = this.allFiles[idx];
+                const srcPath = this.joinPath(this.currentPath, file.name);
+                const dstPath = this.joinPath(targetPath, file.name);
+
+                const res = await this.callBackend("copy_file", { drive: this.currentDrive, src_path: srcPath, dst_path: dstPath });
+                if (res && res.status === "ok") successCount++;
+                else failCount++;
+            }
+            this.showToast("批量复制结果", `成功: ${successCount} 项, 失败: ${failCount} 项`, successCount > 0 ? "success" : "error");
+            this.loadFiles(this.currentPath);
+        } else if (this.chooserAction === 'batch_move') {
+            this.showToast("正在批量移动", `正在移动 ${this.selectedFiles.length} 个项目...`, "success");
+            let successCount = 0;
+            let failCount = 0;
+            for (const idx of this.selectedFiles) {
+                const file = this.allFiles[idx];
+                const srcPath = this.joinPath(this.currentPath, file.name);
+                const dstPath = this.joinPath(targetPath, file.name);
+
+                const res = await this.callBackend("move_file", { drive: this.currentDrive, src_path: srcPath, dst_path: dstPath });
+                if (res && res.status === "ok") successCount++;
+                else failCount++;
+            }
+            this.showToast("批量移动结果", `成功: ${successCount} 项, 失败: ${failCount} 项`, successCount > 0 ? "success" : "error");
+            this.loadFiles(this.currentPath);
+        }
+    }
+
+    // --- Batch actions triggers ---
+    startBatchCopy() {
+        this.openDirectoryChooser('batch_copy');
+    }
+
+    startBatchMove() {
+        this.openDirectoryChooser('batch_move');
+    }
+
+    async startBatchDelete() {
+        const confirmMsg = `确定要批量删除选择的 ${this.selectedFiles.length} 个文件/文件夹吗？此操作无法撤销。`;
+        if (!confirm(confirmMsg)) return;
+
+        let successCount = 0;
+        let failCount = 0;
+
+        this.showToast("正在批量删除", `正在删除 ${this.selectedFiles.length} 项...`, "success");
+
+        for (const idx of this.selectedFiles) {
+            const file = this.allFiles[idx];
+            if (!file) continue;
+
+            const filePath = this.joinPath(this.currentPath, file.name);
+            const res = await this.callBackend("delete_file", { drive: this.currentDrive, path: filePath });
+            if (res && res.status === "ok") {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        }
+
+        this.showToast("批量删除结果", `成功: ${successCount} 项, 失败: ${failCount} 项`, successCount > 0 ? "success" : "error");
+        await this.loadFiles(this.currentPath);
+    }
+
+    // --- Single Operations actions ---
+    startRename(idx, name) {
+        const newName = prompt("请输入新的名称：", name);
+        if (!newName || newName === name) return;
+
+        const file = this.allFiles[idx];
+        const oldPath = this.joinPath(this.currentPath, file.name);
+
+        this.callBackend("rename_file", { drive: this.currentDrive, path: oldPath, new_name: newName }).then(res => {
+            if (res && res.status === "ok") {
+                this.showToast("重命名成功", `已重命名为 "${newName}"`, "success");
+                this.loadFiles(this.currentPath);
+            } else {
+                this.showToast("重命名失败", res.message || "操作无法完成", "error");
+            }
+        });
+    }
+
+    startSingleCopy(idx, name) {
+        this.singleSelectedIndex = idx;
+        this.openDirectoryChooser('copy');
+    }
+
+    startSingleMove(idx, name) {
+        this.singleSelectedIndex = idx;
+        this.openDirectoryChooser('move');
+    }
+
+    startSingleDelete(idx, name) {
+        if (!confirm(`确定要删除 "${name}" 吗？此操作不可撤销。`)) return;
+        const file = this.allFiles[idx];
+        const filePath = this.joinPath(this.currentPath, file.name);
+
+        this.callBackend("delete_file", { drive: this.currentDrive, path: filePath }).then(res => {
+            if (res && res.status === "ok") {
+                this.showToast("删除成功", `已删除 "${name}"`, "success");
+                this.loadFiles(this.currentPath);
+            } else {
+                this.showToast("删除失败", res.message || "无法删除文件", "error");
+            }
+        });
+    }
+
+    // --- Lightbox Image Preview Modal ---
+    openLightbox(idx) {
+        this.lightboxImages = this.allFiles.filter(f => !f.is_dir && this.isImageFile(f.name));
+        this.lightboxIndex = this.lightboxImages.findIndex(f => f.name === this.allFiles[idx].name);
+
+        if (this.lightboxIndex === -1) return;
+
+        document.getElementById('lightbox-modal').classList.remove('hidden');
+        this.renderLightboxImage();
+        this.renderLightboxThumbnails();
+
+        this.lightboxKeyHandler = (e) => {
+            if (e.key === 'ArrowRight') this.nextImage();
+            else if (e.key === 'ArrowLeft') this.prevImage();
+            else if (e.key === 'Escape') this.closeLightbox();
+        };
+        document.addEventListener('keydown', this.lightboxKeyHandler);
+    }
+
+    closeLightbox() {
+        document.getElementById('lightbox-modal').classList.add('hidden');
+        document.removeEventListener('keydown', this.lightboxKeyHandler);
+    }
+
+    renderLightboxImage() {
+        const file = this.lightboxImages[this.lightboxIndex];
+        if (!file) return;
+
+        document.getElementById('lightbox-title').innerText = file.name;
+        const img = document.getElementById('lightbox-img');
+
+        if (this.isMockMode) {
+            img.src = `https://images.unsplash.com/photo-1542831371-29b0f74f9713?auto=format&fit=crop&w=800&q=80`;
+        } else {
+            this.callBackend("get_download_link", { drive: this.currentDrive, file_id: file.id }).then(res => {
+                if (res && res.status === "ok") {
+                    img.src = res.url || res;
+                } else if (typeof res === 'string') {
+                    img.src = res;
+                } else {
+                    img.src = `https://images.unsplash.com/photo-1542831371-29b0f74f9713?auto=format&fit=crop&w=800&q=80`;
+                }
+            });
+        }
+
+        document.getElementById('lightbox-img-container').classList.remove('zoomed');
+    }
+
+    renderLightboxThumbnails() {
+        const container = document.getElementById('lightbox-thumbnails');
+        container.innerHTML = this.lightboxImages.map((file, idx) => `
+            <img class="lightbox-thumb ${idx === this.lightboxIndex ? 'active' : ''}" src="https://images.unsplash.com/photo-1542831371-29b0f74f9713?auto=format&fit=crop&w=150&q=80" onclick="ui.setLightboxIndex(${idx})">
+        `).join('');
+    }
+
+    setLightboxIndex(idx) {
+        this.lightboxIndex = idx;
+        this.renderLightboxImage();
+        this.renderLightboxThumbnails();
+    }
+
+    prevImage() {
+        if (this.lightboxImages.length <= 1) return;
+        this.lightboxIndex = (this.lightboxIndex - 1 + this.lightboxImages.length) % this.lightboxImages.length;
+        this.renderLightboxImage();
+        this.renderLightboxThumbnails();
+    }
+
+    nextImage() {
+        if (this.lightboxImages.length <= 1) return;
+        this.lightboxIndex = (this.lightboxIndex + 1) % this.lightboxImages.length;
+        this.renderLightboxImage();
+        this.renderLightboxThumbnails();
+    }
+
+    toggleZoomImage() {
+        document.getElementById('lightbox-img-container').classList.toggle('zoomed');
+    }
+
     // --- Drag & Drop Operations ---
     onFileDragStart(e, idx, name, id = "", size = 0) {
         e.dataTransfer.setData("text/plain", JSON.stringify({
@@ -240,7 +692,6 @@ class StorageHubUI {
             const payload = JSON.parse(dataStr);
 
             if (payload.sourceDrive) {
-                // Dragged from one of our drives! Offer target list excluding current source drive
                 this.showTargetChooser(payload);
             }
         } catch (err) {
@@ -252,7 +703,6 @@ class StorageHubUI {
         const modal = document.getElementById('target-chooser-modal');
         const list = document.getElementById('target-drive-list');
 
-        // Exclude current drive
         const targets = this.drives.filter(d => d.id !== payload.sourceDrive);
 
         if (targets.length === 0) {
@@ -282,7 +732,6 @@ class StorageHubUI {
     async executeCrossTransfer(srcDrive, dstDrive, fileName, fileId = "", fileSize = 0, sourcePath = "/") {
         this.closeTargetChooser();
 
-        // Display loading transfer bar
         document.getElementById('transfer-overlay').classList.remove('hidden');
         document.getElementById('transfer-title').innerText = "正在初始化流传输线路...";
         document.getElementById('transfer-file').innerText = fileName;
@@ -303,7 +752,6 @@ class StorageHubUI {
 
         if (res && res.status === "ok") {
             const taskId = res.task_id;
-            // Begin status polling loop
             this.startStatusPolling(taskId);
         } else {
             document.getElementById('transfer-overlay').classList.add('hidden');
@@ -355,7 +803,6 @@ class StorageHubUI {
         const onedrive = document.getElementById('subgroup-onedrive');
         const baidu = document.getElementById('subgroup-baidu');
 
-        // Hide all first
         webdav.classList.add('hidden');
         onedrive.classList.add('hidden');
         baidu.classList.add('hidden');
@@ -401,15 +848,12 @@ class StorageHubUI {
             };
         }
 
-        // Send to backend save_config API
-        // For standard setup we read current config first and append or replace
         const currentConfRes = await this.callBackend("load_config");
         let currentDrives = [];
         if (currentConfRes && currentConfRes.status === "ok") {
             currentDrives = currentConfRes.config.drives || [];
         }
 
-        // Replace if exists, else append
         const existingIdx = currentDrives.findIndex(d => d.id === driveConfig.id);
         if (existingIdx > -1) {
             currentDrives[existingIdx] = driveConfig;
@@ -422,7 +866,6 @@ class StorageHubUI {
             this.toggleConfigModal(false);
             this.showToast("配置已保存", "云盘存储驱动已成功初始化并连接！", "success");
 
-            // Reload views
             this.mockConfigSaved = true;
             await this.loadDrives();
             this.renderDrives();
@@ -432,10 +875,32 @@ class StorageHubUI {
         }
     }
 
-    // --- Context Menu Trigger Mock ---
+    // --- High Fidelity Option Pop Menu Trigger ---
     showContextMenu(e, idx, name) {
         e.stopPropagation();
-        this.showToast("极简选项", `已选择文件 "${name}"。您可以直接拖拽该行来触发跨盘零落地传输。`, "success");
+        const existing = document.getElementById('custom-context-menu');
+        if (existing) existing.remove();
+
+        const menu = document.createElement('div');
+        menu.id = 'custom-context-menu';
+        menu.className = 'custom-context-menu';
+        menu.style.left = `${e.clientX}px`;
+        menu.style.top = `${e.clientY}px`;
+
+        menu.innerHTML = `
+            <div class="context-menu-item" onclick="ui.startRename(${idx}, '${name.replace(/'/g, "\\'")}')">📝 重命名</div>
+            <div class="context-menu-item" onclick="ui.startSingleCopy(${idx}, '${name.replace(/'/g, "\\'")}')">📋 复制到</div>
+            <div class="context-menu-item" onclick="ui.startSingleMove(${idx}, '${name.replace(/'/g, "\\'")}')">📦 移动到</div>
+            <div class="context-menu-item danger" onclick="ui.startSingleDelete(${idx}, '${name.replace(/'/g, "\\'")}')">🗑️ 删除</div>
+        `;
+
+        document.body.appendChild(menu);
+
+        const closeMenu = () => {
+            menu.remove();
+            document.removeEventListener('click', closeMenu);
+        };
+        setTimeout(() => document.addEventListener('click', closeMenu), 50);
     }
 
     // --- Global Toast Notification ---
@@ -455,7 +920,6 @@ class StorageHubUI {
 
         container.appendChild(toast);
 
-        // Auto dismiss after 4 seconds
         setTimeout(() => {
             toast.style.opacity = '0';
             toast.style.transform = 'translateY(10px)';
@@ -472,11 +936,10 @@ class StorageHubUI {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
-    // --- Mock Fallbacks for Browser Standalone Testing ---
+    // --- Mock Fallbacks with LocalStorage Local-First Persistence ---
     _mockResponse(action, params) {
         if (action === "list_drives") {
             if (!this.mockConfigSaved) {
-                // Start as empty to let user see empty state & onboarding spotlight!
                 return { status: "ok", drives: [] };
             }
             return {
@@ -497,21 +960,116 @@ class StorageHubUI {
             return { status: "ok" };
         }
 
+        const key = `butler_mock_files_${params.drive}`;
+
         if (action === "list_files") {
-            const files = params.drive === "microsoft_onedrive" ? [
-                { name: "学习资料", is_dir: true, size: 0 },
-                { name: "工作汇报.docx", is_dir: false, size: 1024 * 412 },
-                { name: "Butler_Architecture_v2.pdf", is_dir: false, size: 1024 * 1024 * 12.4 }
-            ] : (params.drive === "baidu_netdisk" ? [
-                { name: "电影视频", is_dir: true, size: 0 },
-                { name: "备份照片.zip", is_dir: false, size: 1024 * 1024 * 145.2 },
-                { name: "我的简历.pdf", is_dir: false, size: 1024 * 380 }
-            ] : [
-                { name: "Media_Streaming", is_dir: true, size: 0 },
-                { name: "Ubuntu_24.04_LTS.iso", is_dir: false, size: 1024 * 1024 * 1024 * 3.8 },
-                { name: "Readme_Guide.txt", is_dir: false, size: 4096 }
-            ]);
-            return { status: "ok", files: files };
+            const files = JSON.parse(localStorage.getItem(key) || "[]");
+            const targetPath = params.path;
+            const filtered = files.filter(f => {
+                const parts = f.path.split('/');
+                const parent = parts.slice(0, -1).join('/') || "/";
+                return parent === targetPath;
+            });
+            return { status: "ok", files: filtered };
+        }
+
+        if (action === "delete_file") {
+            let files = JSON.parse(localStorage.getItem(key) || "[]");
+            files = files.filter(f => f.path !== params.path && !f.path.startsWith(params.path + "/"));
+            localStorage.setItem(key, JSON.stringify(files));
+            return { status: "ok" };
+        }
+
+        if (action === "rename_file") {
+            let files = JSON.parse(localStorage.getItem(key) || "[]");
+            const file = files.find(f => f.path === params.path);
+            if (file) {
+                const oldPath = file.path;
+                const parent = oldPath.split('/').slice(0, -1).join('/') || "/";
+                const newPath = this.joinPath(parent, params.new_name);
+
+                file.name = params.new_name;
+                file.path = newPath;
+
+                files.forEach(f => {
+                    if (f.path.startsWith(oldPath + "/")) {
+                        f.path = newPath + f.path.substring(oldPath.length);
+                    }
+                });
+
+                localStorage.setItem(key, JSON.stringify(files));
+                return { status: "ok" };
+            }
+            return { status: "error", message: "File not found" };
+        }
+
+        if (action === "copy_file") {
+            let files = JSON.parse(localStorage.getItem(key) || "[]");
+            const file = files.find(f => f.path === params.src_path);
+            if (file) {
+                const newFile = JSON.parse(JSON.stringify(file));
+                newFile.path = params.dst_path;
+                newFile.name = params.dst_path.split('/').pop();
+                files.push(newFile);
+                localStorage.setItem(key, JSON.stringify(files));
+                return { status: "ok" };
+            }
+            return { status: "error", message: "Source file not found" };
+        }
+
+        if (action === "move_file") {
+            let files = JSON.parse(localStorage.getItem(key) || "[]");
+            const file = files.find(f => f.path === params.src_path);
+            if (file) {
+                const oldPath = file.path;
+                file.path = params.dst_path;
+                file.name = params.dst_path.split('/').pop();
+
+                files.forEach(f => {
+                    if (f.path.startsWith(oldPath + "/")) {
+                        f.path = params.dst_path + f.path.substring(oldPath.length);
+                    }
+                });
+
+                localStorage.setItem(key, JSON.stringify(files));
+                return { status: "ok" };
+            }
+            return { status: "error", message: "Source file not found" };
+        }
+
+        if (action === "create_directory") {
+            let files = JSON.parse(localStorage.getItem(key) || "[]");
+            const folderName = params.path.split('/').pop();
+            const newFolder = {
+                name: folderName,
+                is_dir: true,
+                size: 0,
+                path: params.path
+            };
+            files.push(newFolder);
+            localStorage.setItem(key, JSON.stringify(files));
+            return { status: "ok" };
+        }
+
+        if (action === "search_all") {
+            const results = [];
+            ["microsoft_onedrive", "baidu_netdisk", "alist_webdav"].forEach(driveId => {
+                const mockKey = `butler_mock_files_${driveId}`;
+                const files = JSON.parse(localStorage.getItem(mockKey) || "[]");
+                files.forEach(f => {
+                    if (f.name.toLowerCase().includes(params.query.toLowerCase())) {
+                        results.push({
+                            drive: driveId,
+                            name: f.name,
+                            size: f.size,
+                            is_dir: f.is_dir,
+                            path: f.path,
+                            id: f.path
+                        });
+                    }
+                });
+            });
+            return { status: "ok", results: results };
         }
 
         if (action === "transfer") {
@@ -519,12 +1077,11 @@ class StorageHubUI {
         }
 
         if (action === "check_transfer_status") {
-            // Increments progress mockup
             if (!this._mockProgress) this._mockProgress = 0;
             this._mockProgress += 15;
 
             if (this._mockProgress >= 100) {
-                this._mockProgress = 0; // reset
+                this._mockProgress = 0;
                 return {
                     status: "ok",
                     task: {
