@@ -29,6 +29,10 @@ class MemosManager {
         this.aiPredictedTags = [];
         this.tagPredictTimeout = null;
 
+        this.selectionMode = false;
+        this.selectedIds = new Set();
+        this.expandedIds = new Set();
+
         this.init();
 
         if (window.marked) {
@@ -116,6 +120,22 @@ class MemosManager {
             } else {
                 this.refreshMemos();
             }
+        });
+
+        // Global click listener to toggle card expand (skipping interactive elements)
+        document.addEventListener('click', (e) => {
+            const card = e.target.closest('.memo-card');
+            if (!card) return;
+            if (e.target.closest('.memo-card-actions') ||
+                e.target.closest('.btn-expand-toggle') ||
+                e.target.closest('.badge') ||
+                e.target.closest('.editable-value') ||
+                e.target.closest('.tag-item') ||
+                e.target.closest('.memo-tags') ||
+                e.target.closest('.memo-resource-grid') ||
+                e.target.closest('.card-checkbox')) return;
+            const toggleBtn = card.querySelector('.btn-expand-toggle');
+            if (toggleBtn) this.toggleExpand(toggleBtn);
         });
 
         // Drag & Drop
@@ -318,9 +338,15 @@ class MemosManager {
             return;
         }
 
+        // Default expand the first card if no cards are currently expanded
+        if (memos.length > 0 && this.expandedIds.size === 0) {
+            this.expandedIds.add(memos[0].id);
+        }
+
         memos.forEach(memo => {
             const card = document.createElement('div');
             card.className = `memo-card ${memo.is_pinned ? 'pinned-active' : ''}`;
+            card.dataset.note = memo.id;
             card.style.breakInside = 'avoid';
             card.style.marginBottom = '15px';
 
@@ -336,7 +362,6 @@ class MemosManager {
             let linkCardsHtml = '';
             if (urls && urls.length > 0) {
                 urls.forEach(url => {
-                    // Only strip trailing punctuation marks like dots, brackets or parentheses
                     const cleanUrl = this.sanitize(url.replace(/[)\].,;!]+$/, ""));
                     linkCardsHtml += `
                         <div class="memo-link-card glass-surface" onclick="window.pywebview ? window.pywebview.api.open_office('${cleanUrl}') : window.open('${cleanUrl}', '_blank')" style="cursor: pointer; padding: 10px; border-radius: 8px; margin-top: 10px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.02);">
@@ -350,69 +375,410 @@ class MemosManager {
                 });
             }
 
-            // Multi-modal Previews
-            let resHtml = '';
+            // Parse structure according to Scheme A
+            const contentLines = memo.content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            let title = '';
+            let preview = '';
+            if (contentLines.length > 0) {
+                title = contentLines[0].replace(/^[#\s\-*]+/g, ''); // Clean markdown headers or bullet symbols
+            }
+            if (title.length === 0) {
+                title = `📝 备忘记录 #${memo.id}`;
+            } else if (title.length > 30) {
+                title = title.substring(0, 30) + '...';
+            }
+
+            if (contentLines.length > 1) {
+                preview = contentLines.slice(1).join(' ');
+            } else {
+                preview = '点击「详情」查看完整内容...';
+            }
+            if (preview.length > 80) {
+                preview = preview.substring(0, 80) + '...';
+            }
+
+            // Extract status tag if present, default to '进行中'
+            const statusTags = ['#进行中', '#未完成', '#已完成', '#待办', '#新建', '#待做'];
+            let status = '进行中';
+            if (memo.tags) {
+                const foundStatus = memo.tags.find(t => statusTags.includes(t));
+                if (foundStatus) {
+                    status = foundStatus.substring(1); // strip '#'
+                }
+            }
+
+            // Extract main tags (filtering out status tags)
+            const displayTags = (memo.tags || []).filter(t => !statusTags.includes(t));
+            const primaryTag = displayTags.length > 0 ? displayTags[0].replace(/^#/g, '') : '备忘';
+
+            // Build details list HTML
+            let detailsHtml = '';
+            detailsHtml += `<p><i class="fas fa-check-circle"></i> 状态：<span class="badge" onclick="window.memosManager.editDetail(this, ${memo.id}, '状态')">${this.sanitize(status)}</span></p>`;
+            detailsHtml += `<p><i class="fas fa-tag"></i> 标签：<span class="editable-value" onclick="window.memosManager.editDetail(this, ${memo.id}, '标签')">${this.sanitize((memo.tags || []).join(' ') || '未分类')}</span></p>`;
+            detailsHtml += `<p><i class="fas fa-align-left"></i> 详细内容：<span class="editable-value" onclick="window.memosManager.editDetail(this, ${memo.id}, '详细内容')">${renderedContent}</span></p>`;
+
+            // Multi-modal Previews as Image Gallery / attachments
+            let imagesHtml = '';
+            let imageResources = [];
+            let nonImageResources = [];
             if (memo.resources && memo.resources.length > 0) {
-                resHtml = '<div class="memo-resource-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-top: 12px;">';
                 memo.resources.forEach(res => {
+                    const filename = res.split('/').pop();
+                    const ext = filename.split('.').pop().toLowerCase();
+                    if (['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) {
+                        imageResources.push(res);
+                    } else {
+                        nonImageResources.push(res);
+                    }
+                });
+            }
+
+            if (imageResources.length > 0) {
+                imagesHtml = `<div class="image-gallery">`;
+                imageResources.forEach((img, idx) => {
+                    imagesHtml += `<img src="${this.sanitize(img)}" alt="图片${idx+1}" onclick="window.memosManager.openLightbox('${this.sanitize(img)}')" />`;
+                });
+                imagesHtml += `</div>`;
+            } else {
+                imagesHtml = `<div class="image-gallery"><span class="no-image">暂无图片，点击编辑/保存附件</span></div>`;
+            }
+
+            let extraResHtml = '';
+            if (nonImageResources.length > 0) {
+                extraResHtml += '<div class="memo-resource-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-top: 12px;">';
+                nonImageResources.forEach(res => {
                     const filename = res.split('/').pop();
                     const ext = filename.split('.').pop().toLowerCase();
                     const cleanRes = this.sanitize(res);
 
-                    if (['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) {
-                        // Image Thumbnail
-                        resHtml += `
-                            <div class="resource-item image-preview" onclick="window.memosManager.openLightbox('${cleanRes}')" style="cursor: zoom-in; position: relative; border-radius: 8px; overflow: hidden; height: 90px; border: 1px solid var(--border-color);">
-                                <img src="${cleanRes}" style="width: 100%; height: 100%; object-fit: cover;">
-                            </div>
-                        `;
-                    } else if (['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) {
-                        // Embedded native audio controller
-                        resHtml += `
+                    if (['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) {
+                        extraResHtml += `
                             <div class="resource-item audio-preview" style="grid-column: span 2; background: rgba(0,122,255,0.06); padding: 8px; border-radius: 8px; border: 1px solid rgba(0,122,255,0.15);">
                                 <div style="font-size: 10px; color: var(--accent-color); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><i class="fas fa-microphone"></i> 语音附件: ${this.sanitize(filename)}</div>
                                 <audio src="${cleanRes}" controls style="width: 100%; height: 28px; outline: none;"></audio>
                             </div>
                         `;
                     } else if (['mp4', 'webm', 'mov'].includes(ext)) {
-                        // Embedded native video poster player
-                        resHtml += `
+                        extraResHtml += `
                             <div class="resource-item video-preview" style="grid-column: span 2; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color);">
                                 <video src="${cleanRes}" controls poster="" style="width: 100%; max-height: 150px; background: #000; object-fit: contain;"></video>
                             </div>
                         `;
                     } else {
-                        // Document file download badge
-                        resHtml += `
-                            <div class="resource-item doc-badge" onclick="window.pywebview ? window.pywebview.api.open_office('${cleanRes}') : null" style="padding: 10px; font-size: 11px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); display: flex; align-items: center; gap: 8px;">
+                        extraResHtml += `
+                            <div class="resource-item doc-badge" onclick="window.pywebview ? window.pywebview.api.open_office('${cleanRes}') : null" style="padding: 10px; font-size: 11px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); display: flex; align-items: center; gap: 8px; cursor: pointer;">
                                 <i class="fas fa-file-alt" style="color: var(--accent-color); font-size: 16px;"></i>
                                 <span style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${this.sanitize(filename)}</span>
                             </div>
                         `;
                     }
                 });
-                resHtml += '</div>';
+                extraResHtml += '</div>';
             }
 
-            const tagsHtml = memo.tags.map(t => `<span class="tag-item" style="cursor: pointer;" onclick="window.memosManager.filterByTag('${this.sanitize(t)}')">${this.sanitize(t)}</span>`).join('');
+            detailsHtml += imagesHtml + extraResHtml;
+
+            // Selection checkbox (hidden unless selectionMode is active)
+            const isSelected = this.selectionMode && this.selectedIds.has(memo.id);
+            const checkboxHtml = `<input type="checkbox" class="card-checkbox" ${isSelected ? 'checked' : ''} onchange="window.memosManager.toggleSelect(${memo.id}, this)" />`;
 
             card.innerHTML = `
-                <div class="memo-card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <span class="memo-time" style="font-size: 11px; color: var(--text-secondary); font-family: monospace;">${this.sanitize(date)}</span>
-                    <div class="memo-card-actions" style="display: flex; gap: 4px;">
-                        <button class="icon-btn-small" onclick="window.memosManager.editMemoInPlace(${memo.id})" title="编辑备忘"><i class="fas fa-edit"></i></button>
-                        <button class="icon-btn-small" onclick="window.memosManager.togglePinStatus(${memo.id}, ${memo.is_pinned})" title="${memo.is_pinned ? '取消置顶' : '置顶备忘'}" style="color: ${memo.is_pinned ? 'var(--accent-color)' : ''};"><i class="fas fa-thumbtack" style="${memo.is_pinned ? 'transform: rotate(45deg);' : ''}"></i></button>
-                        <button class="icon-btn-small" onclick="window.memosManager.toggleArchiveStatus(${memo.id}, ${memo.is_archived})" title="${memo.is_archived ? '激活' : '归档备忘'}" style="color: ${memo.is_archived ? '#FF9500' : ''};"><i class="fas fa-archive"></i></button>
-                        <button class="icon-btn-small" onclick="window.memosManager.deleteMemo(${memo.id})" title="彻底删除" style="color: #FF3B30;"><i class="fas fa-trash-alt"></i></button>
+                <div class="card-header">
+                    <div class="note-title" style="flex: 1; min-width: 0;">
+                        ${checkboxHtml}
+                        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${this.sanitize(title)}</span>
+                        <span class="tag" onclick="window.memosManager.editTag(this, ${memo.id})">${this.sanitize(primaryTag)}</span>
                     </div>
+                    <div class="note-date">${this.sanitize(date.split(' ')[0])}</div>
                 </div>
-                <div class="memo-card-content" onclick="window.memosManager.showMemoDetail(${JSON.stringify(memo).replace(/"/g, '&quot;')})" style="cursor: pointer;">${renderedContent}</div>
+                <div class="note-preview">${this.sanitize(preview)}</div>
+                <div class="extra-details">${detailsHtml}</div>
+                <div class="action-bar">
+                    <button class="btn btn-done" onclick="window.memosManager.markDone(${memo.id})">
+                        <i class="fas fa-check"></i> 完成
+                    </button>
+                    <button class="btn btn-image" onclick="window.memosManager.uploadImage(${memo.id})">
+                        <i class="fas fa-image"></i> 图片
+                    </button>
+                    <button class="btn btn-edit" onclick="window.memosManager.editNote(${memo.id})">
+                        <i class="fas fa-pencil-alt"></i> 编辑
+                    </button>
+                    <button class="btn btn-delete" onclick="window.memosManager.deleteMemo(${memo.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <button class="btn btn-expand-toggle" onclick="window.memosManager.toggleExpand(this)">
+                        <i class="fas fa-chevron-down"></i> <span>详情</span>
+                    </button>
+                </div>
                 ${linkCardsHtml}
-                ${resHtml}
-                <div class="memo-tags" style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 5px;">${tagsHtml}</div>
             `;
+
             container.appendChild(card);
+
+            // Restore expanded classes
+            if (this.expandedIds.has(memo.id)) {
+                card.classList.add('expanded');
+                const toggleBtn = card.querySelector('.btn-expand-toggle');
+                if (toggleBtn) {
+                    const icon = toggleBtn.querySelector('i');
+                    const span = toggleBtn.querySelector('span');
+                    if (span) span.innerText = '收起';
+                    if (icon) icon.className = 'fas fa-chevron-up';
+                }
+            }
+
+            // Restore selected classes
+            if (isSelected) {
+                card.classList.add('selected');
+            }
         });
+
+        // Toggle selection-mode class to trigger styling changes on list
+        container.classList.toggle('selection-mode', this.selectionMode);
+        this.updateBatchInfo();
+    }
+
+    async editTag(el, noteId) {
+        event?.stopPropagation();
+        const current = el.textContent.trim();
+        const newVal = prompt('✏️ 修改标签：', current);
+        if (newVal === null) return;
+        const trimmed = newVal.trim();
+        if (!trimmed) {
+            alert('标签不能为空！');
+            return;
+        }
+        const tagsArray = trimmed.split(/\s+/).map(t => t.startsWith('#') ? t : '#' + t);
+        try {
+            await window.pywebview.api.call_skill("memos", "update", {
+                id: noteId,
+                tags: tagsArray
+            });
+            window.showToast("标签更新", "标签已成功同步！", "success");
+            this.refreshMemos();
+        } catch (e) {
+            console.error("Failed to update tags", e);
+        }
+    }
+
+    async editDetail(el, noteId, label) {
+        event?.stopPropagation();
+        const current = el.textContent.trim();
+        const newVal = prompt(`✏️ 修改「${label}」：`, current);
+        if (newVal === null) return;
+        const trimmed = newVal.trim();
+        if (!trimmed) {
+            alert('内容不能为空！');
+            return;
+        }
+
+        try {
+            const memo = this.currentMemos.find(m => m.id === noteId);
+            if (!memo) return;
+
+            if (label === '状态') {
+                const statusTags = ['#进行中', '#未完成', '#已完成', '#待办', '#新建', '#待做'];
+                let tags = memo.tags || [];
+                tags = tags.filter(t => !statusTags.includes(t));
+                tags.push(trimmed.startsWith('#') ? trimmed : '#' + trimmed);
+                await window.pywebview.api.call_skill("memos", "update", {
+                    id: noteId,
+                    tags: tags
+                });
+            } else if (label === '标签') {
+                const tagsArray = trimmed.split(/\s+/).map(t => t.startsWith('#') ? t : '#' + t);
+                await window.pywebview.api.call_skill("memos", "update", {
+                    id: noteId,
+                    tags: tagsArray
+                });
+            } else {
+                await window.pywebview.api.call_skill("memos", "update", {
+                    id: noteId,
+                    content: trimmed
+                });
+            }
+            window.showToast("内容更新", "备忘录已成功更新！", "success");
+            this.refreshMemos();
+        } catch (e) {
+            console.error("Failed to update detail", e);
+        }
+    }
+
+    toggleSelectionMode() {
+        this.selectionMode = !this.selectionMode;
+        const batchBar = document.getElementById('batchBar');
+        if (!this.selectionMode) {
+            this.selectedIds.clear();
+            if (batchBar) {
+                batchBar.classList.remove('visible');
+                batchBar.style.display = 'none';
+            }
+        } else {
+            if (batchBar) {
+                batchBar.classList.add('visible');
+                batchBar.style.display = 'flex';
+            }
+        }
+        const btn = document.getElementById('select-memos-btn');
+        if (btn) {
+            btn.classList.toggle('active', this.selectionMode);
+            btn.innerHTML = this.selectionMode ? '<i class="fas fa-times"></i> <span>取消选择</span>' : '<i class="fas fa-check-double"></i> <span>选择</span>';
+        }
+        this.renderCurrentView();
+    }
+
+    cancelSelection() {
+        if (this.selectionMode) {
+            this.toggleSelectionMode();
+        }
+    }
+
+    toggleSelect(noteId, checkbox) {
+        if (checkbox.checked) {
+            this.selectedIds.add(noteId);
+        } else {
+            this.selectedIds.delete(noteId);
+        }
+        const card = document.querySelector(`.memo-card[data-note="${noteId}"]`);
+        if (card) {
+            card.classList.toggle('selected', checkbox.checked);
+        }
+        this.updateBatchInfo();
+    }
+
+    updateBatchInfo() {
+        const count = this.selectedIds.size;
+        const infoEl = document.getElementById('batchInfo');
+        if (infoEl) infoEl.textContent = `已选择 ${count} 项`;
+        const deleteBtn = document.getElementById('batchDeleteBtn');
+        if (deleteBtn) {
+            deleteBtn.disabled = count === 0;
+        }
+    }
+
+    async deleteSelected() {
+        if (this.selectedIds.size === 0) return;
+        if (!confirm(`确定要删除选中的 ${this.selectedIds.size} 条笔记吗？此操作不可撤销！`)) return;
+
+        try {
+            for (const id of this.selectedIds) {
+                await window.pywebview.api.call_skill("memos", "delete", { id: id });
+            }
+            window.showToast("批量删除", `已成功删除 ${this.selectedIds.size} 条笔记。`, "success");
+            this.selectedIds.clear();
+
+            if (this.selectionMode) {
+                this.toggleSelectionMode();
+            }
+            this.refreshMemos();
+        } catch (e) {
+            console.error("Failed to delete selected", e);
+            window.showToast("批量删除失败", e.message, "error");
+        }
+    }
+
+    async deleteMemo(id) {
+        event?.stopPropagation();
+        if (typeof window.pywebview !== 'undefined' && !confirm("确定要永久删除此备忘录吗？此操作不可撤销。")) return;
+        try {
+            await window.pywebview.api.call_skill("memos", "delete", { id });
+            window.showToast("备忘删除", "备忘录已安全清除。", "success");
+
+            this.selectedIds.delete(id);
+            this.expandedIds.delete(id);
+            this.updateBatchInfo();
+
+            this.refreshMemos();
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async markDone(id) {
+        event?.stopPropagation();
+        try {
+            const statusTags = ['#进行中', '#未完成', '#已完成', '#待办', '#新建', '#待做'];
+            const memo = this.currentMemos.find(m => m.id === id);
+            if (!memo) return;
+            let tags = memo.tags || [];
+            tags = tags.filter(t => !statusTags.includes(t));
+            tags.push('#已完成');
+            await window.pywebview.api.call_skill("memos", "update", {
+                id: id,
+                tags: tags
+            });
+            window.showToast("任务完成", "备忘状态已标记为「已完成」！", "success");
+            this.refreshMemos();
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    uploadImage(id) {
+        event?.stopPropagation();
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.multiple = true;
+        input.onchange = async (e) => {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+            let loaded = 0;
+            const total = files.length;
+            const tempFiles = [];
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    tempFiles.push({ name: file.name, data: ev.target.result });
+                    loaded++;
+                    if (loaded === total) {
+                        try {
+                            await window.pywebview.api.call_skill("memos", "update", {
+                                id: id,
+                                base64_files: tempFiles
+                            });
+                            window.showToast("图片上传", "图片已成功附加到该备忘中！", "success");
+                            this.refreshMemos();
+                        } catch (err) {
+                            console.error(err);
+                            window.showToast("上传失败", err.message, "error");
+                        }
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+        input.click();
+    }
+
+    editNote(id) {
+        event?.stopPropagation();
+        this.editMemoInPlace(id);
+    }
+
+    toggleExpand(btn, fromRestore = false) {
+        const card = btn.closest('.memo-card');
+        if (!card) return;
+        const noteId = Number(card.dataset.note);
+        const isExpanded = card.classList.contains('expanded');
+        if (!fromRestore) {
+            if (isExpanded) {
+                this.expandedIds.delete(noteId);
+            } else {
+                this.expandedIds.add(noteId);
+            }
+        }
+        card.classList.toggle('expanded');
+        const icon = btn.querySelector('i');
+        const span = btn.querySelector('span');
+        if (card.classList.contains('expanded')) {
+            if (span) span.innerText = '收起';
+            if (icon) icon.className = 'fas fa-chevron-up';
+        } else {
+            if (span) span.innerText = '详情';
+            if (icon) icon.className = 'fas fa-chevron-down';
+        }
     }
 
     renderSpatialView() {

@@ -3360,3 +3360,341 @@ body.interface-mobile .terminal-output,
         line-height: 1.35 !important;
     }
 }
+
+/* --- Selection Mode and Checkboxes --- */
+.selection-mode .card-checkbox {
+    display: inline-block !important;
+}
+
+.card-checkbox {
+    margin-right: 12px;
+    display: none;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--amber-accent);
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+/* --- Amber highlight with Adaptive variables --- */
+:root {
+    --amber-accent: #f59e0b;
+}
+
+.theme-dark {
+    --amber-accent: #f59e0b;
+}
+
+.theme-apple {
+    --amber-accent: #d97706; /* slightly darker for light mode readability */
+}
+
+/* --- Expandable Details inside Memo Cards --- */
+.extra-details {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease, margin 0.3s;
+    margin-top: 0;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 14px;
+    padding: 0 16px;
+    border-left: 3px solid rgba(0, 122, 255, 0.15);
+}
+
+.memo-card.expanded .extra-details {
+    max-height: 600px;
+    opacity: 1;
+    padding: 16px 16px;
+    margin-top: 16px;
+    border-left-color: var(--amber-accent);
+}
+
+.extra-details p {
+    font-size: 14px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.extra-details i {
+    color: var(--amber-accent);
+    width: 20px;
+    text-align: center;
+}
+
+.extra-details .editable-value {
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 6px;
+    transition: background 0.2s, box-shadow 0.2s;
+    background: transparent;
+    display: inline-block;
+    color: var(--text-primary);
+}
+
+.extra-details .editable-value:hover {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
+.extra-details .badge {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--amber-accent);
+    padding: 2px 12px;
+    border-radius: 30px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+    display: inline-block;
+}
+
+.extra-details .badge:hover {
+    background: rgba(245, 158, 11, 0.25);
+    transform: scale(1.04);
+}
+
+/* Image gallery custom preview style mapping */
+.image-gallery {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.image-gallery img {
+    max-width: 120px;
+    max-height: 120px;
+    object-fit: cover;
+    border-radius: 12px;
+    border: 2px solid var(--border-color);
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.image-gallery img:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-color: var(--amber-accent);
+}
+
+.image-gallery .no-image {
+    color: var(--text-secondary);
+    font-size: 13px;
+    padding: 8px 0;
+}
+
+/* --- Expanded Toggle button styling --- */
+.btn-expand-toggle {
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 30px;
+    border: 1px dashed var(--border-color);
+    margin-left: auto;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.btn-expand-toggle:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--text-secondary);
+    color: var(--text-primary);
+}
+
+.btn-expand-toggle i {
+    transition: transform 0.4s ease;
+}
+
+.memo-card.expanded .btn-expand-toggle i {
+    transform: rotate(180deg);
+}
+
+/* Selected Card Styling */
+.memo-card.selected {
+    border-color: var(--amber-accent) !important;
+    background: rgba(245, 158, 11, 0.05) !important;
+}
+
+/* Batch Bar Active/Visible Display toggling */
+.batch-bar.visible {
+    display: flex !important;
+    animation: slideUpIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUpIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* --- Note Card Action Bar and Buttons from Template --- */
+.action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
+.action-bar .btn {
+    padding: 6px 16px;
+    border-radius: 40px;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.2,0,0,1);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}
+
+.action-bar .btn-done {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+}
+
+.action-bar .btn-done:hover {
+    background: rgba(34, 197, 94, 0.25);
+    transform: scale(0.96);
+}
+
+.action-bar .btn-edit {
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    padding: 6px 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.action-bar .btn-edit:hover {
+    background: var(--text-secondary);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+}
+
+.action-bar .btn-image {
+    background: rgba(14, 165, 233, 0.15);
+    color: #0ea5e9;
+    border: 1px solid rgba(14, 165, 233, 0.2);
+}
+
+.action-bar .btn-image:hover {
+    background: rgba(14, 165, 233, 0.25);
+    transform: scale(0.96);
+}
+
+.action-bar .btn-delete {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.action-bar .btn-delete:hover {
+    background: rgba(239, 68, 68, 0.25);
+    transform: scale(0.96);
+}
+
+.action-bar .btn-expand-toggle {
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 30px;
+    border: 1px dashed var(--border-color);
+    margin-left: auto;
+    transition: all 0.2s;
+}
+
+.action-bar .btn-expand-toggle:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--text-secondary);
+    color: var(--text-primary);
+}
+
+/* Specific class styling support for note cards */
+.note-card {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 20px;
+    padding: 20px 22px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+}
+
+.note-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 40px -12px rgba(0,0,0,0.18), 0 4px 18px rgba(0,0,0,0.04);
+    border-color: var(--text-secondary);
+}
+
+.note-card.selected {
+    border-color: var(--amber-accent) !important;
+    background: rgba(245, 158, 11, 0.05) !important;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.note-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.note-title .tag {
+    font-size: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    padding: 2px 10px;
+    border-radius: 30px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+}
+
+.note-title .tag:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.04);
+}
+
+.note-date {
+    font-size: 13px;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 4px 14px;
+    border-radius: 30px;
+}
+
+.note-preview {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 6px 0 12px 0;
+    line-height: 1.5;
+    max-width: 90%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

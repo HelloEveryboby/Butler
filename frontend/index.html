@@ -219,6 +219,7 @@
                     </div>
 
                     <div style="display: flex; gap: 8px;">
+                        <button id="select-memos-btn" class="apple-btn-primary" onclick="window.memosManager.toggleSelectionMode()" style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid var(--border-color);"><i class="fas fa-check-double"></i> <span>选择</span></button>
                         <button id="new-memo-btn" class="apple-btn-primary" style="display: flex; align-items: center; gap: 6px;"><i class="fas fa-plus"></i> 新建备忘</button>
                         <button id="archive-view-toggle-btn" class="icon-btn-small" title="切换显示已归档" style="border: 1px solid var(--border-color); border-radius: 8px; width: 34px; height: 34px;"><i class="fas fa-archive"></i></button>
                     </div>
@@ -300,6 +301,17 @@
                     </div>
                     <div id="memos-list-wrapper" class="memos-timeline">
                         <div id="memos-timeline" class="memos-timeline"></div>
+                    </div>
+                </div>
+
+                <!-- 批量操作栏 -->
+                <div class="batch-bar" id="batchBar" style="display: none; margin-top: 20px; padding: 12px 18px; border-radius: 16px; border: 1px solid var(--border-color); align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+                    <span class="info" id="batchInfo" style="font-size: 14px; font-weight: 500;">已选择 0 项</span>
+                    <div class="actions" style="display: flex; gap: 12px;">
+                        <button class="btn-batch-cancel" onclick="window.memosManager.cancelSelection()" style="padding: 8px 24px; border-radius: 40px; border: none; font-weight: 500; cursor: pointer; background: rgba(255,255,255,0.1); color: var(--text-primary);">取消</button>
+                        <button class="btn-batch-delete" id="batchDeleteBtn" onclick="window.memosManager.deleteSelected()" disabled style="padding: 8px 24px; border-radius: 40px; border: none; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; background: #FF3B30; color: white;">
+                            <i class="fas fa-trash"></i> 删除选中
+                        </button>
                     </div>
                 </div>
 
