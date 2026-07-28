@@ -1,0 +1,11 @@
+# Butler Document - 文档处理能力
+# 安装: pip install -r requirements-doc.txt
+openpyxl
+python-docx
+python-pptx
+pypdf
+pdfplumber
+ebooklib
+rtf-converter
+reportlab
+Pygments

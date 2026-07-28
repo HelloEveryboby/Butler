@@ -153,12 +153,28 @@ class Jarvis:
             if master_pwd:
                 secret_vault.initialize(master_pwd)
 
-        # Initialize Runner Server
+        # Initialize Runner Server (security: no placeholder tokens)
         runner_config = self.config.get("runner_server", {})
+        runner_host = runner_config.get("host", "127.0.0.1")
+        runner_port = runner_config.get("port", 8000)
+        runner_token = None
+        try:
+            from butler.core.secret_vault import secret_vault
+            if secret_vault._master_key:
+                runner_token = secret_vault.get_secret("runner_token")
+        except Exception:
+            pass
+        if not runner_token:
+            runner_token = os.getenv("BUTLER_RUNNER_TOKEN")
+        if not runner_token or runner_token == "BUTLER_TOKEN_PLACEHOLDER":
+            import secrets as _secrets
+            runner_token = _secrets.token_hex(32)
+            self.logger.warning("[Security] Runner token 未配置，已自动生成临时 token。"
+                                "建议通过 'butler vault set runner_token' 持久化设置。")
         self.runner_server = RunnerServer(
-            host=runner_config.get("host", "0.0.0.0"),
-            port=runner_config.get("port", 8000),
-            token=runner_config.get("token", "BUTLER_TOKEN_PLACEHOLDER")
+            host=runner_host,
+            port=runner_port,
+            token=runner_token
         )
         self.runner_server.register_event_callback(self._on_runner_event)
         self.runner_server.start()
@@ -167,7 +183,7 @@ class Jarvis:
         import os
         from butler.core.api import start_api_server_thread
         self.api_server_thread = start_api_server_thread(
-            host=os.environ.get("BUTLER_API_HOST", "0.0.0.0"),
+            host=os.environ.get("BUTLER_API_HOST", "127.0.0.1"),
             port=int(os.environ.get("BUTLER_API_PORT", 5001)),
             use_ssl=True
         )

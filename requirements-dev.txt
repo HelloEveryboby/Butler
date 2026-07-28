@@ -1,0 +1,8 @@
+# Butler Dev - 开发与质量门禁工具
+# 安装: pip install -r requirements-dev.txt
+-r requirements-core.txt
+pytest>=7.0
+pytest-cov
+pytest-asyncio
+ruff
+mypy

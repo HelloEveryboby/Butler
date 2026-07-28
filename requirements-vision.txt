@@ -1,0 +1,6 @@
+# Butler Vision - 视觉识别与 OCR 能力
+# 安装: pip install -r requirements-vision.txt
+opencv-python
+pytesseract
+Pillow
+mss
