@@ -72,6 +72,59 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(SecurityHeadersMiddleware)
 
 # 4. REST API Routes
+
+@app.get("/healthz")
+def liveness_probe():
+    """存活探针：仅检查进程是否运行，无需认证。"""
+    return {"status": "ok", "service": "butler-api", "version": "2.0.0"}
+
+@app.get("/readyz")
+def readiness_probe():
+    """
+    就绪探针：检查所有关键依赖是否可用，无需认证。
+    返回 degraded 状态而非 500，允许外部编排器做渐进式决策。
+    """
+    deps = {}
+    overall = "ready"
+
+    # 检查 SecretVault
+    try:
+        vault_unlocked = bool(getattr(secret_vault, "_master_key", None))
+        deps["secret_vault"] = "unlocked" if vault_unlocked else "locked"
+        if not vault_unlocked:
+            overall = "degraded"
+    except Exception:
+        deps["secret_vault"] = "error"
+        overall = "degraded"
+
+    # 检查 NLU Service
+    try:
+        from butler.core.nlu_service import NLUService
+        deps["nlu_service"] = "available" if NLUService.api_available else "unavailable"
+        if not NLUService.api_available:
+            overall = "degraded"
+    except Exception:
+        deps["nlu_service"] = "error"
+        overall = "degraded"
+
+    # 检查 Runner Server
+    try:
+        from butler.core.runner_server import runner_server
+        deps["runner_server"] = "running" if runner_server.is_running else "stopped"
+    except Exception:
+        deps["runner_server"] = "unknown"
+
+    # 检查 Intent Dispatcher 熔断器状态
+    try:
+        from butler.core.intent_dispatcher import intent_registry
+        metrics = intent_registry.get_metrics()
+        tripped = [name for name, m in metrics.items() if m.get("failure", 0) > 0]
+        deps["intent_circuit_breakers"] = "all_closed" if not tripped else f"tripped:{tripped}"
+    except Exception:
+        deps["intent_circuit_breakers"] = "unknown"
+
+    return {"overall": overall, "dependencies": deps}
+
 @app.get("/health")
 def health_check():
     """Simple authenticated/unauthenticated health check."""
