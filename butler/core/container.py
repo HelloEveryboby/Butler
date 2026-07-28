@@ -113,6 +113,37 @@ class AppContainer:
         with self._lock:
             self._instances.clear()
 
+    def shutdown_all(self) -> None:
+        """
+        按依赖拓扑逆序关闭所有服务。
+
+        遍历已实例化的服务，调用其 shutdown() 方法（如果存在）。
+        确保资源释放顺序与初始化顺序相反，避免提前关闭被依赖的服务。
+        """
+        with self._lock:
+            # 逆序关闭：后实例化的服务通常依赖先实例化的
+            sorted_names = reversed(list(self._instances.keys()))
+            closed: list[str] = []
+            failed: list[str] = []
+
+            for name in sorted_names:
+                instance = self._instances[name]
+                shutdown_fn = getattr(instance, "shutdown", None)
+                if callable(shutdown_fn):
+                    try:
+                        logger.debug(f"正在关闭服务: {name}")
+                        shutdown_fn()
+                        closed.append(name)
+                    except Exception as e:
+                        logger.warning(f"服务 '{name}' 关闭失败: {e}")
+                        failed.append(name)
+
+            self._instances.clear()
+            logger.info(
+                f"容器关闭完成: {len(closed)} 个服务已关闭"
+                + (f", {len(failed)} 个失败" if failed else "")
+            )
+
     @property
     def registered_names(self) -> list[str]:
         """返回所有已注册的服务名。"""
