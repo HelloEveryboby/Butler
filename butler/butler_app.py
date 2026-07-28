@@ -781,9 +781,45 @@ class Jarvis:
         except Exception as e: self.logger.error(f"Manual learning failed: {e}")
 
     def _handle_exit(self):
-        self.speak("再见"); self.running = False; self.voice_service.stop_listening()
-        self.skill_manager.stop_monitoring()
-        if self.root: self.root.quit()
+        """优雅关闭：先停服务，再停硬件，最后退出 UI。"""
+        self.speak("再见")
+        self.running = False
+
+        # 1. 停止语音监听
+        try:
+            self.voice_service.stop_listening()
+        except Exception:
+            pass
+
+        # 2. 通过容器关闭所有服务（逆序依赖释放）
+        if hasattr(self, 'container'):
+            try:
+                self.container.shutdown_all()
+            except Exception as e:
+                self.logger.warning(f"容器关闭异常: {e}")
+
+        # 3. 停止技能监控
+        try:
+            self.skill_manager.stop_monitoring()
+        except Exception:
+            pass
+
+        # 4. 停止 HybridLink
+        try:
+            self.sysutil.stop()
+        except Exception:
+            pass
+
+        # 5. 停止 Runner Server
+        try:
+            self.runner_server.stop()
+        except Exception:
+            pass
+
+        # 6. 退出 UI
+        if self.root:
+            self.root.quit()
+        self.logger.info("系统已优雅关闭")
 
     def main(self):
         # Auto-download missing assets on startup
