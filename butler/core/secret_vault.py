@@ -51,24 +51,26 @@ class SecretVault:
         初始化保险库密钥。
         1. 尝试从 Keyring 获取系统生成的随机根密钥。
         2. 如果失败且提供了 master_password，则通过 PBKDF2 派生密钥。
+
+        安全修复：
+        - PBKDF2 迭代次数提升至 600,000（OWASP 2023 建议）
+        - 移除主密钥明文传输至 Runner 的不安全行为
+        - Runner 密钥改为通过 HKDF 派生子密钥，按需分发
         """
         # 1. Try Keyring (Industrial-grade OS Native Integration)
         if keyring:
             try:
-                # Attempts to access Windows Credential Manager or macOS Keychain
                 system_root_key = keyring.get_password("Butler", "VaultRootKey")
                 if not system_root_key:
-                    # Initial setup: Generate high-entropy root key
                     system_root_key = base64.b64encode(os.urandom(32)).decode('utf-8')
                     keyring.set_password("Butler", "VaultRootKey", system_root_key)
 
                 self._master_key = base64.b64decode(system_root_key)
                 self._key_source = 'keyring'
 
-                # Sync to Go Runner (only if local)
-                from butler.core.runner_server import runner_server
-                # Use a specific runner_id for the primary local runner to avoid broadcast exposure
-                runner_server.send_command("default_runner", "vault_init", self._master_key.hex())
+                # [Security Fix] 不再向 Runner 传输主密钥
+                # Runner 通过独立的 token 认证，密钥派生走 HKDF
+                self._sync_runner_derived_key()
 
                 logger.info("SecretVault initialized via System Keyring (Industrial Mode).")
                 self._ensure_default_tokens()
@@ -78,29 +80,54 @@ class SecretVault:
 
         # 2. Fallback to Master Password
         if master_password:
-            # Broadast event for "Golden Glassmorphism" UI if this is manual entry
             from butler.core.event_bus import event_bus
             event_bus.emit("vault_unlocking", {"source": "password"})
 
             salt = self._get_or_create_salt()
+            # [Security Fix] PBKDF2 迭代次数提升至 600,000（OWASP 2023 建议）
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=32,
                 salt=salt,
-                iterations=100000,
+                iterations=600000,
             )
             self._master_key = kdf.derive(master_password.encode())
             self._key_source = 'password'
 
-            # Sync to local runner for memory pinning
-            from butler.core.runner_server import runner_server
-            runner_server.broadcast_command("vault_init", self._master_key.hex())
+            # [Security Fix] 不再广播主密钥
+            self._sync_runner_derived_key()
 
-            logger.info("SecretVault initialized via Master Password.")
+            logger.info("SecretVault initialized via Master Password (PBKDF2 600K iterations).")
             self._ensure_default_tokens()
             return True
 
         return False
+
+    def _sync_runner_derived_key(self) -> None:
+        """
+        [Security Fix] 使用 HKDF 从主密钥派生 Runner 专用子密钥，
+        替代旧的明文主密钥传输方案。
+        """
+        try:
+            from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+            from cryptography.hazmat.primitives import hashes as _hashes
+
+            hkdf = HKDF(
+                algorithm=_hashes.SHA256(),
+                length=32,
+                salt=None,
+                info=b"butler-runner-auth-key-v1",
+            )
+            runner_key = hkdf.derive(self._master_key)
+
+            # 仅向本地默认 Runner 分发派生子密钥（非主密钥）
+            from butler.core.runner_server import runner_server
+            runner_server.send_command(
+                "default_runner", "vault_init", runner_key.hex()
+            )
+            logger.debug("Runner 派生子密钥已同步（HKDF）")
+        except Exception as e:
+            logger.warning(f"Runner 密钥派生同步失败（非致命）: {e}")
 
     def _ensure_default_tokens(self):
         """Ensures that default secure tokens are generated and stored."""
