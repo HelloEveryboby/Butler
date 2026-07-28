@@ -89,8 +89,13 @@ class ButlerRuntime:
         app = FastAPI(title="Butler AI Employee OS API Gateway", version="2.0.0-Alpha")
         runtime_instance = self
 
-        # 简单高效的 API 鉴权令牌，默认与配置对齐
-        API_TOKEN = os.getenv("BUTLER_API_TOKEN", "BUTLER_TOKEN_PLACEHOLDER")
+        # API 鉴权令牌：从 SecretVault 或环境变量获取，禁止使用占位符
+        API_TOKEN = os.getenv("BUTLER_API_TOKEN")
+        if not API_TOKEN or API_TOKEN == "BUTLER_TOKEN_PLACEHOLDER":
+            import secrets as _secrets
+            API_TOKEN = _secrets.token_hex(32)
+            logger.warning("[Security] BUTLER_API_TOKEN 未配置，已自动生成临时 token。"
+                           "建议设置环境变量 BUTLER_API_TOKEN 或通过 SecretVault 持久化。")
 
         def verify_token(authorization: Optional[str] = Header(None)):
             if not authorization:

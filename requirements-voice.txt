@@ -1,0 +1,9 @@
+# Butler Voice - 语音交互能力
+# 安装: pip install -r requirements-voice.txt
+pyttsx3
+pydub
+pyaudio
+sounddevice
+pvrecorder
+pypinyin
+pygame

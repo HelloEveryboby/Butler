@@ -60,7 +60,9 @@ from butler.core.memory.memory_engine import (
     LongMemoryItem, UnifiedMemoryEngine, hybrid_memory_manager
 )
 from butler.core.intent_dispatcher import intent_registry
+from butler.core.intents import *  # noqa: F401, F403 — 触发所有 @register_intent 装饰器注册
 from butler.core import legacy_commands # Ensure legacy intents are registered
+from butler.core.bootstrap import build_container, get_secure_runner_token
 from butler.interpreter import interpreter
 from butler.core.hybrid_link import HybridLinkClient
 from butler.core.runner_server import RunnerServer
@@ -103,9 +105,10 @@ class Jarvis:
         self.prompts = self._load_json_resource("prompts.json")
         self.program_mapping = self._load_json_resource("program_mapping.json")
 
-        # Initialize services
+        # Initialize long memory (required early for NLU)
         self._initialize_long_memory()
 
+        # Pre-create services needed before container build
         self.nlu_service = NLUService(config_loader.get("api.deepseek.key"), self.prompts)
         self.voice_service = VoiceService(self.handle_user_command, self.ui_print, self._on_voice_status_change)
         self.skill_manager = SkillManager()
@@ -144,30 +147,25 @@ class Jarvis:
         self.standalone_manager = StandaloneManager(self)
         self.standalone_manager.start()
 
-        # Initialize Secret Vault
-        from butler.core.secret_vault import secret_vault
-        # 尝试静默初始化 (Keyring)
-        if not secret_vault.initialize():
-            # 如果失败且有环境变量/配置中的主密码，尝试初始化
-            master_pwd = os.getenv("BUTLER_MASTER_PASSWORD")
-            if master_pwd:
-                secret_vault.initialize(master_pwd)
+        # Initialize Secret Vault (via bootstrap helper)
+        from butler.core.bootstrap import _resolve_secret_vault
+        self.secret_vault = _resolve_secret_vault()
 
-        # Initialize Runner Server
+        # Initialize Runner Server (security: token via bootstrap helper)
         runner_config = self.config.get("runner_server", {})
+        runner_token = get_secure_runner_token(self.secret_vault)
         self.runner_server = RunnerServer(
-            host=runner_config.get("host", "0.0.0.0"),
+            host=runner_config.get("host", "127.0.0.1"),
             port=runner_config.get("port", 8000),
-            token=runner_config.get("token", "BUTLER_TOKEN_PLACEHOLDER")
+            token=runner_token
         )
         self.runner_server.register_event_callback(self._on_runner_event)
         self.runner_server.start()
 
-        # Initialize REST API Secure Gateway
-        import os
+        # Initialize REST API Secure Gateway (security: bind localhost by default)
         from butler.core.api import start_api_server_thread
         self.api_server_thread = start_api_server_thread(
-            host=os.environ.get("BUTLER_API_HOST", "0.0.0.0"),
+            host=os.environ.get("BUTLER_API_HOST", "127.0.0.1"),
             port=int(os.environ.get("BUTLER_API_PORT", 5001)),
             use_ssl=True
         )
@@ -177,8 +175,10 @@ class Jarvis:
         self.dual_encryptor = DualLayerEncryptor()
 
         # Inject self into interpreter for skill interception
-        from butler.interpreter import interpreter
         interpreter.jarvis_app = self
+
+        # Build AppContainer (declarative dependency injection)
+        self.container = build_container(self, config_loader, self.prompts)
 
         # Print Geek Startup Banner
         self._print_startup_banner(headless)
@@ -927,139 +927,61 @@ class Jarvis:
                 self.speak(resp)
                 break
 
-            # 5. Tool Dispatch
+            # 5. Tool Dispatch (via unified IntentRegistry)
             self.ui_print(f"执行意图: {intent}", tag='system_message')
             output = ""
 
-            # Persistent Task Tools
-            if intent == "task_create":
-                output = task_manager.create_business_task(entities.get("subject", "未命名任务"), entities.get("description", ""))
-            elif intent == "task_update":
-                output = task_manager.update_business_task(int(entities.get("task_id", 0)), entities.get("status"), entities.get("add_blocked_by"), entities.get("remove_blocked_by"))
-            elif intent == "task_list":
-                output = task_manager.list_business_tasks()
-            elif intent == "claim_task":
-                output = task_manager.claim_business_task(int(entities.get("task_id", 0)), "lead")
-
-            # Secret Vault Tools
-            elif intent == "vault_set":
-                from butler.core.secret_vault import secret_vault
-                secret_vault.set_secret(entities.get("key"), entities.get("value"))
-                output = f"Secret '{entities.get('key')}' stored securely."
-            elif intent == "vault_get":
-                from butler.core.secret_vault import secret_vault
-                output = secret_vault.get_secret(entities.get("key"))
-            elif intent == "vault_list":
-                from butler.core.secret_vault import secret_vault
-                output = secret_vault.list_secrets()
-
-            # Skill Management Tools
-            elif intent == "skill_install" or intent == "skill_import":
-                output = self.skill_manager.execute("manage_skills", "install" if intent == "skill_install" else "import", entities=entities, jarvis_app=self)
-
-            # Team Tools
-            elif intent == "spawn_teammate":
-                output = self.team_manager.spawn_teammate(entities.get("name"), entities.get("role"), entities.get("prompt"))
-            elif intent == "list_teammates":
-                output = self.team_manager.list_teammates()
-            elif intent == "send_message":
-                output = message_bus.send("lead", entities.get("to"), entities.get("content"), entities.get("msg_type", "message"))
-            elif intent == "read_inbox":
-                output = message_bus.read_inbox("lead")
-
-            # Time Machine Tools
-            elif intent == "timemachine_query":
-                from butler.core.time_machine import time_machine
-                ts = float(entities.get("timestamp", time.time()))
-                output = time_machine.get_snapshot_at(ts)
-            elif intent == "timemachine_range":
-                from butler.core.time_machine import time_machine
-                output = time_machine.get_range(
-                    float(entities.get("start")),
-                    float(entities.get("end")),
-                    entities.get("category")
+            # 特殊处理：workflow_create 需要 LLM 解析 DAG 步骤
+            if intent == "workflow_create" and isinstance(entities.get("steps"), str):
+                self.ui_print("🧠 正在根据您的描述生成 DAG 工作流...", tag='system_message')
+                gen_prompt = (
+                    "请将以下用户需求解析为 Butler DAG 工作流 JSON 结构。\n"
+                    "格式要求: list of objects with {id, intent, entities, depends_on: [list of ids]}\n\n"
+                    f"用户需求: {entities['steps']}"
                 )
-
-            # Cluster Tools
-            elif intent == "cluster_list":
-                from butler.core.cluster_manager import cluster_manager
-                output = cluster_manager.list_nodes()
-            elif intent == "cluster_execute":
-                from butler.core.cluster_manager import cluster_manager
-                output = cluster_manager.execute_remote(
-                    entities.get("node_id"),
-                    entities.get("skill_id"),
-                    entities.get("action", "run"),
-                    entities.get("payload", {})
-                )
-
-            # Workflow Tools
-            elif intent == "workflow_list":
-                output = self.workflow_engine.list_workflows()
-            elif intent == "workflow_create":
-                # [LLM 驱动的工作流生成] 如果 steps 是字符串，尝试让 LLM 解析为 DAG 结构
-                steps = entities.get("steps")
-                if isinstance(steps, str):
-                    self.ui_print(f"🧠 正在根据您的描述生成 DAG 工作流...", tag='system_message')
-                    gen_prompt = (
-                        "请将以下用户需求解析为 Butler DAG 工作流 JSON 结构。\n"
-                        "格式要求: list of objects with {id, intent, entities, depends_on: [list of ids]}\n\n"
-                        f"用户需求: {steps}"
-                    )
-                    steps_json = self.nlu_service.ask_llm(gen_prompt, use_habit=False)
-                    try:
-                        # 提取 JSON
-                        match = re.search(r"(\[.*\])", steps_json, re.DOTALL)
-                        if match:
-                            steps = json.loads(match.group(1))
-                        else:
-                            output = "Error: 无法从 AI 响应中解析出工作流结构。"
-                            break
-                    except Exception as e:
-                        output = f"Error: 工作流解析失败: {e}"
+                steps_json = self.nlu_service.ask_llm(gen_prompt, use_habit=False)
+                try:
+                    match = re.search(r"(\[.*\])", steps_json, re.DOTALL)
+                    if match:
+                        entities["steps"] = json.loads(match.group(1))
+                    else:
+                        output = "Error: 无法从 AI 响应中解析出工作流结构。"
                         break
+                except Exception as e:
+                    output = f"Error: 工作流解析失败: {e}"
+                    break
 
-                wf_id = self.workflow_engine.create_workflow(entities.get("name", "AI 生成工作流"), steps)
-                # 如果指定了立刻执行
-                if entities.get("auto_start", True):
-                    self.workflow_engine.execute_workflow(wf_id)
-                output = f"Workflow created: {wf_id}"
-
-            # Context Tools
-            elif intent == "compress":
-                messages = self.nlu_service.compress_history(messages)
-                output = "Context compressed."
-
-            # Action Bridge Tools
-            elif intent == "call_api":
-                from butler.core.action_bridge import action_bridge
-                output = action_bridge.call_api(
-                    url=entities.get("url"),
-                    method=entities.get("method", "POST"),
-                    data=entities.get("data"),
-                    headers=entities.get("headers")
+            # 特殊处理：interpreter 类意图需要中断循环
+            if intent in ("xlsx_expert", "pdf_assistant") or self._should_use_interpreter(command):
+                entities["command"] = command
+                intent_registry.dispatch_by_llm_intent(
+                    intent, container=self.container, entities=entities
                 )
-            elif intent == "trigger_webhook":
-                from butler.core.action_bridge import action_bridge
-                output = action_bridge.trigger_webhook(
-                    name=entities.get("name"),
-                    payload=entities.get("payload"),
-                    config=entities.get("config", {})
-                )
-
-            # Legacy & Interpreter Fallbacks
-            elif intent == "xlsx_expert" or intent == "pdf_assistant" or self._should_use_interpreter(command):
-                # Call interpreter for code-based tasks
-                self._execute_with_llm_interpreter(command)
                 break
+
+            # 统一意图分发：所有已注册的 LLM handler 通过 dispatch_by_llm_intent 路由
+            found, result = intent_registry.dispatch_by_llm_intent(
+                intent, container=self.container, entities=entities, messages=messages
+            )
+
+            if found:
+                output = result
             else:
-                # Handle via legacy skill/extension system or new SKILL.md scripts
-                skill_id = intent if intent in self.skill_manager.manifests else self.skill_manager.match_skill(command)
+                # 未注册的意图：走 legacy skill/extension 系统
+                skill_id = (
+                    intent if intent in self.skill_manager.manifests
+                    else self.skill_manager.match_skill(command)
+                )
                 if skill_id:
-                    output = self.skill_manager.execute(skill_id, entities.get("operation") or entities.get("action") or "run", entities=entities, jarvis_app=self)
+                    output = self.skill_manager.execute(
+                        skill_id,
+                        entities.get("operation") or entities.get("action") or "run",
+                        entities=entities,
+                        jarvis_app=self,
+                    )
                     if isinstance(output, dict) and output.get("status") == "pending_confirmation":
                         self.speak(output["message"])
-                        break # Stop chain and wait for user confirmation/force
+                        break
                 else:
                     output = extension_manager.execute(intent, command=command, args=entities)
 
