@@ -23,6 +23,7 @@ AgentRuntime — 与 UI 解耦的纯 Agent 循环。
 
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 import time
 import uuid
@@ -147,6 +148,7 @@ class AgentRuntime:
         self.context = context_manager
         self.events = event_stream
         self._state: ConversationState | None = None
+        self._executor: concurrent.futures.ThreadPoolExecutor | None = None
 
     @property
     def state(self) -> ConversationState | None:
@@ -174,116 +176,106 @@ class AgentRuntime:
                 "events": 事件流,
             }
         """
-        # 初始化对话状态
         self._state = ConversationState(messages=initial_messages)
 
-        # 添加系统提示
         if self.config.system_prompt:
             self._state.append(Message(role="system", content=self.config.system_prompt))
 
-        # 添加用户输入
         user_msg = Message(role="user", content=user_input)
         self._state.append(user_msg)
         self.events.emit(
             Event.create(EventType.MESSAGE, role="user", content=user_input)
         )
 
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+
         stop_reason = StopReason.END_TURN
         turn = 0
 
-        for turn in range(self.config.max_turns):
-            # 1. 上下文压缩检查
-            self._check_compaction()
+        try:
+            for turn in range(self.config.max_turns):
+                self._check_compaction()
 
-            # 2. 调用 LLM
-            try:
-                llm_response = self._call_llm(**llm_kwargs)
-            except Exception as e:
-                logger.error(f"LLM call failed: {e}", exc_info=True)
-                self.events.emit(
-                    Event.create(EventType.ERROR, error=str(e))
-                )
-                stop_reason = StopReason.ERROR
-                break
-
-            # 3. 处理 LLM 响应
-            content = llm_response.get("content", "")
-            tool_calls_raw = llm_response.get("tool_calls", [])
-            stop_reason_str = llm_response.get("stop_reason", "end_turn")
-
-            # 解析工具调用
-            tool_calls = []
-            for tc_raw in tool_calls_raw:
                 try:
-                    tool_calls.append(ToolCall.from_dict(tc_raw))
+                    llm_response = self._call_llm(**llm_kwargs)
                 except Exception as e:
-                    logger.warning(f"Failed to parse tool call: {e}")
+                    logger.error(f"LLM call failed: {e}", exc_info=True)
+                    self.events.emit(
+                        Event.create(EventType.ERROR, error=str(e))
+                    )
+                    stop_reason = StopReason.ERROR
+                    break
 
-            # 4. 追加 assistant 消息
-            assistant_msg = Message(
-                role="assistant",
-                content=content,
-                tool_calls=tool_calls,
-            )
-            self._state.append(assistant_msg)
-            self.events.emit(
-                Event.create(
-                    EventType.MESSAGE,
+                content = llm_response.get("content", "")
+                tool_calls_raw = llm_response.get("tool_calls", [])
+                stop_reason_str = llm_response.get("stop_reason", "end_turn")
+
+                tool_calls = []
+                for tc_raw in tool_calls_raw:
+                    try:
+                        tool_calls.append(ToolCall.from_dict(tc_raw))
+                    except Exception as e:
+                        logger.warning(f"Failed to parse tool call: {e}")
+
+                assistant_msg = Message(
                     role="assistant",
                     content=content,
-                    tool_calls=[tc.to_dict() for tc in tool_calls],
+                    tool_calls=tool_calls,
                 )
-            )
-
-            # 5. 如果没有工具调用，循环结束
-            if not tool_calls or stop_reason_str == "end_turn":
-                stop_reason = StopReason.END_TURN
-                break
-
-            # 6. 执行工具调用
-            for tc in tool_calls:
-                result = self._execute_tool_call(tc)
-                self._state.append(result.to_message())
+                self._state.append(assistant_msg)
                 self.events.emit(
                     Event.create(
-                        EventType.TOOL_RESULT if result.success else EventType.TOOL_ERROR,
-                        tool_call_id=tc.id,
-                        tool_name=tc.name,
-                        content=result.content,
-                        success=result.success,
-                        error=result.error,
+                        EventType.MESSAGE,
+                        role="assistant",
+                        content=content,
+                        tool_calls=[tc.to_dict() for tc in tool_calls],
                     )
                 )
 
-                # 7. 自愈逻辑（如果启用且工具失败）
-                if (
-                    not result.success
-                    and self.config.enable_self_healing
-                    and turn < self.config.max_turns - 1
-                ):
-                    # 将错误信息加入对话，让 LLM 在下一轮决定如何处理
-                    self._state.append(
-                        Message(
-                            role="user",
-                            content=(
-                                f"Tool '{tc.name}' failed with error: {result.error}. "
-                                f"Please try a different approach or fix the issue."
-                            ),
+                if not tool_calls or stop_reason_str == "end_turn":
+                    stop_reason = StopReason.END_TURN
+                    break
+
+                for tc in tool_calls:
+                    result = self._execute_tool_call(tc)
+                    self._state.append(result.to_message())
+                    self.events.emit(
+                        Event.create(
+                            EventType.TOOL_RESULT if result.success else EventType.TOOL_ERROR,
+                            tool_call_id=tc.id,
+                            tool_name=tc.name,
+                            content=result.content,
+                            success=result.success,
+                            error=result.error,
                         )
                     )
 
-            # 继续下一轮循环
+                    if (
+                        not result.success
+                        and self.config.enable_self_healing
+                        and turn < self.config.max_turns - 1
+                    ):
+                        self._state.append(
+                            Message(
+                                role="user",
+                                content=(
+                                    f"Tool '{tc.name}' failed with error: {result.error}. "
+                                    f"Please try a different approach or fix the issue."
+                                ),
+                            )
+                        )
 
-        else:
-            # 到达最大轮次
-            stop_reason = StopReason.MAX_TURNS
+            else:
+                stop_reason = StopReason.MAX_TURNS
 
-        # 发出停止事件
+        finally:
+            if self._executor:
+                self._executor.shutdown(wait=False)
+
         self.events.emit(
             Event.create(EventType.STOP, reason=stop_reason.value, turns=turn + 1)
         )
 
-        # 获取最终回复
         final_response = self._get_final_response()
 
         return {
@@ -309,7 +301,6 @@ class AgentRuntime:
                 **kwargs,
             )
 
-        # 降级：无 LLM 调用器时返回空响应
         logger.warning("No LLM call handler configured, returning empty response")
         return {"content": "", "tool_calls": [], "stop_reason": "end_turn"}
 
@@ -332,7 +323,6 @@ class AgentRuntime:
                 error=f"Tool '{tool_call.name}' not found",
             )
 
-        # 发出工具调用事件
         self.events.emit(
             Event.create(
                 EventType.TOOL_CALL,
@@ -342,7 +332,6 @@ class AgentRuntime:
             )
         )
 
-        # 权限检查
         decision = self.permissions.check(
             tool_name=tool_call.name,
             arguments=tool_call.arguments,
@@ -374,13 +363,12 @@ class AgentRuntime:
                 )
             )
 
-            # 调用确认回调
             if self.config.auto_confirm_handler:
                 approved = self.config.auto_confirm_handler(
                     tool_call.name, tool_call.arguments
                 )
             else:
-                approved = False  # 默认拒绝
+                approved = False
 
             if not approved:
                 self.events.emit(
@@ -405,17 +393,14 @@ class AgentRuntime:
                 )
             )
 
-        # 执行工具（带超时保护）
-        import concurrent.futures
-
+        assert self._executor is not None
         try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(
-                    self.tools.execute,
-                    tool_call.name,
-                    tool_call.arguments,
-                )
-                result = future.result(timeout=self.config.tool_execution_timeout)
+            future = self._executor.submit(
+                self.tools.execute,
+                tool_call.name,
+                tool_call.arguments,
+            )
+            result = future.result(timeout=self.config.tool_execution_timeout)
         except concurrent.futures.TimeoutExpired:
             logger.error(
                 f"Tool '{tool_call.name}' timed out after "
@@ -444,7 +429,6 @@ class AgentRuntime:
                 error=f"Tool execution error: {e}",
             )
 
-        # 设置 tool_call_id
         return ToolResult(
             tool_call_id=tool_call.id,
             content=result.content,
@@ -481,7 +465,6 @@ class AgentRuntime:
         if not self._state:
             return ""
 
-        # 找最后一条 assistant 消息
         for msg in reversed(self._state.messages):
             if msg.role == "assistant" and msg.content:
                 return msg.content
