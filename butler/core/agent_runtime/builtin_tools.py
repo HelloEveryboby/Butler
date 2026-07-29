@@ -14,6 +14,9 @@
         - glob: 文件模式匹配
         - grep: 内容搜索（正则表达式）
         - ls: 列出目录内容
+        - delete: 删除文件或目录（递归）
+        - move: 移动或重命名文件/目录
+        - copy: 复制文件或目录（递归）
 
     Shell 工具组：
         - bash: 持久 Shell 会话执行命令
@@ -25,6 +28,7 @@ import fnmatch
 import logging
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -57,6 +61,9 @@ def register_builtin_tools(
     _register_glob_tool(registry, ws_root)
     _register_grep_tool(registry, ws_root)
     _register_ls_tool(registry, ws_root)
+    _register_delete_tool(registry, ws_root)
+    _register_move_tool(registry, ws_root)
+    _register_copy_tool(registry, ws_root)
     _register_bash_tool(registry, ws_root)
 
     logger.info(f"Registered {len(registry.list_names())} builtin tools")
@@ -552,6 +559,151 @@ def _register_ls_tool(registry: ToolRegistry, ws_root: Path) -> None:
         permission_level=PermissionLevel.ALWAYS_ALLOW,
         is_read_only=True,
         is_concurrency_safe=True,
+    )
+
+
+# ── Delete 工具 ────────────────────────────────────────────
+
+def _register_delete_tool(registry: ToolRegistry, ws_root: Path) -> None:
+    """注册 delete 工具（删除文件或目录，目录递归删除）。"""
+
+    def delete_path(arguments: dict[str, Any], **ctx: Any) -> dict[str, Any]:
+        path = _safe_path(arguments["path"], ws_root)
+
+        if not path.exists():
+            return {"success": False, "error": f"Path not found: {path}"}
+
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+            return {
+                "success": True,
+                "content": f"Successfully deleted {path}",
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    registry.register(
+        handler=delete_path,
+        name="delete",
+        description="Delete a file or directory. Directories are removed recursively. This operation cannot be undone.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "The path to the file or directory to delete.",
+                },
+            },
+            "required": ["path"],
+        },
+        permission_level=PermissionLevel.REQUIRE_CONFIRM,
+        is_destructive=True,
+    )
+
+
+# ── Move 工具 ──────────────────────────────────────────────
+
+def _register_move_tool(registry: ToolRegistry, ws_root: Path) -> None:
+    """注册 move 工具（移动或重命名文件/目录）。"""
+
+    def move_path(arguments: dict[str, Any], **ctx: Any) -> dict[str, Any]:
+        src = _safe_path(arguments["source"], ws_root)
+        dst = _safe_path(arguments["destination"], ws_root)
+
+        if not src.exists():
+            return {"success": False, "error": f"Source not found: {src}"}
+        if dst.exists():
+            return {
+                "success": False,
+                "error": f"Destination already exists: {dst}. Delete it first or choose another path.",
+            }
+
+        try:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(src), str(dst))
+            return {
+                "success": True,
+                "content": f"Successfully moved {src} to {dst}",
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    registry.register(
+        handler=move_path,
+        name="move",
+        description="Move or rename a file or directory. Fails if the destination already exists (to avoid silent overwrites).",
+        parameters={
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "The path to the file or directory to move.",
+                },
+                "destination": {
+                    "type": "string",
+                    "description": "The destination path. Must not already exist.",
+                },
+            },
+            "required": ["source", "destination"],
+        },
+        permission_level=PermissionLevel.REQUIRE_CONFIRM,
+        is_destructive=True,
+    )
+
+
+# ── Copy 工具 ──────────────────────────────────────────────
+
+def _register_copy_tool(registry: ToolRegistry, ws_root: Path) -> None:
+    """注册 copy 工具（复制文件或目录，目录递归复制）。"""
+
+    def copy_path(arguments: dict[str, Any], **ctx: Any) -> dict[str, Any]:
+        src = _safe_path(arguments["source"], ws_root)
+        dst = _safe_path(arguments["destination"], ws_root)
+
+        if not src.exists():
+            return {"success": False, "error": f"Source not found: {src}"}
+        if dst.exists():
+            return {
+                "success": False,
+                "error": f"Destination already exists: {dst}. Delete it first or choose another path.",
+            }
+
+        try:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if src.is_dir():
+                shutil.copytree(str(src), str(dst))
+            else:
+                shutil.copy2(str(src), str(dst))
+            return {
+                "success": True,
+                "content": f"Successfully copied {src} to {dst}",
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    registry.register(
+        handler=copy_path,
+        name="copy",
+        description="Copy a file or directory. Directories are copied recursively. Fails if the destination already exists (to avoid silent overwrites).",
+        parameters={
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "The path to the file or directory to copy.",
+                },
+                "destination": {
+                    "type": "string",
+                    "description": "The destination path. Must not already exist.",
+                },
+            },
+            "required": ["source", "destination"],
+        },
+        permission_level=PermissionLevel.REQUIRE_CONFIRM,
+        is_destructive=False,
     )
 
 
