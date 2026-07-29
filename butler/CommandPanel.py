@@ -293,7 +293,7 @@ class CommandPanel(App):
 
                 with Horizontal(id="input-bar"):
                     yield Input(
-                        placeholder="输入命令… (Enter 发送, Ctrl+L 清空)",
+                        placeholder="输入命令或对话… (/help 查看命令, Enter 发送)",
                         id="command-input",
                     )
                     yield Button("发送", id="btn-send", classes="op-btn", variant="success")
@@ -731,35 +731,122 @@ class CommandPanel(App):
         self._append_history_ui(f"正在执行: {program_name}", "system_message", None)
         self._fire("execute_program", program_name)
 
+    # 命令行式操作：以 / 开头为命令，否则作为普通对话发送
+    _COMMAND_HELP: list[tuple[str, str]] = [
+        ("/help", "显示本帮助"),
+        ("/screenshot", "截屏并保存到临时文件"),
+        ("/click <x>,<y>", "在屏幕坐标 (x,y) 处左键点击"),
+        ("/left_click", "在当前鼠标位置左键点击"),
+        ("/type <text>", "将 text 作为键盘输入写出"),
+        ("/voice", "切换语音聆听开关"),
+        ("/clear", "清空输出区"),
+        ("/restart", "重启应用"),
+        ("/mode host|usb|both", "切换显示模式"),
+        ("/program <name>", "执行程序列表中的程序"),
+        ("/search <keyword>", "在程序列表中过滤关键字"),
+        ("/exit", "退出 TUI"),
+        ("(其他文本)", "作为对话命令发送给 Jarvis"),
+    ]
+
     def _send_text_command(self, raw_text: str) -> None:
         cmd = (raw_text or "").strip()
         if not cmd:
             return
+        inp = self.query_one("#command-input", Input)
         self._append_history_ui(f"你: {cmd}", "user_prompt", None)
-        logger.info(f"Sending text command: {cmd}")
 
-        # TUI 扩展：click x,y / type xxx 等快捷命令直接转为 manual_action
-        low = cmd.lower()
-        if low.startswith("click "):
-            rest = cmd[6:].strip()
-            try:
-                x_s, y_s = [p.strip() for p in rest.split(",")]
-                coord = (int(float(x_s)), int(float(y_s)))
-                self._fire("manual_action", {"action": "left_click", "coordinate": coord})
-                inp = self.query_one("#command-input", Input)
+        # 命令行式操作：以 / 开头
+        if cmd.startswith("/"):
+            if self._dispatch_slash_command(cmd):
                 inp.value = ""
                 return
-            except Exception:
-                pass
-        if low.startswith("left_click") and len(low.strip()) == 10:
-            self._fire("manual_action", {"action": "left_click"})
-            inp = self.query_one("#command-input", Input)
+            self._append_history_ui(
+                f"未知命令: {cmd}（输入 /help 查看可用命令）", "error", None
+            )
             inp.value = ""
             return
 
+        # 普通对话
+        logger.info(f"Sending text command: {cmd}")
         self._fire("text", cmd)
-        inp = self.query_one("#command-input", Input)
         inp.value = ""
+
+    def _dispatch_slash_command(self, cmd: str) -> bool:
+        """解析并执行 / 命令。返回 True 表示已识别处理。"""
+        parts = cmd[1:].split(None, 1)
+        if not parts:
+            return False
+        name = parts[0].lower()
+        arg = parts[1].strip() if len(parts) > 1 else ""
+
+        if name in ("help", "h", "?"):
+            self._show_help()
+            return True
+        if name in ("screenshot", "scr", "shot"):
+            self._fire("manual_action", {"action": "screenshot"})
+            return True
+        if name == "click" and arg:
+            try:
+                x_s, y_s = [p.strip() for p in arg.split(",")]
+                coord = (int(float(x_s)), int(float(y_s)))
+                self._fire("manual_action", {"action": "left_click", "coordinate": coord})
+                return True
+            except Exception:
+                self._append_history_ui(
+                    "用法: /click <x>,<y>  例: /click 100,200", "error", None
+                )
+                return True
+        if name == "left_click":
+            self._fire("manual_action", {"action": "left_click"})
+            return True
+        if name == "type" and arg:
+            self._fire("manual_action", {"action": "type", "text": arg})
+            return True
+        if name in ("voice", "listen"):
+            self._fire("voice", None)
+            return True
+        if name == "clear":
+            self._clear_history_ui()
+            return True
+        if name == "restart":
+            self.restart_application()
+            return True
+        if name == "mode" and arg:
+            mode = arg.lower()
+            if mode in DISPLAY_MODES:
+                self.display_mode = mode
+                self._update_display_mode_buttons()
+                self._fire("display_mode_change", mode)
+                self._append_history_ui(
+                    f"显示模式已切换: {DISPLAY_MODE_LABELS[mode]}", "system_message", None
+                )
+                return True
+            self._append_history_ui(
+                f"无效模式: {arg}（可选: host/usb/both）", "error", None
+            )
+            return True
+        if name == "program" and arg:
+            self._on_program_selected(arg)
+            return True
+        if name in ("search", "filter") and arg is not None:
+            search_input = self.query_one("#program-search", Input)
+            search_input.value = arg
+            lv = self.query_one("#program-list", ProgramList)
+            lv.filter(arg)
+            self._append_history_ui(
+                f"已过滤程序列表: '{arg}'", "system_message", None
+            )
+            return True
+        if name in ("exit", "quit", "q"):
+            self.exit()
+            return True
+        return False
+
+    def _show_help(self) -> None:
+        lines = ["可用命令（以 / 开头，区分大小写不敏感）："]
+        for c, desc in self._COMMAND_HELP:
+            lines.append(f"  {c:<22} {desc}")
+        self._append_history_ui("\n".join(lines), "system_message", None)
 
     def _manual_action(self, action_type: str) -> None:
         if action_type == "type":
