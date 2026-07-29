@@ -1053,11 +1053,50 @@ class Jarvis:
                 final_resp = self.nlu_service.ask_llm("请基于以上工具执行结果，给用户一个最终答复。", history=messages)
                 self.speak(final_resp)
                 break
+def _start_tui_panel(usb_screen) -> None:
+    """启动 TUI 版本的 CommandPanel（Textual App）。"""
+    jarvis = Jarvis(None, usb_screen, headless=False)
+    all_tools = {t['name']: t.get('path', t.get('module')) for t in extension_manager.get_all_tools()}
+    panel = CommandPanel(
+        program_mapping=jarvis.program_mapping,
+        programs=all_tools,
+        command_callback=jarvis.panel_command_handler,
+    )
+
+    # 退出时清理 jarvis.running 标记，触发后续等待循环结束
+    def _on_exit():
+        try:
+            jarvis.running = False
+        except Exception:
+            pass
+
+    panel.set_on_exit(_on_exit)
+
+    # jarvis.main() 启动语音/线程后立即返回（非阻塞）
+    jarvis.main()
+
+    # Textual App.run() 是阻塞式主循环
+    # TTY 检测：非交互式 TTY 下给出明确提示（参考 Experience ID 1088872）
+    import sys as _sys
+    if not (_sys.stdin.isatty() and _sys.stdout.isatty()):
+        print(
+            "[Jarvis TUI] 警告：检测到非交互式终端（无 TTY）。"
+            "TUI 界面需要在真实交互式终端中运行。请使用支持 ANSI 的终端（如 xterm/gnome-terminal/iterm2 等）重新运行。",
+            file=_sys.stderr,
+        )
+
+    try:
+        panel.run()
+    except KeyboardInterrupt:
+        _on_exit()
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--classic", "--admin", action="store_true", dest="classic")
+    parser.add_argument("--tui", action="store_true", dest="tui", help="使用终端 UI (Textual TUI) 替代桌面 GUI")
     parser.add_argument("command", nargs="?", help="Command to run, e.g., doctor")
     args = parser.parse_args()
 
@@ -1075,6 +1114,21 @@ def main():
     # Show config wizard if in GUI mode and keys are missing
     if show_config_wizard_if_needed():
         load_dotenv(override=True)
+
+    # --- TUI 入口（显式 --tui 或 CommandPanel 已不再是 tk.Frame 时） ---
+    import tkinter as _tk
+    _is_tk_frame = isinstance(CommandPanel, type) and issubclass(CommandPanel, _tk.Frame)
+
+    if args.tui or not _is_tk_frame:
+        if args.classic and not args.tui and not _is_tk_frame:
+            print(
+                "[Jarvis] --classic/admin 模式：CommandPanel 已重构为 TUI(Textual) 版本，"
+                "不再基于 tkinter。正在以 TUI 模式启动。若需原桌面 GUI，请回退版本或使用 "
+                "frontend.program 现代入口。",
+                file=__import__("sys").stderr,
+            )
+        _start_tui_panel(usb_screen)
+        return
 
     if not args.classic:
         try:
