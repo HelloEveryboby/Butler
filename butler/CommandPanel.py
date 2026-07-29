@@ -1,530 +1,780 @@
-import tkinter as tk
-from tkinter import scrolledtext
-import sys
-import os
-import json
-import re
-from package.core_utils.log_manager import LogManager
-from butler.core.asset_loader import asset_loader
-from butler.core.event_bus import event_bus
-from queue import Queue
-from butler.core.gui import UIThemeManager, FontScaler
+"""
+CommandPanel — TUI 界面（基于 Textual 8.x）
 
-# 用于语法高亮显示的 Pygments
+原 tkinter 版本的终端重写：
+- 左侧：程序列表（搜索）/ 压缩包浏览器（树）/ 手动工具栏 / 设置
+- 右侧：显示模式切换 + 连接状态 / 聊天输出（带标记/tag） / 输入框 + 操作按钮
+- 截图功能降级：保存 base64 到临时文件并在输出区提示路径；点击改手动输入坐标
+
+兼容：
+    panel.set_command_callback(cb)
+    panel.append_to_history(text, tag, response_id)
+    panel.append_to_response(chunk, response_id)
+    panel.set_input_text(text)
+    panel.update_screenshot(b64)
+    panel.update_link_status(connected, device)
+    panel.update_listen_button_state(is_listening)
+    panel.show_update_dialog(filename) -> bool
+    panel.clear_history()
+    panel.restart_application()
+"""
+
+from __future__ import annotations
+
+import base64
+import os
+import re
+import sys
+import tempfile
+import threading
+import time
+from dataclasses import dataclass, field
+from queue import Queue, Empty
+from typing import Any, Callable
+
 try:
     from pygments import lex
     from pygments.lexers import get_lexer_by_name, guess_lexer
-    from pygments.styles import get_style_by_name
-    from pygments.token import Token
     PYGMENTS_INSTALLED = True
 except ImportError:
     PYGMENTS_INSTALLED = False
 
+try:
+    from rich.markdown import Markdown as RichMarkdown
+    from rich.syntax import Syntax
+except ImportError:  # pragma: no cover - textual 依赖 rich，理论上必在
+    RichMarkdown = None
+    Syntax = None
+
+from textual import on, work
+from textual.app import App, ComposeResult
+from textual.containers import (
+    Container,
+    Horizontal,
+    Vertical,
+    VerticalScroll,
+    HorizontalScroll,
+)
+from textual.widgets import (
+    Button,
+    DataTable,
+    Footer,
+    Header,
+    Input,
+    Label,
+    ListItem,
+    ListView,
+    Markdown,
+    RadioButton,
+    RadioSet,
+    RichLog,
+    Static,
+    Tab,
+    Tabs,
+    Tree,
+)
+from textual.widgets.tree import TreeNode
+from textual.reactive import reactive
+from textual.events import Mount
+
+from package.core_utils.log_manager import LogManager
+from butler.core.event_bus import event_bus
+
 logger = LogManager.get_logger(__name__)
 
-# tmd要是中考分不那么低一中就去了，也就能早读了
+TAG_STYLES = {
+    "user_prompt": {"color": "#ff00ff", "bold": True},
+    "ai_response": {"color": "#d4d4d4"},
+    "system_message": {"color": "#00ffff", "italic": True},
+    "error": {"color": "#ff0000", "bold": True},
+}
 
-class CommandPanel(tk.Frame):
-    def __init__(self, master, program_mapping=None, programs=None, command_callback=None, **kwargs):
-        super().__init__(master, **kwargs)
-        self.master = master
+DISPLAY_MODES = ["host", "usb", "both"]
+DISPLAY_MODE_LABELS = {"host": "主机", "usb": "USB", "both": "双显"}
+
+
+@dataclass
+class _ResponseBlock:
+    """流式响应片段缓冲。"""
+    buffer: str = ""
+    rendered_len: int = 0
+
+
+class ProgramList(ListView):
+    """带搜索过滤的程序列表视图。"""
+
+    def __init__(self, programs: dict[str, Any], on_select: Callable[[str], None]):
+        super().__init__()
+        self._all_items = sorted(programs.keys())
+        self._on_select = on_select
+        self._build_items(self._all_items)
+
+    def _build_items(self, names):
+        """重建 ListItem 列表。"""
+        self.clear()
+        for n in names:
+            li = ListItem(Label(n, markup=False))
+            li.name = n
+            self.append(li)
+
+    def filter(self, term: str) -> None:
+        term = (term or "").lower()
+        if not term:
+            self._build_items(self._all_items)
+            return
+        self._build_items([n for n in self._all_items if term in n.lower()])
+
+    def on_list_view_selected(self, event) -> None:
+        item = event.item
+        if item and getattr(item, "name", None):
+            self._on_select(item.name)
+
+
+class CommandPanel(App):
+    """TUI 版命令面板。Textual App 子类。"""
+
+    CSS = """
+    Screen {
+        background: $panel;
+    }
+    #left-pane {
+        width: 28%;
+        border: solid $primary 70%;
+        background: $surface;
+    }
+    #right-pane {
+        width: 1fr;
+    }
+    #program-search {
+        margin: 1 1 0 1;
+    }
+    #program-list {
+        height: 1fr;
+        margin: 0 1;
+        border: none;
+    }
+    #archive-tree {
+        height: 1fr;
+        margin: 0 1;
+    }
+    #manual-toolbar {
+        height: auto;
+        margin: 1;
+    }
+    #manual-toolbar Button {
+        width: 1fr;
+        margin: 0 1;
+    }
+    #settings-btn {
+        margin: 1;
+    }
+    #top-bar {
+        height: auto;
+        padding: 0 1;
+        border-bottom: solid $primary 60%;
+    }
+    #display-modes {
+        height: 3;
+    }
+    #link-status {
+        align: right middle;
+    }
+    #output-log {
+        height: 1fr;
+        border: solid $primary 60%;
+    }
+    #input-bar {
+        height: auto;
+        padding: 1;
+    }
+    #command-input {
+        width: 1fr;
+    }
+    .op-btn {
+        min-width: 8;
+        margin-left: 1;
+    }
+    .section-label {
+        height: 1;
+        margin: 1 1 0 1;
+        color: $accent;
+        text-style: bold;
+    }
+    """
+
+    SCREEN_ID = "jarvis_tui_panel"
+
+    # 反应式变量
+    listening = reactive(False)
+    link_connected = reactive(False)
+    link_device = reactive("")
+    display_mode = reactive("host")
+    nostalgia = reactive(False)
+
+    def __init__(
+        self,
+        program_mapping=None,
+        programs=None,
+        command_callback=None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
         self.command_callback = command_callback
-        self.msg_queue = Queue()
-
-        # Subscribe to events
-        event_bus.subscribe("ui_output", self._queue_ui_output)
-        event_bus.subscribe("voice_status", self._queue_voice_status)
-        event_bus.subscribe("link_status", self._queue_link_status)
-        event_bus.subscribe("screenshot_update", self._queue_screenshot_update)
-        event_bus.subscribe("archive_browser_update", self._queue_archive_browser_update)
-        event_bus.subscribe("nostalgia_mode_activated", self._activate_nostalgia_ui)
-
-        # Start queue processing
-        self.master.after(100, self.process_queue)
         self.program_mapping = program_mapping or {}
         self.programs = programs or {}
         self.all_program_names = sorted(list(self.programs.keys()))
 
-        # --- 主题和样式 (Delegated to butler/core/gui) ---
-        self.theme_manager = UIThemeManager("dark")
-        colors = self.theme_manager.get_colors()
-
-        self.background_color = colors["background"]
-        self.foreground_color = colors["foreground"]
-        self.input_bg_color = colors["input_bg"]
-        self.button_bg_color = colors["button_bg"]
-        self.button_fg_color = colors["button_fg"]
-        self.code_bg_color = colors["code_bg"]
-        self.menu_bg_color = colors["menu_bg"]
-        self.menu_fg_color = colors["menu_fg"]
-
-        self.font_configs = UIThemeManager.FONT_CONFIGS
-
-        self.config(bg=self.background_color)
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_columnconfigure(0, weight=1)
-
-        # --- 用于可折叠菜单的主分窗格 ---
-        self.main_paned_window = tk.PanedWindow(self, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, bg=self.background_color, sashwidth=4)
-        self.main_paned_window.grid(row=0, column=0, sticky="nsew")
-
-        # --- 左侧面板：菜单 ---
-        self.menu_frame = tk.Frame(self.main_paned_window, bg=self.menu_bg_color, width=200)
-        self.menu_frame.grid_rowconfigure(2, weight=1)  # 使列表框可扩展
-        self.menu_frame.grid_columnconfigure(0, weight=1)
-        self.main_paned_window.add(self.menu_frame, stretch="never", minsize=200)
-
-        self.menu_label = tk.Label(self.menu_frame, text="程序列表", font=("Arial", 12, "bold"), bg=self.menu_bg_color, fg=self.menu_fg_color)
-        self.menu_label.grid(row=0, column=0, pady=5, padx=5, sticky="ew")
-
-        self.search_entry = tk.Entry(self.menu_frame, bg=self.input_bg_color, fg=self.foreground_color, insertbackground=self.foreground_color, borderwidth=0, highlightthickness=1)
-        self.search_entry.grid(row=1, column=0, pady=(0, 5), padx=5, sticky="ew")
-        self.search_entry.bind("<KeyRelease>", self.filter_programs)
-
-        self.program_listbox = tk.Listbox(
-            self.menu_frame,
-            bg=self.menu_bg_color,
-            fg=self.menu_fg_color,
-            selectbackground="#4f5b70",
-            selectforeground=self.menu_fg_color,
-            highlightthickness=0,
-            borderwidth=0,
-            font=("Arial", 10)
-        )
-        self.program_listbox.grid(row=2, column=0, sticky="nsew", padx=(5, 0), pady=(0, 5))
-        self.program_listbox.bind("<<ListboxSelect>>", self.on_program_select)
-
-        scrollbar = tk.Scrollbar(self.menu_frame, orient="vertical", command=self.program_listbox.yview)
-        scrollbar.grid(row=2, column=1, sticky="ns", pady=(0, 5))
-        self.program_listbox.config(yscrollcommand=scrollbar.set)
-
-        for prog_name in self.all_program_names:
-            self.program_listbox.insert(tk.END, prog_name)
-
-        # --- Archive Explorer (FileBrowser) ---
-        from tkinter import ttk
-        self.archive_label = tk.Label(self.menu_frame, text="压缩包浏览器", font=("Arial", 10, "bold"), bg=self.menu_bg_color, fg=self.menu_fg_color)
-        self.archive_label.grid(row=3, column=0, pady=(10, 5), padx=5, sticky="ew")
-
-        self.archive_tree = ttk.Treeview(self.menu_frame, selectmode='browse', show='tree')
-        self.archive_tree.grid(row=4, column=0, sticky="nsew", padx=(5, 0), pady=(0, 5))
-        self.archive_tree.bind("<Double-1>", self.on_archive_item_double_click)
-
-        # Style the Treeview to match the dark theme
-        style = ttk.Style()
-        style.theme_use('default')
-        style.configure("Treeview", background=self.menu_bg_color, foreground=self.menu_fg_color, fieldbackground=self.menu_bg_color, borderwidth=0)
-        style.map("Treeview", background=[('selected', '#4f5b70')], foreground=[('selected', self.menu_fg_color)])
-
-        # --- 手动控制工具栏 ---
-        self.manual_toolbar = tk.Frame(self.menu_frame, bg=self.menu_bg_color)
-        self.manual_toolbar.grid(row=5, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
-        self.manual_toolbar.grid_columnconfigure((0, 1, 2), weight=1)
-
-        btn_style = {
-            "bg": self.button_bg_color,
-            "fg": self.button_fg_color,
-            "font": ("Arial", 8),
-            "borderwidth": 0,
-            "highlightthickness": 0
-        }
-
-        self.btn_screenshot = tk.Button(self.manual_toolbar, text="📸", command=lambda: self.manual_action("screenshot"), **btn_style)
-        self.btn_screenshot.grid(row=0, column=0, padx=1, sticky="ew")
-
-        self.btn_click = tk.Button(self.manual_toolbar, text="🖱️", command=lambda: self.manual_action("left_click"), **btn_style)
-        self.btn_click.grid(row=0, column=1, padx=1, sticky="ew")
-
-        self.btn_type = tk.Button(self.manual_toolbar, text="⌨️", command=lambda: self.manual_action("type"), **btn_style)
-        self.btn_type.grid(row=0, column=2, padx=1, sticky="ew")
-
-        # --- 设置按钮 ---
-        settings_icon_path = asset_loader.resolve_path("asset://settings_icon.png")
-        self.settings_icon = tk.PhotoImage(file=settings_icon_path)
-        self.settings_button = tk.Button(
-            self.menu_frame,
-            text="设置",
-            image=self.settings_icon,
-            compound=tk.LEFT,
-            command=self.open_settings_window,
-            bg=self.button_bg_color,
-            fg=self.button_fg_color,
-            activebackground="#4f5b70",
-            activeforeground=self.foreground_color,
-            borderwidth=0,
-            highlightthickness=0,
-            font=("Arial", 9)
-        )
-        self.settings_button.grid(row=6, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
-
-
-        # --- 右侧面板：内容与远程视图 ---
-        self.content_paned_window = tk.PanedWindow(self.main_paned_window, orient=tk.VERTICAL, sashrelief=tk.RAISED, bg=self.background_color, sashwidth=4)
-        self.main_paned_window.add(self.content_paned_window, stretch="always")
-
-        # --- 上部内容：输出与输入 ---
-        self.main_content_frame = tk.Frame(self.content_paned_window, bg=self.background_color)
-        self.main_content_frame.grid_rowconfigure(1, weight=1)
-        self.main_content_frame.grid_columnconfigure(0, weight=1)
-        self.content_paned_window.add(self.main_content_frame, stretch="always")
-
-        # --- 显示模式框架 ---
-        self.display_mode_frame = tk.Frame(self.main_content_frame, bg=self.background_color)
-        self.display_mode_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=(5,0))
-
-        tk.Label(self.display_mode_frame, text="显示模式:", bg=self.background_color, fg=self.foreground_color).pack(side=tk.LEFT, padx=(0, 5))
-
-        self.display_mode_var = tk.StringVar(value='host')
-        self.font_size_var = tk.StringVar(value='medium')
-        radio_button_config = {
-            "bg": self.background_color,
-            "fg": self.foreground_color,
-            "selectcolor": self.input_bg_color,
-            "activebackground": self.background_color,
-            "activeforeground": self.foreground_color,
-            "highlightthickness": 0,
-            "variable": self.display_mode_var,
-            "command": self.on_display_mode_change
-        }
-
-        tk.Radiobutton(self.display_mode_frame, text="主机", value='host', **radio_button_config).pack(side=tk.LEFT)
-        tk.Radiobutton(self.display_mode_frame, text="USB", value='usb', **radio_button_config).pack(side=tk.LEFT)
-        tk.Radiobutton(self.display_mode_frame, text="双显", value='both', **radio_button_config).pack(side=tk.LEFT)
-
-        # --- 连接状态指示器 ---
-        self.link_status_frame = tk.Frame(self.display_mode_frame, bg=self.background_color)
-        self.link_status_frame.pack(side=tk.RIGHT, padx=10)
-
-        self.link_label = tk.Label(self.link_status_frame, text="数据链:", bg=self.background_color, fg=self.foreground_color, font=("Arial", 9))
-        self.link_label.pack(side=tk.LEFT)
-
-        self.link_indicator = tk.Label(self.link_status_frame, text="●", fg="gray", bg=self.background_color, font=("Arial", 12))
-        self.link_indicator.pack(side=tk.LEFT, padx=2)
-
-        self.link_text = tk.Label(self.link_status_frame, text="未连接", bg=self.background_color, fg=self.foreground_color, font=("Arial", 9))
-        self.link_text.pack(side=tk.LEFT)
-
-        # --- 主输出文本区域 ---
-        self.output_text = scrolledtext.ScrolledText(
-            self.main_content_frame, # 父级现在是 main_content_frame
-            bg=self.background_color,
-            fg=self.foreground_color,
-            state='normal',
-            wrap=tk.WORD,
-            font=("Consolas", 11),
-            borderwidth=0,
-            highlightthickness=0,
-            selectbackground="#4f5b70"
-        )
-        self.output_text.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
-
-        # --- 输入框架（底部） ---
-        self.input_frame = tk.Frame(self.main_content_frame, bg=self.background_color) # 父级现在是 main_content_frame
-        self.input_frame.grid(row=2, column=0, sticky="ew", padx=5, pady=5)
-        self.input_frame.grid_columnconfigure(0, weight=1)
-
-        self.input_entry = tk.Entry(
-            self.input_frame,
-            bg=self.input_bg_color,
-            fg=self.foreground_color,
-            insertbackground=self.foreground_color,
-            font=("Consolas", 11),
-            borderwidth=0,
-            highlightthickness=0
-        )
-        self.input_entry.grid(row=0, column=0, sticky="ew", ipady=5)
-        self.input_entry.bind("<Return>", self.send_text_command)
-
-        # --- Buttons ---
-        button_config = {
-            "bg": self.button_bg_color,
-            "fg": self.button_fg_color,
-            "activebackground": "#4f5b70",
-            "activeforeground": self.foreground_color,
-            "borderwidth": 0,
-            "highlightthickness": 0,
-            "font": ("Arial", 9)
-        }
-        self.send_button = tk.Button(self.input_frame, text="发送", command=self.send_text_command, **button_config)
-        self.send_button.grid(row=0, column=1, padx=(5, 0))
-        self.listen_button = tk.Button(self.input_frame, text="聆听", command=self.send_listen_command, **button_config)
-        self.listen_button.grid(row=0, column=2, padx=(5, 0))
-        self.clear_button = tk.Button(self.input_frame, text="清空", command=self.clear_history, **button_config)
-        self.clear_button.grid(row=0, column=3, padx=(5, 0))
-        self.restart_button = tk.Button(self.input_frame, text="重启", command=self.restart_application, **button_config)
-        self.restart_button.grid(row=0, column=4, padx=(5, 0))
-
-        # --- 下部内容：远程视图（可折叠） ---
-        self.remote_view_frame = tk.Frame(self.content_paned_window, bg=self.input_bg_color)
-        self.remote_view_frame.grid_rowconfigure(0, weight=1)
-        self.remote_view_frame.grid_columnconfigure(0, weight=1)
-        self.content_paned_window.add(self.remote_view_frame, stretch="never", minsize=0)
-
-        self.screenshot_canvas = tk.Canvas(self.remote_view_frame, bg="black", highlightthickness=0)
-        self.screenshot_canvas.grid(row=0, column=0, sticky="nsew")
-        self.screenshot_canvas.bind("<Button-1>", self.on_canvas_click)
-
-        self.last_screenshot_image = None
-        self.canvas_image_id = None
-
-        self._configure_styles_and_tags()
-        self.update_font_size('medium')
-
-        # Auto-scaling support
-        self.bind("<Configure>", self.on_resize)
-        self.last_scale_factor = 1.0
-
-    def on_resize(self, event):
-        """Handle window resize and auto-scale fonts."""
-        # Only scale if it's the main frame resize
-        if event.widget != self:
-            return
-
-        # Reference size 1000x700
-        new_scale_factor = min(event.width / 1000, event.height / 700)
-
-        # Only update if change is more than 5% to avoid constant redraws
-        if abs(new_scale_factor - self.last_scale_factor) > 0.05:
-            self.last_scale_factor = new_scale_factor
-            self.auto_scale_fonts(new_scale_factor)
-
-    def auto_scale_fonts(self, scale):
-        """Dynamically scale fonts based on window size (Delegated to FontScaler)."""
-        scaled_fonts = FontScaler.get_auto_scaled_fonts(scale)
-
-        # Apply scaled fonts
-        self.menu_label.config(font=scaled_fonts["menu_label"])
-        self.program_listbox.config(font=scaled_fonts["program_listbox"])
-        self.output_text.config(font=scaled_fonts["output_text"])
-        self.input_entry.config(font=scaled_fonts["input_entry"])
-
-        self.send_button.config(font=scaled_fonts["buttons"])
-        self.listen_button.config(font=scaled_fonts["buttons"])
-        self.clear_button.config(font=scaled_fonts["buttons"])
-        self.restart_button.config(font=scaled_fonts["buttons"])
-        self.settings_button.config(font=scaled_fonts["buttons"])
-
-        # Update manual toolbar buttons
-        manual_btn_font = ("Arial", max(int(8 * scale), 6))
-        self.btn_screenshot.config(font=manual_btn_font)
-        self.btn_click.config(font=manual_btn_font)
-        self.btn_type.config(font=manual_btn_font)
-
-        self.output_text.tag_config('user_prompt', font=scaled_fonts["user_prompt"])
-        self.output_text.tag_config('system_message', font=scaled_fonts["system_message"])
-
-    def on_program_select(self, event=None):
-        """处理列表框中的程序选择。"""
-        # 获取选中的索引
-        selected_indices = self.program_listbox.curselection()
-        if not selected_indices:
-            return
-
-        # 从索引中获取程序名称
-        selected_index = selected_indices[0]
-        program_name = self.program_listbox.get(selected_index)
-
-        if program_name and self.command_callback:
-            logger.info(f"Executing program from menu: {program_name}")
-            self.append_to_history(f"正在执行: {program_name}", "system_message")
-            self.command_callback("execute_program", program_name)
-
-    def filter_programs(self, event=None):
-        """基于搜索输入过滤程序列表框。"""
-        search_term = self.search_entry.get().lower()
-
-        # 清空列表框
-        self.program_listbox.delete(0, tk.END)
-
-        # 重新填充匹配的项目
-        for name in self.all_program_names:
-            if search_term in name.lower():
-                self.program_listbox.insert(tk.END, name)
-
-    def _configure_styles_and_tags(self):
-        """配置用于设置输出样式的文本标签。"""
-        self.output_text.tag_config('user_prompt', foreground='#ff00ff', font=("Consolas", 11, "bold"), background='#2d2d2d')
-        self.output_text.tag_config('ai_response', foreground=self.foreground_color, background='#121212')
-        self.output_text.tag_config('system_message', foreground='#00ffff', font=("Consolas", 11, "italic"))
-        self.output_text.tag_config('error', foreground='#ff0000', font=("Consolas", 11, "bold"))
-
-        # Configure Pygments syntax highlighting tags
-        if PYGMENTS_INSTALLED:
-            style = get_style_by_name('monokai')
-            for token, t_style in style:
-                tag_name = str(token)
-                foreground = t_style['color']
-                if foreground:
-                    self.output_text.tag_config(tag_name, foreground=f"#{foreground}")
-
-    def _highlight_code(self, code, language=''):
-        """为代码块应用语法高亮。"""
-        if not PYGMENTS_INSTALLED:
-            self.output_text.insert(tk.END, code)
-            return
-
-        try:
-            if language:
-                lexer = get_lexer_by_name(language, stripall=True)
-            else:
-                lexer = guess_lexer(code, stripall=True)
-        except Exception:
-            lexer = get_lexer_by_name('text', stripall=True)
-
-        # Insert the code block with a background
-        start_index = self.output_text.index(tk.END)
-        self.output_text.insert(tk.END, code)
-        end_index = self.output_text.index(tk.END)
-        self.output_text.tag_add("code_block", start_index, end_index)
-        self.output_text.tag_config("code_block", background=self.code_bg_color, borderwidth=1, relief=tk.SOLID, lmargin1=10, lmargin2=10, rmargin=10)
-
-        # Apply token-based highlighting
-        for token, content in lex(code, lexer):
-            tag_name = str(token)
-            # Find where the content starts relative to the beginning of the whole code block
-            # This is a bit tricky with the Text widget, so we search
-            start = self.output_text.search(content, start_index, stopindex=end_index)
-            if start:
-                end = f"{start}+{len(content)}c"
-                self.output_text.tag_add(tag_name, start, end)
-                start_index = end # Move search start to after the found token
-
-
-    def append_to_history(self, text, tag='ai_response', response_id=None):
-        self.output_text.config(state='normal')
-
-        # In this enhanced version, we'll try to keep the text widget editable
-        # so the user can modify code blocks.
-
-        # If it's a streaming response, just insert the initial text.
-        if response_id:
-            block_tag = f"block_{response_id}"
-            self.output_text.insert(tk.END, text, (tag, block_tag))
-        else:
-            # For non-streaming messages, parse for code blocks as before.
-            code_block_pattern = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
-            last_end = 0
-            for match in code_block_pattern.finditer(text):
-                pre_text = text[last_end:match.start()]
-                if pre_text.strip():
-                    self.output_text.insert(tk.END, pre_text, (tag,))
-
-                language = match.group(1).lower()
-                code = match.group(2)
-                self._highlight_code(code, language)
-                last_end = match.end()
-
-            remaining_text = text[last_end:]
-            if remaining_text.strip():
-                self.output_text.insert(tk.END, remaining_text, (tag,))
-
-            # Add the final newlines for non-streaming messages
-            self.output_text.insert(tk.END, "\n\n")
-
-        self.output_text.see(tk.END)
-        # self.output_text.config(state='disabled') # Keep it enabled for manual editing
-
-    def append_to_response(self, text_chunk, response_id):
-        """Appends a chunk of text to a response block identified by response_id."""
-        if not response_id:
-            return
-
-        self.output_text.config(state='normal')
-
-        # Insert the chunk at the end of the text widget.
-        self.output_text.insert(tk.END, text_chunk)
-
-        # If we just inserted code block or wait for approval, keep it editable
-        if "/approve" in text_chunk or "```python" in self.output_text.get("1.0", tk.END):
-            # We want to allow editing the code block.
-            # For simplicity, let's keep it 'normal' if it looks like we are in approval mode.
-            pass
-        else:
-            # self.output_text.config(state='disabled')
-            pass
-
-        self.output_text.see(tk.END)
-        # Note: We are keeping state 'normal' more often now to allow "C. Manual Editing"
-        # but we should be careful.
-
-    def update_screenshot(self, b64_data):
-        """使用新的截图更新远程视图。"""
-        import base64
-        from io import BytesIO
-        from PIL import Image, ImageTk
-
-        try:
-            img_data = base64.b64decode(b64_data)
-            img = Image.open(BytesIO(img_data))
-
-            # Resize to fit canvas while maintaining aspect ratio
-            canvas_width = self.screenshot_canvas.winfo_width()
-            canvas_height = self.screenshot_canvas.winfo_height()
-
-            if canvas_width < 10: canvas_width = 400
-            if canvas_height < 10: canvas_height = 300
-
-            img.thumbnail((canvas_width, canvas_height), Image.Resampling.LANCZOS)
-            self.last_screenshot_tk = ImageTk.PhotoImage(img)
-            self.last_raw_img_size = Image.open(BytesIO(img_data)).size # Keep track of original size
-
-            if self.canvas_image_id:
-                self.screenshot_canvas.delete(self.canvas_image_id)
-
-            self.canvas_image_id = self.screenshot_canvas.create_image(
-                canvas_width//2, canvas_height//2,
-                anchor=tk.CENTER, image=self.last_screenshot_tk
-            )
-            # Store scale factors for coordinate mapping
-            self.img_scale_x = self.last_raw_img_size[0] / img.size[0]
-            self.img_scale_y = self.last_raw_img_size[1] / img.size[1]
-            self.img_offset_x = (canvas_width - img.size[0]) / 2
-            self.img_offset_y = (canvas_height - img.size[1]) / 2
-
-        except Exception as e:
-            logger.error(f"Failed to update screenshot in UI: {e}")
-
-    def on_canvas_click(self, event):
-        """将画布点击映射到屏幕坐标并发送命令。"""
-        if not hasattr(self, 'img_scale_x'): return
-
-        # Calculate coordinates relative to the image
-        rel_x = event.x - self.img_offset_x
-        rel_y = event.y - self.img_offset_y
-
-        if 0 <= rel_x <= (self.last_raw_img_size[0] / self.img_scale_x) and \
-           0 <= rel_y <= (self.last_raw_img_size[1] / self.img_scale_y):
-
-            real_x = int(rel_x * self.img_scale_x)
-            real_y = int(rel_y * self.img_scale_y)
-
-            if self.command_callback:
-                self.command_callback("manual_action", {"action": "left_click", "coordinate": (real_x, real_y)})
-
-    def manual_action(self, action_type):
-        """向 Jarvis 发送手动操作命令。"""
-        if self.command_callback:
-            if action_type == "type":
-                # Prompt for text in a simple dialog or just use input entry?
-                # Let's use whatever is in the input entry
-                text = self.input_entry.get()
-                if text:
-                    self.command_callback("manual_action", {"action": "type", "text": text})
-                else:
-                    self.append_to_history("请先在输入框中输入文字。", "system_message")
-            else:
-                self.command_callback("manual_action", {"action": action_type})
-
-
-    def on_display_mode_change(self):
-        mode = self.display_mode_var.get()
-        if self.command_callback:
-            logger.info(f"Display mode changed to: {mode}")
-            # We can reuse the command_callback with a special command_type
-            self.command_callback("display_mode_change", mode)
-
-    def set_command_callback(self, callback):
+        self.msg_queue: Queue[tuple[str, Any]] = Queue()
+        self._stop_event = threading.Event()
+        self._queue_thread: threading.Thread | None = None
+
+        # 流式响应块：response_id -> _ResponseBlock
+        self._response_blocks: dict[str, _ResponseBlock] = {}
+
+        # 当前归档 zip
+        self._current_zip_path: str | None = None
+
+        # 外部回调（jarvis_app 传入）
+        self._on_exit_cb: Callable[[], None] | None = None
+
+        # 订阅事件总线
+        event_bus.subscribe("ui_output", self._queue_ui_output)
+        event_bus.subscribe("voice_status", self._queue_voice_status)
+        event_bus.subscribe("link_status", self._queue_link_status)
+        event_bus.subscribe("screenshot_update", self._queue_screenshot_update)
+        event_bus.subscribe("archive_browser_update", self._queue_archive_update)
+        event_bus.subscribe("nostalgia_mode_activated", self._queue_nostalgia)
+
+    # ------------------------ Compose ------------------------ #
+
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+
+        with Horizontal():
+            # 左栏
+            with Vertical(id="left-pane"):
+                yield Label("程序列表", classes="section-label")
+                yield Input(placeholder="搜索程序…", id="program-search")
+                yield ProgramList(self.programs, self._on_program_selected)
+
+                yield Label("压缩包浏览器", classes="section-label")
+                tree: Tree[str] = Tree("归档", id="archive-tree")
+                tree.root.expand()
+                yield tree
+
+                yield Label("手动控制", classes="section-label")
+                with Horizontal(id="manual-toolbar"):
+                    yield Button("📸 截图", id="btn-screenshot", variant="primary")
+                    yield Button("🖱 点击", id="btn-click", variant="primary")
+                    yield Button("⌨ 输入", id="btn-type", variant="primary")
+
+                yield Button("⚙ 设置", id="settings-btn", variant="default")
+
+            # 右栏
+            with Vertical(id="right-pane"):
+                with Horizontal(id="top-bar"):
+                    with RadioSet(id="display-modes"):
+                        for mode in DISPLAY_MODES:
+                            checked = mode == "host"
+                            yield RadioButton(
+                                DISPLAY_MODE_LABELS[mode],
+                                value=checked,
+                                name=mode,
+                            )
+                    yield Static("", id="link-status")
+
+                yield RichLog(
+                    highlight=True,
+                    markup=True,
+                    auto_scroll=True,
+                    wrap=True,
+                    id="output-log",
+                )
+
+                with Horizontal(id="input-bar"):
+                    yield Input(
+                        placeholder="输入命令… (Enter 发送, Ctrl+L 清空)",
+                        id="command-input",
+                    )
+                    yield Button("发送", id="btn-send", classes="op-btn", variant="success")
+                    yield Button("聆听", id="btn-listen", classes="op-btn", variant="warning")
+                    yield Button("清空", id="btn-clear", classes="op-btn")
+                    yield Button("重启", id="btn-restart", classes="op-btn", variant="error")
+
+        yield Footer()
+
+    # ------------------------ Mount / Lifecycle ------------------------ #
+
+    def on_mount(self, event: Mount) -> None:
+        # 启动队列处理循环（Textual 的 set_interval 保证在 UI 线程中执行）
+        self.set_interval(0.05, self._drain_queue)
+        self._update_link_display()
+        self._update_listen_btn()
+        self._update_display_mode_buttons()
+
+    # ------------------------ Public API (兼容老版本) ------------------------ #
+
+    def set_command_callback(self, callback: Callable[[str, Any], None]) -> None:
         self.command_callback = callback
+
+    def set_on_exit(self, cb: Callable[[], None]) -> None:
+        self._on_exit_cb = cb
+
+    def append_to_history(self, text: str, tag: str = "ai_response", response_id: str | None = None) -> None:
+        """追加一条消息到输出区域（线程安全，内部转发到 UI 线程）。"""
+        self.call_from_thread(self._append_history_ui, text, tag, response_id)
+
+    def append_to_response(self, text_chunk: str, response_id: str) -> None:
+        """流式追加到指定响应块。"""
+        self.call_from_thread(self._append_response_ui, text_chunk, response_id)
+
+    def set_input_text(self, text: str) -> None:
+        self.call_from_thread(self._set_input_text_ui, text)
+
+    def update_screenshot(self, b64_data: str) -> None:
+        """截图：保存到临时文件并输出提示。点击在 TUI 中降级为手动输入坐标。"""
+        self.call_from_thread(self._update_screenshot_ui, b64_data)
+
+    def update_link_status(self, connected: bool, device_name: str = "") -> None:
+        self.call_from_thread(self._update_link_status_ui, connected, device_name)
+
+    def update_listen_button_state(self, is_listening: bool) -> None:
+        self.call_from_thread(self._update_listen_ui, is_listening)
+
+    def clear_history(self) -> None:
+        self.call_from_thread(self._clear_history_ui)
+
+    def show_update_dialog(self, filename: str) -> bool:
+        """同步阻塞式确认。TUI 中用 Yes/No 弹出对话框。
+
+        注意：Textual 推荐异步，这里通过线程事件 + work 桥接同步返回。
+        """
+        result_holder: list[bool] = [False]
+        done = threading.Event()
+
+        async def _ask():
+            from textual.screen import Screen
+            from textual.widgets import Label as TLabel, Button as TButton
+
+            class ConfirmScreen(Screen[bool]):
+                def compose(self):
+                    yield Container(
+                        TLabel(f"检测到 {filename} 已修改，是否同步回压缩包？"),
+                        Horizontal(
+                            TButton("是(Y)", id="y", variant="success"),
+                            TButton("否(N)", id="n", variant="warning"),
+                            TButton("取消(C)", id="c", variant="default"),
+                            classes="btns",
+                        ),
+                        classes="dlg",
+                    )
+
+                def on_button_pressed(self, ev):
+                    if ev.button.id == "y":
+                        self.dismiss(True)
+                    elif ev.button.id == "n":
+                        self.dismiss(False)
+                    else:
+                        self.dismiss(None)
+
+            val = await self.push_screen(ConfirmScreen())
+            result_holder[0] = bool(val)
+            done.set()
+
+        # 从任意线程都能安全推入 UI 调度
+        try:
+            import asyncio
+            self.call_from_thread(lambda: asyncio.ensure_future(_ask()))
+        except Exception:
+            logger.exception("show_update_dialog 桥接失败")
+
+        done.wait(timeout=60)
+        return result_holder[0]
+
+    def restart_application(self) -> None:
+        """重启进程（同原版，使用 os.execl）。"""
+        python = sys.executable
+        self.exit()
+        if self._on_exit_cb:
+            try:
+                self._on_exit_cb()
+            except Exception:
+                pass
+        os.execl(python, python, *sys.argv)
+
+    # ------------------------ UI 线程内的实际操作 ------------------------ #
+
+    def _drain_queue(self) -> None:
+        """50ms 周期从 msg_queue 取消息分发。"""
+        try:
+            while True:
+                try:
+                    msg_type, payload = self.msg_queue.get_nowait()
+                except Empty:
+                    return
+                self._dispatch_queue_item(msg_type, payload)
+        except Exception:
+            logger.exception("drain_queue 异常")
+
+    def _dispatch_queue_item(self, msg_type: str, payload: Any) -> None:
+        if msg_type == "ui_output":
+            message, tag, response_id = payload
+            self._append_history_ui(message, tag, response_id)
+        elif msg_type == "voice_status":
+            self._update_listen_ui(payload)
+        elif msg_type == "link_status":
+            connected, device = payload
+            self._update_link_status_ui(connected, device)
+        elif msg_type == "screenshot_update":
+            self._update_screenshot_ui(payload)
+        elif msg_type == "archive_browser_update":
+            zip_path, contents = payload
+            self._update_archive_tree_ui(zip_path, contents)
+        elif msg_type == "nostalgia_ui":
+            self._apply_nostalgia_theme_ui()
+
+    def _append_history_ui(self, text: str, tag: str, response_id: str | None) -> None:
+        log = self.query_one("#output-log", RichLog)
+        style = TAG_STYLES.get(tag, {})
+        color = style.get("color")
+
+        if response_id:
+            # 流式首块：登记缓冲，先放普通文本
+            block = _ResponseBlock(buffer=text, rendered_len=len(text))
+            self._response_blocks[response_id] = block
+            self._write_rich(log, text, tag)
+            return
+
+        # 非流式：解析 markdown 代码块
+        code_block_pattern = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
+        last_end = 0
+        for m in code_block_pattern.finditer(text):
+            pre = text[last_end:m.start()]
+            if pre.strip():
+                self._write_rich(log, pre, tag)
+            language = m.group(1) or "text"
+            code = m.group(2)
+            self._write_code(log, code, language)
+            last_end = m.end()
+
+        tail = text[last_end:]
+        if tail.strip():
+            self._write_rich(log, tail, tag)
+
+        log.write("")
+
+    def _append_response_ui(self, chunk: str, response_id: str) -> None:
+        log = self.query_one("#output-log", RichLog)
+        block = self._response_blocks.get(response_id)
+        if block is None:
+            block = _ResponseBlock()
+            self._response_blocks[response_id] = block
+        block.buffer += chunk
+        # 简单策略：直接追加文本到末尾；不做重渲染（避免 Markdown 解析抖动）
+        self._write_plain(log, chunk)
+
+    def _write_rich(self, log: RichLog, text: str, tag: str) -> None:
+        style = TAG_STYLES.get(tag, {})
+        color = style.get("color")
+        bold = style.get("bold", False)
+        italic = style.get("italic", False)
+        prefix = ""
+        suffix = ""
+        if bold:
+            prefix += "[bold]"
+            suffix = "[/bold]"
+        if italic:
+            prefix += "[italic]"
+            suffix = "[/italic]"
+        if color:
+            prefix = f"[{color}]" + prefix
+            suffix = suffix + f"[/{color}]"
+        try:
+            log.write(f"{prefix}{text}{suffix}")
+        except Exception:
+            log.write(text)
+
+    def _write_plain(self, log: RichLog, text: str) -> None:
+        # RichLog.write 支持 markup=True；这里写裸文本，转义方括号
+        safe = text.replace("[", r"\[").replace("]", r"\]")
+        try:
+            log.write(safe)
+        except Exception:
+            log.write(text)
+
+    def _write_code(self, log: RichLog, code: str, language: str) -> None:
+        if Syntax:
+            try:
+                syn = Syntax(code, language, theme="monokai", line_numbers=False)
+                log.write(syn)
+                return
+            except Exception:
+                pass
+        # 降级：用灰色等宽输出
+        safe = code.replace("[", r"\[").replace("]", r"\]")
+        log.write(f"[#888][dim]``` {language}[/dim][/#888]")
+        log.write(f"[#dcdcaa]{safe}[/ #dcdcaa]")
+        log.write(f"[#888][dim]```[/dim][/#888]")
+
+    def _set_input_text_ui(self, text: str) -> None:
+        inp = self.query_one("#command-input", Input)
+        inp.value = text
+
+    def _clear_history_ui(self) -> None:
+        self.query_one("#output-log", RichLog).clear()
+        self._response_blocks.clear()
+        logger.info("Cleared history")
+
+    def _update_screenshot_ui(self, b64_data: str) -> None:
+        try:
+            img_bytes = base64.b64decode(b64_data)
+            fd, path = tempfile.mkstemp(prefix="jarvis_screenshot_", suffix=".png")
+            with os.fdopen(fd, "wb") as f:
+                f.write(img_bytes)
+            self._append_history_ui(
+                f"[截图] 已保存到: {path}\n"
+                f"（TUI 模式下不支持 Canvas 点击；请通过输入框使用命令 'click X,Y' 触发点击）",
+                "system_message",
+                None,
+            )
+        except Exception as e:
+            logger.error(f"Failed to save screenshot: {e}")
+            self._append_history_ui(f"[截图] 保存失败: {e}", "error", None)
+
+    def _update_link_status_ui(self, connected: bool, device: str) -> None:
+        self.link_connected = bool(connected)
+        self.link_device = device or ""
+        self._update_link_display()
+
+    def _update_listen_ui(self, is_listening: bool) -> None:
+        self.listening = bool(is_listening)
+        self._update_listen_btn()
+
+    def _update_archive_tree_ui(self, zip_path: str, contents: list[str]) -> None:
+        self._current_zip_path = zip_path
+        tree: Tree = self.query_one("#archive-tree", Tree)
+        tree.reset(os.path.basename(zip_path) or "归档")
+        tree.root.expand()
+        # 按 / 构建目录树
+        root_node: TreeNode = tree.root
+        for c in contents or []:
+            parts = [p for p in c.split("/") if p]
+            node = root_node
+            for i, p in enumerate(parts):
+                found = None
+                for ch in node.children:
+                    if ch.label == p:
+                        found = ch
+                        break
+                if found is None:
+                    leaf = (i == len(parts) - 1)
+                    node = node.add(p, expand=not leaf, data=c if leaf else None)
+                else:
+                    node = found
+
+    def _apply_nostalgia_theme_ui(self) -> None:
+        self.nostalgia = True
+        self.stylesheet = """
+        $panel: #2b261d;
+        $surface: #1a1610;
+        $primary: #8b4513;
+        $accent: #deb887;
+        $text: #d4c5a1;
+        Screen { background: $panel; color: $text; }
+        """ + self.CSS
+        self._append_history_ui("--- 怀旧模式已开启：一中往事 ---", "system_message", None)
+
+    def _update_link_display(self) -> None:
+        st = self.query_existing("#link-status", Static)
+        if not st:
+            return
+        if self.link_connected:
+            dev = f"({self.link_device})" if self.link_device else ""
+            st.update(f"[green]●[/green] 数据链：已连接 {dev}")
+        else:
+            st.update(f"[dim]●[/dim] 数据链：未连接")
+
+    def _update_listen_btn(self) -> None:
+        btn = self.query_existing("#btn-listen", Button)
+        if not btn:
+            return
+        if self.listening:
+            btn.label = "停止"
+            btn.variant = "error"
+        else:
+            btn.label = "聆听"
+            btn.variant = "warning"
+
+    def _update_display_mode_buttons(self) -> None:
+        rs = self.query_existing("#display-modes", RadioSet)
+        if not rs:
+            return
+        # RadioSet 的 pressed index 对应索引
+        try:
+            idx = DISPLAY_MODES.index(self.display_mode)
+        except ValueError:
+            idx = 0
+        if rs.pressed_index != idx:
+            rs.pressed_index = idx
+
+    # ------------------------ Event handlers ------------------------ #
+
+    @on(Input.Changed, "#program-search")
+    def _on_search_changed(self, event: Input.Changed) -> None:
+        lv = self.query_one("#program-list", ProgramList)
+        lv.filter(event.value)
+
+    @on(Input.Submitted, "#command-input")
+    def _on_input_submit(self, event: Input.Submitted) -> None:
+        self._send_text_command(event.value)
+
+    @on(Button.Pressed, "#btn-send")
+    def _on_send_pressed(self, _event: Button.Pressed) -> None:
+        inp = self.query_one("#command-input", Input)
+        self._send_text_command(inp.value)
+
+    @on(Button.Pressed, "#btn-listen")
+    def _on_listen_pressed(self, _event: Button.Pressed) -> None:
+        self._fire("voice", None)
+
+    @on(Button.Pressed, "#btn-clear")
+    def _on_clear_pressed(self, _event: Button.Pressed) -> None:
+        self.clear_history()
+
+    @on(Button.Pressed, "#btn-restart")
+    def _on_restart_pressed(self, _event: Button.Pressed) -> None:
+        self.restart_application()
+
+    @on(Button.Pressed, "#btn-screenshot")
+    def _on_scr(self, _e) -> None:
+        self._manual_action("screenshot")
+
+    @on(Button.Pressed, "#btn-click")
+    def _on_click(self, _e) -> None:
+        # 降级：提示用户使用 click x,y 命令
+        self._append_history_ui(
+            "请在输入框中使用: click 100,200  (或 left_click 无参数执行当前位置)",
+            "system_message",
+            None,
+        )
+        self._manual_action("left_click")
+
+    @on(Button.Pressed, "#btn-type")
+    def _on_type(self, _e) -> None:
+        inp = self.query_one("#command-input", Input)
+        txt = (inp.value or "").strip()
+        if not txt:
+            self._append_history_ui("请先在输入框中输入文字，再按 ⌨ 输入", "system_message", None)
+            return
+        self._fire("manual_action", {"action": "type", "text": txt})
+        inp.value = ""
+
+    @on(Button.Pressed, "#settings-btn")
+    def _on_settings(self, _e) -> None:
+        from textual.containers import Container as C
+        from textual.screen import ModalScreen
+
+        font_size = reactive("medium")
+
+        class SettingsScreen(ModalScreen[None]):
+            def compose(self):
+                yield C(
+                    Label("字体大小（TUI 模式下为逻辑档位，终端实际字号由终端软件控制）"),
+                    Horizontal(
+                        Button("小", id="fs-small"),
+                        Button("中", id="fs-medium", variant="primary"),
+                        Button("大", id="fs-large"),
+                        classes="btns",
+                    ),
+                    Label("提示：按 Ctrl+C 或关闭窗口退出"),
+                    Button("关闭", id="close", variant="default"),
+                    classes="dlg",
+                )
+
+            def on_button_pressed(self, ev):
+                if ev.button.id and ev.button.id.startswith("fs-"):
+                    size = ev.button.id[3:]
+                    # 写回父级字号档位（UI 上实际无法放大终端字体，仅记录状态）
+                    self.notify(f"字体档位：{size}（实际字号由终端控制）")
+                elif ev.button.id == "close":
+                    self.dismiss(None)
+
+        self.push_screen(SettingsScreen())
+
+    @on(RadioSet.Changed, "#display-modes")
+    def _on_display_mode_changed(self, event: RadioSet.Changed) -> None:
+        pressed = event.pressed
+        if pressed is None:
+            return
+        mode = pressed.name or "host"
+        self.display_mode = mode
+        logger.info(f"Display mode -> {mode}")
+        self._fire("display_mode_change", mode)
+
+    @on(Tree.NodeSelected, "#archive-tree")
+    def _on_archive_dbl(self, event: Tree.NodeSelected) -> None:
+        data = event.node.data
+        if data and self._current_zip_path:
+            self._fire(
+                "archive_action",
+                {
+                    "action": "open",
+                    "zip_path": self._current_zip_path,
+                    "file_in_zip": data,
+                },
+            )
+
+    # ------------------------ Internal helpers ------------------------ #
+
+    def _on_program_selected(self, program_name: str) -> None:
+        logger.info(f"Executing program from menu: {program_name}")
+        self._append_history_ui(f"正在执行: {program_name}", "system_message", None)
+        self._fire("execute_program", program_name)
+
+    def _send_text_command(self, raw_text: str) -> None:
+        cmd = (raw_text or "").strip()
+        if not cmd:
+            return
+        self._append_history_ui(f"你: {cmd}", "user_prompt", None)
+        logger.info(f"Sending text command: {cmd}")
+
+        # TUI 扩展：click x,y / type xxx 等快捷命令直接转为 manual_action
+        low = cmd.lower()
+        if low.startswith("click "):
+            rest = cmd[6:].strip()
+            try:
+                x_s, y_s = [p.strip() for p in rest.split(",")]
+                coord = (int(float(x_s)), int(float(y_s)))
+                self._fire("manual_action", {"action": "left_click", "coordinate": coord})
+                inp = self.query_one("#command-input", Input)
+                inp.value = ""
+                return
+            except Exception:
+                pass
+        if low.startswith("left_click") and len(low.strip()) == 10:
+            self._fire("manual_action", {"action": "left_click"})
+            inp = self.query_one("#command-input", Input)
+            inp.value = ""
+            return
+
+        self._fire("text", cmd)
+        inp = self.query_one("#command-input", Input)
+        inp.value = ""
+
+    def _manual_action(self, action_type: str) -> None:
+        if action_type == "type":
+            # 已经由 btn-type 处理
+            return
+        self._fire("manual_action", {"action": action_type})
+
+    def _fire(self, command_type: str, payload: Any) -> None:
+        if self.command_callback:
+            try:
+                self.command_callback(command_type, payload)
+            except Exception:
+                logger.exception(f"command_callback 失败: {command_type}")
+
+    # ------------------------ EventBus -> Queue bridges ------------------------ #
 
     def _queue_ui_output(self, message, tag, response_id):
         self.msg_queue.put(("ui_output", (message, tag, response_id)))
@@ -538,164 +788,8 @@ class CommandPanel(tk.Frame):
     def _queue_screenshot_update(self, b64_data):
         self.msg_queue.put(("screenshot_update", b64_data))
 
-    def _queue_archive_browser_update(self, zip_path, contents):
+    def _queue_archive_update(self, zip_path, contents):
         self.msg_queue.put(("archive_browser_update", (zip_path, contents)))
 
-    def _activate_nostalgia_ui(self):
-        """Changes UI colors to a nostalgic 'No. 1 Middle School' theme."""
+    def _queue_nostalgia(self):
         self.msg_queue.put(("nostalgia_ui", None))
-
-    def process_queue(self):
-        """Processes messages from the background threads."""
-        try:
-            while not self.msg_queue.empty():
-                msg_type, payload = self.msg_queue.get_nowait()
-                if msg_type == "ui_output":
-                    message, tag, response_id = payload
-                    self.append_to_history(message, tag, response_id)
-                elif msg_type == "voice_status":
-                    self.update_listen_button_state(payload)
-                elif msg_type == "link_status":
-                    connected, device = payload
-                    self.update_link_status(connected, device)
-                elif msg_type == "screenshot_update":
-                    self.update_screenshot(payload)
-                elif msg_type == "archive_browser_update":
-                    zip_path, contents = payload
-                    self.update_archive_browser(zip_path, contents)
-                elif msg_type == "nostalgia_ui":
-                    self._apply_nostalgia_theme()
-        finally:
-            self.master.after(100, self.process_queue)
-
-    def send_text_command(self, event=None):
-        command = self.input_entry.get().strip()
-        if command and self.command_callback:
-            self.append_to_history(f"你: {command}", "user_prompt")
-            logger.info(f"Sending text command: {command}")
-            self.command_callback("text", command)
-            self.input_entry.delete(0, tk.END)
-
-    def send_listen_command(self):
-        if self.command_callback:
-            logger.info("Toggling voice command")
-            self.command_callback("voice", None)
-
-    def on_archive_item_double_click(self, event):
-        item_id = self.archive_tree.selection()[0]
-        item_text = self.archive_tree.item(item_id, "text")
-        if self.command_callback and hasattr(self, 'current_zip_path'):
-            self.command_callback("archive_action", {"action": "open", "zip_path": self.current_zip_path, "file_in_zip": item_text})
-
-    def update_archive_browser(self, zip_path, contents):
-        self.current_zip_path = zip_path
-        self.archive_tree.delete(*self.archive_tree.get_children())
-        for content in contents:
-            self.archive_tree.insert('', 'end', text=content)
-        # Force switch menu label
-        self.archive_label.config(text=f"浏览: {os.path.basename(zip_path)}")
-
-    def show_update_dialog(self, filename):
-        """ModalDialog for update confirmation."""
-        from tkinter import messagebox
-        ans = messagebox.askyesnocancel("Butler 提醒", f"检测到 {filename} 已修改，是否同步回压缩包？", parent=self.master)
-        return ans
-
-    def update_listen_button_state(self, is_listening):
-        if is_listening:
-            self.listen_button.config(text="停止", relief=tk.SUNKEN, bg="#e06c75")
-        else:
-            self.listen_button.config(text="聆听", relief=tk.RAISED, bg=self.button_bg_color)
-
-    def update_link_status(self, connected, device_name=""):
-        """更新 UI 中的连接状态指示器。"""
-        if connected:
-            self.link_indicator.config(fg="#98c379") # Green
-            self.link_text.config(text=f"已连接 ({device_name})")
-        else:
-            self.link_indicator.config(fg="gray")
-            self.link_text.config(text="未连接")
-
-    def set_input_text(self, text):
-        self.input_entry.delete(0, tk.END)
-        self.input_entry.insert(0, text)
-
-    def clear_history(self):
-        logger.info("Clearing history")
-        self.output_text.config(state='normal')
-        self.output_text.delete(1.0, tk.END)
-        self.output_text.config(state='disabled')
-
-    def open_settings_window(self):
-        settings_win = tk.Toplevel(self.master)
-        settings_win.title("设置")
-        settings_win.config(bg=self.background_color)
-        settings_win.transient(self.master)
-        settings_win.grab_set()
-
-        font_size_frame = tk.Frame(settings_win, bg=self.background_color)
-        font_size_frame.pack(pady=10, padx=10)
-
-        tk.Label(font_size_frame, text="字体大小:", bg=self.background_color, fg=self.foreground_color).pack(side=tk.LEFT, padx=(0, 5))
-
-        font_radio_config = {
-            "bg": self.background_color,
-            "fg": self.foreground_color,
-            "selectcolor": self.input_bg_color,
-            "activebackground": self.background_color,
-            "activeforeground": self.foreground_color,
-            "highlightthickness": 0,
-            "variable": self.font_size_var,
-            "command": lambda: self.update_font_size(self.font_size_var.get())
-        }
-
-        tk.Radiobutton(font_size_frame, text="小", value='small', **font_radio_config).pack(side=tk.LEFT)
-        tk.Radiobutton(font_size_frame, text="中", value='medium', **font_radio_config).pack(side=tk.LEFT)
-        tk.Radiobutton(font_size_frame, text="大", value='large', **font_radio_config).pack(side=tk.LEFT)
-
-    def update_font_size(self, size_mode):
-        logger.info(f"正在将字体大小更新为 {size_mode}")
-        fonts = self.font_configs[size_mode]
-
-        # 更新控件
-        self.menu_label.config(font=fonts["menu_label"])
-        self.program_listbox.config(font=fonts["program_listbox"])
-        self.output_text.config(font=fonts["output_text"])
-        self.input_entry.config(font=fonts["input_entry"])
-
-        # Update buttons
-        button_font = fonts["buttons"]
-        self.send_button.config(font=button_font)
-        self.listen_button.config(font=button_font)
-        self.clear_button.config(font=button_font)
-        self.restart_button.config(font=button_font)
-        self.settings_button.config(font=button_font)
-
-        # Update text tags
-        self.output_text.tag_config('user_prompt', font=fonts["user_prompt"])
-        self.output_text.tag_config('system_message', font=fonts["system_message"])
-
-    def _apply_nostalgia_theme(self):
-        """Applies a sepia/nostalgic theme to the CommandPanel."""
-        nostalgia_bg = '#2b261d' # Sepia dark
-        nostalgia_fg = '#d4c5a1' # Aged paper
-        nostalgia_accent = '#8b4513' # Saddle brown
-
-        self.config(bg=nostalgia_bg)
-        self.output_text.config(bg=nostalgia_bg, fg=nostalgia_fg)
-        self.input_entry.config(bg='#1a1610', fg=nostalgia_fg)
-        self.menu_frame.config(bg='#1a1610')
-        self.menu_label.config(bg='#1a1610', fg=nostalgia_fg)
-        self.program_listbox.config(bg='#1a1610', fg=nostalgia_fg)
-
-        # Change tags to match theme
-        self.output_text.tag_config('user_prompt', foreground='#bc8f8f', background='#3a3429') # Rosy brown
-        self.output_text.tag_config('ai_response', foreground=nostalgia_fg, background='#2b261d')
-        self.output_text.tag_config('system_message', foreground='#deb887') # Burlywood
-
-        self.append_to_history("--- 怀旧模式已开启：一中往事 ---", "system_message")
-
-    def restart_application(self):
-        logger.info("Restarting application")
-        python = sys.executable
-        os.execl(python, python, *sys.argv)
