@@ -37,11 +37,15 @@ from .permission import (
 )
 from .agent_runtime import AgentRuntime, AgentConfig
 from .context_manager import ContextManager, CompactionStage
-from .subagent_manager import SubagentManager, SubagentDefinition
 from .event_stream import EventStream
 from .condenser import Condenser, SummaryCondenser, RecentNCondenser, TaskFocusedCondenser
 
-# 可选组件（需要额外依赖）
+try:
+    from .subagent_manager import SubagentManager, SubagentDefinition
+except ImportError:
+    SubagentManager = None  # type: ignore
+    SubagentDefinition = None  # type: ignore
+
 try:
     from .mcp_client import MCPClient, MCPServerConfig
 except ImportError:

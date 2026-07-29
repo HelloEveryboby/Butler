@@ -13,7 +13,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+try:
+    from pydantic import BaseModel, Field
+    _HAS_PYDANTIC = True
+except ImportError:
+    _HAS_PYDANTIC = False
 
 
 class EventType(str, Enum):
@@ -173,39 +177,60 @@ class Event:
         )
 
 
-class ToolDefinition(BaseModel):
-    """
-    工具定义（JSON Schema 驱动）。
+if _HAS_PYDANTIC:
+    class ToolDefinition(BaseModel):
+        """
+        工具定义（JSON Schema 驱动）。
 
-    参考 OpenHands 的 Action/Observation 模式和 Claude Code 的 buildTool() 契约。
-    每个工具通过 Pydantic 模型自动生成 JSON Schema 供 LLM 工具调用。
-    """
+        参考 OpenHands 的 Action/Observation 模式和 Claude Code 的 buildTool() 契约。
+        每个工具通过 Pydantic 模型自动生成 JSON Schema 供 LLM 工具调用。
+        """
 
-    name: str = Field(description="工具名称（唯一标识符）")
-    description: str = Field(description="工具描述，供 LLM 理解何时使用")
-    parameters_schema: dict[str, Any] = Field(
-        description="JSON Schema 格式的参数定义"
-    )
-    permission_level: PermissionLevel = Field(
-        default=PermissionLevel.REQUIRE_CONFIRM,
-        description="工具权限层级",
-    )
-    is_read_only: bool = Field(default=False, description="是否只读操作")
-    is_destructive: bool = Field(default=False, description="是否破坏性操作")
-    is_concurrency_safe: bool = Field(
-        default=False, description="是否并发安全（只读工具通常为 True）"
-    )
+        name: str = Field(description="工具名称（唯一标识符）")
+        description: str = Field(description="工具描述，供 LLM 理解何时使用")
+        parameters_schema: dict[str, Any] = Field(
+            description="JSON Schema 格式的参数定义"
+        )
+        permission_level: PermissionLevel = Field(
+            default=PermissionLevel.REQUIRE_CONFIRM,
+            description="工具权限层级",
+        )
+        is_read_only: bool = Field(default=False, description="是否只读操作")
+        is_destructive: bool = Field(default=False, description="是否破坏性操作")
+        is_concurrency_safe: bool = Field(
+            default=False, description="是否并发安全（只读工具通常为 True）"
+        )
 
-    def to_openai_schema(self) -> dict[str, Any]:
-        """转换为 OpenAI function calling 格式。"""
-        return {
-            "type": "function",
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.parameters_schema,
-            },
-        }
+        def to_openai_schema(self) -> dict[str, Any]:
+            """转换为 OpenAI function calling 格式。"""
+            return {
+                "type": "function",
+                "function": {
+                    "name": self.name,
+                    "description": self.description,
+                    "parameters": self.parameters_schema,
+                },
+            }
+else:
+    @dataclass
+    class ToolDefinition:
+        name: str = ""
+        description: str = ""
+        parameters_schema: dict[str, Any] = field(default_factory=dict)
+        permission_level: PermissionLevel = PermissionLevel.REQUIRE_CONFIRM
+        is_read_only: bool = False
+        is_destructive: bool = False
+        is_concurrency_safe: bool = False
+
+        def to_openai_schema(self) -> dict[str, Any]:
+            return {
+                "type": "function",
+                "function": {
+                    "name": self.name,
+                    "description": self.description,
+                    "parameters": self.parameters_schema,
+                },
+            }
 
 
 class ConversationState:
@@ -226,6 +251,10 @@ class ConversationState:
         self._turn_count: int = 0
         self._compaction_count: int = 0
         self._created_at: float = time.time()
+        self._cached_tokens: int = 0
+        self._cached_msg_count: int = 0
+        if messages:
+            self._invalidate_cache()
 
     @property
     def messages(self) -> list[Message]:
@@ -243,11 +272,16 @@ class ConversationState:
     def created_at(self) -> float:
         return self._created_at
 
+    def _invalidate_cache(self) -> None:
+        """标记缓存无效，下次 estimate_tokens 将重新计算。"""
+        self._cached_tokens = -1
+
     def append(self, message: Message) -> None:
         """追加消息到对话。"""
         self._messages.append(message)
         if message.role == "assistant":
             self._turn_count += 1
+        self._invalidate_cache()
 
     def extend(self, messages: list[Message]) -> None:
         """批量追加消息。"""
@@ -262,6 +296,7 @@ class ConversationState:
         """
         self._messages = list(messages)
         self._compaction_count += 1
+        self._invalidate_cache()
 
     def get_user_messages(self) -> list[Message]:
         """获取所有用户消息。"""
@@ -291,6 +326,8 @@ class ConversationState:
         state._turn_count = d.get("turn_count", 0)
         state._compaction_count = d.get("compaction_count", 0)
         state._created_at = d.get("created_at", time.time())
+        state._cached_tokens = 0
+        state._cached_msg_count = len(state._messages)
         return state
 
     def estimate_tokens(self) -> int:
@@ -298,9 +335,17 @@ class ConversationState:
         粗略估算当前对话的 token 数量。
 
         使用 4 字符 ≈ 1 token 的近似值。
+        结果会被缓存，仅在消息变更时重新计算。
         """
+        msg_count = len(self._messages)
+        if self._cached_tokens >= 0 and msg_count == self._cached_msg_count:
+            return self._cached_tokens
+
         total_chars = sum(len(m.content) for m in self._messages)
-        return total_chars // 4
+        estimate = total_chars // 4
+        self._cached_tokens = estimate
+        self._cached_msg_count = msg_count
+        return estimate
 
 
 def _json_dumps(obj: Any) -> str:
