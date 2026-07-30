@@ -183,7 +183,7 @@ class ButlerTUI(App):
 
                     with Horizontal(id="chat-input-bar"):
                         yield Input(
-                            placeholder="输入指令或对话... (Ctrl+C 退出, /help 查看命令)",
+                            placeholder="输入命令或对话... (/help 帮助, /howto 意图搜索, /commands 浏览)",
                             id="chat-input",
                         )
                         yield Button("发送", id="btn-send", variant="success")
@@ -334,8 +334,12 @@ class ButlerTUI(App):
         if output:
             output.mount(Label(""))
         self._append_chat("🎯 Butler AI 助手 v2.0 已就绪", "system")
-        self._append_chat("输入 /help 查看可用命令列表", "system")
-        self._append_chat("直接输入问题与 Butler 对话，或使用左侧导航切换功能。", "system")
+        self._append_chat("命令帮助:", "system")
+        self._append_chat("  /help          查看所有命令分类概览", "system")
+        self._append_chat("  /help <命令>   查看某命令的详细用法 (支持模糊匹配)", "system")
+        self._append_chat("  /commands [词] 按分类浏览/过滤命令", "system")
+        self._append_chat("  /howto <描述>  用自然语言描述你想做的事，推荐命令", "system")
+        self._append_chat("  输入错了? 不确定命令名? 直接输入，Butler 会推荐相似命令。", "system")
 
     def _append_chat(self, text: str, tag: str = "normal"):
         color_map = {
@@ -530,93 +534,138 @@ class ButlerTUI(App):
         name = parts[0].lower()
         arg = parts[1].strip() if len(parts) > 1 else ""
 
-        if name in ("help", "h", "?"):
-            help_text = """
-可用命令:
-  /help              显示此帮助
-  /clear             清空对话
-  /status            查看系统状态
-  /tasks             查看任务看板
-  /team              查看团队成员
-  /profile           查看用户画像
-  /kairos            查看 KAIROS 状态
-  /performance high|eco|normal  切换性能模式
-  /dream             手动触发做梦引擎
-  /focus [minutes]   启动专注模式
-  /focus-stop        停止专注模式
-  /memory            查看记忆
-  /weather [city]    查询天气
-  /encrypt <path>    加密文件
-  /decrypt <path>    解密文件
-  /translate <text>  翻译文本
-  /doctor            运行系统诊断
-  /exit              退出 Butler
-"""
-            self._append_chat(help_text, "system")
+        from butler.tui.command_catalog import get_command, suggest_for_unknown, format_command_help, format_command_overview, find_by_intent
 
-        elif name == "clear":
-            self._on_clear_chat(None)
+        # ── 特殊元命令 (不注册在目录里) ──
+        if name in ("help", "h", "?", "帮助", "bz"):
+            if arg:
+                # /help <命令名> → 详细帮助
+                entry = get_command(arg)
+                if entry:
+                    self._append_chat(format_command_help(entry), "system")
+                else:
+                    # 模糊搜索
+                    suggestions = suggest_for_unknown(arg)
+                    if suggestions:
+                        lines = [f"未找到命令 '{arg}'，相似命令:"]
+                        for s in suggestions:
+                            lines.append(f"  /{s.name}  —  {s.description}")
+                        lines.append(f"\n输入 /help <命令名> 查看详细用法")
+                        self._append_chat("\n".join(lines), "system")
+                    else:
+                        self._append_chat(f"未找到命令 '{arg}'，输入 /commands 浏览所有命令", "error")
+            else:
+                self._append_chat(format_command_overview(), "system")
+            return
 
-        elif name == "status":
-            self._show_status()
+        if name in ("commands", "cmd", "命令列表", "所有命令", "allcmd"):
+            self._append_chat(format_command_overview(arg), "system")
+            return
 
-        elif name == "tasks":
-            self._set_view("tasks")
+        if name in ("howto", "how", "怎么做", "如何", "怎么"):
+            if not arg:
+                self._append_chat("用法: /howto <你想做什么>\n示例: /howto 我想加密一个文件", "system")
+                return
+            results = find_by_intent(arg, limit=3)
+            if results:
+                lines = [f"根据「{arg}」，推荐以下命令:"]
+                for cmd_entry, score in results:
+                    stars = "★" * max(1, int(score * 5))
+                    lines.append(f"  [cyan]/{cmd_entry.name}[/cyan]  {cmd_entry.description}  {stars}")
+                    lines.append(f"    用法: {cmd_entry.usage}")
+                lines.append(f"\n输入 /help <命令名> 查看详细用法")
+                self._append_chat("\n".join(lines), "system")
+            else:
+                self._append_chat(f"没有找到匹配「{arg}」的命令，试试 /commands 浏览所有命令", "error")
+            return
 
-        elif name == "team":
-            self._append_chat("团队成员列表 (需 Jarvis 运行时)", "system")
+        # ── 在目录中查找命令 ──
+        entry = get_command(name)
+        if entry:
+            self._dispatch_catalog_command(entry, arg)
+        else:
+            # 未知命令 → "你是想说?" 建议
+            suggestions = suggest_for_unknown(name)
+            if suggestions:
+                lines = [f"未知命令: /{name}"]
+                lines.append(f"你是想说?")
+                for s in suggestions:
+                    lines.append(f"  [cyan]/{s.name}[/cyan]  —  {s.description}")
+                lines.append(f"\n输入 /commands 浏览所有命令，或 /howto <描述> 按意图搜索")
+                self._append_chat("\n".join(lines), "error")
+            else:
+                self._append_chat(
+                    f"未知命令: /{name}\n输入 /help 查看命令列表，/commands 浏览分类，或 /howto <你想做什么> 按意图搜索",
+                    "error"
+                )
 
-        elif name == "profile":
-            self._append_chat("用户画像 (需 Jarvis 运行时)", "system")
+    def _dispatch_catalog_command(self, entry, arg: str):
+        """根据目录条目分发命令执行."""
+        from butler.tui.command_catalog import CommandEntry
+        name = entry.name
 
-        elif name == "kairos":
-            self._show_kairos()
-
-        elif name == "performance" and arg:
-            mode = arg.lower()
-            if self.command_callback:
-                self.command_callback("text", f"/performance {mode}")
-            self._append_chat(f"性能模式切换请求: {mode}", "system")
-
-        elif name == "dream":
-            if self.command_callback:
-                self.command_callback("text", "/dream")
-            self._append_chat("正在启动做梦引擎...", "system")
-
+        # ── 无参数命令，缺少参数时提示 ──
+        if name == "weather":
+            self._tool_weather(arg or "北京")
+        elif name == "encrypt":
+            if arg:
+                self._tool_encrypt(arg)
+            else:
+                self._append_chat(f"用法: {entry.usage}\n示例: {entry.example}", "system")
+        elif name == "decrypt":
+            if arg:
+                self._tool_decrypt(arg)
+            else:
+                self._append_chat(f"用法: {entry.usage}\n示例: {entry.example}", "system")
+        elif name == "translate":
+            if arg:
+                self._tool_translate(arg)
+            else:
+                self._append_chat(f"用法: {entry.usage}\n示例: {entry.example}", "system")
+        elif name == "performance":
+            if arg:
+                mode = arg.lower()
+                if self.command_callback:
+                    self.command_callback("text", f"/performance {mode}")
+                self._append_chat(f"性能模式切换请求: {mode}", "system")
+            else:
+                self._append_chat(f"用法: /performance <high|eco|normal>\n{entry.detail}", "system")
         elif name == "focus":
             duration = int(arg) if arg else 25
             if self.command_callback:
                 self.command_callback("text", f"/focus {duration}")
             self._append_chat(f"专注模式已启动 ({duration} 分钟)", "system")
-
         elif name == "focus-stop":
             if self.command_callback:
                 self.command_callback("text", "/focus-stop")
             self._append_chat("专注模式已停止", "system")
-
+        elif name == "dream":
+            if self.command_callback:
+                self.command_callback("text", "/dream")
+            self._append_chat("正在启动做梦引擎...", "system")
+        elif name == "clear":
+            self._on_clear_chat(None)
+        elif name == "status":
+            self._show_status()
+        elif name == "kairos":
+            self._show_kairos()
+        elif name == "tasks":
+            self._set_view("tasks")
+        elif name == "team":
+            self._append_chat("团队成员列表 (需 Jarvis 运行时)", "system")
+        elif name == "profile":
+            self._append_chat("用户画像 (需 Jarvis 运行时)", "system")
         elif name == "memory":
             self._set_view("memory")
-
-        elif name == "weather":
-            self._tool_weather(arg or "北京")
-
-        elif name == "encrypt" and arg:
-            self._tool_encrypt(arg)
-
-        elif name == "decrypt" and arg:
-            self._tool_decrypt(arg)
-
-        elif name == "translate" and arg:
-            self._tool_translate(arg)
-
         elif name == "doctor":
             self._tool_doctor()
-
         elif name in ("exit", "quit", "q"):
             self.exit()
-
         else:
-            self._append_chat(f"未知命令: {cmd} (输入 /help 查看列表)", "error")
+            # 工具类命令 → 走 _try_tool_command
+            tool_handled = self._try_tool_command(f"/{name} {arg}".strip())
+            if not tool_handled:
+                self._append_chat(f"命令 /{name} 已注册但暂未实现 TUI 快捷调用，请使用 /help {name} 查看替代方式", "system")
 
     def _simulate_jarvis_response(self, text: str):
         self._append_chat(
