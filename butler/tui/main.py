@@ -85,6 +85,32 @@ class ButlerTUI(App):
     #chat-input {
         width: 1fr;
     }
+    #cmd-hints {
+        height: auto;
+        max-height: 10;
+        padding: 0 1;
+        background: $surface-darken-2;
+        border-top: solid $accent 40%;
+        display: none;
+    }
+    .hint-line {
+        height: 1;
+        padding: 0 1;
+    }
+    .hint-name {
+        color: $accent;
+        text-style: bold;
+    }
+    .hint-desc {
+        color: $text-muted;
+    }
+    .hint-usage {
+        color: $success;
+    }
+    .hint-line.hint-selected {
+        background: $accent 30%;
+        text-style: bold;
+    }
     #status-bar {
         height: auto;
         padding: 0 1;
@@ -141,6 +167,9 @@ class ButlerTUI(App):
         self._msg_queue = []
         self._queue_lock = threading.Lock()
         self._stop_event = threading.Event()
+        # 实时命令建议状态
+        self._hint_results: list = []
+        self._hint_index = -1
         self._nav_items = [
             ("💬 对话", "chat"),
             ("📊 仪表板", "dashboard"),
@@ -180,6 +209,9 @@ class ButlerTUI(App):
                         yield Static("", id="chat-status")
 
                     yield VerticalScroll(id="chat-output")
+
+                    # 实时命令建议面板 (输入 / 时显示)
+                    yield Vertical(id="cmd-hints")
 
                     with Horizontal(id="chat-input-bar"):
                         yield Input(
@@ -378,8 +410,97 @@ class ButlerTUI(App):
         text = event.value.strip()
         if not text:
             return
+        self._hide_hints()
         self._handle_chat_input(text)
         event.input.value = ""
+
+    @on(Input.Changed, "#chat-input")
+    def _on_input_changed(self, event: Input.Changed):
+        """实时命令建议 - 输入 / 时即时显示匹配的命令."""
+        text = event.value
+        # 非命令输入，隐藏建议
+        if not text.startswith("/"):
+            self._hide_hints()
+            return
+        # 已输入空格表示命令名已完成，进入参数阶段，不再建议
+        cmd_part = text[1:]
+        if " " in cmd_part:
+            self._hide_hints()
+            return
+        cmd_part = cmd_part.strip()
+
+        from butler.tui.command_catalog import find_command
+        results = find_command(cmd_part, limit=8)
+        if results:
+            self._hint_results = [c for c, _ in results]
+            self._hint_index = 0
+            self._render_hints()
+        else:
+            self._hide_hints()
+
+    def _render_hints(self):
+        """渲染命令建议列表到 #cmd-hints 面板."""
+        panel = self.query_existing("#cmd-hints", Vertical)
+        if not panel:
+            return
+        # 清除旧条目
+        for child in list(panel.children):
+            child.remove()
+        # 挂载新条目
+        lines = []
+        for i, cmd in enumerate(self._hint_results):
+            selected = (i == self._hint_index)
+            marker = "▶ " if selected else "  "
+            lines.append(Static(
+                f"{marker}[bold]/{cmd.name:<14}[/bold] [dim]{cmd.description}[/dim]  [green]{cmd.usage}[/green]",
+                classes="hint-line" + (" hint-selected" if selected else ""),
+            ))
+        if lines:
+            panel.mount(*lines)
+        panel.display = True
+
+    def _hide_hints(self):
+        """隐藏命令建议面板."""
+        panel = self.query_existing("#cmd-hints", Vertical)
+        if panel:
+            panel.display = False
+            for child in list(panel.children):
+                child.remove()
+        self._hint_results = []
+        self._hint_index = -1
+
+    def _apply_hint(self, cmd):
+        """应用选中的建议，填入输入框."""
+        inp = self.query_existing("#chat-input", Input)
+        if inp:
+            inp.value = f"/{cmd.name} "
+            inp.focus()
+            try:
+                inp.cursor_position = len(inp.value)
+            except Exception:
+                pass
+        self._hide_hints()
+
+    def on_key(self, event):
+        """键盘导航: Up/Down 选择, Tab 应用, Esc 关闭."""
+        panel = self.query_existing("#cmd-hints", Vertical)
+        if not panel or not panel.display or not self._hint_results:
+            return
+        if event.key == "up":
+            self._hint_index = (self._hint_index - 1) % len(self._hint_results)
+            self._render_hints()
+            event.stop()
+        elif event.key == "down":
+            self._hint_index = (self._hint_index + 1) % len(self._hint_results)
+            self._render_hints()
+            event.stop()
+        elif event.key == "tab":
+            if 0 <= self._hint_index < len(self._hint_results):
+                self._apply_hint(self._hint_results[self._hint_index])
+                event.stop()
+        elif event.key == "escape":
+            self._hide_hints()
+            event.stop()
 
     @on(Button.Pressed, "#btn-send")
     def _on_send_click(self, _event):
