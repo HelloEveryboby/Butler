@@ -40,8 +40,8 @@ elif [ -f "./runtime/python" ]; then
     export PYTHONPATH=$PYTHONPATH:.
 fi
 
-# Run the main application using the python module flag
-echo "Launching main application..."
-$PYTHON_CMD -m butler.butler_app "$@"
+# Run the main application using the python module flag (TUI mode by default)
+echo "Launching Butler TUI terminal interface..."
+$PYTHON_CMD -m butler "$@"
 
 echo "Application closed."
