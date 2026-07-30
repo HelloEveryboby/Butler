@@ -27,6 +27,6 @@ if exist runtime\python.exe (
     set PYTHONPATH=%PYTHONPATH%;.
 )
 
-echo Launching main application...
-%PYTHON_CMD% -m butler.butler_app %*
+echo Launching Butler TUI terminal interface...
+%PYTHON_CMD% -m butler %*
 if %ERRORLEVEL% neq 0 pause

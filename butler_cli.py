@@ -109,6 +109,10 @@ def main():
     # 13. 诊断 (Doctor)
     subparsers.add_parser("doctor", help="系统诊断与预检 (Doctor Mode)")
 
+    # 14. TUI 终端界面
+    tui_parser = subparsers.add_parser("tui", help="启动 Butler TUI 终端用户界面")
+    tui_parser.add_argument("--headless", action="store_true", help="无头模式 (仅 API 服务)")
+
     # --- 动态加载自定义技能 ---
     try:
         from butler.core.skill_manager import SkillManager
@@ -241,6 +245,10 @@ def main():
         elif args.command == "doctor":
             from butler.core.doctor import run_doctor
             run_doctor()
+
+        elif args.command == "tui":
+            from butler.tui.main import run_tui
+            run_tui()
 
         # --- 处理动态技能调用 ---
         elif skill_manager and args.command in skill_manager.manifests:

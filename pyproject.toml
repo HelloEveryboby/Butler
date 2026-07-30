@@ -48,7 +48,10 @@ dependencies = [
     "openai",
     "anthropic",
     "deepseek",
-    "instructor"
+    "instructor",
+    "textual",
+    "rich",
+    "pygments",
 ]
 
 [project.optional-dependencies]
@@ -186,7 +189,7 @@ Source = "https://github.com/HelloEveryboby/Butler"
 Tracker = "https://github.com/HelloEveryboby/Butler/issues"
 
 [project.scripts]
-butler = "butler.butler_app:main"
+butler = "butler.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
