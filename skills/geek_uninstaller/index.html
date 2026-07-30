@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geek Uninstaller</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glass-panel">
+        <div class="header">
+            <h2>Geek Uninstaller <span class="pro-badge">深度卸载</span></h2>
+            <div id="status-indicator" class="status-idle">
+                <span class="status-dot"></span> <span id="status-text">系统就绪</span>
+            </div>
+        </div>
+
+        <!-- Tab 导航 -->
+        <div class="tabs">
+            <button class="tab active" data-tab="software" onclick="switchTab('software')">📦 软件</button>
+            <button class="tab" data-tab="junk" onclick="switchTab('junk')">🧹 清理</button>
+            <button class="tab" data-tab="monitor" onclick="switchTab('monitor')">📊 监控</button>
+        </div>
+
+        <!-- 软件 Tab -->
+        <div id="tab-software" class="tab-panel active">
+            <div class="action-zone">
+                <button id="btn-list" class="btn btn-primary" onclick="loadSoftware()">
+                    🔍 扫描已安装软件
+                </button>
+            </div>
+            <div id="software-list" class="data-list">
+                <div class="empty-hint">点击上方按钮开始扫描已安装软件</div>
+            </div>
+            <div class="footer-zone">
+                <input id="uninstall-name" class="text-input" type="text" placeholder="输入要卸载的软件名(支持模糊匹配)">
+                <button id="btn-uninstall" class="btn btn-danger" onclick="doUninstall()">
+                    🛡️ 深度卸载(含残留扫描)
+                </button>
+                <label class="checkbox-row">
+                    <input type="checkbox" id="dry-run-uninstall" checked>
+                    <span>模拟运行(不实际删除,推荐先预览)</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- 清理 Tab -->
+        <div id="tab-junk" class="tab-panel">
+            <div class="action-zone">
+                <button id="btn-scan-junk" class="btn btn-primary" onclick="scanJunk()">
+                    ♻️ 扫描系统垃圾
+                </button>
+            </div>
+            <div id="junk-list" class="data-list">
+                <div class="empty-hint">扫描临时文件、缓存、包管理器缓存、旧日志</div>
+            </div>
+            <div class="footer-zone">
+                <button id="btn-clean-junk" class="btn btn-danger" onclick="cleanJunk()" disabled>
+                    🚀 清理选中垃圾
+                </button>
+                <label class="checkbox-row">
+                    <input type="checkbox" id="dry-run-clean" checked>
+                    <span>模拟运行(不实际删除)</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- 监控 Tab -->
+        <div id="tab-monitor" class="tab-panel">
+            <div class="action-zone">
+                <button id="btn-snapshot" class="btn btn-primary" onclick="loadSnapshot()">
+                    📸 采集系统快照
+                </button>
+                <button id="btn-top" class="btn btn-secondary" onclick="loadTop()">
+                    🏆 进程排行
+                </button>
+            </div>
+            <div id="monitor-body" class="data-list">
+                <div class="empty-hint">查看 CPU / 内存 / 磁盘 / 网络实时状态</div>
+            </div>
+        </div>
+
+        <!-- 全局日志 -->
+        <div class="log-container">
+            <div class="log-header">操作日志</div>
+            <div id="log-output" class="log-body">等待操作...</div>
+        </div>
+    </div>
+
+    <script>
+        // 同步 Butler 主题偏好
+        document.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('setting_theme') === 'dark') {
+                document.body.classList.add('theme-dark');
+            }
+        });
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>
