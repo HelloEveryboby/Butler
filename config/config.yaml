@@ -4,15 +4,17 @@ api:
   # ============================================
   # AI 模型提供商配置
   # ============================================
-  # 提供商: deepseek | openai | zhipu | custom
+  # 提供商: deepseek | openai | zhipu | anthropic | gemini | dashscope | qianfan | custom
   provider: "${AI_PROVIDER:-deepseek}"
+  # 自定义提供商名称 (custom 时用于区分多个自定义配置)
+  provider_label: "${CUSTOM_PROVIDER_NAME:-}"
   # API 基础地址 (留空使用提供商默认)
   base_url: "${API_BASE_URL:-}"
   # 模型名称 (留空使用提供商默认)
   model_name: "${MODEL_NAME:-}"
 
   # ============================================
-  # API 密钥配置
+  # API 密钥配置 (仅需填写当前 provider 对应的密钥)
   # ============================================
   # DeepSeek API 密钥
   deepseek_key: "${DEEPSEEK_API_KEY:-}"
@@ -20,6 +22,14 @@ api:
   openai_key: "${OPENAI_API_KEY:-}"
   # 智谱 AI API 密钥
   zhipu_key: "${ZHIPU_API_KEY:-}"
+  # Anthropic Claude API 密钥
+  anthropic_key: "${ANTHROPIC_API_KEY:-}"
+  # Google Gemini API 密钥
+  gemini_key: "${GEMINI_API_KEY:-}"
+  # 通义千问 (DashScope) API 密钥
+  dashscope_key: "${DASHSCOPE_API_KEY:-}"
+  # 百度文心一言 (千帆) API 密钥
+  qianfan_key: "${QIANFAN_API_KEY:-}"
   # 自定义 API 密钥
   custom_key: "${CUSTOM_API_KEY:-}"
 

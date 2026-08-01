@@ -7,7 +7,7 @@ from typing import Dict, Any, List
 from butler.core.api_validator import APIValidator
 from butler.core.config_backup_manager import ConfigBackupManager
 from butler.core.config_manager import config_manager
-from butler.core.config_model import PROVIDER_DEFAULTS
+from butler.core.config_model import PROVIDER_DEFAULTS, PROVIDER_KEY_PATHS
 from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
@@ -15,19 +15,15 @@ logger = LogManager.get_logger(__name__)
 
 # 提供商显示选项
 PROVIDER_CHOICES = [
-    ("deepseek", "🤖 DeepSeek"),
-    ("openai",   "🧠 OpenAI / 兼容格式"),
-    ("zhipu",    "🇨🇳 智谱 AI (GLM)"),
-    ("custom",   "🔧 自定义 API 地址"),
+    ("deepseek",  "🤖 DeepSeek"),
+    ("openai",    "🧠 OpenAI / 兼容格式"),
+    ("zhipu",     "🇨🇳 智谱 AI (GLM)"),
+    ("anthropic", "🎭 Anthropic Claude"),
+    ("gemini",    "✨ Google Gemini"),
+    ("dashscope", "🇨🇳 通义千问 (Qwen)"),
+    ("qianfan",   "🇨🇳 百度文心一言 (ERNIE)"),
+    ("custom",    "🔧 自定义 API 地址"),
 ]
-
-# provider -> (config_path, env_name)
-PROVIDER_KEY_PATHS = {
-    "deepseek": ("api.deepseek_key", "DEEPSEEK_API_KEY"),
-    "openai":   ("api.openai_key",   "OPENAI_API_KEY"),
-    "zhipu":    ("api.zhipu_key",    "ZHIPU_API_KEY"),
-    "custom":   ("api.custom_key",   "CUSTOM_API_KEY"),
-}
 
 
 class ConfigWizardV2:
@@ -209,6 +205,22 @@ class ConfigWizardV2:
         required_custom = (pid == "custom")
         row_i = 0
 
+        # --- 自定义名称 (仅 custom) ---
+        if required_custom:
+            tk.Label(form, text="🏷️ 自定义名称（用于区分）:",
+                     bg='#1c1c1c', fg='#ffffff',
+                     width=30, anchor='w').grid(row=row_i, column=0, pady=6, sticky='w')
+
+            ent_name = tk.Entry(form, bg='#000000', fg='#00ff00',
+                                insertbackground='#00ff00', width=40,
+                                font=("Arial", 10))
+            ent_name.grid(row=row_i, column=1, pady=6, sticky='ew')
+
+            tk.Label(form, text="例如: 我的Ollama", bg='#1c1c1c', fg='#66aa66',
+                    font=("Arial", 8)).grid(row=row_i, column=2, padx=8, sticky='w')
+            self.entries["CUSTOM_PROVIDER_NAME"] = ent_name
+            row_i += 1
+
         # --- base_url ---
         url_label = f"🌐 API 基础地址{' *' if required_custom else ' (可选)'}:"
         tk.Label(form, text=url_label, bg='#1c1c1c', fg='#ffffff',
@@ -269,6 +281,11 @@ class ConfigWizardV2:
         form.columnconfigure(1, weight=1)
 
         # --- 预填已有值 ---
+        if required_custom:
+            current_label = config_manager.get("api.provider_label") or os.getenv("CUSTOM_PROVIDER_NAME", "")
+            if current_label:
+                self.entries["CUSTOM_PROVIDER_NAME"].insert(0, current_label)
+
         current_base = config_manager.get("api.base_url") or os.getenv("API_BASE_URL", "")
         if current_base:
             ent_url.insert(0, current_base)
@@ -277,7 +294,7 @@ class ConfigWizardV2:
         if current_model:
             ent_model.insert(0, current_model)
 
-        cfg_path, env_name = PROVIDER_KEY_PATHS.get(pid, PROVIDER_KEY_PATHS["deepseek"])
+        cfg_path, env_name, _field = PROVIDER_KEY_PATHS.get(pid, PROVIDER_KEY_PATHS["deepseek"])
         current_key = config_manager.get(cfg_path) or os.getenv(env_name, "")
         if current_key and "YOUR_" not in current_key:
             ent_key.insert(0, current_key)
@@ -505,8 +522,12 @@ class ConfigWizardV2:
             config_manager.set("api.base_url", base_url, persist=True)
             config_manager.set("api.model_name", model_name, persist=True)
 
+            # 自定义提供商名称（CUSTOM_PROVIDER_NAME）
+            custom_name = self._get_entry_val("CUSTOM_PROVIDER_NAME")
+            config_manager.set("api.provider_label", custom_name, persist=True)
+
             # 当前 provider 的 key
-            cfg_path, _ = PROVIDER_KEY_PATHS.get(pid, PROVIDER_KEY_PATHS["deepseek"])
+            cfg_path, _, _field = PROVIDER_KEY_PATHS.get(pid, PROVIDER_KEY_PATHS["deepseek"])
             config_manager.set(cfg_path, api_key, persist=True)
 
             # 其他字段

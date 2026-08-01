@@ -90,14 +90,19 @@ echo "========================================"
 echo "1) DeepSeek (默认推荐)"
 echo "2) OpenAI / 兼容 OpenAI 格式服务"
 echo "3) 智谱 AI (GLM 系列)"
-echo "4) 自定义 API 地址 (Ollama / 本地部署等)"
+echo "4) Anthropic Claude"
+echo "5) Google Gemini"
+echo "6) 通义千问 (DashScope)"
+echo "7) 百度文心一言 (千帆)"
+echo "8) 自定义 API 地址 (Ollama / 本地部署等)"
 echo ""
-read -r -p "请输入选项编号 [1-4，默认 1]: " provider_choice
+read -r -p "请输入选项编号 [1-8，默认 1]: " provider_choice
 
 provider_choice="${provider_choice:-1}"
 AI_PROVIDER=""
 API_BASE_URL=""
 MODEL_NAME=""
+CUSTOM_PROVIDER_NAME=""
 API_KEY_ENV_NAME=""
 API_KEY_DISPLAY=""
 API_KEY_VALUE=""
@@ -119,10 +124,31 @@ case "$provider_choice" in
         API_KEY_DISPLAY="智谱 API Key"
         ;;
     4)
+        AI_PROVIDER="anthropic"
+        API_KEY_ENV_NAME="ANTHROPIC_API_KEY"
+        API_KEY_DISPLAY="Anthropic Claude API Key"
+        ;;
+    5)
+        AI_PROVIDER="gemini"
+        API_KEY_ENV_NAME="GEMINI_API_KEY"
+        API_KEY_DISPLAY="Google Gemini API Key"
+        ;;
+    6)
+        AI_PROVIDER="dashscope"
+        API_KEY_ENV_NAME="DASHSCOPE_API_KEY"
+        API_KEY_DISPLAY="通义千问 API Key"
+        ;;
+    7)
+        AI_PROVIDER="qianfan"
+        API_KEY_ENV_NAME="QIANFAN_API_KEY"
+        API_KEY_DISPLAY="文心一言 API Key"
+        ;;
+    8)
         AI_PROVIDER="custom"
         API_KEY_ENV_NAME="CUSTOM_API_KEY"
         API_KEY_DISPLAY="自定义 API Key"
         echo ""
+        read -r -p "请输入自定义名称（用于区分，例如 我的Ollama）: " CUSTOM_PROVIDER_NAME
         echo "请输入 API 基础地址（例如 http://localhost:11434/v1）："
         read -r API_BASE_URL
         echo "请输入模型名称（例如 qwen2.5:7b）："
@@ -184,13 +210,18 @@ echo "正在创建 .env 文件..."
 cat > .env << EOL
 # AI 模型提供商配置
 AI_PROVIDER="${AI_PROVIDER}"
+CUSTOM_PROVIDER_NAME="${CUSTOM_PROVIDER_NAME}"
 API_BASE_URL="${API_BASE_URL}"
 MODEL_NAME="${MODEL_NAME}"
 
-# AI API 密钥（根据 AI_PROVIDER 生效）
+# AI API 密钥（根据 AI_PROVIDER 生效，仅对应服务商写入）
 DEEPSEEK_API_KEY="$([ "$AI_PROVIDER" = "deepseek" ] && echo "${API_KEY_VALUE}" || echo "")"
 OPENAI_API_KEY="$([ "$AI_PROVIDER" = "openai" ] && echo "${API_KEY_VALUE}" || echo "")"
 ZHIPU_API_KEY="$([ "$AI_PROVIDER" = "zhipu" ] && echo "${API_KEY_VALUE}" || echo "")"
+ANTHROPIC_API_KEY="$([ "$AI_PROVIDER" = "anthropic" ] && echo "${API_KEY_VALUE}" || echo "")"
+GEMINI_API_KEY="$([ "$AI_PROVIDER" = "gemini" ] && echo "${API_KEY_VALUE}" || echo "")"
+DASHSCOPE_API_KEY="$([ "$AI_PROVIDER" = "dashscope" ] && echo "${API_KEY_VALUE}" || echo "")"
+QIANFAN_API_KEY="$([ "$AI_PROVIDER" = "qianfan" ] && echo "${API_KEY_VALUE}" || echo "")"
 CUSTOM_API_KEY="$([ "$AI_PROVIDER" = "custom" ] && echo "${API_KEY_VALUE}" || echo "")"
 
 # 百度语音 API (可选)
@@ -209,7 +240,8 @@ EOL
 
 echo "✅ .env 文件创建成功。"
 echo "  - AI_PROVIDER = ${AI_PROVIDER}"
-echo "  - 密钥保存到 = ${API_KEY_ENV_NAME}=\"您的_${API_KEY_DISPLAY}\"（已加密输入）"
+[ -n "$CUSTOM_PROVIDER_NAME" ] && echo "  - CUSTOM_PROVIDER_NAME = ${CUSTOM_PROVIDER_NAME}"
+echo "  - 密钥保存到 = ${API_KEY_ENV_NAME}（已隐藏输入）"
 [ -n "$API_BASE_URL" ] && echo "  - API_BASE_URL = ${API_BASE_URL}"
 [ -n "$MODEL_NAME" ] && echo "  - MODEL_NAME = ${MODEL_NAME}"
 echo "-----------------------------------------------------"

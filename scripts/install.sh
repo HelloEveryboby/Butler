@@ -169,15 +169,24 @@ if [ ! -f ".env" ]; then
         echo "  1) DeepSeek (默认)"
         echo "  2) OpenAI / 兼容 OpenAI 格式"
         echo "  3) 智谱 AI (GLM)"
-        echo "  4) 自定义 API 地址 (Ollama/本地部署)"
-        printf "请输入选项 [1-4，默认 1]: "
+        echo "  4) Anthropic Claude"
+        echo "  5) Google Gemini"
+        echo "  6) 通义千问 (DashScope)"
+        echo "  7) 百度文心一言 (千帆)"
+        echo "  8) 自定义 API 地址 (Ollama/本地部署)"
+        printf "请输入选项 [1-8，默认 1]: "
         read -r _p_choice
         _p_choice="${_p_choice:-1}"
         case "$_p_choice" in
             1) AI_PROVIDER="deepseek" ;;
             2) AI_PROVIDER="openai" ;;
             3) AI_PROVIDER="zhipu" ;;
-            4) AI_PROVIDER="custom"
+            4) AI_PROVIDER="anthropic" ;;
+            5) AI_PROVIDER="gemini" ;;
+            6) AI_PROVIDER="dashscope" ;;
+            7) AI_PROVIDER="qianfan" ;;
+            8) AI_PROVIDER="custom"
+               printf "  请输入自定义名称 (例如 我的Ollama): "; read -r CUSTOM_PROVIDER_NAME
                printf "  请输入 API 基础地址 (例如 http://localhost:11434/v1): "; read -r API_BASE_URL
                printf "  请输入模型名称 (例如 qwen2.5:7b): "; read -r MODEL_NAME ;;
             *) AI_PROVIDER="deepseek" ;;
@@ -194,20 +203,23 @@ if [ ! -f ".env" ]; then
     fi
     log_info "AI 服务商已设置: ${CYAN}$AI_PROVIDER${NC}"
 
-    # 可选写入 API_BASE_URL / MODEL_NAME
-    if [ -n "$API_BASE_URL" ]; then
+    # 可选写入 CUSTOM_PROVIDER_NAME / API_BASE_URL / MODEL_NAME
+    _safe_sed() {
+        local pattern="$1"
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s|^API_BASE_URL=.*|API_BASE_URL=$API_BASE_URL|g" .env
+            sed -i '' "$pattern" .env
         else
-            sed -i "s|^API_BASE_URL=.*|API_BASE_URL=$API_BASE_URL|g" .env
+            sed -i "$pattern" .env
         fi
+    }
+    if [ -n "$CUSTOM_PROVIDER_NAME" ]; then
+        _safe_sed "s/^CUSTOM_PROVIDER_NAME=.*/CUSTOM_PROVIDER_NAME=$CUSTOM_PROVIDER_NAME/g"
+    fi
+    if [ -n "$API_BASE_URL" ]; then
+        _safe_sed "s|^API_BASE_URL=.*|API_BASE_URL=$API_BASE_URL|g"
     fi
     if [ -n "$MODEL_NAME" ]; then
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s/^MODEL_NAME=.*/MODEL_NAME=$MODEL_NAME/g" .env
-        else
-            sed -i "s/^MODEL_NAME=.*/MODEL_NAME=$MODEL_NAME/g" .env
-        fi
+        _safe_sed "s/^MODEL_NAME=.*/MODEL_NAME=$MODEL_NAME/g"
     fi
 
     # ---- 自动写入对应 API Key (若通过环境变量链式注入) ----
@@ -215,18 +227,18 @@ if [ ! -f ".env" ]; then
         local env_name="$1"; local val="$2"
         [ -z "$val" ] && return 0
         log_info "捕获到链式声明的 ${CYAN}${env_name}${NC}，正在自动完成无感写入..."
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s/${env_name}=.*/${env_name}=\"$val\"/g" .env
-        else
-            sed -i "s/${env_name}=.*/${env_name}=\"$val\"/g" .env
-        fi
+        _safe_sed "s/${env_name}=.*/${env_name}=\"$val\"/g"
     }
 
     case "$AI_PROVIDER" in
-        deepseek) _write_key "DEEPSEEK_API_KEY" "$DEEPSEEK_API_KEY" ;;
-        openai)   _write_key "OPENAI_API_KEY"   "$OPENAI_API_KEY"   ;;
-        zhipu)    _write_key "ZHIPU_API_KEY"    "$ZHIPU_API_KEY"    ;;
-        custom)   _write_key "CUSTOM_API_KEY"   "$CUSTOM_API_KEY"   ;;
+        deepseek)  _write_key "DEEPSEEK_API_KEY"  "$DEEPSEEK_API_KEY"  ;;
+        openai)    _write_key "OPENAI_API_KEY"    "$OPENAI_API_KEY"    ;;
+        zhipu)     _write_key "ZHIPU_API_KEY"     "$ZHIPU_API_KEY"     ;;
+        anthropic) _write_key "ANTHROPIC_API_KEY" "$ANTHROPIC_API_KEY" ;;
+        gemini)    _write_key "GEMINI_API_KEY"    "$GEMINI_API_KEY"    ;;
+        dashscope) _write_key "DASHSCOPE_API_KEY" "$DASHSCOPE_API_KEY" ;;
+        qianfan)   _write_key "QIANFAN_API_KEY"   "$QIANFAN_API_KEY"   ;;
+        custom)    _write_key "CUSTOM_API_KEY"    "$CUSTOM_API_KEY"    ;;
     esac
 else
     log_info ".env 配置文件已存在，跳过初始化，保留您的本地设置。"
@@ -291,11 +303,15 @@ echo -e "  3. 委派特定 AI 角色执行任务： ${YELLOW}${BOLD}butler agent
 if [ -f "$APP_DIR/.env" ]; then
     _prov=$(grep "^AI_PROVIDER=" "$APP_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d '" ' || echo "deepseek")
     case "$_prov" in
-        deepseek) _need="DEEPSEEK_API_KEY" ;;
-        openai)   _need="OPENAI_API_KEY"   ;;
-        zhipu)    _need="ZHIPU_API_KEY"    ;;
-        custom)   _need="CUSTOM_API_KEY"   ;;
-        *)        _need="DEEPSEEK_API_KEY" ;;
+        deepseek)  _need="DEEPSEEK_API_KEY"  ;;
+        openai)    _need="OPENAI_API_KEY"    ;;
+        zhipu)     _need="ZHIPU_API_KEY"     ;;
+        anthropic) _need="ANTHROPIC_API_KEY" ;;
+        gemini)    _need="GEMINI_API_KEY"    ;;
+        dashscope) _need="DASHSCOPE_API_KEY" ;;
+        qianfan)   _need="QIANFAN_API_KEY"   ;;
+        custom)    _need="CUSTOM_API_KEY"    ;;
+        *)         _need="DEEPSEEK_API_KEY"  ;;
     esac
     # 检查是否已填写（排除 placeholder 和空值）
     if ! grep -q "${_need}=" "$APP_DIR/.env" || grep -q "^${_need}=\"?YOUR_\|^${_need}=\"?\s*\"?$" "$APP_DIR/.env" 2>/dev/null; then

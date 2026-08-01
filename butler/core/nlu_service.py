@@ -8,7 +8,7 @@ from package.core_utils.config_loader import config_loader
 from package.core_utils.quota_manager import quota_manager
 from butler.core.habit_manager import habit_manager
 from butler.core.config_manager import config_manager
-from butler.core.config_model import PROVIDER_DEFAULTS
+from butler.core.config_model import PROVIDER_DEFAULTS, PROVIDER_KEY_PATHS
 
 logger = LogManager.get_logger(__name__)
 
@@ -35,25 +35,17 @@ def _resolve_ai_config(provided_api_key: str = None) -> Dict[str, str]:
                   or config_loader.get("api.deepseek.model")
                   or defaults["model_name"])
 
-    # API key：用户传入的优先，否则根据 provider 取对应密钥
+    # API key：用户传入的优先，否则根据 provider 动态取对应密钥
     api_key = provided_api_key
     if not api_key:
-        if provider == "deepseek":
-            api_key = (config_manager.get("api.deepseek_key")
-                       or os.getenv("DEEPSEEK_API_KEY")
-                       or config_loader.get("api.deepseek.key"))
-        elif provider == "openai":
-            api_key = (config_manager.get("api.openai_key")
-                       or os.getenv("OPENAI_API_KEY"))
-        elif provider == "zhipu":
-            api_key = (config_manager.get("api.zhipu_key")
-                       or os.getenv("ZHIPU_API_KEY"))
-        elif provider == "custom":
-            api_key = (config_manager.get("api.custom_key")
-                       or os.getenv("CUSTOM_API_KEY"))
-        else:
-            api_key = (config_manager.get("api.deepseek_key")
-                       or os.getenv("DEEPSEEK_API_KEY"))
+        cfg_path, env_name, _field = PROVIDER_KEY_PATHS.get(
+            provider, PROVIDER_KEY_PATHS["deepseek"]
+        )
+        api_key = (config_manager.get(cfg_path)
+                   or os.getenv(env_name))
+        # deepseek 额外兼容 config_loader 旧路径
+        if not api_key and provider == "deepseek":
+            api_key = config_loader.get("api.deepseek.key")
 
     return {
         "provider": provider,

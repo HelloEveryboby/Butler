@@ -7,17 +7,21 @@ import threading
 import requests
 import json
 from package.core_utils.log_manager import LogManager
-from butler.core.config_model import PROVIDER_DEFAULTS
+from butler.core.config_model import PROVIDER_DEFAULTS, PROVIDER_KEY_PATHS
 
 logger = LogManager.get_logger(__name__)
 
 
 # 提供商选项：(id, 显示名, 描述, 是否需要自定义地址)
 PROVIDER_OPTIONS = [
-    ("deepseek", "🤖 DeepSeek", "官方默认 - 稳定、性价比高", False),
-    ("openai",   "🧠 OpenAI / 兼容格式", "GPT 系列及兼容服务（如 OneAPI）", False),
-    ("zhipu",    "🇨🇳 智谱 AI (GLM)", "国产大模型，中文能力优秀", False),
-    ("custom",   "🔧 自定义 API 地址", "Ollama / 本地部署 / 其他兼容 OpenAI 格式的服务", True),
+    ("deepseek",  "🤖 DeepSeek", "官方默认 - 稳定、性价比高", False),
+    ("openai",    "🧠 OpenAI / 兼容格式", "GPT 系列及兼容服务（如 OneAPI）", False),
+    ("zhipu",     "🇨🇳 智谱 AI (GLM)", "国产大模型，中文能力优秀", False),
+    ("anthropic", "🎭 Anthropic Claude", "Claude 3.5/4 系列", False),
+    ("gemini",    "✨ Google Gemini", "Gemini 1.5/2.0 系列", False),
+    ("dashscope", "🇨🇳 通义千问 (Qwen)", "阿里 DashScope，中文优秀", False),
+    ("qianfan",   "🇨🇳 百度文心一言 (ERNIE)", "百度千帆平台", False),
+    ("custom",    "🔧 自定义 API 地址", "Ollama / 本地部署 / 其他兼容 OpenAI 格式的服务", True),
 ]
 
 
@@ -272,6 +276,9 @@ class EnhancedConfigWizard:
         # 自定义 API 地址（仅 custom 时必填，其他可选填覆盖）
         row = 0
         if pid == "custom":
+            self._add_form_field(form_card, row, "🏷️ 自定义名称（用于区分）", "CUSTOM_PROVIDER_NAME",
+                                 f"例如: 我的Ollama", required=False)
+            row += 1
             self._add_form_field(form_card, row, "🌐 API 基础地址 *", "base_url",
                                  f"例如: http://localhost:11434/v1", required=True)
             row += 1
@@ -329,18 +336,15 @@ class EnhancedConfigWizard:
         val = ""
         if key == "api_key":
             pid = self.selected_provider
-            if pid == "deepseek":
-                val = os.getenv("DEEPSEEK_API_KEY", "")
-            elif pid == "openai":
-                val = os.getenv("OPENAI_API_KEY", "")
-            elif pid == "zhipu":
-                val = os.getenv("ZHIPU_API_KEY", "")
-            elif pid == "custom":
-                val = os.getenv("CUSTOM_API_KEY", "")
+            defaults = PROVIDER_DEFAULTS.get(pid, PROVIDER_DEFAULTS["deepseek"])
+            key_env_name = defaults.get("key_env", "DEEPSEEK_API_KEY")
+            val = os.getenv(key_env_name, "")
         elif key == "base_url":
             val = os.getenv("API_BASE_URL", "")
         elif key == "model_name":
             val = os.getenv("MODEL_NAME", "")
+        elif key == "CUSTOM_PROVIDER_NAME":
+            val = os.getenv("CUSTOM_PROVIDER_NAME", "")
         else:
             val = os.getenv(key, "")
 
@@ -521,6 +525,7 @@ class EnhancedConfigWizard:
         api_key = self._get_field_value("api_key")
         base_url = self._get_field_value("base_url")
         model_name = self._get_field_value("model_name")
+        provider_label = self._get_field_value("CUSTOM_PROVIDER_NAME") if pid == "custom" else ""
 
         try:
             # 写入 provider
@@ -530,8 +535,11 @@ class EnhancedConfigWizard:
             set_key(self.env_path, "API_BASE_URL", base_url)
             set_key(self.env_path, "MODEL_NAME", model_name)
 
+            # 写入自定义提供商名称（仅 custom 时有效，对应 api.provider_label）
+            set_key(self.env_path, "CUSTOM_PROVIDER_NAME", provider_label)
+
             # 写入对应 key，同时清理其他提供商的 key（避免混淆）
-            all_key_envs = ["DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ZHIPU_API_KEY", "CUSTOM_API_KEY"]
+            all_key_envs = [paths[1] for paths in PROVIDER_KEY_PATHS.values()]
             for ke in all_key_envs:
                 if ke == key_env:
                     set_key(self.env_path, ke, api_key)

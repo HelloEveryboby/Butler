@@ -21,6 +21,7 @@ class QuotaConfig(BaseModel):
 
 
 # 预设的 AI 提供商默认配置
+# 添加新提供商只需在此追加一条，其余模块通过 key_env 动态解析。
 PROVIDER_DEFAULTS = {
     "deepseek": {
         "base_url": "https://api.deepseek.com/v1",
@@ -40,12 +41,49 @@ PROVIDER_DEFAULTS = {
         "key_env": "ZHIPU_API_KEY",
         "display_name": "智谱 AI",
     },
+    "anthropic": {
+        "base_url": "https://api.anthropic.com/v1",
+        "model_name": "claude-3-5-sonnet-20241022",
+        "key_env": "ANTHROPIC_API_KEY",
+        "display_name": "Anthropic Claude",
+    },
+    "gemini": {
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "model_name": "gemini-1.5-flash",
+        "key_env": "GEMINI_API_KEY",
+        "display_name": "Google Gemini",
+    },
+    "dashscope": {
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "model_name": "qwen-turbo",
+        "key_env": "DASHSCOPE_API_KEY",
+        "display_name": "通义千问 (DashScope)",
+    },
+    "qianfan": {
+        "base_url": "https://qianfan.baidubce.com/v2",
+        "model_name": "ernie-4.0-8k",
+        "key_env": "QIANFAN_API_KEY",
+        "display_name": "百度文心一言 (千帆)",
+    },
     "custom": {
         "base_url": "",
         "model_name": "",
         "key_env": "CUSTOM_API_KEY",
         "display_name": "自定义 API",
     },
+}
+
+# provider -> (config_manager 配置路径, 环境变量名, ApiConfig 字段名)
+# 单一数据源：被 nlu_service / config_manager / GUI 向导复用，避免多处重复维护。
+PROVIDER_KEY_PATHS = {
+    "deepseek":  ("api.deepseek_key",  "DEEPSEEK_API_KEY",   "deepseek_key"),
+    "openai":    ("api.openai_key",    "OPENAI_API_KEY",     "openai_key"),
+    "zhipu":     ("api.zhipu_key",     "ZHIPU_API_KEY",      "zhipu_key"),
+    "anthropic": ("api.anthropic_key", "ANTHROPIC_API_KEY",  "anthropic_key"),
+    "gemini":    ("api.gemini_key",    "GEMINI_API_KEY",      "gemini_key"),
+    "dashscope": ("api.dashscope_key", "DASHSCOPE_API_KEY",   "dashscope_key"),
+    "qianfan":   ("api.qianfan_key",   "QIANFAN_API_KEY",     "qianfan_key"),
+    "custom":    ("api.custom_key",    "CUSTOM_API_KEY",     "custom_key"),
 }
 
 
@@ -56,11 +94,17 @@ class ApiConfig(BaseModel):
     provider: str = Field("deepseek", alias="AI_PROVIDER")
     base_url: str | None = Field(None, alias="API_BASE_URL")
     model_name: str | None = Field(None, alias="MODEL_NAME")
+    # 自定义提供商名称（当 provider=custom 时用于区分多个自定义配置）
+    provider_label: str | None = Field(None, alias="CUSTOM_PROVIDER_NAME")
 
     # API 密钥
     deepseek_key: str | None = Field(None, alias="DEEPSEEK_API_KEY")
     openai_key: str | None = Field(None, alias="OPENAI_API_KEY")
     zhipu_key: str | None = Field(None, alias="ZHIPU_API_KEY")
+    anthropic_key: str | None = Field(None, alias="ANTHROPIC_API_KEY")
+    gemini_key: str | None = Field(None, alias="GEMINI_API_KEY")
+    dashscope_key: str | None = Field(None, alias="DASHSCOPE_API_KEY")
+    qianfan_key: str | None = Field(None, alias="QIANFAN_API_KEY")
     custom_key: str | None = Field(None, alias="CUSTOM_API_KEY")
 
     # 百度语音
@@ -84,19 +128,19 @@ class ApiConfig(BaseModel):
         defaults = PROVIDER_DEFAULTS.get(self.provider, PROVIDER_DEFAULTS["deepseek"])
         return defaults["model_name"]
 
+    def get_display_name(self) -> str:
+        """获取用于展示的提供商名称（自定义标签优先）。"""
+        if self.provider_label:
+            return self.provider_label
+        defaults = PROVIDER_DEFAULTS.get(self.provider, {})
+        return defaults.get("display_name", self.provider)
+
     def get_active_api_key(self) -> str | None:
-        """根据当前 provider 获取对应的 API 密钥。"""
-        provider = self.provider
-        if provider == "deepseek":
-            return self.deepseek_key
-        elif provider == "openai":
-            return self.openai_key
-        elif provider == "zhipu":
-            return self.zhipu_key
-        elif provider == "custom":
-            return self.custom_key
-        # 回退到 deepseek
-        return self.deepseek_key
+        """根据当前 provider 动态获取对应的 API 密钥。"""
+        paths = PROVIDER_KEY_PATHS.get(self.provider, PROVIDER_KEY_PATHS["deepseek"])
+        field_name = paths[2]  # ApiConfig 字段名
+        key = getattr(self, field_name, None)
+        return key if key else self.deepseek_key
 
     @property
     def ai_available(self) -> bool:
@@ -209,12 +253,13 @@ def load_config_from_env() -> ButlerConfig:
         config.api.base_url = base_url
     if model_name := os.getenv("MODEL_NAME"):
         config.api.model_name = model_name
+    if label := os.getenv("CUSTOM_PROVIDER_NAME"):
+        config.api.provider_label = label
 
-    # API 密钥
-    config.api.deepseek_key = os.getenv("DEEPSEEK_API_KEY")
-    config.api.openai_key = os.getenv("OPENAI_API_KEY")
-    config.api.zhipu_key = os.getenv("ZHIPU_API_KEY")
-    config.api.custom_key = os.getenv("CUSTOM_API_KEY")
+    # API 密钥（动态遍历 PROVIDER_KEY_PATHS，避免遗漏新增提供商）
+    for _prov, (_cfg_path, env_name, field_name) in PROVIDER_KEY_PATHS.items():
+        if val := os.getenv(env_name):
+            setattr(config.api, field_name, val)
 
     # Runner
     if host := os.getenv("BUTLER_RUNNER_HOST"):
