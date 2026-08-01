@@ -1,13 +1,16 @@
 """
-上下文管理器 — 四阶段压缩管道。
+上下文管理器 — Token 预算驱动的四阶段压缩管道。
 
-参考架构：Claude Code 的四阶段上下文压缩管道。
+设计目标：省 token、保质量。
+    压缩不再按"消息条数"触发，而是按 token 预算：每个阶段对应一个更紧的预算，
+    越靠后的阶段越激进。被丢弃消息的关键事实由 BudgetCondenser 浓缩进
+    Context Card，避免上下文语义丢失。
 
-四阶段压缩：
-    1. Microcompaction（微压缩）: Pre-API 预处理阶段，移除冗余格式
-    2. Autocompaction（自动压缩）: 上下文接近 token 限制时自动触发
-    3. Reactive compact（反应式压缩）: prompt-too-long 错误时触发
-    4. Context collapse（上下文折叠）: max output tokens 错误时的降级策略
+四阶段（对应真实失败模式）：
+    1. Microcompaction（微压缩）: Pre-API 预处理，移除冗余格式（不依赖预算）
+    2. Autocompaction（自动压缩）: 上下文接近 token 限制时触发，目标 = threshold × limit
+    3. Reactive compact（反应式压缩）: prompt-too-long 错误时触发，目标 = 50% × limit
+    4. Context collapse（上下文折叠）: max output tokens 错误时的紧急地板
 
 压缩保留的关键信息（参考 Claude Code）：
     - 修改了哪些文件及如何修改
@@ -20,12 +23,15 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
-from typing import Any
+from typing import Any, Callable
 
-from .condenser import Condenser, RecentNCondenser, SummaryCondenser
+from .condenser import BudgetCondenser, Condenser
 from .types import ConversationState, Message
 
 logger = logging.getLogger(__name__)
+
+# 工具输出在微压缩阶段的截断阈值（字符数）
+_TOOL_OUTPUT_TRUNCATE = 2000
 
 
 class CompactionStage(str, Enum):
@@ -43,22 +49,23 @@ class ContextManager:
 
     管理对话上下文的生命周期，包括：
         - Token 估算和监控
-        - 四阶段压缩管道
+        - 四阶段预算驱动压缩管道
         - 可插拔压缩策略（Condenser）
-        - 压缩后关键信息保留
+        - 压缩后关键信息保留（Context Card）
 
     使用方式::
 
         manager = ContextManager(
             token_limit=120000,
-            condenser=SummaryCondenser(llm_summarize_handler=my_summarize),
+            condenser=BudgetCondenser(target_tokens=96000),
         )
 
         # 在 Agent 循环中检查是否需要压缩
-        manager.compact(conversation_state)
+        if manager.should_compact(state):
+            manager.compact(state)
 
-        # 手动触发压缩
-        manager.force_compact(conversation_state, CompactionStage.REACTIVE)
+        # prompt-too-long 错误时强制更激进的压缩
+        manager.force_compact(state, CompactionStage.REACTIVE)
     """
 
     def __init__(
@@ -66,21 +73,26 @@ class ContextManager:
         token_limit: int = 120000,
         compaction_threshold: float = 0.8,
         condenser: Condenser | None = None,
-        llm_summarize_handler: Any = None,
+        llm_summarize_handler: Callable[[str], str] | None = None,
     ):
         self.token_limit = token_limit
         self.compaction_threshold = compaction_threshold
-        self._condenser = condenser or RecentNCondenser(keep_recent=20)
-        self._llm_summarize = llm_summarize_handler
+        # 保留原始 handler 引用，供子代理隔离上下文时继承（subagent_manager 依赖）
+        self._llm_summarize_handler = llm_summarize_handler
+        # 默认 AUTO 策略：预算 = threshold × limit
+        self._condenser = condenser or BudgetCondenser(
+            target_tokens=int(token_limit * compaction_threshold),
+            llm_summarize_handler=llm_summarize_handler,
+        )
         self._compaction_history: list[dict[str, Any]] = []
 
     @property
     def compaction_history(self) -> list[dict[str, Any]]:
-        """压缩历史记录。"""
+        """压缩历史记录（返回副本）。"""
         return list(self._compaction_history)
 
     def should_compact(self, state: ConversationState) -> bool:
-        """检查是否需要自动压缩。"""
+        """检查是否需要自动压缩（估算 token 超过阈值）。"""
         estimated = state.estimate_tokens()
         threshold = int(self.token_limit * self.compaction_threshold)
         return estimated > threshold
@@ -98,7 +110,7 @@ class ContextManager:
             stage: 压缩阶段
 
         返回:
-            压缩结果摘要
+            压缩结果摘要（含 stage/前后消息数/前后 token 数/压缩率）
         """
         original_count = len(state.messages)
         original_tokens = state.estimate_tokens()
@@ -147,16 +159,18 @@ class ContextManager:
         """强制执行压缩（忽略阈值检查）。"""
         return self.compact(state, stage)
 
+    # ── 阶段实现 ────────────────────────────────────────────────────
+
     def _microcompact(self, messages: list[Message]) -> list[Message]:
         """
-        微压缩：Pre-API 预处理。
+        微压缩：Pre-API 预处理（不依赖预算）。
 
         - 移除空消息
         - 截断过长的工具输出
-        - 移除冗余的系统消息
+        - 移除重复的系统消息
         """
         result: list[Message] = []
-        seen_system = set()
+        seen_system: set[str] = set()
 
         for msg in messages:
             # 跳过空消息
@@ -169,9 +183,9 @@ class ContextManager:
                     continue
                 seen_system.add(msg.content)
 
-            # 截断过长的工具输出（保留前 2000 字符）
-            if msg.role == "tool" and len(msg.content) > 2000:
-                truncated = msg.content[:2000] + "\n... [truncated]"
+            # 截断过长的工具输出
+            if msg.role == "tool" and len(msg.content) > _TOOL_OUTPUT_TRUNCATE:
+                truncated = msg.content[:_TOOL_OUTPUT_TRUNCATE] + "\n... [truncated]"
                 result.append(
                     Message(
                         role=msg.role,
@@ -189,10 +203,8 @@ class ContextManager:
         """
         自动压缩：上下文接近 token 限制时触发。
 
-        使用 Condenser 策略压缩历史消息，保留：
-            - 系统提示
-            - 最近 N 轮对话
-            - 关键决策点
+        使用 self._condenser（默认 BudgetCondenser，预算 = threshold × limit；
+        或用户传入的自定义 Condenser）。
         """
         return self._condenser.condense(messages)
 
@@ -200,115 +212,50 @@ class ContextManager:
         """
         反应式压缩：prompt-too-long 错误时触发。
 
-        更激进的压缩策略：
-            - 只保留系统提示 + 最近 5 轮对话
-            - 中间消息用摘要替代
+        更激进的预算 = 50% × token_limit，保留更少的最近消息。
         """
-        # 如果有 LLM 摘要能力，使用摘要压缩
-        if self._llm_summarize:
-            summary_condenser = SummaryCondenser(
-                llm_summarize_handler=self._llm_summarize,
-                keep_recent=5,
-            )
-            return summary_condenser.condense(messages)
-
-        # 降级：保留最近 5 轮
-        reactive_condenser = RecentNCondenser(keep_recent=10)
-        return reactive_condenser.condense(messages)
+        budget = int(self.token_limit * 0.5)
+        condenser = BudgetCondenser(
+            target_tokens=budget,
+            keep_recent=4,
+            llm_summarize_handler=self._llm_summarize_handler,
+        )
+        return condenser.condense(messages)
 
     def _context_collapse(self, messages: list[Message]) -> list[Message]:
         """
-        上下文折叠：max output tokens 错误时的降级策略。
+        上下文折叠：max output tokens 错误时的紧急地板。
 
-        最激进的压缩：
-            - 只保留系统提示 + 最后一条用户消息
-            - 所有历史合并为一条摘要
+        最激进的降级：
+            - 只保留第一条系统消息
+            - 所有历史浓缩为一条 Context Card（结构化摘要 / LLM 摘要）
+            - 保留最后一条用户消息（当前任务）
         """
         if not messages:
             return []
 
         result: list[Message] = []
 
-        # 保留系统消息
         system_msgs = [m for m in messages if m.role == "system"]
-        result.extend(system_msgs[:1])  # 只保留第一个系统消息
+        non_system = [m for m in messages if m.role != "system"]
 
-        # 如果有 LLM 摘要能力，生成整体摘要
-        if self._llm_summarize:
-            history_text = "\n".join(
-                f"[{m.role}]: {m.content[:500]}"
-                for m in messages
-                if m.role != "system"
-            )
-            try:
-                summary = self._llm_summarize(history_text)
-                result.append(
-                    Message(
-                        role="system",
-                        content=f"[Previous conversation summary]: {summary}",
-                    )
-                )
-            except Exception as e:
-                logger.warning(f"LLM summarize failed in context collapse: {e}")
-                # 降级：手动摘要
-                result.append(
-                    Message(
-                        role="system",
-                        content=self._manual_summary(messages),
-                    )
-                )
-        else:
-            result.append(
-                Message(
-                    role="system",
-                    content=self._manual_summary(messages),
-                )
-            )
+        # 只保留第一条系统消息
+        if system_msgs:
+            result.append(system_msgs[0])
 
-        # 保留最后一条用户消息
-        for msg in reversed(messages):
-            if msg.role == "user":
-                result.append(msg)
-                break
+        # 对所有非系统消息生成 Context Card
+        if non_system:
+            condenser = BudgetCondenser(
+                llm_summarize_handler=self._llm_summarize_handler
+            )
+            card = condenser._build_context_card(non_system)
+            if card is not None:
+                result.append(card)
+
+            # 保留最后一条用户消息
+            for m in reversed(non_system):
+                if m.role == "user":
+                    result.append(m)
+                    break
 
         return result
-
-    def _manual_summary(self, messages: list[Message]) -> str:
-        """
-        手动生成对话摘要（无 LLM 时的降级方案）。
-
-        保留关键信息：
-            - 修改了哪些文件
-            - 当前任务
-            - 已尝试的方案
-        """
-        files_mentioned: set[str] = set()
-        tools_used: list[str] = []
-        user_requests: list[str] = []
-
-        for msg in messages:
-            if msg.role == "user" and msg.content:
-                user_requests.append(msg.content[:200])
-
-            if msg.role == "assistant" and msg.tool_calls:
-                for tc in msg.tool_calls:
-                    tools_used.append(tc.name)
-                    # 提取文件路径
-                    for v in tc.arguments.values():
-                        if isinstance(v, str) and (
-                            "/" in v or "\\" in v or v.endswith(".py")
-                        ):
-                            files_mentioned.add(v)
-
-        parts = ["[Conversation Summary]"]
-
-        if user_requests:
-            parts.append(f"User requests: {user_requests[-3:]}")
-
-        if tools_used:
-            parts.append(f"Tools used: {', '.join(set(tools_used))}")
-
-        if files_mentioned:
-            parts.append(f"Files mentioned: {', '.join(list(files_mentioned)[:10])}")
-
-        return "\n".join(parts)
