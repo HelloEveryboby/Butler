@@ -12,6 +12,7 @@
   cli       功能型命令行 (crawl/email/encrypt 等子命令)
   agent     数字员工管理 (list|run)
   package   包管理 (list|install)
+  config    交互式配置 AI 服务商与密钥
   doctor    系统诊断自检
 
 向后兼容 (隐藏, 带废弃提示):
@@ -83,6 +84,8 @@ def main():
         _launch_agent(rest)
     elif mode == "package":
         _launch_package(rest)
+    elif mode == "config":
+        _launch_config(rest)
     elif mode == "doctor":
         _launch_doctor()
     else:
@@ -198,6 +201,13 @@ def _launch_doctor():
     doctor_cmd.run_doctor()
 
 
+def _launch_config(rest: list):
+    """交互式配置 AI 服务商与密钥."""
+    from butler.cli import config_cmd
+    sub = rest[0] if rest else ""
+    config_cmd.run_config(sub)
+
+
 # ────────────────────────────────────────────────────────────
 # 辅助
 # ────────────────────────────────────────────────────────────
@@ -250,6 +260,8 @@ def _print_help():
   python -m butler package list 列出已安装包
   python -m butler package install <路径>
                                 安装本地包
+  python -m butler config       交互式配置 AI 服务商与密钥
+  python -m butler config show  查看当前 AI 配置
   python -m butler doctor       系统诊断自检
 
 通用选项:

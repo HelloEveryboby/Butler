@@ -1466,21 +1466,52 @@ class ButlerTUI(App):
         content.mount(Label(settings_html))
 
     def _build_settings_html(self) -> str:
+        # 动态读取当前 AI 提供商配置
+        try:
+            from butler.core.config_model import PROVIDER_DEFAULTS, PROVIDER_KEY_PATHS
+            import os as _os
+            _provider = _os.getenv("AI_PROVIDER", "deepseek") or "deepseek"
+            _defaults = PROVIDER_DEFAULTS.get(_provider, PROVIDER_DEFAULTS["deepseek"])
+            _label = _os.getenv("CUSTOM_PROVIDER_NAME", "") or ""
+            _key_env = _defaults["key_env"]
+            _kv = _os.getenv(_key_env, "") or ""
+            if _kv and "YOUR_" not in _kv:
+                _key_status = f"{_kv[:4]}***（已配置）"
+            else:
+                _key_status = "未配置"
+            _name = _defaults["display_name"] + (f"（{_label}）" if _label else "")
+            _api_lines = [
+                "[bold]🔑 API 配置[/bold]",
+                f"  当前提供商: {_provider} ({_name})",
+                f"  密钥状态: {_key_env} = {_key_status}",
+                "  配置文件: config/config.yaml",
+                "  环境变量: .env",
+                "  [提示] 在终端运行 [bold]butler config[/bold] 可交互式切换服务商/填写密钥",
+                "         运行 [bold]butler config show[/bold] 查看当前配置\n",
+            ]
+        except Exception:
+            _api_lines = [
+                "[bold]🔑 API 配置[/bold]",
+                "  配置文件: config/config.yaml",
+                "  环境变量: .env",
+                "  [提示] 在终端运行 [bold]butler config[/bold] 配置 AI 服务商\n",
+            ]
+
         lines = [
             "[bold]⚙️ Butler 设置[/bold]\n",
             "[bold]🎨 主题[/bold]",
             "  当前: 默认深色",
             "  可选: dark, light, google, apple\n",
-            "[bold]🔑 API 配置[/bold]",
-            "  配置文件: config/config.yaml",
-            "  环境变量: .env\n",
+        ]
+        lines.extend(_api_lines)
+        lines.extend([
             "[bold]🔊 语音[/bold]",
             "  模式: offline",
             "  可选: offline, local, online\n",
             "[bold]💾 存储[/bold]",
             "  记忆后端: SQLite",
             "  数据目录: data/butler_memory/\n",
-        ]
+        ])
         return "\n".join(lines)
 
     @on(Tabs.TabActivated, "#view-settings Tabs")

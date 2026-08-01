@@ -109,7 +109,11 @@ def main():
     # 13. 诊断 (Doctor)
     subparsers.add_parser("doctor", help="系统诊断与预检 (Doctor Mode)")
 
-    # 14. TUI 终端界面
+    # 14. 配置 AI 服务商 (config)
+    config_parser = subparsers.add_parser("config", help="交互式配置 AI 服务商与密钥")
+    config_parser.add_argument("sub", nargs='?', default="", help="子命令: show (查看当前配置)")
+
+    # 15. TUI 终端界面
     tui_parser = subparsers.add_parser("tui", help="启动 Butler TUI 终端用户界面")
     tui_parser.add_argument("--headless", action="store_true", help="无头模式 (仅 API 服务)")
 
@@ -245,6 +249,10 @@ def main():
         elif args.command == "doctor":
             from butler.core.doctor import run_doctor
             run_doctor()
+
+        elif args.command == "config":
+            from butler.cli.config_cmd import run_config
+            run_config(getattr(args, "sub", ""))
 
         elif args.command == "tui":
             from butler.tui.main import run_tui

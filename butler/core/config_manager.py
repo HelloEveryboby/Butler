@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 from dotenv import load_dotenv, set_key, dotenv_values
 import threading
 from package.core_utils.log_manager import LogManager
+from butler.core.config_model import PROVIDER_KEY_PATHS
 
 logger = LogManager.get_logger(__name__)
 
@@ -75,19 +76,36 @@ class ConfigManager:
             if env_values:
                 # 将 .env 值转换为嵌套结构
                 for key, value in env_values.items():
-                    if key.startswith("DEEPSEEK"):
-                        if "api" not in self._config_cache:
-                            self._config_cache["api"] = {}
-                        self._config_cache["api"]["deepseek_key"] = value
-                    elif key.startswith("BAIDU"):
-                        if "api" not in self._config_cache:
-                            self._config_cache["api"] = {}
-                        if key == "BAIDU_APP_ID":
-                            self._config_cache["api"]["baidu_app_id"] = value
-                        elif key == "BAIDU_API_KEY":
-                            self._config_cache["api"]["baidu_api_key"] = value
-                        elif key == "BAIDU_SECRET_KEY":
-                            self._config_cache["api"]["baidu_secret_key"] = value
+                    if "api" not in self._config_cache:
+                        self._config_cache["api"] = {}
+
+                    # AI 提供商配置
+                    if key == "AI_PROVIDER":
+                        self._config_cache["api"]["provider"] = value
+                    elif key == "API_BASE_URL":
+                        self._config_cache["api"]["base_url"] = value
+                    elif key == "MODEL_NAME":
+                        self._config_cache["api"]["model_name"] = value
+                    elif key == "CUSTOM_PROVIDER_NAME":
+                        self._config_cache["api"]["provider_label"] = value
+
+                    # API 密钥（动态映射，新增提供商自动生效）
+                    elif key == "BAIDU_APP_ID":
+                        self._config_cache["api"]["baidu_app_id"] = value
+                    elif key == "BAIDU_API_KEY":
+                        self._config_cache["api"]["baidu_api_key"] = value
+                    elif key == "BAIDU_SECRET_KEY":
+                        self._config_cache["api"]["baidu_secret_key"] = value
+                    elif key == "PICOVOICE_ACCESS_KEY":
+                        self._config_cache["api"]["picovoice_access_key"] = value
+                    else:
+                        # 遍历 PROVIDER_KEY_PATHS 匹配密钥环境变量
+                        for _prov, (cfg_path, env_name, _field) in PROVIDER_KEY_PATHS.items():
+                            if key == env_name:
+                                _parts = cfg_path.split(".", 1)
+                                if len(_parts) == 2:
+                                    self._config_cache["api"][_parts[1]] = value
+                                break
                 logger.info(f"已加载 .env 配置")
         except Exception as e:
             logger.error(f"加载 .env 配置失败: {e}")
@@ -142,17 +160,21 @@ class ConfigManager:
             # 持久化到文件
             if persist:
                 if key_path.startswith('api.'):
-                    # API 密钥保存到 .env
-                    env_key = key_path.split('.')[-1].upper()
-                    if key_path.startswith('api.deepseek'):
-                        env_key = 'DEEPSEEK_API_KEY'
-                    elif key_path.startswith('api.baidu_app'):
-                        env_key = 'BAIDU_APP_ID'
-                    elif key_path.startswith('api.baidu_api'):
-                        env_key = 'BAIDU_API_KEY'
-                    elif key_path.startswith('api.baidu_secret'):
-                        env_key = 'BAIDU_SECRET_KEY'
-                    
+                    # API 配置保存到 .env
+                    env_key_map = {
+                        'api.provider': 'AI_PROVIDER',
+                        'api.base_url': 'API_BASE_URL',
+                        'api.model_name': 'MODEL_NAME',
+                        'api.provider_label': 'CUSTOM_PROVIDER_NAME',
+                        'api.baidu_app_id': 'BAIDU_APP_ID',
+                        'api.baidu_api_key': 'BAIDU_API_KEY',
+                        'api.baidu_secret_key': 'BAIDU_SECRET_KEY',
+                        'api.picovoice_access_key': 'PICOVOICE_ACCESS_KEY',
+                    }
+                    # 从 PROVIDER_KEY_PATHS 补充密钥映射
+                    for _prov, (cfg_path, env_name, _field) in PROVIDER_KEY_PATHS.items():
+                        env_key_map[cfg_path] = env_name
+                    env_key = env_key_map.get(key_path, key_path.split('.')[-1].upper())
                     set_key(self.env_file, env_key, str(value))
                 else:
                     # 其他配置保存到 YAML
@@ -183,17 +205,23 @@ class ConfigManager:
         return self._config_cache.copy()
     
     def validate_required_keys(self) -> tuple[bool, list]:
-        """验证必需的 API 密钥是否已配置
+        """验证必需的 API 密钥是否已配置（根据当前 provider 检查对应的密钥）
         
         Returns:
             (是否有效, 缺失的密钥列表)
         """
         missing = []
-        deepseek_key = self.get('api.deepseek_key') or os.getenv('DEEPSEEK_API_KEY', '')
-        
-        if not deepseek_key or 'YOUR_' in deepseek_key:
-            missing.append('DEEPSEEK_API_KEY')
-        
+        provider = self.get('api.provider', 'deepseek') or 'deepseek'
+
+        # 根据 provider 从 PROVIDER_KEY_PATHS 获取对应的密钥路径
+        cfg_path, env_name, _field = PROVIDER_KEY_PATHS.get(
+            provider, PROVIDER_KEY_PATHS['deepseek']
+        )
+
+        key_val = self.get(cfg_path) or os.getenv(env_name, '')
+        if not key_val or 'YOUR_' in key_val:
+            missing.append(env_name)
+
         return len(missing) == 0, missing
 
 
