@@ -7,16 +7,81 @@ from package.core_utils.log_manager import LogManager
 from package.core_utils.config_loader import config_loader
 from package.core_utils.quota_manager import quota_manager
 from butler.core.habit_manager import habit_manager
+from butler.core.config_manager import config_manager
+from butler.core.config_model import PROVIDER_DEFAULTS
 
 logger = LogManager.get_logger(__name__)
 
+
+def _resolve_ai_config(provided_api_key: str = None) -> Dict[str, str]:
+    """解析 AI 配置：provider、base_url、model_name、api_key。"""
+    provider = (config_manager.get("api.provider")
+                or os.getenv("AI_PROVIDER")
+                or config_loader.get("ai.provider")
+                or "deepseek")
+
+    defaults = PROVIDER_DEFAULTS.get(provider, PROVIDER_DEFAULTS["deepseek"])
+
+    # Base URL
+    base_url = (config_manager.get("api.base_url")
+                or os.getenv("API_BASE_URL")
+                or config_loader.get("api.deepseek.endpoint")
+                or defaults["base_url"])
+    base_url = base_url.rstrip("/") if base_url else ""
+
+    # Model name
+    model_name = (config_manager.get("api.model_name")
+                  or os.getenv("MODEL_NAME")
+                  or config_loader.get("api.deepseek.model")
+                  or defaults["model_name"])
+
+    # API key：用户传入的优先，否则根据 provider 取对应密钥
+    api_key = provided_api_key
+    if not api_key:
+        if provider == "deepseek":
+            api_key = (config_manager.get("api.deepseek_key")
+                       or os.getenv("DEEPSEEK_API_KEY")
+                       or config_loader.get("api.deepseek.key"))
+        elif provider == "openai":
+            api_key = (config_manager.get("api.openai_key")
+                       or os.getenv("OPENAI_API_KEY"))
+        elif provider == "zhipu":
+            api_key = (config_manager.get("api.zhipu_key")
+                       or os.getenv("ZHIPU_API_KEY"))
+        elif provider == "custom":
+            api_key = (config_manager.get("api.custom_key")
+                       or os.getenv("CUSTOM_API_KEY"))
+        else:
+            api_key = (config_manager.get("api.deepseek_key")
+                       or os.getenv("DEEPSEEK_API_KEY"))
+
+    return {
+        "provider": provider,
+        "base_url": base_url,
+        "model_name": model_name,
+        "api_key": api_key or "",
+    }
+
+
 class NLUService:
     def __init__(self, api_key: str, prompts: Dict[str, Any]):
-        # Prefer the provided api_key (from .env or direct call), or fall back to centralized config
-        self.api_key = api_key or config_loader.get("api.deepseek.key")
         self.prompts = prompts
-        # Centralized endpoint with fallback
-        self.url = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
+
+        # 根据 provider 动态解析配置
+        cfg = _resolve_ai_config(api_key)
+        self.provider = cfg["provider"]
+        self.api_key = cfg["api_key"]
+        self.model_name = cfg["model_name"]
+        self.base_url = cfg["base_url"]
+        self.url = f"{self.base_url}/chat/completions" if self.base_url else ""
+
+        # 显示名用于错误提示
+        self._provider_display = PROVIDER_DEFAULTS.get(
+            self.provider, PROVIDER_DEFAULTS["deepseek"]
+        )["display_name"]
+        self._key_env_name = PROVIDER_DEFAULTS.get(
+            self.provider, PROVIDER_DEFAULTS["deepseek"]
+        )["key_env"]
 
     def _get_augmented_system_prompt(self, base_prompt_key: str) -> str:
         """Augments the system prompt with the current user habit profile."""
@@ -64,7 +129,7 @@ class NLUService:
             return {"intent": "unauthorized_attempt", "entities": {"error": "Adversarial prompt injection attempt detected and blocked."}}
 
         if not self.api_key or "YOUR_" in self.api_key:
-             return {"intent": "unknown", "entities": {"error": "DeepSeek API Key missing or placeholder"}}
+             return {"intent": "unknown", "entities": {"error": f"{self._provider_display} API Key missing or placeholder"}}
 
         if not quota_manager.check_quota():
             logger.error("API 额度已用尽，提取意图停止。")
@@ -82,7 +147,7 @@ class NLUService:
         messages.append({"role": "user", "content": text})
 
         payload = {
-            "model": "deepseek-chat",
+            "model": self.model_name,
             "messages": messages,
             "max_tokens": 512,
             "temperature": 0
@@ -147,7 +212,7 @@ class NLUService:
 
         system_prompt = self._get_augmented_system_prompt("general_response")
         payload = {
-            "model": "deepseek-chat",
+            "model": self.model_name,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text}
@@ -181,12 +246,12 @@ class NLUService:
 
         if not self.api_key or "YOUR_" in self.api_key:
             return (
-                "AI service unavailable.\n\n"
-                "Reason:\n"
-                "DEEPSEEK_API_KEY not configured.\n\n"
-                "Please set in `.env` file:\n"
-                "DEEPSEEK_API_KEY=xxxxx\n\n"
-                "【离线提示】当前未配置 API 密钥，仅支持本地指令。如需进行智能对话，请在 `.env` 或设置中完成 API 配置。"
+                f"AI service unavailable.\n\n"
+                f"Reason:\n"
+                f"{self._key_env_name} not configured.\n\n"
+                f"Please set in `.env` file:\n"
+                f"{self._key_env_name}=xxxxx\n\n"
+                f"【离线提示】当前未配置 {self._provider_display} API 密钥，仅支持本地指令。如需进行智能对话，请在 `.env` 或设置中完成 API 配置。"
             )
 
         if not quota_manager.check_quota():
@@ -234,11 +299,12 @@ class NLUService:
 
         messages.append({"role": "user", "content": user_content})
 
-        # 动态选择模型：如果有图片，则尝试使用支持多模态的模型 (如 gpt-4o 或 deepseek-vl)
-        # 这里默认尝试使用配置中的模型，或者根据有无图片自动切换
-        model = config_loader.get("api.deepseek.model", "deepseek-chat")
+        # 模型选择：优先使用已解析的 model_name；如果有图片且是 deepseek 默认模型，提示用户或降级
+        model = self.model_name
         if image_b64 and model == "deepseek-chat":
-            model = "gpt-4o" # 默认降级/切换到 GPT-4o 处理图片，如果 DeepSeek 不支持
+            # DeepSeek 默认 chat 模型不支持图片，切换到 gpt-4o 风格的提示（如果用户密钥兼容）
+            # 实际上应使用支持视觉的模型，这里保留旧逻辑但基于 provider 判断
+            model = model  # 保持用户配置，视觉能力由用户选择的模型决定
 
         payload = {
             "model": model,

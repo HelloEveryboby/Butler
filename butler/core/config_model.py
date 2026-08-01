@@ -20,20 +20,88 @@ class QuotaConfig(BaseModel):
     consumed: float = 0.0
 
 
+# 预设的 AI 提供商默认配置
+PROVIDER_DEFAULTS = {
+    "deepseek": {
+        "base_url": "https://api.deepseek.com/v1",
+        "model_name": "deepseek-chat",
+        "key_env": "DEEPSEEK_API_KEY",
+        "display_name": "DeepSeek",
+    },
+    "openai": {
+        "base_url": "https://api.openai.com/v1",
+        "model_name": "gpt-3.5-turbo",
+        "key_env": "OPENAI_API_KEY",
+        "display_name": "OpenAI",
+    },
+    "zhipu": {
+        "base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "model_name": "glm-4-flash",
+        "key_env": "ZHIPU_API_KEY",
+        "display_name": "智谱 AI",
+    },
+    "custom": {
+        "base_url": "",
+        "model_name": "",
+        "key_env": "CUSTOM_API_KEY",
+        "display_name": "自定义 API",
+    },
+}
+
+
 class ApiConfig(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
+    # AI 提供商配置
+    provider: str = Field("deepseek", alias="AI_PROVIDER")
+    base_url: str | None = Field(None, alias="API_BASE_URL")
+    model_name: str | None = Field(None, alias="MODEL_NAME")
+
+    # API 密钥
     deepseek_key: str | None = Field(None, alias="DEEPSEEK_API_KEY")
+    openai_key: str | None = Field(None, alias="OPENAI_API_KEY")
+    zhipu_key: str | None = Field(None, alias="ZHIPU_API_KEY")
+    custom_key: str | None = Field(None, alias="CUSTOM_API_KEY")
+
+    # 百度语音
     baidu_app_id: str | None = Field(None, alias="BAIDU_APP_ID")
     baidu_api_key: str | None = Field(None, alias="BAIDU_API_KEY")
     baidu_secret_key: str | None = Field(None, alias="BAIDU_SECRET_KEY")
     picovoice_access_key: str | None = Field(None, alias="PICOVOICE_ACCESS_KEY")
     quota: QuotaConfig = Field(default_factory=QuotaConfig)
 
+    def get_resolved_base_url(self) -> str:
+        """获取解析后的 API 基础地址（用户配置优先，否则用提供商默认）。"""
+        if self.base_url:
+            return self.base_url.rstrip("/")
+        defaults = PROVIDER_DEFAULTS.get(self.provider, PROVIDER_DEFAULTS["deepseek"])
+        return defaults["base_url"]
+
+    def get_resolved_model_name(self) -> str:
+        """获取解析后的模型名称（用户配置优先，否则用提供商默认）。"""
+        if self.model_name:
+            return self.model_name
+        defaults = PROVIDER_DEFAULTS.get(self.provider, PROVIDER_DEFAULTS["deepseek"])
+        return defaults["model_name"]
+
+    def get_active_api_key(self) -> str | None:
+        """根据当前 provider 获取对应的 API 密钥。"""
+        provider = self.provider
+        if provider == "deepseek":
+            return self.deepseek_key
+        elif provider == "openai":
+            return self.openai_key
+        elif provider == "zhipu":
+            return self.zhipu_key
+        elif provider == "custom":
+            return self.custom_key
+        # 回退到 deepseek
+        return self.deepseek_key
+
     @property
     def ai_available(self) -> bool:
         """检查是否有至少一个可用的 AI 密钥。"""
-        key = self.deepseek_key
+        key = self.get_active_api_key()
         return bool(key and "YOUR_" not in str(key))
 
 
@@ -134,8 +202,19 @@ def load_config_from_env() -> ButlerConfig:
     """
     config = ButlerConfig()
 
+    # AI 提供商配置
+    if provider := os.getenv("AI_PROVIDER"):
+        config.api.provider = provider
+    if base_url := os.getenv("API_BASE_URL"):
+        config.api.base_url = base_url
+    if model_name := os.getenv("MODEL_NAME"):
+        config.api.model_name = model_name
+
     # API 密钥
     config.api.deepseek_key = os.getenv("DEEPSEEK_API_KEY")
+    config.api.openai_key = os.getenv("OPENAI_API_KEY")
+    config.api.zhipu_key = os.getenv("ZHIPU_API_KEY")
+    config.api.custom_key = os.getenv("CUSTOM_API_KEY")
 
     # Runner
     if host := os.getenv("BUTLER_RUNNER_HOST"):

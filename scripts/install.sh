@@ -161,16 +161,73 @@ if [ ! -f ".env" ]; then
     log_info "未检测到 .env 配置文件，正在以 .env.example 为模板克隆创建..."
     cp .env.example .env
 
-    # 检测外界是否通过命令行链式注入了 DEEPSEEK_API_KEY 等敏感变量
-    if [ -n "$DEEPSEEK_API_KEY" ]; then
-        log_info "捕获到链式声明的 ${CYAN}DEEPSEEK_API_KEY${NC}，正在自动完成无感写入..."
-        # 兼容 macOS 和 Linux 的 sed 替换
+    # ---- AI 提供商选择 (交互/链式注入二选一) ----
+    # 若通过环境变量直接声明 AI_PROVIDER 则跳过交互 (非交互管道部署)
+    if [ -z "$AI_PROVIDER" ] && [ -t 0 ]; then
+        echo ""
+        printf "${CYAN}${BOLD}请选择 AI 模型服务商：${NC}\n"
+        echo "  1) DeepSeek (默认)"
+        echo "  2) OpenAI / 兼容 OpenAI 格式"
+        echo "  3) 智谱 AI (GLM)"
+        echo "  4) 自定义 API 地址 (Ollama/本地部署)"
+        printf "请输入选项 [1-4，默认 1]: "
+        read -r _p_choice
+        _p_choice="${_p_choice:-1}"
+        case "$_p_choice" in
+            1) AI_PROVIDER="deepseek" ;;
+            2) AI_PROVIDER="openai" ;;
+            3) AI_PROVIDER="zhipu" ;;
+            4) AI_PROVIDER="custom"
+               printf "  请输入 API 基础地址 (例如 http://localhost:11434/v1): "; read -r API_BASE_URL
+               printf "  请输入模型名称 (例如 qwen2.5:7b): "; read -r MODEL_NAME ;;
+            *) AI_PROVIDER="deepseek" ;;
+        esac
+        echo ""
+    fi
+
+    # 写入 AI_PROVIDER (默认 deepseek)
+    AI_PROVIDER="${AI_PROVIDER:-deepseek}"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/^AI_PROVIDER=.*/AI_PROVIDER=$AI_PROVIDER/g" .env
+    else
+        sed -i "s/^AI_PROVIDER=.*/AI_PROVIDER=$AI_PROVIDER/g" .env
+    fi
+    log_info "AI 服务商已设置: ${CYAN}$AI_PROVIDER${NC}"
+
+    # 可选写入 API_BASE_URL / MODEL_NAME
+    if [ -n "$API_BASE_URL" ]; then
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s/DEEPSEEK_API_KEY=.*/DEEPSEEK_API_KEY=\"$DEEPSEEK_API_KEY\"/g" .env
+            sed -i '' "s|^API_BASE_URL=.*|API_BASE_URL=$API_BASE_URL|g" .env
         else
-            sed -i "s/DEEPSEEK_API_KEY=.*/DEEPSEEK_API_KEY=\"$DEEPSEEK_API_KEY\"/g" .env
+            sed -i "s|^API_BASE_URL=.*|API_BASE_URL=$API_BASE_URL|g" .env
         fi
     fi
+    if [ -n "$MODEL_NAME" ]; then
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/^MODEL_NAME=.*/MODEL_NAME=$MODEL_NAME/g" .env
+        else
+            sed -i "s/^MODEL_NAME=.*/MODEL_NAME=$MODEL_NAME/g" .env
+        fi
+    fi
+
+    # ---- 自动写入对应 API Key (若通过环境变量链式注入) ----
+    _write_key() {
+        local env_name="$1"; local val="$2"
+        [ -z "$val" ] && return 0
+        log_info "捕获到链式声明的 ${CYAN}${env_name}${NC}，正在自动完成无感写入..."
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/${env_name}=.*/${env_name}=\"$val\"/g" .env
+        else
+            sed -i "s/${env_name}=.*/${env_name}=\"$val\"/g" .env
+        fi
+    }
+
+    case "$AI_PROVIDER" in
+        deepseek) _write_key "DEEPSEEK_API_KEY" "$DEEPSEEK_API_KEY" ;;
+        openai)   _write_key "OPENAI_API_KEY"   "$OPENAI_API_KEY"   ;;
+        zhipu)    _write_key "ZHIPU_API_KEY"    "$ZHIPU_API_KEY"    ;;
+        custom)   _write_key "CUSTOM_API_KEY"   "$CUSTOM_API_KEY"   ;;
+    esac
 else
     log_info ".env 配置文件已存在，跳过初始化，保留您的本地设置。"
 fi
@@ -230,8 +287,31 @@ echo -e "  1. 激活新终端环境后运行：   ${YELLOW}${BOLD}butler doctor$
 echo -e "  2. 立即启动核心服务：       ${YELLOW}${BOLD}butler start${NC}        (启动核心网关)"
 echo -e "  3. 委派特定 AI 角色执行任务： ${YELLOW}${BOLD}butler agent run demo-agent \"你的任务需求\"${NC}\n"
 
-if [ ! -f "$APP_DIR/.env" ] || ! grep -q "sk-" "$APP_DIR/.env"; then
-    log_warn "💡 提示: 检测到您尚未配置有效的 DeepSeek API 密钥。"
-    echo -e "   请编辑 ${BLUE}$APP_DIR/.env${NC} 文件填充 ${CYAN}DEEPSEEK_API_KEY=\"您的密钥\"${NC}，方可享受完整 AI 协同体验！\n"
+# 检测是否已配置对应 AI 服务商的有效密钥
+if [ -f "$APP_DIR/.env" ]; then
+    _prov=$(grep "^AI_PROVIDER=" "$APP_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d '" ' || echo "deepseek")
+    case "$_prov" in
+        deepseek) _need="DEEPSEEK_API_KEY" ;;
+        openai)   _need="OPENAI_API_KEY"   ;;
+        zhipu)    _need="ZHIPU_API_KEY"    ;;
+        custom)   _need="CUSTOM_API_KEY"   ;;
+        *)        _need="DEEPSEEK_API_KEY" ;;
+    esac
+    # 检查是否已填写（排除 placeholder 和空值）
+    if ! grep -q "${_need}=" "$APP_DIR/.env" || grep -q "^${_need}=\"?YOUR_\|^${_need}=\"?\s*\"?$" "$APP_DIR/.env" 2>/dev/null; then
+        log_warn "💡 提示: 当前 AI 服务商 = ${CYAN}${_prov}${NC}，尚未配置有效的 ${_need}。"
+        echo -e "   请编辑 ${BLUE}$APP_DIR/.env${NC}，填充："
+        echo -e "     ${CYAN}AI_PROVIDER=${_prov}${NC}"
+        [ -n "$(grep "^API_BASE_URL=" "$APP_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d ' "')" ] || \
+            echo -e "     ${CYAN}API_BASE_URL=<你的API地址>${NC}   # 仅 custom/自定义时必须"
+        [ -n "$(grep "^MODEL_NAME=" "$APP_DIR/.env" 2>/dev/null | cut -d'=' -f2 | tr -d ' "')" ] || \
+            echo -e "     ${CYAN}MODEL_NAME=<模型名称>${NC}           # 仅 custom/自定义时必须"
+        echo -e "     ${CYAN}${_need}=\"您的_${_prov}_api_密钥\"${NC}   ← 在此输入您的密钥\n"
+    fi
+else
+    log_warn "💡 提示: 未检测到 .env 配置文件。"
+    echo -e "   请创建 ${BLUE}$APP_DIR/.env${NC} 并按以下结构填入您的配置："
+    echo -e "     ${CYAN}AI_PROVIDER=deepseek${NC}"
+    echo -e "     ${CYAN}DEEPSEEK_API_KEY=\"您的_deepseek_api_密钥\"${NC}\n"
 fi
 # ==============================================================================
