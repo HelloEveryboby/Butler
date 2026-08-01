@@ -15,10 +15,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from butler.core.agent_runtime.condenser import (
+    BudgetCondenser,
     Condenser,
-    RecentNCondenser,
-    SummaryCondenser,
-    TaskFocusedCondenser,
+    ImportanceScorer,
+    _estimate_tokens,
 )
 from butler.core.agent_runtime.context_manager import (
     CompactionStage,
@@ -41,7 +41,7 @@ from butler.core.agent_runtime.types import (
 
 
 def _make_messages(count: int, prefix: str = "msg") -> list[Message]:
-    """生成指定数量的 user/assistant 交替消息。"""
+    """生成指定数量的 user/assistant 交替消息（短消息）。"""
     msgs: list[Message] = []
     for i in range(count):
         role = "user" if i % 2 == 0 else "assistant"
@@ -49,12 +49,20 @@ def _make_messages(count: int, prefix: str = "msg") -> list[Message]:
     return msgs
 
 
+def _make_big_messages(count: int, size: int = 40) -> list[Message]:
+    """生成指定数量的 user/assistant 交替消息（每条 size 字符 ≈ size//4 tokens）。"""
+    return [
+        Message(role="user" if i % 2 == 0 else "assistant", content="x" * size)
+        for i in range(count)
+    ]
+
+
 def _make_tool_handler(content: str = "ok"):
     """生成一个简单的工具 handler。"""
     return lambda arguments, **ctx: {"content": content}
 
 
-# ── Condenser 测试 ──────────────────────────────────────────────
+# ── Condenser 基类测试 ──────────────────────────────────────────
 
 
 class TestCondenserBase:
@@ -67,275 +75,194 @@ class TestCondenserBase:
             condenser.condense([])
 
 
-class TestRecentNCondenser:
-    """RecentNCondenser 测试。"""
+# ── ImportanceScorer 测试 ───────────────────────────────────────
 
-    def test_keep_recent_5_with_20_messages(self):
-        """keep_recent=5，20 条消息（system + user + assistant），验证系统消息保留、最近 N 条保留、旧消息替换为占位符。"""
-        condenser = RecentNCondenser(keep_recent=5)
 
-        messages: list[Message] = [
-            Message(role="system", content="system prompt"),
-        ]
-        # 19 条非系统消息（user/assistant 交替）
-        messages.extend(_make_messages(19))
+class TestImportanceScorer:
+    """ImportanceScorer 重要性打分测试。"""
 
+    def test_score_in_valid_range(self):
+        """分数应在 [0, 100] 范围内。"""
+        scorer = ImportanceScorer()
+        msg = Message(role="user", content="hello")
+        score = scorer.score(msg, 0, 1)
+        assert 0 <= score <= 100
+
+    def test_newer_message_scores_higher(self):
+        """越新的消息（index 越大）分数应越高（recency 衰减）。"""
+        scorer = ImportanceScorer()
+        msg = Message(role="user", content="plain text here")
+        old_score = scorer.score(msg, 0, 10)  # 最旧
+        new_score = scorer.score(msg, 9, 10)  # 最新
+        assert new_score > old_score
+
+    def test_error_signal_boosts_score(self):
+        """含 error/failed 信号的消息分数应高于普通消息。"""
+        scorer = ImportanceScorer()
+        plain = Message(role="assistant", content="just some normal response text")
+        with_error = Message(
+            role="assistant", content="error: something failed in the code"
+        )
+        assert scorer.score(with_error, 0, 5) > scorer.score(plain, 0, 5)
+
+    def test_write_tool_scores_higher_than_read(self):
+        """写操作（edit）的 tool_impact 应高于读操作（read）。"""
+        scorer = ImportanceScorer()
+        write_msg = Message(
+            role="assistant",
+            content="m",
+            tool_calls=[ToolCall(id="1", name="edit", arguments={"path": "x.py"})],
+        )
+        read_msg = Message(
+            role="assistant",
+            content="m",
+            tool_calls=[ToolCall(id="2", name="read", arguments={"path": "x.py"})],
+        )
+        assert scorer.score(write_msg, 0, 5) > scorer.score(read_msg, 0, 5)
+
+    def test_user_role_scores_higher_than_tool(self):
+        """user 消息（意图）分数应高于 tool 消息（结果）。"""
+        scorer = ImportanceScorer()
+        user_msg = Message(role="user", content="some content here")
+        tool_msg = Message(role="tool", content="some content here")
+        assert scorer.score(user_msg, 0, 5) > scorer.score(tool_msg, 0, 5)
+
+
+# ── BudgetCondenser 测试 ────────────────────────────────────────
+
+
+class TestBudgetCondenser:
+    """BudgetCondenser 预算驱动压缩测试。"""
+
+    def test_empty_messages_returns_empty(self):
+        """空消息列表应返回空。"""
+        condenser = BudgetCondenser(target_tokens=100)
+        assert condenser.condense([]) == []
+
+    def test_under_budget_returns_as_is(self):
+        """未超预算时原样返回。"""
+        condenser = BudgetCondenser(target_tokens=10000)
+        messages = _make_messages(5)
         result = condenser.condense(messages)
-
-        # 系统消息应保留
-        system_msgs = [m for m in result if m.role == "system"]
-        assert any(m.content == "system prompt" for m in system_msgs)
-
-        # 最近 5 条非系统消息应保留
-        non_system_result = [m for m in result if m.role != "system"]
-        # 原始最后 5 条非系统消息
-        original_non_system = [m for m in messages if m.role != "system"]
-        expected_recent = original_non_system[-5:]
-        assert non_system_result == expected_recent
-
-        # 应有占位符消息
-        placeholder_msgs = [
-            m for m in result
-            if m.role == "system" and "condensed" in m.content
-        ]
-        assert len(placeholder_msgs) == 1
-        # 占位符中应提到被压缩的消息数量 (19 - 5 = 14)
-        assert "14" in placeholder_msgs[0].content
-
-    def test_fewer_messages_than_threshold_returns_as_is(self):
-        """消息数少于阈值（keep_recent + 5）时应原样返回。"""
-        condenser = RecentNCondenser(keep_recent=5)
-        # keep_recent=5, 阈值 = 5 + 5 = 10
-        messages = _make_messages(8)
-        result = condenser.condense(messages)
-
-        assert len(result) == len(messages)
         assert result == messages
 
-    def test_exactly_at_threshold_returns_as_is(self):
-        """消息数正好等于阈值时应原样返回。"""
-        condenser = RecentNCondenser(keep_recent=5)
-        # 阈值 = 10
-        messages = _make_messages(10)
+    def test_over_budget_reduces_tokens(self):
+        """超预算时应减少 token 总量与消息数。"""
+        condenser = BudgetCondenser(target_tokens=30, keep_recent=2)
+        # 10 条 × 40 字符 = 400 字符 ≈ 100 tokens > 30
+        messages = _make_big_messages(10, 40)
         result = condenser.condense(messages)
-        assert result == messages
-
-    def test_just_above_threshold_triggers_condensation(self):
-        """消息数刚好超过阈值时应触发压缩。"""
-        condenser = RecentNCondenser(keep_recent=5)
-        # 阈值 = 10，给 11 条
-        messages = _make_messages(11)
-        result = condenser.condense(messages)
-        # 应被压缩（系统占位符 + 5 条最近 = 6 条）
+        assert _estimate_tokens(result) < _estimate_tokens(messages)
         assert len(result) < len(messages)
-        assert len(result) == 6  # 1 placeholder + 5 recent
 
-    def test_multiple_system_messages_kept(self):
-        """多条系统消息都应被保留。"""
-        condenser = RecentNCondenser(keep_recent=3)
-        messages: list[Message] = [
-            Message(role="system", content="sys1"),
-            Message(role="system", content="sys2"),
-        ]
-        messages.extend(_make_messages(12))
-
+    def test_system_messages_always_preserved(self):
+        """系统消息应始终保留。"""
+        condenser = BudgetCondenser(target_tokens=10, keep_recent=2)
+        messages = [Message(role="system", content="important system prompt")]
+        messages.extend(_make_big_messages(10, 40))
         result = condenser.condense(messages)
-        system_contents = [m.content for m in result if m.role == "system"]
-        assert "sys1" in system_contents
-        assert "sys2" in system_contents
+        system_msgs = [m for m in result if m.role == "system"]
+        assert any(m.content == "important system prompt" for m in system_msgs)
 
+    def test_recent_messages_always_preserved(self):
+        """最近 keep_recent 条消息应始终保留。"""
+        condenser = BudgetCondenser(target_tokens=10, keep_recent=3)
+        messages = _make_big_messages(10, 40)
+        result = condenser.condense(messages)
+        non_system = [m for m in result if m.role != "system"]
+        # 最后 3 条原始消息应在结果中
+        assert messages[-1] in non_system
+        assert messages[-3] in non_system
 
-class TestSummaryCondenser:
-    """SummaryCondenser 测试。"""
+    def test_context_card_generated_with_key_facts(self):
+        """被丢弃消息应生成 Context Card，含文件路径与工具名等关键事实。"""
+        condenser = BudgetCondenser(target_tokens=5, keep_recent=2)
+        tool_call = ToolCall(
+            id="tc1", name="edit", arguments={"file_path": "/src/app/main.py"}
+        )
+        messages = [
+            Message(role="user", content="please fix the error in main.py"),
+            Message(role="assistant", content="editing", tool_calls=[tool_call]),
+            Message(role="assistant", content="done"),
+            Message(role="user", content="x" * 40),
+            Message(role="user", content="y" * 40),  # recent
+            Message(role="assistant", content="z" * 40),  # recent
+        ]
+        result = condenser.condense(messages)
+        cards = [
+            m for m in result if m.role == "system" and "Context Card" in m.content
+        ]
+        assert len(cards) == 1
+        # 文件路径与工具名应被抽取进 card
+        assert "main.py" in cards[0].content or "edit" in cards[0].content
 
-    def test_with_llm_summarize_handler(self):
-        """有 llm_summarize_handler 时，应生成摘要消息。"""
-        summary_text = "This is a summary of the conversation."
-
-        def mock_summarize(text: str) -> str:
-            return summary_text
-
-        condenser = SummaryCondenser(
-            llm_summarize_handler=mock_summarize,
-            keep_recent=5,
+    def test_high_importance_message_retained(self):
+        """token 紧张时，含 error/路径的高分消息应保留，低分消息进 Context Card。"""
+        condenser = BudgetCondenser(target_tokens=15, keep_recent=2)
+        messages = [
+            Message(role="user", content="error: something failed in /app/server.py"),
+            Message(role="user", content="hello world"),
+            Message(role="user", content="nice weather"),
+            Message(role="user", content="recent a"),
+            Message(role="assistant", content="recent b"),
+        ]
+        result = condenser.condense(messages)
+        # 高分消息（含 error + 路径）保留为独立 user 消息
+        assert any(
+            "error: something failed" in m.content and m.role == "user"
+            for m in result
+        )
+        # 有消息被压缩 → 存在 Context Card
+        assert any(
+            m.role == "system" and "Context Card" in m.content for m in result
         )
 
-        messages: list[Message] = [Message(role="system", content="sys")]
-        messages.extend(_make_messages(20))
-
-        result = condenser.condense(messages)
-
-        # 应有摘要消息
-        summary_msgs = [
-            m for m in result
-            if m.role == "system" and "Earlier conversation summary" in m.content
-        ]
-        assert len(summary_msgs) == 1
-        assert summary_text in summary_msgs[0].content
-
-        # 最近 5 条非系统消息应保留
-        non_system_result = [m for m in result if m.role != "system"]
-        original_non_system = [m for m in messages if m.role != "system"]
-        assert non_system_result == original_non_system[-5:]
-
-    def test_without_llm_summarize_handler_falls_back_to_manual(self):
-        """无 llm_summarize_handler 时，应使用手动摘要。"""
-        condenser = SummaryCondenser(
-            llm_summarize_handler=None,
-            keep_recent=5,
+    def test_max_messages_triggers_compression(self):
+        """max_messages 上限触发压缩（即使 token 未超）。"""
+        condenser = BudgetCondenser(
+            target_tokens=100000, max_messages=5, keep_recent=2
         )
+        messages = _make_messages(10)  # 总 token 极少，但条数 > 5
+        result = condenser.condense(messages)
+        assert len(result) < len(messages)
 
-        messages: list[Message] = [Message(role="system", content="sys")]
-        messages.extend(_make_messages(20))
 
+class TestBudgetCondenserLLM:
+    """BudgetCondenser LLM 摘要测试。"""
+
+    def test_llm_summary_used_when_available(self):
+        """有 LLM handler 且丢弃消息 >= 3 时，Context Card 用 LLM 摘要。"""
+        calls: list[str] = []
+
+        def summarize(text: str) -> str:
+            calls.append(text)
+            return "llm summary of dropped messages"
+
+        condenser = BudgetCondenser(
+            target_tokens=10, keep_recent=2, llm_summarize_handler=summarize
+        )
+        messages = [Message(role="system", content="sys")]
+        messages.extend(_make_big_messages(10, 40))
         result = condenser.condense(messages)
 
-        # 应有手动摘要消息（包含 "[Summary of" 标记）
-        manual_msgs = [
-            m for m in result
-            if m.role == "system" and "[Summary of" in m.content
-        ]
-        assert len(manual_msgs) == 1
-        # 手动摘要应包含消息数量
-        assert "15" in manual_msgs[0].content  # 20 - 5 = 15 older messages
+        assert len(calls) == 1  # LLM 调用一次
+        # 摘要应在结果中
+        assert any("llm summary of dropped messages" in m.content for m in result)
 
-    def test_llm_handler_raises_exception_falls_back_to_manual(self):
-        """llm_summarize_handler 抛出异常时，应回退到手动摘要。"""
+    def test_llm_failure_falls_back_to_structural_card(self):
+        """LLM 异常时回退到结构化 Context Card。"""
         def failing_summarize(text: str) -> str:
-            raise RuntimeError("LLM service unavailable")
+            raise RuntimeError("LLM unavailable")
 
-        condenser = SummaryCondenser(
-            llm_summarize_handler=failing_summarize,
-            keep_recent=5,
+        condenser = BudgetCondenser(
+            target_tokens=10, keep_recent=2, llm_summarize_handler=failing_summarize
         )
-
-        messages: list[Message] = [Message(role="system", content="sys")]
-        messages.extend(_make_messages(20))
-
+        messages = [Message(role="system", content="sys")]
+        messages.extend(_make_big_messages(10, 40))
         result = condenser.condense(messages)
 
-        # 应回退到手动摘要
-        manual_msgs = [
-            m for m in result
-            if m.role == "system" and "[Summary of" in m.content
-        ]
-        assert len(manual_msgs) == 1
-
-    def test_fewer_messages_than_threshold_returns_as_is(self):
-        """消息数少于阈值时应原样返回。"""
-        condenser = SummaryCondenser(keep_recent=10)
-        # 阈值 = 10 + 5 = 15
-        messages = _make_messages(12)
-        result = condenser.condense(messages)
-        assert result == messages
-
-    def test_manual_summary_includes_tools_used(self):
-        """手动摘要应包含使用过的工具名。"""
-        condenser = SummaryCondenser(
-            llm_summarize_handler=None,
-            keep_recent=3,
-        )
-
-        tool_call = ToolCall(
-            id="tc1",
-            name="read_file",
-            arguments={"path": "/tmp/test.py"},
-        )
-
-        messages: list[Message] = [Message(role="system", content="sys")]
-        # 添加一些旧消息，包含工具调用
-        messages.append(Message(role="user", content="read the file"))
-        messages.append(
-            Message(role="assistant", content="reading...", tool_calls=[tool_call])
-        )
-        messages.extend(_make_messages(15))
-
-        result = condenser.condense(messages)
-
-        summary_msgs = [
-            m for m in result
-            if m.role == "system" and "[Summary of" in m.content
-        ]
-        assert len(summary_msgs) == 1
-        assert "read_file" in summary_msgs[0].content
-
-
-class TestTaskFocusedCondenser:
-    """TaskFocusedCondenser 测试。"""
-
-    def test_keyword_messages_kept_non_relevant_dropped(self):
-        """包含关键词的消息保留，不相关的丢弃。"""
-        condenser = TaskFocusedCondenser(keep_recent=3, max_messages=10)
-
-        messages: list[Message] = [Message(role="system", content="sys")]
-        # 旧消息：包含关键词的和不包含的
-        messages.append(Message(role="user", content="please fix the error in file"))
-        messages.append(Message(role="user", content="hello world"))  # 无关键词
-        messages.append(Message(role="assistant", content="I created a new file path"))
-        messages.append(Message(role="user", content="random text here"))  # 无关键词
-        messages.append(Message(role="assistant", content="ok done"))
-        messages.append(Message(role="user", content="more random stuff"))  # 无关键词
-        messages.append(Message(role="assistant", content="modified the file"))
-        messages.append(Message(role="user", content="last old message"))  # 无关键词
-        # 最近消息
-        messages.append(Message(role="user", content="recent 1"))
-        messages.append(Message(role="assistant", content="recent 2"))
-        messages.append(Message(role="user", content="recent 3"))
-
-        # 总共 12 条 > max_messages=10
-        result = condenser.condense(messages)
-
-        # 应有压缩占位符
-        placeholder_msgs = [
-            m for m in result
-            if m.role == "system" and "condensed" in m.content
-        ]
-        assert len(placeholder_msgs) == 1
-
-        # 包含关键词的旧消息应保留
-        all_contents = [m.content for m in result]
-        assert "please fix the error in file" in all_contents
-        assert "I created a new file path" in all_contents
-        assert "modified the file" in all_contents
-
-        # 不相关的旧消息应被丢弃
-        assert "hello world" not in all_contents
-        assert "random text here" not in all_contents
-        assert "more random stuff" not in all_contents
-
-        # 最近 3 条应保留
-        assert "recent 1" in all_contents
-        assert "recent 2" in all_contents
-        assert "recent 3" in all_contents
-
-    def test_fewer_messages_than_max_returns_as_is(self):
-        """消息数少于 max_messages 时应原样返回。"""
-        condenser = TaskFocusedCondenser(keep_recent=15, max_messages=50)
-        messages = _make_messages(30)
-        result = condenser.condense(messages)
-        assert result == messages
-
-    def test_keyword_detection_in_tool_call_arguments(self):
-        """工具调用参数中包含关键词时，该消息也应保留。"""
-        condenser = TaskFocusedCondenser(keep_recent=2, max_messages=8)
-
-        tool_call = ToolCall(
-            id="tc1",
-            name="edit",
-            arguments={"file_path": "/some/path/file.py"},
-        )
-
-        messages: list[Message] = [Message(role="system", content="sys")]
-        messages.append(
-            Message(role="assistant", content="no keywords here", tool_calls=[tool_call])
-        )
-        messages.extend(_make_messages(8))
-
-        result = condenser.condense(messages)
-
-        # 包含关键词工具调用的消息应保留（path/file 在参数中）
-        all_contents = [m.content for m in result]
-        assert "no keywords here" in all_contents
+        # 回退到结构化 card
+        assert any("Context Card" in m.content for m in result)
 
 
 # ── ContextManager 测试 ─────────────────────────────────────────
@@ -347,55 +274,43 @@ class TestContextManagerShouldCompact:
     def test_below_threshold_returns_false(self):
         """token 数低于阈值时返回 False。"""
         manager = ContextManager(token_limit=10000, compaction_threshold=0.8)
-        # 阈值 = 10000 * 0.8 = 8000 tokens
-        # 每条消息约 4 字符 = 1 token
-        # 创建 1000 字符的消息 ≈ 250 tokens，远低于 8000
         state = ConversationState()
         state.append(Message(role="user", content="x" * 1000))
-
         assert manager.should_compact(state) is False
 
     def test_above_threshold_returns_true(self):
         """token 数高于阈值时返回 True。"""
         manager = ContextManager(token_limit=1000, compaction_threshold=0.8)
-        # 阈值 = 1000 * 0.8 = 800 tokens
-        # 创建 4000 字符 ≈ 1000 tokens > 800
         state = ConversationState()
         state.append(Message(role="user", content="x" * 4000))
-
         assert manager.should_compact(state) is True
 
     def test_exactly_at_threshold_returns_false(self):
         """token 数正好等于阈值时返回 False（使用 > 而非 >=）。"""
         manager = ContextManager(token_limit=1000, compaction_threshold=0.8)
-        # 阈值 = 800 tokens = 3200 字符
         state = ConversationState()
         state.append(Message(role="user", content="x" * 3200))
-
         assert manager.should_compact(state) is False
 
 
 class TestContextManagerCompact:
     """ContextManager.compact 各阶段测试。"""
 
-    def test_compact_auto_reduces_message_count(self):
-        """AUTO 阶段应减少消息数量。"""
-        # 使用默认 RecentNCondenser(keep_recent=20)，阈值 = 25
-        manager = ContextManager(token_limit=200000)
-
-        messages: list[Message] = [Message(role="system", content="sys")]
-        messages.extend(_make_messages(30))  # 31 条总消息 > 25
+    def test_compact_auto_reduces_tokens(self):
+        """AUTO 阶段应减少 token 总量。"""
+        # token_limit=200 → AUTO 预算 = 160
+        manager = ContextManager(token_limit=200, compaction_threshold=0.8)
+        messages = [Message(role="system", content="sys")]
+        messages.extend(_make_big_messages(20, 40))  # ≈ 200 tokens > 160
 
         state = ConversationState(messages=messages)
-        original_count = len(state.messages)
+        original_tokens = state.estimate_tokens()
 
         result = manager.compact(state, CompactionStage.AUTO)
 
-        assert len(state.messages) < original_count
-        assert result["original_messages"] == original_count
-        assert result["new_messages"] < original_count
         assert result["stage"] == "autocompaction"
-        assert result["original_tokens"] > 0
+        assert result["original_tokens"] == original_tokens
+        assert result["new_tokens"] < original_tokens
 
     def test_compact_micro_removes_empty_messages(self):
         """MICRO 阶段应移除空消息。"""
@@ -412,7 +327,6 @@ class TestContextManagerCompact:
         state = ConversationState(messages=messages)
         manager.compact(state, CompactionStage.MICRO)
 
-        # 空消息应被移除
         assert len(state.messages) == 3
         contents = [m.content for m in state.messages]
         assert "sys prompt" in contents
@@ -432,7 +346,6 @@ class TestContextManagerCompact:
         state = ConversationState(messages=messages)
         manager.compact(state, CompactionStage.MICRO)
 
-        # 工具输出应被截断
         tool_msg = next(m for m in state.messages if m.role == "tool")
         assert len(tool_msg.content) < 3000
         assert "[truncated]" in tool_msg.content
@@ -455,46 +368,43 @@ class TestContextManagerCompact:
         assert len(system_msgs) == 1
 
     def test_compact_reactive_more_aggressive_than_auto(self):
-        """REACTIVE 阶段应比 AUTO 更激进地压缩。"""
-        manager = ContextManager(token_limit=200000)
+        """REACTIVE 阶段（50% 预算）应比 AUTO（80% 预算）保留更少消息。"""
+        manager = ContextManager(token_limit=200, compaction_threshold=0.8)
 
-        messages: list[Message] = [Message(role="system", content="sys")]
-        messages.extend(_make_messages(30))
+        messages = [Message(role="system", content="sys")]
+        messages.extend(_make_big_messages(20, 40))  # ≈ 200 tokens
 
-        # AUTO 压缩
         state_auto = ConversationState(messages=messages)
         manager.compact(state_auto, CompactionStage.AUTO)
 
-        # REACTIVE 压缩（无 LLM，使用 RecentNCondenser keep_recent=10）
         state_reactive = ConversationState(messages=messages)
         manager.compact(state_reactive, CompactionStage.REACTIVE)
 
-        # REACTIVE 应比 AUTO 压缩更多
+        # REACTIVE 预算更低 → 压缩更激进 → 消息更少
         assert len(state_reactive.messages) <= len(state_auto.messages)
 
     def test_compact_reactive_with_llm_summarize(self):
-        """REACTIVE 阶段有 LLM 时使用 SummaryCondenser。"""
+        """REACTIVE 阶段有 LLM 时，被丢弃消息生成 LLM 摘要。"""
         def mock_summarize(text: str) -> str:
             return "reactive summary"
 
-        manager = ContextManager(llm_summarize_handler=mock_summarize)
+        manager = ContextManager(
+            llm_summarize_handler=mock_summarize,
+            token_limit=200,
+            compaction_threshold=0.8,
+        )
 
-        messages: list[Message] = [Message(role="system", content="sys")]
-        messages.extend(_make_messages(30))
+        messages = [Message(role="system", content="sys")]
+        messages.extend(_make_big_messages(20, 40))
 
         state = ConversationState(messages=messages)
         result = manager.compact(state, CompactionStage.REACTIVE)
 
         assert result["stage"] == "reactive_compact"
-        # SummaryCondenser(keep_recent=5) 应生成摘要
-        summary_msgs = [
-            m for m in state.messages
-            if m.role == "system" and "summary" in m.content.lower()
-        ]
-        assert len(summary_msgs) >= 1
+        assert any("reactive summary" in m.content for m in state.messages)
 
     def test_compact_collapse_keeps_system_and_last_user(self):
-        """COLLAPSE 阶段只保留系统消息 + 最后一条用户消息（+ 摘要）。"""
+        """COLLAPSE 阶段只保留系统消息 + Context Card + 最后一条用户消息。"""
         manager = ContextManager()
 
         messages: list[Message] = [
@@ -509,14 +419,14 @@ class TestContextManagerCompact:
         state = ConversationState(messages=messages)
         manager.compact(state, CompactionStage.COLLAPSE)
 
-        # 应只剩少量消息
-        assert len(state.messages) <= 4  # system + summary + last user (max)
+        # 应只剩少量消息（system + card + last user）
+        assert len(state.messages) <= 4
 
         # 第一个系统消息应保留
         system_msgs = [m for m in state.messages if m.role == "system"]
         assert any(m.content == "sys prompt" for m in system_msgs)
 
-        # 最后一条用户消息应保留
+        # 最后一条用户消息应保留（且是唯一的 user 消息）
         user_msgs = [m for m in state.messages if m.role == "user"]
         assert len(user_msgs) == 1
         assert user_msgs[0].content == "last user message"
@@ -538,10 +448,9 @@ class TestContextManagerCompact:
         state = ConversationState(messages=messages)
         manager.compact(state, CompactionStage.COLLAPSE)
 
-        # 应有 LLM 摘要消息
         summary_msgs = [
             m for m in state.messages
-            if m.role == "system" and "Previous conversation summary" in m.content
+            if m.role == "system" and "[Conversation Summary" in m.content
         ]
         assert len(summary_msgs) == 1
         assert "full conversation summary" in summary_msgs[0].content
@@ -553,6 +462,26 @@ class TestContextManagerCompact:
         result = manager.compact(state, CompactionStage.COLLAPSE)
         assert len(state.messages) == 0
         assert result["new_messages"] == 0
+
+    def test_compact_collapse_llm_fallback_on_error(self):
+        """COLLAPSE 阶段 LLM 异常时回退到结构化 Context Card。"""
+        def failing_handler(text: str) -> str:
+            raise RuntimeError("LLM error")
+
+        manager = ContextManager(llm_summarize_handler=failing_handler)
+
+        messages: list[Message] = [
+            Message(role="system", content="sys"),
+            Message(role="user", content="do something"),
+            Message(role="assistant", content="done"),
+            Message(role="user", content="more"),
+        ]
+
+        state = ConversationState(messages=messages)
+        manager.compact(state, CompactionStage.COLLAPSE)
+
+        # 应回退到结构化 Context Card
+        assert any("[Context Card" in m.content for m in state.messages)
 
     def test_compact_records_history(self):
         """compact 应记录压缩历史。"""
@@ -609,19 +538,20 @@ class TestContextManagerForceCompact:
     """ContextManager.force_compact 测试。"""
 
     def test_force_compact_triggers_compaction(self):
-        """force_compact 应强制执行压缩（忽略阈值检查）。"""
-        manager = ContextManager(token_limit=200000)
+        """force_compact 应强制执行压缩（忽略阈值检查），并实际减少 token。"""
+        # token_limit=200 → AUTO 预算 160，消息 ≈ 200 tokens > 160 → 实际压缩
+        manager = ContextManager(token_limit=200, compaction_threshold=0.8)
 
         messages: list[Message] = [Message(role="system", content="sys")]
-        messages.extend(_make_messages(30))
+        messages.extend(_make_big_messages(20, 40))
 
         state = ConversationState(messages=messages)
-        original_count = len(state.messages)
+        original_tokens = state.estimate_tokens()
 
         result = manager.force_compact(state, CompactionStage.AUTO)
 
-        assert len(state.messages) < original_count
         assert result["stage"] == "autocompaction"
+        assert state.estimate_tokens() < original_tokens
 
     def test_force_compact_with_collapse(self):
         """force_compact 可用 COLLAPSE 阶段。"""
@@ -637,7 +567,6 @@ class TestContextManagerForceCompact:
         result = manager.force_compact(state, CompactionStage.COLLAPSE)
 
         assert result["stage"] == "context_collapse"
-        # COLLAPSE 后消息数应很少
         assert len(state.messages) <= 3
 
 
@@ -700,46 +629,33 @@ class TestContextManagerLLMSummarize:
     """ContextManager llm_summarize_handler 测试。"""
 
     def test_llm_summarize_in_reactive(self):
-        """REACTIVE 阶段使用 llm_summarize_handler。"""
+        """REACTIVE 阶段使用 llm_summarize_handler 对被丢弃消息生成摘要。"""
         summary_calls: list[str] = []
 
         def handler(text: str) -> str:
             summary_calls.append(text)
             return "reactive summary"
 
-        manager = ContextManager(llm_summarize_handler=handler)
+        manager = ContextManager(
+            llm_summarize_handler=handler,
+            token_limit=200,
+            compaction_threshold=0.8,
+        )
 
         messages: list[Message] = [Message(role="system", content="sys")]
-        messages.extend(_make_messages(30))
+        messages.extend(_make_big_messages(20, 40))
 
         state = ConversationState(messages=messages)
         manager.compact(state, CompactionStage.REACTIVE)
 
         assert len(summary_calls) == 1
-        # 摘要结果应在消息中
-        assert any(
-            "reactive summary" in m.content for m in state.messages
-        )
+        assert any("reactive summary" in m.content for m in state.messages)
 
-    def test_llm_summarize_in_collapse_fallback_on_error(self):
-        """COLLAPSE 阶段 LLM 异常时回退到手动摘要。"""
-        def failing_handler(text: str) -> str:
-            raise RuntimeError("LLM error")
-
-        manager = ContextManager(llm_summarize_handler=failing_handler)
-
-        messages: list[Message] = [
-            Message(role="system", content="sys"),
-            Message(role="user", content="do something"),
-        ]
-
-        state = ConversationState(messages=messages)
-        manager.compact(state, CompactionStage.COLLAPSE)
-
-        # 应回退到手动摘要（包含 "[Conversation Summary]"）
-        assert any(
-            "[Conversation Summary]" in m.content for m in state.messages
-        )
+    def test_llm_summarize_handler_inherited_attribute(self):
+        """_llm_summarize_handler 属性应可被外部访问（subagent_manager 依赖）。"""
+        handler = lambda t: "summary"  # noqa: E731
+        manager = ContextManager(llm_summarize_handler=handler)
+        assert manager._llm_summarize_handler is handler
 
 
 # ── SubagentDefinition 测试 ─────────────────────────────────────

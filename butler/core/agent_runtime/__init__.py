@@ -38,7 +38,7 @@ from .permission import (
 from .agent_runtime import AgentRuntime, AgentConfig
 from .context_manager import ContextManager, CompactionStage
 from .event_stream import EventStream
-from .condenser import Condenser, SummaryCondenser, RecentNCondenser, TaskFocusedCondenser
+from .condenser import Condenser, BudgetCondenser, ImportanceScorer
 
 try:
     from .subagent_manager import SubagentManager, SubagentDefinition
@@ -89,9 +89,8 @@ __all__ = [
     "SubagentDefinition",
     "EventStream",
     "Condenser",
-    "SummaryCondenser",
-    "RecentNCondenser",
-    "TaskFocusedCondenser",
+    "BudgetCondenser",
+    "ImportanceScorer",
     # Optional
     "MCPClient",
     "MCPServerConfig",
