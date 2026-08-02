@@ -558,6 +558,7 @@ class ButlerTUI(App):
 
     # ── 命令名 → tool_name 映射 ──
     _CMD_TO_TOOL = {
+        # 技能命令
         "markitdown": ("skill_markitdown", {}),
         "docx_read": ("skill_docx", {"action": "read"}),
         "docx_create": ("skill_docx", {"action": "create"}),
@@ -591,6 +592,53 @@ class ButlerTUI(App):
         "track_start": ("skill_track_start", {}),
         "track_stop": ("skill_track_stop", {}),
         "track_clean": ("skill_track_clean", {}),
+        # 网络命令
+        "weather": ("weather", {}),
+        "crawl_url": ("crawl_url", {}),
+        "crawl_query": ("crawl_query", {}),
+        "email_send": ("email_send", {}),
+        "email_recv": ("email_recv", {}),
+        "img_search": ("img_search", {}),
+        "translate": ("translate", {}),
+        "translate_file": ("translate_file", {}),
+        "translate_url": ("translate_url", {}),
+        # 安全命令
+        "encrypt": ("encrypt", {}),
+        "decrypt": ("decrypt", {}),
+        "audit_security": ("audit_security", {}),
+        "audit_dir": ("audit_dir", {}),
+        # 文档命令
+        "convert": ("convert", {}),
+        "file_create": ("file_create", {}),
+        "file_read": ("file_read", {}),
+        "file_delete": ("file_delete", {}),
+        "file_list": ("file_list", {}),
+        # 系统命令
+        "monitor": ("monitor", {}),
+        "dep_install": ("dep_install", {}),
+        "dep_all": ("dep_all", {}),
+        "doctor": ("doctor", {}),
+        "skills_list": ("skills_list", {}),
+        # 对话/管理命令
+        "help": ("help", {}),
+        "commands": ("commands", {}),
+        "howto": ("howto", {}),
+        "status": ("status", {}),
+        "kairos": ("kairos", {}),
+        "performance": ("performance", {}),
+        "dream": ("dream", {}),
+        "focus": ("focus", {}),
+        "focus-stop": ("focus-stop", {}),
+        "clear": ("clear", {}),
+        "tasks": ("tasks", {}),
+        "team": ("team", {}),
+        "memory": ("memory", {}),
+        "profile": ("profile", {}),
+        "exit": ("exit", {}),
+        # 底层执行命令
+        "py": ("py", {}),
+        "sh": ("sh", {}),
+        "py_eval": ("py_eval", {}),
     }
 
     def _parse_pending_input(self, pending: str, text: str, preset: dict) -> dict:
@@ -639,6 +687,7 @@ class ButlerTUI(App):
         """尝试解析并执行 Linux 风格命令 (无 / 前缀)."""
         from butler.tui.command_catalog import _BY_NAME, _BY_ALIAS, FLAG_REGISTRY
         from butler.tui.linux_parser import parse_pipeline, merge_flags_with_defs, format_help
+        from butler.tui.os_command_adapter import is_os_command, execute_os_command, list_os_commands
 
         pipeline = parse_pipeline(text)
         if not pipeline.stages:
@@ -647,7 +696,200 @@ class ButlerTUI(App):
         first = pipeline.stages[0]
         cmd_name = first.name.lower()
 
-        # 检查是否是已知命令
+        # ── 命令解释器 / 翻译器 / 对比器 ──
+        if cmd_name in ("cmd_explain", "explain"):
+            from butler.tui.os_command_adapter import explain_command
+            flag_defs = FLAG_REGISTRY.get(cmd_name, [])
+            params = merge_flags_with_defs(first, flag_defs)
+            target_cmd = params.get("cmd_name", "")
+            args_raw = params.get("args", "")
+            args_list = args_raw.split() if args_raw else None
+            if not target_cmd:
+                self._append_chat(
+                    "用法:\n"
+                    "  cmd_explain -c <命令名>       # 解释命令 + 三平台翻译\n"
+                    "  cmd_explain -c ls -a '-la /tmp'  # 附参数说明\n"
+                    "  别名: explain\n",
+                    "system"
+                )
+                return True
+            self._append_chat(explain_command(target_cmd, args_list), "ai")
+            return True
+
+        if cmd_name == "cmd_translate":
+            from butler.tui.os_command_adapter import translate_command_line
+            flag_defs = FLAG_REGISTRY.get(cmd_name, [])
+            params = merge_flags_with_defs(first, flag_defs)
+            cmd_line = params.get("command_line", "")
+            target_os = params.get("target_os", "")
+            if not cmd_line:
+                self._append_chat(
+                    "用法:\n"
+                    "  cmd_translate -c 'ls -la /home'          # 翻译到三平台\n"
+                    "  cmd_translate -c 'dir /s' -t linux       # 翻译到指定平台\n"
+                    "  cmd_translate -c 'grep error log' -t windows\n",
+                    "system"
+                )
+                return True
+            if target_os and target_os.lower() in ("linux", "windows", "macos"):
+                result = translate_command_line(cmd_line, target_os.lower())
+                self._append_chat(
+                    f"🔄 翻译到 {target_os.upper()}:\n"
+                    f"  输入: {cmd_line}\n"
+                    f"  输出: {result}",
+                    "ai"
+                )
+            else:
+                lines = [f"🔄 跨平台翻译: {cmd_line}\n"]
+                for os_name in ("linux", "windows", "macos"):
+                    translated = translate_command_line(cmd_line, os_name)
+                    lines.append(f"  {os_name.upper():<9} 👉  {translated}")
+                self._append_chat("\n".join(lines), "ai")
+            return True
+
+        if cmd_name in ("cmd_compare", "compare"):
+            from butler.tui.os_command_adapter import compare_commands
+            flag_defs = FLAG_REGISTRY.get(cmd_name, [])
+            params = merge_flags_with_defs(first, flag_defs)
+            commands_str = params.get("commands", "")
+            # 优先用 --list, 退化为位置参数
+            if commands_str:
+                if "," in commands_str:
+                    cmd_list = [s.strip() for s in commands_str.split(",")]
+                else:
+                    cmd_list = commands_str.split()
+            else:
+                cmd_list = list(first.positionals)
+            if not cmd_list:
+                self._append_chat(
+                    "用法:\n"
+                    "  cmd_compare 'ls -la' 'grep pattern file'\n"
+                    "  cmd_compare ls, grep, ping, find\n"
+                    "  compare -l 'ls -la,dir,find'\n"
+                    "别名: compare\n",
+                    "system"
+                )
+                return True
+            self._append_chat(compare_commands(cmd_list), "ai")
+            return True
+
+        # ── 优先检查 OS 原生命令 (ls, cat, grep, ping, ps...) ──
+        if is_os_command(cmd_name):
+            # 特殊处理: os_help 命令
+            if cmd_name in ("os_help", "oslist", "oscommands"):
+                self._append_chat(list_os_commands(), "ai")
+                return True
+
+            # 收集位置参数和选项, 组合为 args
+            args = list(first.positionals)
+            for key, val in first.flags.items():
+                if key == "__help__":
+                    # OS 命令的 --help: 显示 man 风格信息
+                    resolved = __import__("butler.tui.os_command_adapter", fromlist=["resolve_command"]).resolve_command(cmd_name)
+                    resolved_str = " ".join(resolved) if resolved else "N/A"
+                    self._append_chat(
+                        f"命令: {cmd_name}\n"
+                        f"平台映射: {resolved_str}\n"
+                        f"用法: {cmd_name} [选项] [参数]\n"
+                        f"支持管道 | 和重定向 >",
+                        "system"
+                    )
+                    return True
+                if val is True:
+                    args.append(f"--{key}")
+                else:
+                    args.append(f"--{key}" if len(key) > 1 else f"-{key}")
+                    args.append(str(val))
+
+            # 处理管道: 先执行 OS 命令, 再用管道处理结果
+            if len(pipeline.stages) > 1 or pipeline.redirect_to:
+                result = execute_os_command(cmd_name, args)
+                result_str = result.output if result.success else result.output
+
+                # 重定向
+                if pipeline.redirect_to and not pipeline.stages[1:]:
+                    try:
+                        with open(pipeline.redirect_to, "w", encoding="utf-8") as f:
+                            f.write(result_str)
+                        self._append_chat(f"✅ 输出已保存到 {pipeline.redirect_to}", "ok")
+                    except Exception as e:
+                        self._append_chat(f"❌ 写入失败: {e}", "error")
+                    return True
+
+                # 管道处理
+                for stage in pipeline.stages[1:]:
+                    pipe_cmd = stage.name.lower()
+                    if is_os_command(pipe_cmd):
+                        # 管道中也是 OS 命令 (如 grep), 将前一结果作为输入
+                        pipe_args = list(stage.positionals)
+                        # 用 echo 管道方式或直接用内置处理
+                        if pipe_cmd in ("grep", "findstr"):
+                            keyword = " ".join(pipe_args) if pipe_args else ""
+                            ignore_case = stage.flags.get("i") or stage.flags.get("ignore-case")
+                            if ignore_case:
+                                filtered = [ln for ln in result_str.split("\n")
+                                            if keyword.lower() in ln.lower()]
+                            else:
+                                filtered = [ln for ln in result_str.split("\n")
+                                            if keyword in ln]
+                            result_str = "\n".join(filtered) if filtered else "(无匹配)"
+                        elif pipe_cmd in ("head",):
+                            n = int(pipe_args[0]) if pipe_args else 10
+                            result_str = "\n".join(result_str.split("\n")[:n])
+                        elif pipe_cmd in ("tail",):
+                            n = int(pipe_args[0]) if pipe_args else 10
+                            result_str = "\n".join(result_str.split("\n")[-n:])
+                        elif pipe_cmd in ("wc",):
+                            lines = result_str.strip().split("\n") if result_str.strip() else []
+                            result_str = f"{len(lines)} 行"
+                        elif pipe_cmd in ("sort",):
+                            result_str = "\n".join(sorted(result_str.split("\n")))
+                        elif pipe_cmd in ("uniq",):
+                            seen = set()
+                            uniq_lines = []
+                            for ln in result_str.split("\n"):
+                                if ln not in seen:
+                                    seen.add(ln)
+                                    uniq_lines.append(ln)
+                            result_str = "\n".join(uniq_lines)
+                        else:
+                            # 通用: 直接执行 OS 命令, 通过 stdin 传数据
+                            import subprocess
+                            try:
+                                r = subprocess.run(
+                                    __import__("butler.tui.os_command_adapter", fromlist=["resolve_command"]).resolve_command(pipe_cmd) + pipe_args,
+                                    input=result_str, capture_output=True, text=True, timeout=30
+                                )
+                                result_str = r.stdout if r.stdout else "(无输出)"
+                            except Exception:
+                                self._append_chat(f"  | {pipe_cmd} (管道命令失败, 已跳过)", "system")
+                    else:
+                        self._append_chat(f"  | {pipe_cmd} (不支持的管道命令, 已跳过)", "system")
+
+                # 重定向在管道之后
+                if pipeline.redirect_to:
+                    try:
+                        with open(pipeline.redirect_to, "w", encoding="utf-8") as f:
+                            f.write(result_str)
+                        self._append_chat(f"✅ 输出已保存到 {pipeline.redirect_to}", "ok")
+                    except Exception as e:
+                        self._append_chat(f"❌ 写入失败: {e}", "error")
+                else:
+                    tag = "ok" if result.success else "error"
+                    prefix = "" if result.success else f"❌ "
+                    self._append_chat(f"{prefix}{result_str}", tag)
+                return True
+
+            # 无管道: 直接执行
+            result = execute_os_command(cmd_name, args)
+            tag = "ok" if result.success else "error"
+            if result.success:
+                self._append_chat(result.output, tag)
+            else:
+                self._append_chat(f"❌ {result.output}", tag)
+            return True
+
+        # 检查是否是 Butler 内置命令
         entry = _BY_NAME.get(cmd_name) or _BY_ALIAS.get(cmd_name)
         if not entry and cmd_name not in FLAG_REGISTRY:
             return False
@@ -960,6 +1202,14 @@ class ButlerTUI(App):
                 self._append_chat(f"没有找到匹配「{arg}」的命令，试试 /commands 浏览所有命令", "error")
             return
 
+        # ── 命令解释/翻译/对比 (转发给 Linux 风格处理器) ──
+        if name in ("cmd_explain", "explain", "cmd_translate", "cmd_compare", "compare",
+                    "os_help", "oslist", "oscommands"):
+            # 去掉 / 前缀, 用 Linux 解析器统一处理 (支持 -c / -t / -l 等选项)
+            reconstructed = cmd[1:]
+            if self._try_linux_command(reconstructed):
+                return
+
         # ── 在目录中查找命令 ──
         entry = get_command(name)
         if entry:
@@ -1192,7 +1442,27 @@ class ButlerTUI(App):
                 "  sys_info > system_snapshot.txt\n"
                 "  uninstaller | head 5\n\n"
                 "[bold]帮助:[/bold]\n"
-                "  任意命令 --help 或 -h 查看用法\n"
+                "  任意命令 --help 或 -h 查看用法\n\n"
+                "[bold cyan]🖥️ OS 原生命令 (跨平台)[/bold cyan]\n\n"
+                "[bold]文件操作:[/bold]  ls cat cp mv rm mkdir touch pwd ln chmod\n"
+                "[bold]搜索:[/bold]      find grep locate which whereis rg\n"
+                "[bold]进程:[/bold]      ps top kill killall tasklist taskkill\n"
+                "[bold]网络:[/bold]      ping ifconfig ipconfig netstat curl wget ssh nslookup\n"
+                "[bold]系统:[/bold]      uname uptime free lscpu whoami env hostname date\n"
+                "[bold]文本:[/bold]      echo sed awk sort uniq cut tr tee xargs jq wc diff\n"
+                "[bold]包管理:[/bold]    apt brew pip winget\n"
+                "[bold]压缩:[/bold]      tar zip unzip gzip\n"
+                "[bold]macOS:[/bold]     open pbcopy pbpaste say defaults\n"
+                "[bold]Windows:[/bold]   dir type copy move del systeminfo where findstr clip\n"
+                "[bold]服务:[/bold]      systemctl crontab sudo nohup watch sleep\n\n"
+                "[bold]OS 命令示例:[/bold]\n"
+                "  ls -la /tmp\n"
+                "  cat config.yaml | grep port\n"
+                "  ping -c 4 8.8.8.8\n"
+                "  ps aux | head 10\n"
+                "  find / -name '*.py' 2>/dev/null | head 20\n"
+                "  ls > files.txt\n"
+                "  os_help                    # 列出所有支持的 OS 命令\n"
             )
         return ""
 
