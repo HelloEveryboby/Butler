@@ -1,9 +1,7 @@
 """
-高级加密工具 - Butler Secure Vault v2
-支持双重动态加密体系 (Dual-Layer Encryption)：
-1. 第一层：独立前置锁（文件唯一 AES-128 密钥）。
-2. 第二层：6位核心码（全局核心码，仅存内存，PBKDF2 派生）。
-流程：先压缩 -> 生成 Layer 1 密钥 -> Layer 2 加密 Layer 1 密钥 -> Layer 1 加密压缩数据。
+高级加密工具 - Butler Secure Vault v3
+安全加固版：PBKDF2-HMAC-SHA256 (600K 迭代) + 随机 salt + AES-256-GCM 认证加密。
+兼容读取旧版 V2 加密文件（仅解密，不再使用 V2 格式加密新文件）。
 防暴力破解：5次错误即触发关键文件可逆乱码化。
 """
 import os
@@ -16,6 +14,9 @@ from typing import Optional
 from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
+from cryptography.hazmat.primitives import hashes as _crypto_hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from package.core_utils.log_manager import LogManager
 
 class SecureVault:
@@ -40,16 +41,31 @@ class SecureVault:
 
 class DualLayerEncryptor:
     def __init__(self):
-        self.header_magic = b"BUTLER_SECURE_V2"
+        self.header_magic_v2 = b"BUTLER_SECURE_V2"
+        self.header_magic = b"BUTLER_SECURE_V3"
         self.failed_attempts = 0
         self.max_attempts = 5
 
-    def _derive_layer2_key(self, core_code: str) -> bytes:
-        """从 6 位核心码派生第二层密钥 (SHA-256)"""
+    # ── V3: 安全密钥派生 (PBKDF2-HMAC-SHA256, 600K 迭代) ──
+
+    def _derive_key_v3(self, core_code: str, salt: bytes) -> bytes:
+        """从核心码 + salt 派生 256 位密钥 (PBKDF2-HMAC-SHA256, 600K 迭代)"""
+        kdf = PBKDF2HMAC(
+            algorithm=_crypto_hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=600000,
+        )
+        return kdf.derive(core_code.encode())
+
+    # ── V2 兼容: 旧版弱密钥派生 (仅用于解密旧文件) ──
+
+    def _derive_layer2_key_v2(self, core_code: str) -> bytes:
+        """[已废弃] 从 6 位核心码派生密钥 (单次 SHA-256)，仅用于兼容旧 V2 文件解密"""
         return hashlib.sha256(core_code.encode()).digest()
 
     def encrypt_file(self, file_path: str, core_code: str) -> str:
-        """双重加密核心逻辑"""
+        """AES-256-GCM 认证加密 (V3 格式)"""
         if len(core_code) != 6:
             raise ValueError("核心码必须为 6 位数字")
 
@@ -58,53 +74,62 @@ class DualLayerEncryptor:
             raw_data = f.read()
         compressed_data = zlib.compress(raw_data)
 
-        # 2. 生成 Layer 1 独立密钥 (AES-128)
-        layer1_key = get_random_bytes(16)
+        # 2. 生成随机 salt 和 nonce
+        salt = os.urandom(16)
+        nonce = os.urandom(12)
 
-        # 3. 加密 Layer 1 密钥 (用核心码派生的 Layer 2 密钥进行 XOR)
-        layer2_key = self._derive_layer2_key(core_code)
-        cipher_layer1_key = bytes(a ^ b for a, b in zip(layer1_key, layer2_key[:16]))
+        # 3. PBKDF2 派生密钥 (600K 迭代)
+        key = self._derive_key_v3(core_code, salt)
 
-        # 4. 加密内容 (Layer 1 AES-CBC)
-        cipher = AES.new(layer1_key, AES.MODE_CBC)
-        iv = cipher.iv
-        ciphertext = cipher.encrypt(pad(compressed_data, AES.block_size))
+        # 4. AES-256-GCM 认证加密
+        aesgcm = AESGCM(key)
+        ciphertext = aesgcm.encrypt(nonce, compressed_data, None)
 
-        # 5. 构建加密文件：Magic + Enc_L1_Key + IV + Data
+        # 5. 构建加密文件：Magic(V3) + Salt(16) + Nonce(12) + Ciphertext+Tag
         output_path = file_path + ".ble"
         with open(output_path, 'wb') as f:
             f.write(self.header_magic)
-            f.write(cipher_layer1_key)
-            f.write(iv)
+            f.write(salt)
+            f.write(nonce)
             f.write(ciphertext)
 
-        LogManager.log_stealth(f"Security: File protected with Dual-Layer: {file_path}")
+        LogManager.log_stealth(f"Security: File protected with AES-256-GCM (V3): {file_path}")
         return output_path
 
     def decrypt_file(self, file_path: str, core_code: str, output_path: Optional[str] = None) -> str:
-        """双重解密核心逻辑"""
+        """解密逻辑：自动识别 V3 (AES-GCM) 或 V2 (AES-CBC 兼容) 格式"""
         if len(core_code) != 6:
             raise ValueError("核心码必须为 6 位数字")
 
         try:
             with open(file_path, 'rb') as f:
-                magic = f.read(len(self.header_magic))
-                if magic != self.header_magic:
+                magic = f.read(16)
+
+                # ── V3 格式: AES-256-GCM ──
+                if magic == self.header_magic:
+                    salt = f.read(16)
+                    nonce = f.read(12)
+                    ciphertext = f.read()
+
+                    key = self._derive_key_v3(core_code, salt)
+                    aesgcm = AESGCM(key)
+                    compressed_data = aesgcm.decrypt(nonce, ciphertext, None)
+
+                # ── V2 格式: AES-CBC (向后兼容旧文件) ──
+                elif magic == self.header_magic_v2:
+                    cipher_layer1_key = f.read(16)
+                    iv = f.read(16)
+                    ciphertext = f.read()
+
+                    layer2_key = self._derive_layer2_key_v2(core_code)
+                    layer1_key = bytes(a ^ b for a, b in zip(cipher_layer1_key, layer2_key[:16]))
+                    cipher = AES.new(layer1_key, AES.MODE_CBC, iv)
+                    compressed_data = unpad(cipher.decrypt(ciphertext), AES.block_size)
+
+                else:
                     raise ValueError("文件格式不匹配或已损坏")
 
-                cipher_layer1_key = f.read(16)
-                iv = f.read(16)
-                ciphertext = f.read()
-
-            # 1. 解密 Layer 1 密钥 (用 Layer 2 XOR 还原)
-            layer2_key = self._derive_layer2_key(core_code)
-            layer1_key = bytes(a ^ b for a, b in zip(cipher_layer1_key, layer2_key[:16]))
-
-            # 2. 解密内容 (Layer 1 AES-CBC)
-            cipher = AES.new(layer1_key, AES.MODE_CBC, iv)
-            compressed_data = unpad(cipher.decrypt(ciphertext), AES.block_size)
-
-            # 3. 解压还原
+            # 解压还原
             raw_data = zlib.decompress(compressed_data)
 
             if not output_path:
@@ -115,7 +140,7 @@ class DualLayerEncryptor:
             with open(output_path, 'wb') as f:
                 f.write(raw_data)
 
-            self.failed_attempts = 0 # 成功后重置计数
+            self.failed_attempts = 0
             LogManager.log_stealth(f"Security: File restored: {file_path}")
             return output_path
 
