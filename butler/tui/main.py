@@ -528,45 +528,19 @@ class ButlerTUI(App):
         if pending:
             self._pending_tool = None
             self._update_status("就绪")
-            # 获取预设参数 (如 action)
             preset = getattr(self, "_pending_tool_params", None) or {}
-            # 解析多参数 | 分隔输入
-            if "|" in text and pending.startswith("skill_"):
-                parts = [p.strip() for p in text.split("|")]
-                if pending == "skill_docx_create":
-                    params = {"action": "create", "output": parts[0] if len(parts) > 0 else "",
-                              "title": parts[1] if len(parts) > 1 else "",
-                              "content": parts[2] if len(parts) > 2 else ""}
-                elif pending == "skill_pdf_merge":
-                    params = {"action": "merge", "files": parts[0] if parts else "",
-                              "output": parts[1] if len(parts) > 1 else ""}
-                elif pending == "skill_format_convert":
-                    params = {"action": "run", "input": parts[0] if parts else "",
-                              "to_fmt": parts[1] if len(parts) > 1 else "docx"}
-                elif pending == "skill_archive_compress":
-                    params = {"action": "compress", "archive_path": parts[0] if parts else "",
-                              "targets": parts[1] if len(parts) > 1 else "",
-                              "password": parts[2] if len(parts) > 2 else ""}
-                elif pending == "skill_archive_extract":
-                    params = {"action": "extract", "archive_path": parts[0] if parts else "",
-                              "output_dir": parts[1] if len(parts) > 1 else "",
-                              "password": parts[2] if len(parts) > 2 else ""}
-                elif pending == "skill_web_sec_test":
-                    params = {"action": "test", "target": parts[0] if parts else "",
-                              "mode": parts[1] if len(parts) > 1 else "full"}
-                else:
-                    params = self._parse_tool_input(pending, text)
-                    params.update(preset)
-            else:
-                # 单参数输入
-                params = self._parse_tool_input(pending, text)
-                params.update(preset)
+            # 用 Linux 解析器处理带选项的输入, 退化为简单位置参数
+            params = self._parse_pending_input(pending, text, preset)
             self._pending_tool_params = {}
             self._execute_tool(pending, params)
             return
 
+        # 尝试 Linux 风格命令 (无 / 前缀, 支持 -f --flag | >)
+        if self._try_linux_command(text):
+            return
+
+        # 兼容旧 / 前缀命令
         if text.startswith("/"):
-            # Check if it's a tool command first
             tool_handled = self._try_tool_command(text)
             if not tool_handled:
                 self._handle_slash_command(text)
@@ -581,6 +555,201 @@ class ButlerTUI(App):
         else:
             # Demo mode: simulate response
             self._simulate_jarvis_response(text)
+
+    # ── 命令名 → tool_name 映射 ──
+    _CMD_TO_TOOL = {
+        "markitdown": ("skill_markitdown", {}),
+        "docx_read": ("skill_docx", {"action": "read"}),
+        "docx_create": ("skill_docx", {"action": "create"}),
+        "pdf_extract": ("skill_pdf", {"action": "extract_text"}),
+        "pdf_merge": ("skill_pdf", {"action": "merge"}),
+        "pdf_split": ("skill_pdf", {"action": "split"}),
+        "archive_compress": ("skill_archive", {"action": "compress"}),
+        "archive_extract": ("skill_archive", {"action": "extract"}),
+        "archive_list": ("skill_archive", {"action": "list_contents"}),
+        "uninstaller": ("skill_uninstaller", {}),
+        "uninstall_scan": ("skill_uninstall_scan", {}),
+        "uninstall_do": ("skill_uninstall_do", {}),
+        "junk_scan": ("skill_junk_scan", {}),
+        "junk_clean": ("skill_junk_clean", {}),
+        "sys_info": ("skill_sys_info", {}),
+        "top_procs": ("skill_top_procs", {}),
+        "media_scan": ("skill_media_scan", {}),
+        "storage_hub": ("skill_storage_hub", {}),
+        "cloud_list": ("skill_cloud_list", {}),
+        "cloud_search": ("skill_cloud_search", {}),
+        "cloud_transfer": ("skill_cloud_transfer", {}),
+        "cloud_status": ("skill_cloud_status", {}),
+        "cloud_duplicates": ("skill_cloud_duplicates", {}),
+        "clip_magic": ("skill_clip_magic", {}),
+        "clip_history": ("skill_clip_history", {}),
+        "skill_stop": ("skill_stop", {}),
+        "skill_status": ("skill_status", {}),
+        "sec_scan": ("skill_sec_scan", {}),
+        "web_sec_test": ("skill_web_sec_test", {}),
+        "format_convert": ("skill_format_convert", {}),
+        "track_start": ("skill_track_start", {}),
+        "track_stop": ("skill_track_stop", {}),
+        "track_clean": ("skill_track_clean", {}),
+    }
+
+    def _parse_pending_input(self, pending: str, text: str, preset: dict) -> dict:
+        """解析 pending tool 的用户输入, 支持 Linux 选项和简单位置参数."""
+        from butler.tui.linux_parser import parse_pipeline, merge_flags_with_defs
+        from butler.tui.command_catalog import FLAG_REGISTRY
+
+        # 反向查找命令名
+        cmd_name = pending.replace("skill_", "").replace("skill_", "")
+        # 找到对应的 FLAG_REGISTRY 条目
+        flag_defs = None
+        for cname, defs in FLAG_REGISTRY.items():
+            tool_entry = self._CMD_TO_TOOL.get(cname)
+            if tool_entry and tool_entry[0] == pending:
+                flag_defs = defs
+                cmd_name = cname
+                break
+
+        # 如果输入包含选项 (- 或 --), 用 Linux 解析器
+        if flag_defs is not None and text.strip().startswith("-"):
+            pipeline = parse_pipeline(f"{cmd_name} {text}")
+            if pipeline.stages:
+                params = merge_flags_with_defs(pipeline.stages[0], flag_defs)
+                params.update(preset)
+                return params
+
+        # 退化为简单位置参数映射
+        params = {}
+        if flag_defs:
+            positionals = text.split()
+            pos_idx = 0
+            for fd in flag_defs:
+                if fd.required and pos_idx < len(positionals):
+                    params[fd.dest] = positionals[pos_idx]
+                    pos_idx += 1
+            if pos_idx < len(positionals):
+                params["__positionals__"] = positionals[pos_idx:]
+        else:
+            # 无 flag_defs, 整行作为单个参数
+            params = {"arg": text.strip()}
+
+        params.update(preset)
+        return params
+
+    def _try_linux_command(self, text: str) -> bool:
+        """尝试解析并执行 Linux 风格命令 (无 / 前缀)."""
+        from butler.tui.command_catalog import _BY_NAME, _BY_ALIAS, FLAG_REGISTRY
+        from butler.tui.linux_parser import parse_pipeline, merge_flags_with_defs, format_help
+
+        pipeline = parse_pipeline(text)
+        if not pipeline.stages:
+            return False
+
+        first = pipeline.stages[0]
+        cmd_name = first.name.lower()
+
+        # 检查是否是已知命令
+        entry = _BY_NAME.get(cmd_name) or _BY_ALIAS.get(cmd_name)
+        if not entry and cmd_name not in FLAG_REGISTRY:
+            return False
+
+        # 处理 --help / -h
+        if first.flags.get("__help__"):
+            flag_defs = FLAG_REGISTRY.get(cmd_name, [])
+            help_text = format_help(
+                cmd_name,
+                entry.description if entry else "",
+                entry.detail if entry else "",
+                flag_defs,
+                entry.example if entry else "",
+            )
+            self._append_chat(help_text, "system")
+            return True
+
+        # 查找 tool 映射
+        tool_mapping = self._CMD_TO_TOOL.get(cmd_name)
+        if not tool_mapping:
+            return False
+
+        tool_name, extra_params = tool_mapping
+        flag_defs = FLAG_REGISTRY.get(cmd_name, [])
+        params = merge_flags_with_defs(first, flag_defs)
+        params.update(extra_params)
+
+        # 处理 --no-dry-run 布尔开关
+        if params.pop("no_dry_run", None):
+            params["dry_run"] = False
+        elif "dry_run" not in params:
+            # 默认 dry_run=True (仅对需要它的命令)
+            if tool_name in ("skill_uninstall_do", "skill_junk_clean"):
+                params["dry_run"] = True
+
+        # 处理 > 重定向
+        if pipeline.redirect_to:
+            result = self._execute_tool_capture(tool_name, params)
+            if result is not None:
+                try:
+                    with open(pipeline.redirect_to, "w", encoding="utf-8") as f:
+                        f.write(str(result))
+                    self._append_chat(f"✅ 输出已保存到 {pipeline.redirect_to}", "ok")
+                except Exception as e:
+                    self._append_chat(f"❌ 写入文件失败: {e}", "error")
+            return True
+
+        # 处理 | 管道
+        if len(pipeline.stages) > 1:
+            result = self._execute_tool_capture(tool_name, params)
+            if result is not None:
+                result_str = str(result)
+                # 将结果传递给后续管道命令
+                for i, stage in enumerate(pipeline.stages[1:], 1):
+                    pipe_cmd = stage.name.lower()
+                    if pipe_cmd in ("grep", "find", "filter"):
+                        # 简易 grep: 按关键词过滤结果行
+                        keyword = stage.positionals[0] if stage.positionals else ""
+                        if stage.flags.get("i") or stage.flags.get("ignore-case"):
+                            filtered = [ln for ln in result_str.split("\n")
+                                        if keyword.lower() in ln.lower()]
+                        else:
+                            filtered = [ln for ln in result_str.split("\n")
+                                        if keyword in ln]
+                        result_str = "\n".join(filtered) if filtered else "(无匹配)"
+                    elif pipe_cmd in ("head", "first"):
+                        n = int(stage.positionals[0]) if stage.positionals else 10
+                        result_str = "\n".join(result_str.split("\n")[:n])
+                    elif pipe_cmd in ("tail", "last"):
+                        n = int(stage.positionals[0]) if stage.positionals else 10
+                        result_str = "\n".join(result_str.split("\n")[-n:])
+                    elif pipe_cmd in ("wc", "count"):
+                        lines = result_str.strip().split("\n")
+                        result_str = f"{len(lines)} 行"
+                    elif pipe_cmd in ("sort",):
+                        result_str = "\n".join(sorted(result_str.split("\n")))
+                    else:
+                        self._append_chat(f"  | {pipe_cmd} (不支持管道命令, 已跳过)", "system")
+                self._append_chat(result_str, "ai")
+            return True
+
+        # 普通单命令执行
+        self._execute_tool(tool_name, params)
+        return True
+
+    def _execute_tool_capture(self, tool_name: str, params: dict) -> str | None:
+        """执行工具并捕获输出文本 (不直接显示到聊天区)."""
+        import io, contextlib
+        captured = io.StringIO()
+        # 临时替换 _append_chat 以捕获输出
+        original_append = self._append_chat
+        captured_lines = []
+        def capture_append(text, tag="ai"):
+            captured_lines.append(text)
+        self._append_chat = capture_append
+        try:
+            self._execute_tool(tool_name, params)
+        except Exception as e:
+            captured_lines.append(f"❌ 执行异常: {e}")
+        finally:
+            self._append_chat = original_append
+        return "\n".join(captured_lines) if captured_lines else None
 
     def _try_tool_command(self, text: str) -> bool:
         """尝试将命令解析为工具调用."""
@@ -977,50 +1146,53 @@ class ButlerTUI(App):
             )
         elif tab_id == "tools-skills":
             return (
-                "[bold cyan]🧰 技能工具箱 (无需 AI)[/bold cyan]\n\n"
+                "[bold cyan]🧰 技能工具箱 (Linux 风格, 无需 AI)[/bold cyan]\n\n"
                 "[bold]文档处理:[/bold]\n"
-                "  转 Markdown:  /markitdown <文件>\n"
-                "  读 Word:      /docx_read <文件>\n"
-                "  建 Word:      /docx_create <路径> | <标题> | <内容>\n"
-                "  提取 PDF:     /pdf_extract <文件>\n"
-                "  合并 PDF:     /pdf_merge <文件1,文件2> | <输出>\n"
-                "  拆分 PDF:     /pdf_split <文件>\n"
-                "  格式转换:     /format_convert <输入> | <格式>\n\n"
+                "  markitdown -i <文件> [-o <输出>]\n"
+                "  docx_read -i <文件>\n"
+                "  docx_create -o <路径> -t <标题> -c <内容>\n"
+                "  pdf_extract -i <文件>\n"
+                "  pdf_merge -i <文件1,文件2> -o <输出>\n"
+                "  pdf_split -i <文件> [-o <目录>]\n"
+                "  format_convert -i <输入> -f <docx|epub|png|html>\n\n"
                 "[bold]压缩归档:[/bold]\n"
-                "  压缩:   /archive_compress <输出> | <目标> [| 密码]\n"
-                "  解压:   /archive_extract <压缩包> [| 输出目录] [| 密码]\n"
-                "  列出:   /archive_list <压缩包>\n\n"
+                "  archive_compress -o <输出> -t <目标> [-p <密码>]\n"
+                "  archive_extract -i <压缩包> [-d <目录>] [-p <密码>]\n"
+                "  archive_list -i <压缩包>\n\n"
                 "[bold]系统管理:[/bold]\n"
-                "  软件列表:    /uninstaller list\n"
-                "  残留扫描:    /uninstall_scan <软件名>\n"
-                "  深度卸载:    /uninstall_do <软件名> [| dry_run]\n"
-                "  垃圾扫描:    /junk_scan\n"
-                "  垃圾清理:    /junk_clean [| dry_run=false]\n"
-                "  系统信息:    /sys_info\n"
-                "  Top进程:     /top_procs [| cpu|memory]\n\n"
+                "  uninstaller [--action list|uninstall] [-n <软件名>]\n"
+                "  uninstall_scan -n <软件名>\n"
+                "  uninstall_do -n <软件名> [--no-dry-run]\n"
+                "  junk_scan [--categories <类型>]\n"
+                "  junk_clean [--no-dry-run]\n"
+                "  sys_info\n"
+                "  top_procs [-s cpu|memory] [-n <数量>]\n\n"
                 "[bold]安装追踪 (3步流程):[/bold]\n"
-                "  1.安装前:  /track_start\n"
-                "  2.安装后:  /track_stop\n"
-                "  3.清理:    /track_clean\n\n"
+                "  track_start    # 安装前快照\n"
+                "  track_stop     # 安装后差异\n"
+                "  track_clean    # 执行清理\n\n"
                 "[bold]媒体与存储:[/bold]\n"
-                "  媒体扫描:  /media_scan\n"
-                "  云盘列表:  /storage_hub list\n"
-                "  云盘文件:  /cloud_list <云盘ID> [| 路径]\n"
-                "  云盘搜索:  /cloud_search <关键词>\n"
-                "  跨盘传输:  /cloud_transfer <源> | <目标> | <文件名>\n"
-                "  传输状态:  /cloud_status <任务ID>\n"
-                "  查找重复:  /cloud_duplicates\n\n"
+                "  media_scan\n"
+                "  storage_hub [--action list]\n"
+                "  cloud_list -d <云盘ID> [-p <路径>]\n"
+                "  cloud_search -q <关键词>\n"
+                "  cloud_transfer -s <源盘> -d <目标盘> -f <文件名>\n"
+                "  cloud_status -t <任务ID>\n"
+                "  cloud_duplicates\n\n"
                 "[bold]剪贴板服务:[/bold]\n"
-                "  启动:    /clip_magic\n"
-                "  停止:    /skill_stop clip_magic\n"
-                "  状态:    /skill_status clip_magic\n"
-                "  历史:    /clip_history\n\n"
+                "  clip_magic              # 启动\n"
+                "  skill_stop -n clip_magic   # 停止\n"
+                "  skill_status -n clip_magic # 状态\n"
+                "  clip_history            # 历史\n\n"
                 "[bold]安全测试:[/bold]\n"
-                "  端口扫描:  /sec_scan <目标IP>\n"
-                "  Web 测试:  /web_sec_test <URL> [| full]\n\n"
-                "[bold]服务控制:[/bold]\n"
-                "  停止技能:  /skill_stop <名称>\n"
-                "  技能状态:  /skill_status [名称]\n"
+                "  sec_scan -t <目标IP> [-p <端口>]\n"
+                "  web_sec_test -t <URL> [-m recon|scan|full]\n\n"
+                "[bold]管道与重定向:[/bold]\n"
+                "  pdf_extract -i paper.pdf | grep keyword\n"
+                "  sys_info > system_snapshot.txt\n"
+                "  uninstaller | head 5\n\n"
+                "[bold]帮助:[/bold]\n"
+                "  任意命令 --help 或 -h 查看用法\n"
             )
         return ""
 
@@ -1245,7 +1417,7 @@ class ButlerTUI(App):
 
     @on(Button.Pressed, "#skill-btn-docx-create")
     def _on_skill_docx_create(self, _event):
-        self._append_chat("创建 Word 文档，请输入: 输出路径 | 标题 | 内容", "system")
+        self._append_chat("创建 Word 文档，请输入: -o <路径> -t <标题> -c <内容>", "system")
         self._pending_tool = "skill_docx_create"
 
     @on(Button.Pressed, "#skill-btn-pdf-extract")
@@ -1256,7 +1428,7 @@ class ButlerTUI(App):
 
     @on(Button.Pressed, "#skill-btn-pdf-merge")
     def _on_skill_pdf_merge(self, _event):
-        self._append_chat("合并 PDF，请输入: 文件1,文件2,... | 输出路径", "system")
+        self._append_chat("合并 PDF，请输入: -i <文件1,文件2> -o <输出路径>", "system")
         self._pending_tool = "skill_pdf_merge"
 
     @on(Button.Pressed, "#skill-btn-pdf-split")
@@ -1267,17 +1439,17 @@ class ButlerTUI(App):
 
     @on(Button.Pressed, "#skill-btn-format-convert")
     def _on_skill_format_convert(self, _event):
-        self._append_chat("格式转换，请输入: 输入文件 | 输出格式 (docx/epub/png/html)", "system")
+        self._append_chat("格式转换，请输入: -i <输入文件> -f <docx|epub|png|html>", "system")
         self._pending_tool = "skill_format_convert"
 
     @on(Button.Pressed, "#skill-btn-archive-compress")
     def _on_skill_archive_compress(self, _event):
-        self._append_chat("压缩文件，请输入: 输出路径 | 目标路径 [| 密码]", "system")
+        self._append_chat("压缩文件，请输入: -o <输出路径> -t <目标> [-p <密码>]", "system")
         self._pending_tool = "skill_archive_compress"
 
     @on(Button.Pressed, "#skill-btn-archive-extract")
     def _on_skill_archive_extract(self, _event):
-        self._append_chat("解压文件，请输入: 压缩包路径 [| 输出目录] [| 密码]", "system")
+        self._append_chat("解压文件，请输入: -i <压缩包> [-d <目录>] [-p <密码>]", "system")
         self._pending_tool = "skill_archive_extract"
 
     @on(Button.Pressed, "#skill-btn-archive-list")
@@ -1312,9 +1484,8 @@ class ButlerTUI(App):
 
     @on(Button.Pressed, "#skill-btn-web-sec")
     def _on_skill_web_sec(self, _event):
-        self._prompt_and_execute("skill_web_sec_test", "请输入目标 URL:")
+        self._append_chat("Web 安全测试，请输入: -t <URL> [-m recon|scan|full]", "system")
         self._pending_tool = "skill_web_sec_test"
-        self._pending_tool_params = {"mode": "full"}
 
     # ── 子操作按钮 ──
     @on(Button.Pressed, "#skill-btn-uninstall-scan")
@@ -1323,7 +1494,7 @@ class ButlerTUI(App):
 
     @on(Button.Pressed, "#skill-btn-uninstall-do")
     def _on_skill_uninstall_do(self, _event):
-        self._append_chat("深度卸载，请输入: 软件名 | dry_run (true/false, 默认true)", "system")
+        self._append_chat("深度卸载，请输入: -n <软件名> [--no-dry-run]", "system")
         self._pending_tool = "skill_uninstall_do"
 
     @on(Button.Pressed, "#skill-btn-junk-scan")
@@ -1332,7 +1503,7 @@ class ButlerTUI(App):
 
     @on(Button.Pressed, "#skill-btn-junk-clean")
     def _on_skill_junk_clean(self, _event):
-        self._append_chat("清理垃圾，请输入: dry_run (true/false, 默认true)", "system")
+        self._append_chat("清理垃圾，请输入: [--no-dry-run] (默认仅模拟)", "system")
         self._pending_tool = "skill_junk_clean"
 
     @on(Button.Pressed, "#skill-btn-sys-info")
@@ -1341,7 +1512,7 @@ class ButlerTUI(App):
 
     @on(Button.Pressed, "#skill-btn-top-procs")
     def _on_skill_top_procs(self, _event):
-        self._append_chat("查看 Top 进程，请输入排序方式: cpu 或 memory (默认cpu)", "system")
+        self._append_chat("Top 进程，请输入: [-s cpu|memory] [-n <数量>]", "system")
         self._pending_tool = "skill_top_procs"
 
     @on(Button.Pressed, "#skill-btn-track-start")
@@ -1358,7 +1529,7 @@ class ButlerTUI(App):
 
     @on(Button.Pressed, "#skill-btn-cloud-list")
     def _on_skill_cloud_list(self, _event):
-        self._append_chat("列出云盘文件，请输入: 云盘ID | 路径 (默认/)", "system")
+        self._append_chat("列出云盘文件，请输入: -d <云盘ID> [-p <路径>]", "system")
         self._pending_tool = "skill_cloud_list"
 
     @on(Button.Pressed, "#skill-btn-cloud-search")

@@ -695,6 +695,120 @@ COMMANDS: list[CommandEntry] = [
     ),
 ]
 
+# ── Linux 风格选项注册表 ─────────────────────────────────────
+# 每个命令对应的选项定义, 用于 parse_pipeline + merge_flags_with_defs
+
+from butler.tui.linux_parser import FlagDef
+
+FLAG_REGISTRY: dict[str, list[FlagDef]] = {
+    "markitdown": [
+        FlagDef("-i", "--input", "input", "输入文件路径", required=True),
+        FlagDef("-o", "--output", "output", "输出文件 (默认stdout)", required=False),
+    ],
+    "docx_read": [
+        FlagDef("-i", "--input", "file_path", "Word 文档路径", required=True),
+    ],
+    "docx_create": [
+        FlagDef("-o", "--output", "output", "输出文件路径", required=True),
+        FlagDef("-t", "--title", "title", "文档标题", required=False),
+        FlagDef("-c", "--content", "content", "正文内容", required=False),
+    ],
+    "pdf_extract": [
+        FlagDef("-i", "--input", "file_path", "PDF 文件路径", required=True),
+    ],
+    "pdf_merge": [
+        FlagDef("-i", "--inputs", "files", "输入文件列表 (逗号分隔)", required=True),
+        FlagDef("-o", "--output", "output", "合并后输出路径", required=True),
+    ],
+    "pdf_split": [
+        FlagDef("-i", "--input", "file_path", "要拆分的 PDF 文件", required=True),
+        FlagDef("-o", "--output-dir", "output_dir", "输出目录 (可选)", required=False),
+    ],
+    "archive_compress": [
+        FlagDef("-o", "--output", "archive_path", "输出压缩包路径", required=True),
+        FlagDef("-t", "--target", "targets", "要压缩的文件/目录", required=True),
+        FlagDef("-p", "--password", "password", "加密密码 (可选)", required=False),
+    ],
+    "archive_extract": [
+        FlagDef("-i", "--input", "archive_path", "压缩包路径", required=True),
+        FlagDef("-d", "--dest", "output_dir", "输出目录 (可选)", required=False),
+        FlagDef("-p", "--password", "password", "解压密码 (可选)", required=False),
+    ],
+    "archive_list": [
+        FlagDef("-i", "--input", "archive_path", "压缩包路径", required=True),
+    ],
+    "uninstaller": [
+        FlagDef("", "--action", "action", "操作: list/uninstall (默认list)", required=False),
+        FlagDef("-n", "--name", "name", "软件名 (uninstall 时必填)", required=False),
+    ],
+    "uninstall_scan": [
+        FlagDef("-n", "--name", "name", "软件名", required=True),
+    ],
+    "uninstall_do": [
+        FlagDef("-n", "--name", "name", "软件名", required=True),
+        FlagDef("", "--dry-run", "dry_run", "仅模拟不删除 (布尔, 默认true)", is_bool=True),
+        FlagDef("", "--no-dry-run", "no_dry_run", "实际执行删除 (布尔)", is_bool=True),
+    ],
+    "junk_scan": [
+        FlagDef("", "--categories", "categories", "过滤类型 (逗号分隔, 可选)", required=False),
+    ],
+    "junk_clean": [
+        FlagDef("", "--dry-run", "dry_run", "仅模拟 (布尔, 默认true)", is_bool=True),
+        FlagDef("", "--no-dry-run", "no_dry_run", "实际删除 (布尔)", is_bool=True),
+        FlagDef("", "--categories", "categories", "过滤类型 (可选)", required=False),
+    ],
+    "sys_info": [],
+    "top_procs": [
+        FlagDef("-s", "--sort", "sort_by", "排序: cpu/memory (默认cpu)", required=False),
+        FlagDef("-n", "--limit", "limit", "显示数量 (默认15)", required=False),
+    ],
+    "media_scan": [],
+    "storage_hub": [
+        FlagDef("", "--action", "action", "操作: list (默认list)", required=False),
+    ],
+    "cloud_list": [
+        FlagDef("-d", "--drive", "drive", "云盘ID", required=True),
+        FlagDef("-p", "--path", "path", "路径 (默认/)", required=False),
+    ],
+    "cloud_search": [
+        FlagDef("-q", "--query", "query", "搜索关键词", required=True),
+    ],
+    "cloud_transfer": [
+        FlagDef("-s", "--src", "src_drive", "源云盘ID", required=True),
+        FlagDef("-d", "--dst", "dst_drive", "目标云盘ID", required=True),
+        FlagDef("-f", "--file", "file_name", "文件名", required=True),
+        FlagDef("", "--src-path", "source_path", "源路径 (默认/)", required=False),
+        FlagDef("", "--dst-path", "dst_path", "目标路径 (默认/)", required=False),
+    ],
+    "cloud_status": [
+        FlagDef("-t", "--task", "task_id", "传输任务ID", required=True),
+    ],
+    "cloud_duplicates": [],
+    "clip_magic": [],
+    "clip_history": [],
+    "skill_stop": [
+        FlagDef("-n", "--name", "skill", "技能名: clip_magic/focus/pixel_pet", required=True),
+    ],
+    "skill_status": [
+        FlagDef("-n", "--name", "skill", "技能名 (可选, 不填列全部)", required=False),
+    ],
+    "sec_scan": [
+        FlagDef("-t", "--target", "target", "目标IP", required=True),
+        FlagDef("-p", "--ports", "ports", "端口范围 (可选, 如 1-1000)", required=False),
+    ],
+    "web_sec_test": [
+        FlagDef("-t", "--target", "target", "目标URL", required=True),
+        FlagDef("-m", "--mode", "mode", "模式: recon/scan/full (默认full)", required=False),
+    ],
+    "format_convert": [
+        FlagDef("-i", "--input", "input", "输入文件", required=True),
+        FlagDef("-f", "--format", "to_fmt", "输出格式: docx/epub/png/html", required=True),
+    ],
+    "track_start": [],
+    "track_stop": [],
+    "track_clean": [],
+}
+
 # 构建快速查找索引
 _BY_NAME: dict[str, CommandEntry] = {}
 _BY_ALIAS: dict[str, CommandEntry] = {}
