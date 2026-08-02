@@ -238,6 +238,7 @@ class ButlerTUI(App):
                         Tab("🔐 安全", id="tools-security"),
                         Tab("📄 文档", id="tools-doc"),
                         Tab("⚙️ 系统", id="tools-system"),
+                        Tab("🧰 技能", id="tools-skills"),
                     )
                     yield VerticalScroll(id="tools-content")
 
@@ -527,7 +528,40 @@ class ButlerTUI(App):
         if pending:
             self._pending_tool = None
             self._update_status("就绪")
-            params = self._parse_tool_input(pending, text)
+            # 获取预设参数 (如 action)
+            preset = getattr(self, "_pending_tool_params", None) or {}
+            # 解析多参数 | 分隔输入
+            if "|" in text and pending.startswith("skill_"):
+                parts = [p.strip() for p in text.split("|")]
+                if pending == "skill_docx_create":
+                    params = {"action": "create", "output": parts[0] if len(parts) > 0 else "",
+                              "title": parts[1] if len(parts) > 1 else "",
+                              "content": parts[2] if len(parts) > 2 else ""}
+                elif pending == "skill_pdf_merge":
+                    params = {"action": "merge", "files": parts[0] if parts else "",
+                              "output": parts[1] if len(parts) > 1 else ""}
+                elif pending == "skill_format_convert":
+                    params = {"action": "run", "input": parts[0] if parts else "",
+                              "to_fmt": parts[1] if len(parts) > 1 else "docx"}
+                elif pending == "skill_archive_compress":
+                    params = {"action": "compress", "archive_path": parts[0] if parts else "",
+                              "targets": parts[1] if len(parts) > 1 else "",
+                              "password": parts[2] if len(parts) > 2 else ""}
+                elif pending == "skill_archive_extract":
+                    params = {"action": "extract", "archive_path": parts[0] if parts else "",
+                              "output_dir": parts[1] if len(parts) > 1 else "",
+                              "password": parts[2] if len(parts) > 2 else ""}
+                elif pending == "skill_web_sec_test":
+                    params = {"action": "test", "target": parts[0] if parts else "",
+                              "mode": parts[1] if len(parts) > 1 else "full"}
+                else:
+                    params = self._parse_tool_input(pending, text)
+                    params.update(preset)
+            else:
+                # 单参数输入
+                params = self._parse_tool_input(pending, text)
+                params.update(preset)
+            self._pending_tool_params = {}
             self._execute_tool(pending, params)
             return
 
@@ -584,6 +618,24 @@ class ButlerTUI(App):
             "doctor": ("doctor", lambda a: {}),
             "skills_list": ("skills_list", lambda a: {}),
             "skills_find": ("skills_list", lambda a: {}),
+            # ── 技能命令 (无 AI 可用) ──
+            "markitdown": ("skill_markitdown", lambda a: {"path": a}),
+            "docx_read": ("skill_docx", lambda a: {"action": "read", "file_path": a}),
+            "docx_create": ("skill_docx", lambda a: self._parse_pipe_input(a, ["output", "title", "content"], {"action": "create"})),
+            "pdf_extract": ("skill_pdf", lambda a: {"action": "extract_text", "file_path": a}),
+            "pdf_merge": ("skill_pdf", lambda a: self._parse_pipe_input(a, ["files", "output"], {"action": "merge"})),
+            "pdf_split": ("skill_pdf", lambda a: {"action": "split", "file_path": a}),
+            "archive_compress": ("skill_archive", lambda a: self._parse_pipe_input(a, ["archive_path", "targets", "password"], {"action": "compress"})),
+            "archive_extract": ("skill_archive", lambda a: self._parse_pipe_input(a, ["archive_path", "output_dir", "password"], {"action": "extract"})),
+            "archive_list": ("skill_archive", lambda a: {"action": "list_contents", "archive_path": a}),
+            "uninstaller": ("skill_uninstaller", lambda a: self._parse_skill_action(a, "list")),
+            "sys_clean": ("skill_sys_clean", lambda a: self._parse_skill_action(a, "help")),
+            "media_scan": ("skill_media_scan", lambda a: {}),
+            "storage_hub": ("skill_storage_hub", lambda a: self._parse_skill_action(a, "list")),
+            "clip_magic": ("skill_clip_magic", lambda a: {}),
+            "sec_scan": ("skill_sec_scan", lambda a: {"target": a}),
+            "web_sec_test": ("skill_web_sec_test", lambda a: self._parse_pipe_input(a, ["target", "mode"], {"action": "test"})),
+            "format_convert": ("skill_format_convert", lambda a: self._parse_pipe_input(a, ["input", "to_fmt"], {"action": "run"})),
         }
 
         if name in tool_map:
@@ -647,6 +699,27 @@ class ButlerTUI(App):
         path = parts[1] if len(parts) > 1 else ""
         content = parts[2] if len(parts) > 2 else ""
         return {"op": op, "path": path, "content": content}
+
+    def _parse_pipe_input(self, text: str, keys: list, base: dict) -> dict:
+        """用 | 分隔参数，按 keys 顺序映射到 dict (合并 base)."""
+        result = dict(base)
+        if not text:
+            return result
+        parts = [p.strip() for p in text.split("|")]
+        for i, key in enumerate(keys):
+            if i < len(parts) and parts[i]:
+                result[key] = parts[i]
+        return result
+
+    def _parse_skill_action(self, text: str, default_action: str) -> dict:
+        """解析技能的 action 参数 (格式: action | arg1 | arg2)."""
+        if not text:
+            return {"action": default_action}
+        parts = [p.strip() for p in text.split("|")]
+        result = {"action": parts[0] if parts else default_action}
+        for i, part in enumerate(parts[1:], 1):
+            result[f"arg{i}"] = part
+        return result
 
     def _handle_slash_command(self, cmd: str):
         parts = cmd[1:].split(None, 1)
@@ -884,6 +957,32 @@ class ButlerTUI(App):
                 "  列出技能:  /skills_list\n"
                 "  查找技能:  /skills_find <keyword>\n"
             )
+        elif tab_id == "tools-skills":
+            return (
+                "[bold cyan]🧰 技能工具箱 (无需 AI)[/bold cyan]\n\n"
+                "[bold]文档处理:[/bold]\n"
+                "  转 Markdown:  /markitdown <文件>\n"
+                "  读 Word:      /docx_read <文件>\n"
+                "  建 Word:      /docx_create <路径> | <标题> | <内容>\n"
+                "  提取 PDF:     /pdf_extract <文件>\n"
+                "  合并 PDF:     /pdf_merge <文件1,文件2> | <输出>\n"
+                "  拆分 PDF:     /pdf_split <文件>\n"
+                "  格式转换:     /format_convert <输入> | <格式>\n\n"
+                "[bold]压缩归档:[/bold]\n"
+                "  压缩:   /archive_compress <输出> | <目标> [| 密码]\n"
+                "  解压:   /archive_extract <压缩包> [| 输出目录] [| 密码]\n"
+                "  列出:   /archive_list <压缩包>\n\n"
+                "[bold]系统管理:[/bold]\n"
+                "  软件卸载:  /uninstaller [list | uninstall <名>]\n"
+                "  垃圾清理:  /sys_clean [track | clean]\n\n"
+                "[bold]媒体与存储:[/bold]\n"
+                "  媒体扫描:  /media_scan\n"
+                "  云盘管理:  /storage_hub [list]\n"
+                "  剪贴板:    /clip_magic\n\n"
+                "[bold]安全测试:[/bold]\n"
+                "  端口扫描:  /sec_scan <目标IP>\n"
+                "  Web 测试:  /web_sec_test <URL> [| full]\n"
+            )
         return ""
 
     def _mount_tool_buttons(self, content, tab_id: str):
@@ -939,6 +1038,51 @@ class ButlerTUI(App):
             row.mount(btn_doc)
             row.mount(btn_skills)
             content.mount(row)
+
+        elif tab_id == "tools-skills":
+            content.mount(Label("  快速操作:"))
+
+            # 文档处理行
+            row1 = Horizontal()
+            row1.mount(Button("📄 转 Markdown", id="skill-btn-markitdown", variant="primary"))
+            row1.mount(Button("📝 读 Word", id="skill-btn-docx-read", variant="success"))
+            row1.mount(Button("✍️ 建 Word", id="skill-btn-docx-create", variant="success"))
+            content.mount(row1)
+
+            row2 = Horizontal()
+            row2.mount(Button("📑 提取 PDF", id="skill-btn-pdf-extract", variant="primary"))
+            row2.mount(Button("🔗 合并 PDF", id="skill-btn-pdf-merge", variant="primary"))
+            row2.mount(Button("✂️ 拆分 PDF", id="skill-btn-pdf-split", variant="primary"))
+            content.mount(row2)
+
+            row3 = Horizontal()
+            row3.mount(Button("🔄 格式转换", id="skill-btn-format-convert", variant="success"))
+            content.mount(row3)
+
+            # 压缩归档行
+            content.mount(Label("  压缩归档:"))
+            row4 = Horizontal()
+            row4.mount(Button("📦 压缩", id="skill-btn-archive-compress", variant="primary"))
+            row4.mount(Button("📤 解压", id="skill-btn-archive-extract", variant="success"))
+            row4.mount(Button("📋 列出内容", id="skill-btn-archive-list", variant="default"))
+            content.mount(row4)
+
+            # 系统管理行
+            content.mount(Label("  系统管理:"))
+            row5 = Horizontal()
+            row5.mount(Button("🗑️ 软件卸载", id="skill-btn-uninstaller", variant="warning"))
+            row5.mount(Button("🧹 垃圾清理", id="skill-btn-sys-clean", variant="warning"))
+            row5.mount(Button("🎵 媒体扫描", id="skill-btn-media-scan", variant="success"))
+            content.mount(row5)
+
+            # 存储与安全行
+            content.mount(Label("  存储与安全:"))
+            row6 = Horizontal()
+            row6.mount(Button("☁️ 云盘管理", id="skill-btn-storage-hub", variant="primary"))
+            row6.mount(Button("📋 剪贴板", id="skill-btn-clip-magic", variant="default"))
+            row6.mount(Button("🔍 端口扫描", id="skill-btn-sec-scan", variant="error"))
+            row6.mount(Button("🛡️ Web 测试", id="skill-btn-web-sec", variant="error"))
+            content.mount(row6)
 
     @on(Tabs.TabActivated, "#view-tools Tabs")
     def _on_tools_tab_changed(self, event):
@@ -1003,6 +1147,90 @@ class ButlerTUI(App):
     @on(Button.Pressed, "#tool-skills-list")
     def _on_tool_skills_btn(self, _event):
         self._execute_tool("skills_list", {})
+
+    # ── 技能按钮处理器 (无 AI 可用) ──
+    @on(Button.Pressed, "#skill-btn-markitdown")
+    def _on_skill_markitdown(self, _event):
+        self._prompt_and_execute("skill_markitdown", "请输入要转换的文件路径:")
+
+    @on(Button.Pressed, "#skill-btn-docx-read")
+    def _on_skill_docx_read(self, _event):
+        self._prompt_and_execute("skill_docx", "请输入 Word 文档路径:")
+        self._pending_tool = "skill_docx"
+        self._pending_tool_params = {"action": "read"}
+
+    @on(Button.Pressed, "#skill-btn-docx-create")
+    def _on_skill_docx_create(self, _event):
+        self._append_chat("创建 Word 文档，请输入: 输出路径 | 标题 | 内容", "system")
+        self._pending_tool = "skill_docx_create"
+
+    @on(Button.Pressed, "#skill-btn-pdf-extract")
+    def _on_skill_pdf_extract(self, _event):
+        self._prompt_and_execute("skill_pdf", "请输入 PDF 文件路径:")
+        self._pending_tool = "skill_pdf"
+        self._pending_tool_params = {"action": "extract_text"}
+
+    @on(Button.Pressed, "#skill-btn-pdf-merge")
+    def _on_skill_pdf_merge(self, _event):
+        self._append_chat("合并 PDF，请输入: 文件1,文件2,... | 输出路径", "system")
+        self._pending_tool = "skill_pdf_merge"
+
+    @on(Button.Pressed, "#skill-btn-pdf-split")
+    def _on_skill_pdf_split(self, _event):
+        self._prompt_and_execute("skill_pdf", "请输入要拆分的 PDF 文件路径:")
+        self._pending_tool = "skill_pdf"
+        self._pending_tool_params = {"action": "split"}
+
+    @on(Button.Pressed, "#skill-btn-format-convert")
+    def _on_skill_format_convert(self, _event):
+        self._append_chat("格式转换，请输入: 输入文件 | 输出格式 (docx/epub/png/html)", "system")
+        self._pending_tool = "skill_format_convert"
+
+    @on(Button.Pressed, "#skill-btn-archive-compress")
+    def _on_skill_archive_compress(self, _event):
+        self._append_chat("压缩文件，请输入: 输出路径 | 目标路径 [| 密码]", "system")
+        self._pending_tool = "skill_archive_compress"
+
+    @on(Button.Pressed, "#skill-btn-archive-extract")
+    def _on_skill_archive_extract(self, _event):
+        self._append_chat("解压文件，请输入: 压缩包路径 [| 输出目录] [| 密码]", "system")
+        self._pending_tool = "skill_archive_extract"
+
+    @on(Button.Pressed, "#skill-btn-archive-list")
+    def _on_skill_archive_list(self, _event):
+        self._prompt_and_execute("skill_archive", "请输入压缩包路径:")
+        self._pending_tool = "skill_archive"
+        self._pending_tool_params = {"action": "list_contents"}
+
+    @on(Button.Pressed, "#skill-btn-uninstaller")
+    def _on_skill_uninstaller(self, _event):
+        self._execute_tool("skill_uninstaller", {"action": "list"})
+
+    @on(Button.Pressed, "#skill-btn-sys-clean")
+    def _on_skill_sys_clean(self, _event):
+        self._execute_tool("skill_sys_clean", {"action": "clean"})
+
+    @on(Button.Pressed, "#skill-btn-media-scan")
+    def _on_skill_media_scan(self, _event):
+        self._execute_tool("skill_media_scan", {})
+
+    @on(Button.Pressed, "#skill-btn-storage-hub")
+    def _on_skill_storage_hub(self, _event):
+        self._execute_tool("skill_storage_hub", {"action": "list"})
+
+    @on(Button.Pressed, "#skill-btn-clip-magic")
+    def _on_skill_clip_magic(self, _event):
+        self._execute_tool("skill_clip_magic", {})
+
+    @on(Button.Pressed, "#skill-btn-sec-scan")
+    def _on_skill_sec_scan(self, _event):
+        self._prompt_and_execute("skill_sec_scan", "请输入目标 IP 地址:")
+
+    @on(Button.Pressed, "#skill-btn-web-sec")
+    def _on_skill_web_sec(self, _event):
+        self._prompt_and_execute("skill_web_sec_test", "请输入目标 URL:")
+        self._pending_tool = "skill_web_sec_test"
+        self._pending_tool_params = {"mode": "full"}
 
     def _prompt_and_execute(self, tool_name: str, prompt: str):
         """在聊天区提示用户输入参数并执行工具."""
@@ -1131,6 +1359,118 @@ class ButlerTUI(App):
                 except Exception as e:
                     self._append_chat(f"❌ 技能列表加载失败: {e}", "error")
 
+            # ── 技能执行 (无 AI 可用) ──
+            elif tool_name == "skill_markitdown":
+                from skills.markitdown.markitdown_app import convert
+                path = params.get("path", "")
+                if not path:
+                    self._append_chat("用法: /markitdown <文件路径>", "system")
+                    return
+                self._append_chat(f"📄 转换文件为 Markdown: {path}", "system")
+                result = convert(path)
+                self._append_chat(result[:5000] if len(result) > 5000 else result, "ai")
+
+            elif tool_name == "skill_docx":
+                from skills.docx.main import handle_request
+                action = params.get("action", "read")
+                result = handle_request(action, **params)
+                self._append_chat(str(result), "ai")
+
+            elif tool_name == "skill_pdf":
+                from skills.pdf.main import handle_request
+                action = params.get("action", "extract_text")
+                result = handle_request(action, **params)
+                self._append_chat(str(result), "ai")
+
+            elif tool_name == "skill_archive":
+                from skills.archive_manager import handle_request
+                action = params.get("action", "list_contents")
+                result = handle_request(action, **params)
+                self._append_chat(str(result), "ai")
+
+            elif tool_name == "skill_uninstaller":
+                from skills.geek_uninstaller.main import handle_request
+                action = params.get("action", "list")
+                result = handle_request(action, **params)
+                self._append_chat(str(result), "ai")
+
+            elif tool_name == "skill_sys_clean":
+                from skills.sys_cleaner.main import start_track, stop_track
+                action = params.get("action", "help")
+                if action == "track":
+                    result = start_track(params)
+                    self._append_chat(f"🔍 开始追踪安装变更: {result}", "system")
+                elif action == "clean":
+                    result = stop_track(params)
+                    self._append_chat(f"🧹 清理结果: {result}", "ai")
+                else:
+                    self._append_chat("用法: /sys_clean [track | clean]", "system")
+
+            elif tool_name == "skill_media_scan":
+                from skills.media_manager.media_manager import MediaManagerSkill
+                mm = MediaManagerSkill()
+                library = mm.get_media_library()
+                if library:
+                    audio_files = [f for f in library if f.get("type") == "audio"]
+                    image_files = [f for f in library if f.get("type") == "image"]
+                    self._append_chat(
+                        f"🎵 扫描完成: {len(audio_files)} 个音频, {len(image_files)} 张图片\n"
+                        f"前 10 个文件:\n" + "\n".join(f"  - {f.get('name', '?')}" for f in library[:10]),
+                        "ai"
+                    )
+                else:
+                    self._append_chat("未找到媒体文件", "system")
+
+            elif tool_name == "skill_storage_hub":
+                from skills.storage_hub.hub_manager import HubManager
+                hub = HubManager()
+                action = params.get("action", "list")
+                if action == "list":
+                    drives = hub.config.get("drives", [])
+                    if drives:
+                        lines = ["☁️ 已配置云盘:"]
+                        for d in drives:
+                            lines.append(f"  - {d.get('name', '?')} ({d.get('type', '?')})")
+                        self._append_chat("\n".join(lines), "ai")
+                    else:
+                        self._append_chat("未配置云盘适配器", "system")
+                else:
+                    self._append_chat(f"云盘操作: {action} (详细操作请使用 CLI)", "system")
+
+            elif tool_name == "skill_clip_magic":
+                from skills.skill_clip_magic.clip_analyzer import handle_request
+                result = handle_request("run")
+                self._append_chat(f"📋 {result}", "ok")
+
+            elif tool_name == "skill_sec_scan":
+                from skills.skill_sec_radar.sec_manager import handle_request
+                target = params.get("target", "127.0.0.1")
+                self._append_chat(f"🔍 SYN 扫描目标: {target}", "system")
+                result = handle_request("scan", target=target)
+                self._append_chat(str(result), "ai")
+
+            elif tool_name == "skill_web_sec_test":
+                from skills.security.web_security_tester.main import handle_request
+                target = params.get("target", "")
+                mode = params.get("mode", "full")
+                if not target:
+                    self._append_chat("用法: /web_sec_test <目标URL>", "system")
+                    return
+                self._append_chat(f"🛡️ Web 安全测试: {target} (模式: {mode})", "system")
+                result = handle_request("test", target=target, mode=mode)
+                self._append_chat(str(result), "ai")
+
+            elif tool_name == "skill_format_convert":
+                from skills.format_convert.format_convert import handle_request
+                inp = params.get("input", "")
+                to_fmt = params.get("to_fmt", "docx")
+                if not inp:
+                    self._append_chat("用法: /format_convert <输入文件> | <输出格式>", "system")
+                    return
+                self._append_chat(f"🔄 格式转换: {inp} → {to_fmt}", "system")
+                result = handle_request("run", input=inp, to=to_fmt)
+                self._append_chat(str(result), "ai")
+
             else:
                 self._append_chat(f"未知工具: {tool_name}", "error")
 
@@ -1146,6 +1486,16 @@ class ButlerTUI(App):
     @_pending_tool.setter
     def _pending_tool(self, value):
         self._pending_tool_value = value
+
+    @property
+    def _pending_tool_params(self):
+        if not hasattr(self, "_pending_tool_params_value"):
+            self._pending_tool_params_value = {}
+        return self._pending_tool_params_value
+
+    @_pending_tool_params.setter
+    def _pending_tool_params(self, value):
+        self._pending_tool_params_value = value
 
     # ------------------------ Dashboard ------------------------ #
 
