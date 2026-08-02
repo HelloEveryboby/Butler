@@ -92,6 +92,73 @@
                                     <span class="quick-action-desc">一键同步代码与资产到局域网节点</span>
                                 </div>
                             </div>
+
+                            <!-- 无 AI 可用技能面板 -->
+                            <div class="skill-section-divider">
+                                <span>🧰 本地技能 (Linux 风格, 无需 AI)</span>
+                            </div>
+                            <div class="quick-actions-container">
+                                <div class="quick-action-card" onclick="triggerQuickAction('markitdown -i ', '📄')">
+                                    <i class="fas fa-file-lines" style="color: #007AFF;"></i>
+                                    <span class="quick-action-title">转 Markdown</span>
+                                    <span class="quick-action-desc">-i &lt;文件&gt; PDF/DOCX 转为 Markdown</span>
+                                </div>
+                                <div class="quick-action-card" onclick="triggerQuickAction('docx_read -i ', '📝')">
+                                    <i class="fas fa-file-word" style="color: #2B579A;"></i>
+                                    <span class="quick-action-title">读取 Word</span>
+                                    <span class="quick-action-desc">-i &lt;文件&gt; 提取 .docx 文本</span>
+                                </div>
+                                <div class="quick-action-card" onclick="triggerQuickAction('pdf_extract -i ', '📑')">
+                                    <i class="fas fa-file-pdf" style="color: #FF3B30;"></i>
+                                    <span class="quick-action-title">提取 PDF</span>
+                                    <span class="quick-action-desc">-i &lt;文件&gt; 提取 PDF 文本</span>
+                                </div>
+                                <div class="quick-action-card" onclick="triggerQuickAction('archive_compress -o ', '📦')">
+                                    <i class="fas fa-file-zipper" style="color: #FF9500;"></i>
+                                    <span class="quick-action-title">压缩打包</span>
+                                    <span class="quick-action-desc">-o &lt;输出&gt; -t &lt;目标&gt; [-p 密码]</span>
+                                </div>
+                                <div class="quick-action-card" onclick="triggerQuickAction('archive_extract -i ', '📤')">
+                                    <i class="fas fa-box-open" style="color: #34C759;"></i>
+                                    <span class="quick-action-title">解压文件</span>
+                                    <span class="quick-action-desc">-i &lt;压缩包&gt; [-d 目录] [-p 密码]</span>
+                                </div>
+                                <div class="quick-action-card" onclick="triggerQuickAction('archive_list -i ', '📋')">
+                                    <i class="fas fa-list" style="color: #5856D6;"></i>
+                                    <span class="quick-action-title">查看压缩包</span>
+                                    <span class="quick-action-desc">-i &lt;压缩包&gt; 列出内容</span>
+                                </div>
+                                <div class="quick-action-card" onclick="triggerQuickAction('uninstaller', '🗑️')">
+                                    <i class="fas fa-trash-can" style="color: #FF3B30;"></i>
+                                    <span class="quick-action-title">软件卸载</span>
+                                    <span class="quick-action-desc">列出/卸载已安装软件</span>
+                                </div>
+                                <div class="quick-action-card" onclick="triggerQuickAction('media_scan', '🎵')">
+                                    <i class="fas fa-music" style="color: #FF2D55;"></i>
+                                    <span class="quick-action-title">媒体扫描</span>
+                                    <span class="quick-action-desc">全盘扫描 MP3/WAV/JPG</span>
+                                </div>
+                                <div class="quick-action-card" onclick="triggerQuickAction('storage_hub --action list', '☁️')">
+                                    <i class="fas fa-cloud" style="color: #007AFF;"></i>
+                                    <span class="quick-action-title">云盘管理</span>
+                                    <span class="quick-action-desc">OneDrive/WebDAV/百度</span>
+                                </div>
+                                <div class="quick-action-card" onclick="triggerQuickAction('sec_scan -t ', '🔍')">
+                                    <i class="fas fa-radar" style="color: #FF9500;"></i>
+                                    <span class="quick-action-title">端口扫描</span>
+                                    <span class="quick-action-desc">-t &lt;IP&gt; [-p 端口范围]</span>
+                                </div>
+                                <div class="quick-action-card" onclick="triggerQuickAction('web_sec_test -t ', '🛡️')">
+                                    <i class="fas fa-shield-halved" style="color: #AF52DE;"></i>
+                                    <span class="quick-action-title">Web 安全测试</span>
+                                    <span class="quick-action-desc">-t &lt;URL&gt; [-m recon|scan|full]</span>
+                                </div>
+                                <div class="quick-action-card" onclick="triggerQuickAction('format_convert -i ', '🔄')">
+                                    <i class="fas fa-arrows-rotate" style="color: #34C759;"></i>
+                                    <span class="quick-action-title">格式转换</span>
+                                    <span class="quick-action-desc">-i &lt;输入&gt; -f &lt;docx|epub|png&gt;</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="chat-input-container">
