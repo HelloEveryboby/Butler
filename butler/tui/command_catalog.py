@@ -813,6 +813,29 @@ FLAG_REGISTRY: dict[str, list[FlagDef]] = {
         FlagDef("", "--action", "action", "操作: track/clean (默认显示帮助)", required=False),
     ],
 
+    # ── 命令解释/翻译命令 ──
+    "cmd_explain": [
+        FlagDef("-c", "--cmd", "cmd_name", "要解释的命令名", required=True),
+        FlagDef("-a", "--args", "args", "附加参数 (空格分隔字符串)", required=False),
+    ],
+    "explain": [
+        FlagDef("-c", "--cmd", "cmd_name", "要解释的命令名", required=True),
+        FlagDef("-a", "--args", "args", "附加参数", required=False),
+    ],
+    "cmd_translate": [
+        FlagDef("-c", "--cmd", "command_line", "完整命令行", required=True),
+        FlagDef("-t", "--to", "target_os", "目标系统: linux/windows/macos", required=False),
+    ],
+    "cmd_compare": [
+        FlagDef("-l", "--list", "commands", "逗号分隔或空格分隔的命令列表", required=False),
+    ],
+    "compare": [
+        FlagDef("-l", "--list", "commands", "逗号分隔命令列表", required=False),
+    ],
+    "os_help": [],
+    "oslist": [],
+    "oscommands": [],
+
     # ── 网络命令 ──
     "weather": [
         FlagDef("-c", "--city", "city", "城市名 (默认北京)", required=False),

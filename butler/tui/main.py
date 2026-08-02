@@ -696,6 +696,83 @@ class ButlerTUI(App):
         first = pipeline.stages[0]
         cmd_name = first.name.lower()
 
+        # ── 命令解释器 / 翻译器 / 对比器 ──
+        if cmd_name in ("cmd_explain", "explain"):
+            from butler.tui.os_command_adapter import explain_command
+            flag_defs = FLAG_REGISTRY.get(cmd_name, [])
+            params = merge_flags_with_defs(first, flag_defs)
+            target_cmd = params.get("cmd_name", "")
+            args_raw = params.get("args", "")
+            args_list = args_raw.split() if args_raw else None
+            if not target_cmd:
+                self._append_chat(
+                    "用法:\n"
+                    "  cmd_explain -c <命令名>       # 解释命令 + 三平台翻译\n"
+                    "  cmd_explain -c ls -a '-la /tmp'  # 附参数说明\n"
+                    "  别名: explain\n",
+                    "system"
+                )
+                return True
+            self._append_chat(explain_command(target_cmd, args_list), "ai")
+            return True
+
+        if cmd_name == "cmd_translate":
+            from butler.tui.os_command_adapter import translate_command_line
+            flag_defs = FLAG_REGISTRY.get(cmd_name, [])
+            params = merge_flags_with_defs(first, flag_defs)
+            cmd_line = params.get("command_line", "")
+            target_os = params.get("target_os", "")
+            if not cmd_line:
+                self._append_chat(
+                    "用法:\n"
+                    "  cmd_translate -c 'ls -la /home'          # 翻译到三平台\n"
+                    "  cmd_translate -c 'dir /s' -t linux       # 翻译到指定平台\n"
+                    "  cmd_translate -c 'grep error log' -t windows\n",
+                    "system"
+                )
+                return True
+            if target_os and target_os.lower() in ("linux", "windows", "macos"):
+                result = translate_command_line(cmd_line, target_os.lower())
+                self._append_chat(
+                    f"🔄 翻译到 {target_os.upper()}:\n"
+                    f"  输入: {cmd_line}\n"
+                    f"  输出: {result}",
+                    "ai"
+                )
+            else:
+                lines = [f"🔄 跨平台翻译: {cmd_line}\n"]
+                for os_name in ("linux", "windows", "macos"):
+                    translated = translate_command_line(cmd_line, os_name)
+                    lines.append(f"  {os_name.upper():<9} 👉  {translated}")
+                self._append_chat("\n".join(lines), "ai")
+            return True
+
+        if cmd_name in ("cmd_compare", "compare"):
+            from butler.tui.os_command_adapter import compare_commands
+            flag_defs = FLAG_REGISTRY.get(cmd_name, [])
+            params = merge_flags_with_defs(first, flag_defs)
+            commands_str = params.get("commands", "")
+            # 优先用 --list, 退化为位置参数
+            if commands_str:
+                if "," in commands_str:
+                    cmd_list = [s.strip() for s in commands_str.split(",")]
+                else:
+                    cmd_list = commands_str.split()
+            else:
+                cmd_list = list(first.positionals)
+            if not cmd_list:
+                self._append_chat(
+                    "用法:\n"
+                    "  cmd_compare 'ls -la' 'grep pattern file'\n"
+                    "  cmd_compare ls, grep, ping, find\n"
+                    "  compare -l 'ls -la,dir,find'\n"
+                    "别名: compare\n",
+                    "system"
+                )
+                return True
+            self._append_chat(compare_commands(cmd_list), "ai")
+            return True
+
         # ── 优先检查 OS 原生命令 (ls, cat, grep, ping, ps...) ──
         if is_os_command(cmd_name):
             # 特殊处理: os_help 命令
@@ -813,22 +890,6 @@ class ButlerTUI(App):
             return True
 
         # 检查是否是 Butler 内置命令
-        entry = _BY_NAME.get(cmd_name) or _BY_ALIAS.get(cmd_name)
-        if not entry and cmd_name not in FLAG_REGISTRY:
-            return False
-
-        # 处理 --help / -h
-        if first.flags.get("__help__"):
-            flag_defs = FLAG_REGISTRY.get(cmd_name, [])
-            help_text = format_help(
-                cmd_name,
-                entry.description if entry else "",
-                entry.detail if entry else "",
-                flag_defs,
-                entry.example if entry else "",
-            )
-
-        # 检查是否是已知命令
         entry = _BY_NAME.get(cmd_name) or _BY_ALIAS.get(cmd_name)
         if not entry and cmd_name not in FLAG_REGISTRY:
             return False
@@ -1140,6 +1201,14 @@ class ButlerTUI(App):
             else:
                 self._append_chat(f"没有找到匹配「{arg}」的命令，试试 /commands 浏览所有命令", "error")
             return
+
+        # ── 命令解释/翻译/对比 (转发给 Linux 风格处理器) ──
+        if name in ("cmd_explain", "explain", "cmd_translate", "cmd_compare", "compare",
+                    "os_help", "oslist", "oscommands"):
+            # 去掉 / 前缀, 用 Linux 解析器统一处理 (支持 -c / -t / -l 等选项)
+            reconstructed = cmd[1:]
+            if self._try_linux_command(reconstructed):
+                return
 
         # ── 在目录中查找命令 ──
         entry = get_command(name)

@@ -976,6 +976,91 @@ grep --help
 ping --help
 ```
 
+### 7.6 跨平台命令解释器 (cmd_explain)
+
+**核心功能：输入任一命令名，自动显示其功能说明 + 三平台翻译 + 参数语义 + 使用示例**
+
+```bash
+# 基础用法
+cmd_explain -c ls              # 解释 ls 命令
+explain -c grep                # 别名: explain
+
+# 附参数说明
+cmd_explain -c rm -a '-rf'     # 解释 rm 命令, 并说明 -rf 参数
+cmd_explain -c tar -a '-czf out.tar.gz src'  # 解释 tar 命令及参数
+cmd_explain -c grep -a '-r pattern src/'
+
+# 也支持 / 前缀
+/cmd_explain -c ls
+/explain -c chmod
+```
+
+**输出包含：**
+- 📖 命令功能描述（中文）
+- ━━━ 跨平台翻译━━━：Linux / Windows / macOS 三平台的等效命令
+- ━━━ 参数解释━━━：输入参数的语义含义，以及该语义在三平台的对应写法（如 recursive → Linux -r / Windows /s / macOS -R）
+- ━━━ 常用参数速查━━━：该命令最常见的选项说明
+- ━━━ 常见用法━━━：3-5 条典型使用示例
+
+### 7.7 跨平台命令翻译器 (cmd_translate)
+
+**核心功能：把一条完整命令（含参数）自动翻译成指定平台或全部三平台**
+
+```bash
+# 翻译到全部三平台
+cmd_translate -c 'ls -la /home'           # Linux 风格 → 三平台
+cmd_translate -c 'dir /s /b *.log'        # Windows 风格 → 三平台
+cmd_translate -c 'grep -r error app.log'
+
+# 翻译到指定平台 (-t: linux / windows / macos)
+cmd_translate -c 'dir /s' -t linux        # Windows dir /s → Linux
+cmd_translate -c 'taskkill /f /im chrome.exe' -t macos
+cmd_translate -c 'findstr /s /i error' -t linux
+
+# 也支持 / 前缀
+/cmd_translate -c 'ls -la' -t windows
+```
+
+**典型输出：**
+```
+🔄 跨平台翻译: ls -la /home
+
+  LINUX     👉  ls -la /home
+  WINDOWS   👉  cmd /c dir -la /home
+  MACOS     👉  ls -la /home
+```
+
+### 7.8 批量命令跨平台对比 (cmd_compare / compare)
+
+**核心功能：一次比较多条命令，在一张表格里同时看它们在三平台的实现差异**
+
+```bash
+# 方式一: 空格分隔多条命令
+cmd_compare 'ls -la' 'grep pattern file' 'ping 8.8.8.8' 'rm -rf cache'
+
+# 方式二: 逗号分隔命令名
+cmd_compare ls, grep, find, curl, tar
+compare -l 'ls -la, dir, findstr, taskkill'
+
+# 也支持 / 前缀
+/cmd_compare 'ls -la' 'cat file' 'ps aux'
+/compare -l 'ping, curl, wget, scp'
+```
+
+**典型输出表格：**
+```
+📋 命令跨平台对比表
+
+  输入                │ LINUX             │ WINDOWS                     │ macOS
+  ───────────────────────────────────────────────────────────────────────────
+  ls -la            │ ls -la            │ cmd /c dir -la              │ ls -la
+  grep pattern file │ grep pattern file │ cmd /c findstr pattern file │ grep pattern file
+  ping 8.8.8.8      │ ping -c 4 8.8.8.8 │ cmd /c ping -n 4 8.8.8.8    │ ping -c 4 8.8.8.8
+  rm -rf cache/     │ rm -rf cache/     │ cmd /c del -rf cache/       │ rm -rf cache/
+
+💡 无论你使用哪个平台, 输入任一命令名, Butler 会自动翻译执行。
+```
+
 ---
 
 ## 8. 底层执行命令
@@ -1009,5 +1094,6 @@ sh -c "pip install requests"
 | Butler 文档命令 | 5 | 格式转换/文件操作 |
 | Butler 系统命令 | 5 | 监控/依赖/诊断/技能列表 |
 | Butler 对话命令 | 15 | 帮助/状态/专注/任务/记忆等 |
+| **跨平台命令解释工具** | **8** | cmd_explain / explain / cmd_translate / cmd_compare / compare / os_help / oslist / oscommands |
 | OS 原生命令 | 106 | 跨平台 Linux/Win/macOS |
-| **总计** | **178** | |
+| **总计** | **186** | |
