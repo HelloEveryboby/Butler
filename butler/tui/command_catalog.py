@@ -807,6 +807,124 @@ FLAG_REGISTRY: dict[str, list[FlagDef]] = {
     "track_start": [],
     "track_stop": [],
     "track_clean": [],
+
+    # ── 旧技能别名 ──
+    "sys_clean": [
+        FlagDef("", "--action", "action", "操作: track/clean (默认显示帮助)", required=False),
+    ],
+
+    # ── 网络命令 ──
+    "weather": [
+        FlagDef("-c", "--city", "city", "城市名 (默认北京)", required=False),
+    ],
+    "crawl_url": [
+        FlagDef("-u", "--url", "url", "要爬取的 URL", required=True),
+    ],
+    "crawl_query": [
+        FlagDef("-q", "--query", "query", "搜索关键词", required=True),
+    ],
+    "email_send": [
+        FlagDef("-t", "--to", "to", "收件人邮箱", required=True),
+        FlagDef("-s", "--subject", "subject", "邮件主题", required=False),
+        FlagDef("-b", "--body", "body", "邮件正文", required=False),
+    ],
+    "email_recv": [],
+    "img_search": [
+        FlagDef("-q", "--query", "query", "搜索关键词", required=True),
+    ],
+    "translate": [
+        FlagDef("-t", "--text", "text", "要翻译的文本", required=False),
+        FlagDef("", "--to", "target", "目标语言 (默认自动)", required=False),
+    ],
+    "translate_file": [
+        FlagDef("-i", "--input", "file_path", "文件路径", required=True),
+    ],
+    "translate_url": [
+        FlagDef("-u", "--url", "url", "网页 URL", required=True),
+    ],
+
+    # ── 安全命令 ──
+    "encrypt": [
+        FlagDef("-i", "--input", "file_path", "要加密的文件", required=True),
+        FlagDef("-p", "--password", "password", "加密密码 (可选)", required=False),
+    ],
+    "decrypt": [
+        FlagDef("-i", "--input", "file_path", "要解密的文件", required=True),
+        FlagDef("-p", "--password", "password", "解密密码 (可选)", required=False),
+    ],
+    "audit_security": [],
+    "audit_dir": [
+        FlagDef("-d", "--dir", "dir_path", "目录路径", required=True),
+    ],
+
+    # ── 文档命令 ──
+    "convert": [
+        FlagDef("-i", "--input", "input_file", "输入文件", required=True),
+        FlagDef("-o", "--output", "output_file", "输出文件", required=True),
+    ],
+    "file_create": [
+        FlagDef("-o", "--output", "path", "文件路径", required=True),
+        FlagDef("-c", "--content", "content", "文件内容", required=False),
+    ],
+    "file_read": [
+        FlagDef("-i", "--input", "file_path", "文件路径", required=True),
+    ],
+    "file_delete": [
+        FlagDef("-i", "--input", "file_path", "要删除的文件", required=True),
+        FlagDef("", "--no-confirm", "no_confirm", "跳过确认 (布尔)", is_bool=True),
+    ],
+    "file_list": [
+        FlagDef("-d", "--dir", "dir_path", "目录路径 (默认当前目录)", required=False),
+        FlagDef("-a", "--all", "show_all", "显示隐藏文件 (布尔)", is_bool=True),
+    ],
+
+    # ── 系统命令 ──
+    "monitor": [],
+    "dep_install": [
+        FlagDef("-p", "--package", "package", "包名 (可选, 不填装核心依赖)", required=False),
+    ],
+    "dep_all": [],
+    "doctor": [],
+    "skills_list": [],
+
+    # ── 对话/管理命令 ──
+    "help": [
+        FlagDef("", "--cmd", "cmd_name", "命令名 (查看特定命令帮助)", required=False),
+    ],
+    "commands": [
+        FlagDef("-q", "--query", "keyword", "过滤关键词", required=False),
+    ],
+    "howto": [
+        FlagDef("-q", "--query", "query", "你想做什么", required=False),
+    ],
+    "status": [],
+    "kairos": [],
+    "performance": [
+        FlagDef("-m", "--mode", "mode", "模式: high/eco/normal", required=True),
+    ],
+    "dream": [],
+    "focus": [
+        FlagDef("-t", "--time", "minutes", "专注时间 (分钟, 默认25)", required=False),
+    ],
+    "focus-stop": [],
+    "clear": [],
+    "tasks": [],
+    "team": [],
+    "memory": [],
+    "profile": [],
+    "exit": [],
+
+    # ── 底层执行命令 ──
+    "py": [
+        FlagDef("-c", "--code", "code", "Python 代码", required=True),
+        FlagDef("-f", "--file", "file", "Python 文件路径", required=False),
+    ],
+    "sh": [
+        FlagDef("-c", "--command", "command", "Shell 命令", required=True),
+    ],
+    "py_eval": [
+        FlagDef("-c", "--code", "code", "Python 表达式", required=True),
+    ],
 }
 
 # 构建快速查找索引
