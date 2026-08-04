@@ -1,9 +1,0 @@
-# Butler AI - AI 对话与 NLU 能力
-# 安装: pip install -r requirements-ai.txt
--r requirements-core.txt
-openai>=1.0
-anthropic
-deepseek
-instructor
-scikit-learn
-scipy

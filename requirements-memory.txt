@@ -1,6 +1,0 @@
-# Butler Memory - 向量记忆三级降级链
-# 安装: pip install -r requirements-memory.txt
-redis
-redisvl
-zvec
-numpy
