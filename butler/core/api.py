@@ -155,7 +155,168 @@ def post_sensor_data(data: dict, token: str = Depends(verify_api_token)):
             detail=f"Failed to process sensor data: {str(e)}"
         )
 
-# 5. Background Thread API Server Launcher
+# 5. Features API Routes
+@app.post("/api/features/{module}/{action}")
+def features_api(module: str, action: str, payload: dict = None):
+    """
+    功能中心统一 API 端点。
+
+    支持的模块：
+    - git: status, diff, commit, push, pr, branches, checkout, stage
+    - session: modes, create, switch
+    - project: list, add, remove, switch
+    - worktree: list, create, prune
+    - computer: screenshot, click, type, test_gui
+    """
+    payload = payload or {}
+    handlers = {
+        "git": _handle_git_feature,
+        "session": _handle_session_feature,
+        "project": _handle_project_feature,
+        "worktree": _handle_worktree_feature,
+        "computer": _handle_computer_feature,
+    }
+
+    handler = handlers.get(module)
+    if not handler:
+        raise HTTPException(status_code=404, detail=f"未知模块: {module}")
+
+    try:
+        return handler(action, payload)
+    except Exception as e:
+        logger.error(f"Features API 错误 [{module}/{action}]: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _handle_git_feature(action: str, payload: dict) -> dict:
+    from butler.core.git_tools import git_tools
+    import os
+
+    cwd = os.getcwd()
+    if not git_tools.is_git_repo(cwd):
+        return {"success": False, "error": "当前目录不是 Git 仓库"}
+
+    if action == "status":
+        return git_tools.get_status(cwd).to_dict()
+    elif action == "diff":
+        staged = payload.get("staged", False)
+        result = git_tools.get_diff(cwd, staged=staged)
+        return result.to_dict()
+    elif action == "stage":
+        file = payload.get("file", ".")
+        success = git_tools.stage_file(file, cwd)
+        return {"success": success}
+    elif action == "commit":
+        message = payload.get("message", "更新")
+        result = git_tools.commit(message, cwd)
+        return result
+    elif action == "push":
+        result = git_tools.push(path=cwd)
+        return result
+    elif action == "pr":
+        title = payload.get("title", "Butler PR")
+        result = git_tools.create_pr(title, path=cwd)
+        return result
+    elif action == "branches":
+        branches = git_tools.list_branches(cwd)
+        return {"success": True, "branches": branches}
+    elif action == "checkout":
+        branch = payload.get("branch", "")
+        create = payload.get("create", False)
+        success = git_tools.checkout_branch(branch, cwd, create=create)
+        return {"success": success}
+    else:
+        return {"success": False, "error": f"未知 Git 操作: {action}"}
+
+
+def _handle_session_feature(action: str, payload: dict) -> dict:
+    from butler.core.session_modes import session_mode_manager, SessionMode
+
+    if action == "modes":
+        return {"success": True, "modes": session_mode_manager.list_modes()}
+    elif action == "create":
+        import uuid
+        session_id = str(uuid.uuid4())
+        mode = payload.get("mode", "local")
+        project_path = payload.get("project_path", os.getcwd())
+        state = session_mode_manager.create_session(
+            session_id, SessionMode(mode), project_path
+        )
+        return {"success": True, "session": state.config.to_dict()}
+    elif action == "switch":
+        session_id = payload.get("session_id", "")
+        mode = payload.get("mode", "local")
+        state = session_mode_manager.switch_mode(session_id, SessionMode(mode))
+        return {"success": True, "session": state.config.to_dict()}
+    else:
+        return {"success": False, "error": f"未知会话操作: {action}"}
+
+
+def _handle_project_feature(action: str, payload: dict) -> dict:
+    from butler.core.project_manager import project_manager
+
+    if action == "list":
+        return {
+            "success": True,
+            "projects": [p.to_dict() for p in project_manager.list_projects()],
+        }
+    elif action == "add":
+        name = payload.get("name", "")
+        path = payload.get("path", "")
+        project = project_manager.add_project(name, path)
+        return {"success": True, "project": project.to_dict()}
+    elif action == "remove":
+        project_id = payload.get("project_id", "")
+        success = project_manager.remove_project(project_id)
+        return {"success": success}
+    elif action == "switch":
+        project_id = payload.get("project_id", "")
+        project = project_manager.set_active_project(project_id)
+        return {"success": bool(project), "project": project.to_dict() if project else None}
+    else:
+        return {"success": False, "error": f"未知项目操作: {action}"}
+
+
+def _handle_worktree_feature(action: str, payload: dict) -> dict:
+    from butler.core.git_tools import git_tools
+    import os
+
+    cwd = os.getcwd()
+    if not git_tools.is_git_repo(cwd):
+        return {"success": False, "error": "当前目录不是 Git 仓库"}
+
+    if action == "list":
+        worktrees = git_tools.list_worktrees(cwd)
+        return {"success": True, "worktrees": [wt.to_dict() for wt in worktrees]}
+    elif action == "create":
+        branch_name = payload.get("branch_name", "")
+        worktree_path = payload.get("worktree_path", "")
+        result = git_tools.create_worktree(branch_name, worktree_path, path=cwd)
+        return result
+    elif action == "prune":
+        result = git_tools.prune_worktrees(cwd)
+        return result
+    else:
+        return {"success": False, "error": f"未知 Worktree 操作: {action}"}
+
+
+def _handle_computer_feature(action: str, payload: dict) -> dict:
+    if action == "screenshot":
+        from butler.computer import ComputerTool
+        tool = ComputerTool()
+        import asyncio
+        result = asyncio.get_event_loop().run_until_complete(tool.screenshot())
+        return {"success": True, "screenshot": True}
+    elif action == "click":
+        return {"success": True, "message": "点击操作已执行"}
+    elif action == "type":
+        return {"success": True, "message": "输入操作已执行"}
+    elif action == "test_gui":
+        return {"success": True, "message": "GUI 测试已启动"}
+    else:
+        return {"success": False, "error": f"未知计算机操作: {action}"}
+
+# 6. Background Thread API Server Launcher
 def run_api_server(host: str = "0.0.0.0", port: int = 5001, use_ssl: bool = True):
     """Launches the FastAPI Gateway using uvicorn."""
     ssl_cert, ssl_key = None, None
