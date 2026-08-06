@@ -23,7 +23,23 @@ from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import quote
 
+from butler.core.security import (
+    sanitize_git_message,
+    validate_branch_name,
+    validate_git_message,
+    validate_name,
+    validate_path,
+    validate_project_id,
+    validate_session_id,
+)
+
 logger = logging.getLogger(__name__)
+
+_MAX_GIT_OUTPUT_LINES = 10000
+_DEFAULT_TIMEOUT = 30
+_MAX_TIMEOUT = 120
+
+_ALLOWED_REMOTE_RE = re.compile(r'^[\w.\-]+$')
 
 
 @dataclass
@@ -146,18 +162,28 @@ class GitTools:
     GIT_EXECUTABLE = "git"
 
     def __init__(self, repo_path: str = ""):
-        self._repo_path = repo_path
+        if repo_path:
+            self._repo_path = validate_path(repo_path)
+        else:
+            self._repo_path = ""
 
     def _run_git(
         self,
         args: list[str],
         cwd: Optional[str] = None,
         check: bool = True,
-        timeout: int = 30,
+        timeout: int = _DEFAULT_TIMEOUT,
     ) -> subprocess.CompletedProcess:
         """执行 Git 命令。"""
+        timeout = max(1, min(timeout, _MAX_TIMEOUT))
         cmd = [self.GIT_EXECUTABLE] + args
-        target_cwd = cwd or self._repo_path or os.getcwd()
+
+        if cwd:
+            target_cwd = validate_path(cwd, must_exist=True)
+        elif self._repo_path:
+            target_cwd = self._repo_path
+        else:
+            target_cwd = os.getcwd()
 
         try:
             result = subprocess.run(
@@ -166,16 +192,17 @@ class GitTools:
                 capture_output=True,
                 text=True,
                 timeout=timeout,
+                max_output_size=_MAX_GIT_OUTPUT_LINES * 1024,
             )
             if check and result.returncode != 0:
                 raise RuntimeError(
-                    f"Git 命令失败 (exit {result.returncode}): {result.stderr.strip()}"
+                    f"Git 命令失败 (exit {result.returncode}): {result.stderr.strip()[:200]}"
                 )
             return result
         except FileNotFoundError:
             raise RuntimeError("Git 未安装或不在 PATH 中")
         except subprocess.TimeoutExpired:
-            raise RuntimeError(f"Git 命令超时: {' '.join(cmd)}")
+            raise RuntimeError(f"Git 命令超时")
 
     def is_git_repo(self, path: str = "") -> bool:
         """检查路径是否在 Git 仓库中。"""
@@ -363,40 +390,43 @@ class GitTools:
 
     def stage_file(self, file_path: str, path: str = "") -> bool:
         """暂存文件。"""
-        target = path or self._repo_path
+        target = validate_path(path) if path else (self._repo_path or os.getcwd())
         try:
-            self._run_git(["add", file_path], cwd=target)
-            logger.info(f"文件已暂存: {file_path}")
+            safe_path = validate_name(file_path, "文件路径")
+            self._run_git(["add", "--", safe_path], cwd=target)
+            logger.info(f"文件已暂存: {safe_path}")
             return True
-        except RuntimeError as e:
+        except (RuntimeError, ValueError) as e:
             logger.error(f"暂存失败: {e}")
             return False
 
     def unstage_file(self, file_path: str, path: str = "") -> bool:
         """取消暂存文件。"""
-        target = path or self._repo_path
+        target = validate_path(path) if path else (self._repo_path or os.getcwd())
         try:
-            self._run_git(["reset", "HEAD", "--", file_path], cwd=target)
+            safe_path = validate_name(file_path, "文件路径")
+            self._run_git(["reset", "HEAD", "--", safe_path], cwd=target)
             return True
-        except RuntimeError:
+        except (RuntimeError, ValueError):
             try:
-                self._run_git(["restore", "--staged", file_path], cwd=target)
+                self._run_git(["restore", "--staged", "--", safe_path], cwd=target)
                 return True
-            except RuntimeError as e:
+            except (RuntimeError, ValueError) as e:
                 logger.error(f"取消暂存失败: {e}")
                 return False
 
     def discard_changes(self, file_path: str, path: str = "") -> bool:
         """丢弃文件的工作区变更。"""
-        target = path or self._repo_path
+        target = validate_path(path) if path else (self._repo_path or os.getcwd())
         try:
-            self._run_git(["checkout", "--", file_path], cwd=target)
+            safe_path = validate_name(file_path, "文件路径")
+            self._run_git(["checkout", "--", safe_path], cwd=target)
             return True
-        except RuntimeError:
+        except (RuntimeError, ValueError):
             try:
-                self._run_git(["restore", file_path], cwd=target)
+                self._run_git(["restore", "--", safe_path], cwd=target)
                 return True
-            except RuntimeError as e:
+            except (RuntimeError, ValueError) as e:
                 logger.error(f"丢弃变更失败: {e}")
                 return False
 
@@ -415,19 +445,23 @@ class GitTools:
         提交变更。
 
         参数:
-            message: 提交信息
+            message: 提交信息（已净化，防注入）
             path: 仓库路径
-            files: 指定提交的文件（空则提交所有已暂存变更）
+            files: 指定提交的文件
             amend: 是否修改上一次提交
         """
-        target = path or self._repo_path
+        target = validate_path(path) if path else (self._repo_path or os.getcwd())
 
         try:
             if files:
                 for f in files:
-                    self._run_git(["add", f], cwd=target)
+                    safe_f = validate_name(f, "文件路径")
+                    self._run_git(["add", "--", safe_f], cwd=target)
 
-            args = ["commit", "-m", message]
+            safe_message = validate_git_message(message)
+            msg_args = sanitize_git_message(safe_message)
+
+            args = ["commit"] + msg_args
             if amend:
                 args.append("--amend")
             else:
@@ -440,10 +474,10 @@ class GitTools:
             return {
                 "success": True,
                 "commit_hash": commit_hash,
-                "message": message,
+                "message": safe_message[:200],
             }
         except RuntimeError as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": str(e)[:200]}
 
     def push(
         self,
@@ -457,18 +491,22 @@ class GitTools:
         推送到远程仓库。
 
         参数:
-            remote: 远程名称
-            branch: 分支名（空则推送当前分支）
+            remote: 远程名称（仅允许字母、数字、点、连字符）
+            branch: 分支名（已验证）
             path: 仓库路径
             force: 强制推送
             upstream: 设置上游分支
         """
-        target = path or self._repo_path
+        target = validate_path(path) if path else (self._repo_path or os.getcwd())
+
+        if not _ALLOWED_REMOTE_RE.match(remote):
+            return {"success": False, "error": "远程名称包含非法字符"}
 
         try:
             args = ["push", remote]
             if branch:
-                args.append(branch)
+                safe_branch = validate_branch_name(branch)
+                args.append(safe_branch)
             if force:
                 args.append("--force")
             if upstream:
@@ -478,7 +516,7 @@ class GitTools:
             logger.info(f"推送成功: {remote}/{branch or 'current'}")
             return {"success": True}
         except RuntimeError as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": str(e)[:200]}
 
     def _get_last_commit_hash(self, path: str = "") -> str:
         """获取最近一次提交的哈希。"""
@@ -508,31 +546,38 @@ class GitTools:
 
         尝试使用 GitHub CLI，如果不可用则生成 PR URL。
         """
-        target = path or self._repo_path
-        head = head_branch or self._get_current_branch(target)
+        target = validate_path(path) if path else (self._repo_path or os.getcwd())
 
+        try:
+            safe_title = validate_git_message(title)
+            safe_base = validate_branch_name(base_branch)
+            safe_head = validate_branch_name(head_branch) if head_branch else ""
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
+        head = safe_head or self._get_current_branch(target)
         if not head:
             return {"success": False, "error": "无法获取当前分支"}
 
         try:
             result = subprocess.run(
-                ["gh", "pr", "create", "--title", title, "--body", body,
-                 "--base", base_branch, "--head", head, "--json", "url"],
+                ["gh", "pr", "create", "--title", safe_title, "--body", body[:2000],
+                 "--base", safe_base, "--head", head, "--json", "url"],
                 cwd=target,
                 capture_output=True,
                 text=True,
                 timeout=30,
             )
             if result.returncode == 0:
-                pr_url = result.stdout.strip()
+                pr_url = result.stdout.strip()[:500]
                 logger.info(f"PR 已创建: {pr_url}")
                 return {"success": True, "pr_url": pr_url, "method": "gh_cli"}
         except (FileNotFoundError, subprocess.TimeoutExpired):
             pass
 
-        pr_url = self._construct_pr_url(target, base_branch, head, title)
+        pr_url = self._construct_pr_url(target, safe_base, head, safe_title)
         logger.info(f"已生成 PR URL: {pr_url}")
-        return {"success": True, "pr_url": pr_url, "method": "url"}
+        return {"success": True, "pr_url": pr_url[:500], "method": "url"}
 
     def _get_current_branch(self, path: str = "") -> str:
         """获取当前分支名。"""
@@ -632,37 +677,43 @@ class GitTools:
         创建 worktree。
 
         参数:
-            branch_name: 新分支名
-            worktree_path: worktree 目录路径
+            branch_name: 新分支名（已验证）
+            worktree_path: worktree 目录路径（已验证）
             base_branch: 基于哪个分支
             path: 仓库路径
             force: 强制创建
         """
-        target = path or self._repo_path
+        target = validate_path(path) if path else (self._repo_path or os.getcwd())
 
-        wt_dir = Path(worktree_path)
-        if wt_dir.exists():
+        try:
+            safe_branch = validate_branch_name(branch_name)
+            wt_dir = validate_path(worktree_path, must_exist=False)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
+        wt_path = Path(wt_dir)
+        if wt_path.exists():
             if force:
                 import shutil
                 shutil.rmtree(wt_dir, ignore_errors=True)
             else:
-                return {"success": False, "error": f"目录已存在: {worktree_path}"}
+                return {"success": False, "error": f"目录已存在: {wt_dir}"}
 
         try:
             args = ["worktree", "add"]
             if force:
                 args.append("--force")
-            args.extend([str(wt_dir), "-b", branch_name, base_branch])
+            args.extend([str(wt_path), "-b", safe_branch, base_branch])
 
             self._run_git(args, cwd=target, timeout=30)
-            logger.info(f"Worktree 已创建: {wt_dir} (分支: {branch_name})")
+            logger.info(f"Worktree 已创建: {wt_dir} (分支: {safe_branch})")
             return {
                 "success": True,
                 "worktree_path": str(wt_dir),
-                "branch": branch_name,
+                "branch": safe_branch,
             }
         except RuntimeError as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": str(e)[:200]}
 
     def remove_worktree(
         self,
@@ -717,15 +768,16 @@ class GitTools:
 
     def checkout_branch(self, branch: str, path: str = "", create: bool = False) -> bool:
         """切换分支。"""
-        target = path or self._repo_path
+        target = validate_path(path) if path else (self._repo_path or os.getcwd())
         try:
+            safe_branch = validate_branch_name(branch)
             args = ["checkout"]
             if create:
                 args.append("-b")
-            args.append(branch)
+            args.append(safe_branch)
             self._run_git(args, cwd=target)
             return True
-        except RuntimeError:
+        except (RuntimeError, ValueError):
             return False
 
     # ------------------------------------------------------------------

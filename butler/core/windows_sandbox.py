@@ -19,15 +19,27 @@ import json
 import logging
 import os
 import platform
+import re
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+from butler.core.security import (
+    validate_path,
+    validate_session_id,
+)
+
 logger = logging.getLogger(__name__)
 
 _IS_WINDOWS = platform.system() == "Windows"
+
+_MAX_COMMAND_LENGTH = 4096
+_MAX_SESSION_IDLE_SECONDS = 3600
+_SAFE_COMMAND_RE = re.compile(r'^[\w\s.\-/,;:()@#$%+*=\[\]{}<>~!?\'"]+$')
+_MAX_ALLOWED_PATHS = 32
 
 
 @dataclass
@@ -76,14 +88,14 @@ class WindowsSandbox:
     """
     Windows 原生沙箱管理器。
 
-    在 Windows 上提供受限执行环境，无需 WSL 或虚拟机。
-    使用 Windows Sandbox API 或 PowerShell 执行策略实现隔离。
+    线程安全，包含命令注入防护和路径验证。
     """
 
     def __init__(self):
         self._available = self._check_availability()
         self._sessions: dict[str, SandboxSession] = {}
         self._config = SandboxConfig()
+        self._lock = threading.RLock()
 
     def _check_availability(self) -> bool:
         """检查 Windows 沙箱可用性。"""
@@ -177,29 +189,45 @@ class WindowsSandbox:
         workspace_path: str = "",
         **config_kwargs: Any,
     ) -> SandboxSession:
-        """
-        创建沙箱会话。
-
-        在 Windows 上创建隔离的执行环境。
-        """
+        """创建沙箱会话。线程安全，含路径验证。"""
         import time
 
-        config = SandboxConfig(**{**self._config.to_dict(), **config_kwargs})
+        session_id = validate_session_id(session_id)
 
-        ws_path = workspace_path or os.path.join(
-            os.environ.get("TEMP", os.getcwd()),
-            f"butler-sandbox-{session_id[:8]}",
-        )
+        with self._lock:
+            if session_id in self._sessions:
+                logger.warning(f"会话已存在: {session_id}")
+                return self._sessions[session_id]
 
-        session = SandboxSession(
-            session_id=session_id,
-            config=config,
-            workspace_path=ws_path,
-            started_at=time.time(),
-        )
+            config = SandboxConfig(**{**self._config.to_dict(), **config_kwargs})
 
-        os.makedirs(ws_path, exist_ok=True)
-        self._sessions[session_id] = session
+            if len(config.allowed_paths) > _MAX_ALLOWED_PATHS:
+                raise ValueError(f"允许路径数量超过限制 ({_MAX_ALLOWED_PATHS})")
+
+            ws_path = workspace_path or os.path.join(
+                os.environ.get("TEMP", os.getcwd()),
+                f"butler-sandbox-{session_id[:8]}",
+            )
+
+            try:
+                ws_path = validate_path(ws_path, must_exist=False)
+            except ValueError:
+                ws_path = os.path.join(os.environ.get("TEMP", os.getcwd()), f"butler-sandbox-{session_id[:8]}")
+
+            session = SandboxSession(
+                session_id=session_id,
+                config=config,
+                workspace_path=ws_path,
+                started_at=time.time(),
+            )
+
+            try:
+                os.makedirs(ws_path, exist_ok=True)
+            except OSError as e:
+                logger.error(f"工作目录创建失败: {e}")
+                raise RuntimeError(f"工作目录无法创建: {e}")
+
+            self._sessions[session_id] = session
 
         logger.info(f"沙箱会话已创建: {session_id} -> {ws_path}")
         return session
@@ -250,28 +278,34 @@ class WindowsSandbox:
             return self._start_powershell_restricted(session)
 
     def _start_powershell_restricted(self, session: SandboxSession) -> bool:
-        """使用 PowerShell 受限执行模式。"""
+        """使用 PowerShell 受限执行模式。脚本内容已净化。"""
         try:
-            profile_content = f"""
-# Butler Sandbox Restricted Profile
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Restricted
-Set-Location "{session.workspace_path}"
+            ws_escaped = session.workspace_path.replace("'", "''")
+            allowed_paths_escaped = [p.replace("'", "''") for p in session.config.allowed_paths]
+            paths_str = ", ".join(f"'{p}'" for p in allowed_paths_escaped)
 
-# 限制文件系统访问
-$allowedPaths = @({', '.join(f'"{p}"' for p in session.config.allowed_paths)})
+            profile_lines = [
+                "# Butler Sandbox Restricted Profile",
+                "Set-ExecutionPolicy -Scope Process -ExecutionPolicy Restricted",
+                f"Set-Location '{ws_escaped}'",
+                "",
+                f"$allowedPaths = @({paths_str})",
+                "",
+                "Function Test-PathAccess {",
+                "    param([string]$Path)",
+                "    if ($allowedPaths.Count -eq 0) { return $true }",
+                "    foreach ($allowed in $allowedPaths) {",
+                "        if ($Path.StartsWith($allowed)) { return $true }",
+                "    }",
+                "    return $false",
+                "}",
+                "",
+                "Write-Host 'Butler Sandbox (Restricted PowerShell) Ready'",
+                f"Write-Host 'Workspace: {ws_escaped}'",
+            ]
 
-Function Test-PathAccess {{
-    param([string]$Path)
-    if ($allowedPaths.Count -eq 0) {{ return $true }}
-    foreach ($allowed in $allowedPaths) {{
-        if ($Path.StartsWith($allowed)) {{ return $true }}
-    }}
-    return $false
-}}
+            profile_content = "\n".join(profile_lines)
 
-Write-Host "Butler Sandbox (Restricted PowerShell) Ready"
-Write-Host "Workspace: {session.workspace_path}"
-"""
             profile_path = os.path.join(session.workspace_path, "butler_profile.ps1")
             with open(profile_path, "w", encoding="utf-8") as f:
                 f.write(profile_content)
@@ -284,8 +318,9 @@ Write-Host "Workspace: {session.workspace_path}"
             return False
 
     def _generate_wsb_file(self, session: SandboxSession) -> str:
-        """生成 Windows Sandbox 配置文件。"""
+        """生成 Windows Sandbox 配置文件。路径已净化。"""
         config = session.config
+        ws_escaped = session.workspace_path.replace("\\", "\\\\")
         return f"""<Configuration>
   <VGpu>{'Enable' if config.allow_gpu else 'Disable'}</VGpu>
   <Networking>{'Enable' if config.allow_network else 'Disable'}</Networking>
@@ -298,7 +333,7 @@ Write-Host "Workspace: {session.workspace_path}"
   <AudioInputRedirection>{'Enable' if config.allow_audio else 'Disable'}</AudioInputRedirection>
   <FolderMappings>
     <Folder>
-      <FolderPath>{session.workspace_path}</FolderPath>
+      <FolderPath>{ws_escaped}</FolderPath>
       <SandboxFolderPath>C:\\ButlerWorkspace</SandboxFolderPath>
       <ReadOnly>false</ReadOnly>
     </Folder>
@@ -317,12 +352,12 @@ Write-Host "Workspace: {session.workspace_path}"
         """
         在沙箱会话中执行命令。
 
-        参数:
-            session_id: 会话 ID
-            command: 要执行的命令
-            timeout: 超时时间
+        命令会被注入到 PowerShell 脚本中，因此必须先进行安全过滤。
         """
-        session = self._sessions.get(session_id)
+        session_id = validate_session_id(session_id)
+
+        with self._lock:
+            session = self._sessions.get(session_id)
         if not session:
             return {"success": False, "error": "会话不存在"}
 
@@ -331,11 +366,26 @@ Write-Host "Workspace: {session.workspace_path}"
             if not started:
                 return {"success": False, "error": "沙箱启动失败"}
 
+        if not isinstance(command, str) or not command.strip():
+            return {"success": False, "error": "命令不能为空"}
+
+        if len(command) > _MAX_COMMAND_LENGTH:
+            return {"success": False, "error": f"命令过长 (最大 {_MAX_COMMAND_LENGTH} 字符)"}
+
+        dangerous_chars = re.compile(r'[;&|`$(){}!#<>\n\r]')
+        if dangerous_chars.search(command):
+            return {"success": False, "error": "命令包含危险 Shell 字符"}
+
+        safe_command = command.strip()
+
+        if timeout < 1 or timeout > 300:
+            timeout = 30
+
         try:
             ps_command = f"""
 Set-Location "{session.workspace_path}"
 try {{
-    $output = {command} 2>&1
+    $output = {safe_command} 2>&1
     Write-Output "SUCCESS:$($output | Out-String)"
 }} catch {{
     Write-Output "ERROR:$($_.Exception.Message)"
@@ -354,24 +404,24 @@ try {{
                 return {
                     "success": True,
                     "output": output[8:],
-                    "error": result.stderr,
+                    "error": result.stderr[:500] if result.stderr else None,
                 }
             elif output.startswith("ERROR:"):
                 return {
                     "success": False,
-                    "error": output[6:],
-                    "output": result.stdout,
+                    "error": output[6:500],
+                    "output": result.stdout[:500],
                 }
             else:
                 return {
                     "success": result.returncode == 0,
-                    "output": output,
-                    "error": result.stderr if result.returncode != 0 else None,
+                    "output": output[:500],
+                    "error": result.stderr[:500] if result.returncode != 0 else None,
                 }
         except subprocess.TimeoutExpired:
             return {"success": False, "error": f"命令执行超时 ({timeout}s)"}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": str(e)[:200]}
 
     def stop_session(self, session_id: str) -> bool:
         """停止沙箱会话。"""

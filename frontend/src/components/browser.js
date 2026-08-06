@@ -286,9 +286,15 @@ class InAppBrowser {
             finalUrl = 'https://' + finalUrl;
         }
 
+        if (/^(javascript:|vbscript:|data:text\/html|about:)/i.test(finalUrl)) {
+            console.warn(`危险 URL 被拒绝: ${finalUrl}`);
+            if (this.onError) this.onError('不允许打开此类 URL');
+            return;
+        }
+
         if (!this._isUrlAllowed(finalUrl)) {
             console.warn(`网站被屏蔽: ${finalUrl}`);
-            if (this.onError) this.onError(`该网站已被屏蔽: ${finalUrl}`);
+            if (this.onError) this.onError(`该网站已被屏蔽`);
             return;
         }
 
@@ -345,6 +351,13 @@ class InAppBrowser {
         }
     }
 
+    _escapeHtml(str) {
+        if (!str || typeof str !== 'string') return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
     _renderComments() {
         this.commentsList.innerHTML = '';
         this.comments.forEach((c, idx) => {
@@ -355,12 +368,14 @@ class InAppBrowser {
                 padding: 10px;
                 font-size: 12px;
             `;
+            const safeText = this._escapeHtml(c.text);
+            const safeUrl = this._escapeHtml(c.url);
             el.innerHTML = `
                 <div style="color: rgba(255,255,255,0.5); font-size: 10px; margin-bottom: 4px;">
                     ${new Date(c.timestamp).toLocaleString()}
                 </div>
-                <div style="color: #fff; line-height: 1.5;">${c.text}</div>
-                ${c.url ? `<div style="color: #6366f1; font-size: 10px; margin-top: 4px;">📍 ${c.url}</div>` : ''}
+                <div style="color: #fff; line-height: 1.5;">${safeText}</div>
+                ${safeUrl ? `<div style="color: #6366f1; font-size: 10px; margin-top: 4px;">📍 ${safeUrl}</div>` : ''}
             `;
             this.commentsList.appendChild(el);
         });

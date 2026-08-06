@@ -10,7 +10,46 @@
  * - 计算机使用
  * - 语音听写
  * - Worktree 管理
+ *
+ * 安全加固：
+ * - 所有用户输入在渲染前进行 HTML 转义
+ * - URL 白名单校验
+ * - DOM 注入防护
  */
+
+const FeaturesSecurity = {
+    _DANGEROUS_TAGS: /<(script|iframe|object|embed|form|base|link|meta|style|on\w+)\b/gi,
+    _PROTOCOL_RE: /^(https?:|ftp?:|mailto?:|tel?:|data:|javascript:|vbscript:)/i,
+
+    escapeHtml(str) {
+        if (!str || typeof str !== 'string') return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    },
+
+    sanitizeUrl(url) {
+        if (!url || typeof url !== 'string') return '';
+        const trimmed = url.trim();
+        if (!trimmed) return '';
+        if (!this._PROTOCOL_RE.test(trimmed)) {
+            return 'https://' + trimmed;
+        }
+        if (/^(javascript:|vbscript:|data:text\/html)/i.test(trimmed)) {
+            return '';
+        }
+        return trimmed;
+    },
+
+    sanitizeText(text) {
+        if (!text || typeof text !== 'string') return '';
+        return this.escapeHtml(text).replace(this._DANGEROUS_TAGS, '');
+    },
+
+    validateLength(str, max = 5000) {
+        return str && str.length <= max;
+    }
+};
 
 class FeaturesHub {
     constructor() {
@@ -400,26 +439,31 @@ class FeaturesHub {
             return;
         }
 
-        list.innerHTML = this.projects.map((p, i) => `
-            <div style="
-                display: flex; align-items: center; gap: 12px;
-                padding: 12px 14px; background: rgba(255,255,255,0.04);
-                border-radius: 10px; cursor: pointer;
-                border: 1px solid ${this.currentProject === p.id ? '#007AFF44' : 'rgba(255,255,255,0.06)'};
-                transition: all 0.2s;
-            " onclick="FeaturesHub._selectProject('${p.id}')">
-                <i class="fas fa-folder" style="color: #007AFF;"></i>
-                <div style="flex: 1;">
-                    <div style="font-weight: 500; color: #fff; font-size: 14px;">${p.name}</div>
-                    <div style="font-size: 11px; color: rgba(255,255,255,0.4); font-family: monospace;">${p.path}</div>
+        list.innerHTML = this.projects.map((p, i) => {
+            const safeName = FeaturesSecurity.escapeHtml(p.name);
+            const safePath = FeaturesSecurity.escapeHtml(p.path);
+            const safeId = FeaturesSecurity.escapeHtml(p.id);
+            return `
+                <div style="
+                    display: flex; align-items: center; gap: 12px;
+                    padding: 12px 14px; background: rgba(255,255,255,0.04);
+                    border-radius: 10px; cursor: pointer;
+                    border: 1px solid ${this.currentProject === p.id ? '#007AFF44' : 'rgba(255,255,255,0.06)'};
+                    transition: all 0.2s;
+                " onclick="FeaturesHub._selectProject('${safeId}')">
+                    <i class="fas fa-folder" style="color: #007AFF;"></i>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 500; color: #fff; font-size: 14px;">${safeName}</div>
+                        <div style="font-size: 11px; color: rgba(255,255,255,0.4); font-family: monospace;">${safePath}</div>
+                    </div>
+                    <button onclick="event.stopPropagation(); FeaturesHub._removeProject(${i})" style="
+                        background: none; border: none; color: rgba(255,255,255,0.3);
+                        cursor: pointer; padding: 4px;
+                    "><i class="fas fa-trash"></i></button>
+                    ${this.currentProject?.id === p.id ? '<i class="fas fa-check-circle" style="color: #34C759;"></i>' : ''}
                 </div>
-                <button onclick="event.stopPropagation(); FeaturesHub._removeProject(${i})" style="
-                    background: none; border: none; color: rgba(255,255,255,0.3);
-                    cursor: pointer; padding: 4px;
-                "><i class="fas fa-trash"></i></button>
-                ${this.currentProject?.id === p.id ? '<i class="fas fa-check-circle" style="color: #34C759;"></i>' : ''}
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     _addProject() {
@@ -431,10 +475,15 @@ class FeaturesHub {
             return;
         }
 
+        if (!FeaturesSecurity.validateLength(name, 100) || !FeaturesSecurity.validateLength(path, 500)) {
+            window.showToast?.('项目', '项目名称或路径过长', 'error');
+            return;
+        }
+
         const project = {
             id: `proj-${Date.now()}`,
-            name,
-            path,
+            name: FeaturesSecurity.escapeHtml(name),
+            path: FeaturesSecurity.escapeHtml(path),
             created_at: Date.now(),
         };
 
@@ -449,7 +498,7 @@ class FeaturesHub {
             document.getElementById('new-project-path').value = '';
         }
 
-        window.showToast?.('项目', `项目已添加: ${name}`, 'success');
+        window.showToast?.('项目', `项目已添加: ${FeaturesSecurity.escapeHtml(name)}`, 'success');
     }
 
     _selectProject(id) {

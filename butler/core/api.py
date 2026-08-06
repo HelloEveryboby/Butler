@@ -1,7 +1,10 @@
 import logging
+import os
+import re
 import threading
+import time
 import uvicorn
-from fastapi import FastAPI, Depends, HTTPException, Security, status
+from fastapi import FastAPI, Depends, HTTPException, Security, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -10,6 +13,13 @@ from starlette.responses import Response
 from butler.core.secret_vault import secret_vault
 from butler.core.sensing_api import sensing_api
 from butler.core.sec_utils.certs import generate_self_signed_cert
+from butler.core.security import (
+    validate_branch_name,
+    validate_git_message,
+    validate_path,
+    validate_project_id,
+    validate_session_id,
+)
 
 logger = logging.getLogger("APIGateway")
 
@@ -18,6 +28,16 @@ app = FastAPI(
     description="Secured, asynchronous REST API Gateway for the Butler Automation system.",
     version="2.0.0"
 )
+
+_ALLOWED_MODULES = {"git", "session", "project", "worktree", "computer"}
+_MODULE_RE = re.compile(r'^[\w]{1,16}$')
+_ACTION_RE = re.compile(r'^[\w]{1,32}$')
+_MAX_PAYLOAD_SIZE = 1_000_000  # 1MB
+_RATE_LIMIT_REQUESTS = 120  # 每窗口最大请求数
+_RATE_LIMIT_WINDOW = 60  # 窗口秒数
+
+_rate_limiter: dict[str, list[float]] = {}
+_rate_lock = threading.Lock()
 
 # 1. Bearer Token Authentication Scheme
 security_scheme = HTTPBearer()
@@ -156,19 +176,67 @@ def post_sensor_data(data: dict, token: str = Depends(verify_api_token)):
         )
 
 # 5. Features API Routes
-@app.post("/api/features/{module}/{action}")
-def features_api(module: str, action: str, payload: dict = None):
-    """
-    功能中心统一 API 端点。
+def _check_rate_limit(client_id: str) -> bool:
+    """检查速率限制。返回 True 表示允许请求。"""
+    now = time.time()
+    with _rate_lock:
+        timestamps = _rate_limiter.get(client_id, [])
+        window_start = now - _RATE_LIMIT_WINDOW
+        valid = [t for t in timestamps if t > window_start]
+        if len(valid) >= _RATE_LIMIT_REQUESTS:
+            _rate_limiter[client_id] = valid
+            return False
+        valid.append(now)
+        _rate_limiter[client_id] = valid
+        return True
 
-    支持的模块：
-    - git: status, diff, commit, push, pr, branches, checkout, stage
-    - session: modes, create, switch
-    - project: list, add, remove, switch
-    - worktree: list, create, prune
-    - computer: screenshot, click, type, test_gui
+
+def _cleanup_rate_limiter():
+    """清理过期的速率限制条目。"""
+    now = time.time()
+    with _rate_lock:
+        expired_keys = []
+        for key, timestamps in _rate_limiter.items():
+            valid = [t for t in timestamps if t > now - _RATE_LIMIT_WINDOW]
+            if valid:
+                _rate_limiter[key] = valid
+            else:
+                expired_keys.append(key)
+        for key in expired_keys:
+            del _rate_limiter[key]
+
+
+@app.post("/api/features/{module}/{action}")
+async def features_api(request: Request, module: str, action: str):
     """
-    payload = payload or {}
+    功能中心统一 API 端点（已加固）。
+
+    包含：
+    - 输入校验（模块/操作白名单）
+    - 速率限制（基于客户端 IP）
+    - Payload 大小限制
+    - 异常隔离（不暴露内部信息）
+    """
+    if not _MODULE_RE.match(module) or module not in _ALLOWED_MODULES:
+        raise HTTPException(status_code=400, detail="无效的模块名称")
+
+    if not _ACTION_RE.match(action):
+        raise HTTPException(status_code=400, detail="无效的操作名称")
+
+    client_id = request.client.host if request.client else "unknown"
+    if not _check_rate_limit(client_id):
+        raise HTTPException(status_code=429, detail="请求过于频繁，请稍后重试")
+
+    try:
+        body = await request.body()
+        if len(body) > _MAX_PAYLOAD_SIZE:
+            raise HTTPException(status_code=413, detail="Payload 过大")
+        payload = body.decode("utf-8") if body else "{}"
+        import json
+        payload = json.loads(payload) if payload else {}
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise HTTPException(status_code=400, detail="无效的 JSON payload")
+
     handlers = {
         "git": _handle_git_feature,
         "session": _handle_session_feature,
@@ -177,20 +245,23 @@ def features_api(module: str, action: str, payload: dict = None):
         "computer": _handle_computer_feature,
     }
 
-    handler = handlers.get(module)
-    if not handler:
-        raise HTTPException(status_code=404, detail=f"未知模块: {module}")
+    handler = handlers[module]
 
     try:
         return handler(action, payload)
+    except ValueError as e:
+        logger.warning(f"Features API 输入校验失败 [{module}/{action}]: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        logger.error(f"Features API 运行时错误 [{module}/{action}]: {e}")
+        raise HTTPException(status_code=500, detail="操作执行失败")
     except Exception as e:
-        logger.error(f"Features API 错误 [{module}/{action}]: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"Features API 未预期的错误 [{module}/{action}]: {e}")
+        raise HTTPException(status_code=500, detail="内部错误")
 
 
 def _handle_git_feature(action: str, payload: dict) -> dict:
     from butler.core.git_tools import git_tools
-    import os
 
     cwd = os.getcwd()
     if not git_tools.is_git_repo(cwd):
@@ -204,7 +275,8 @@ def _handle_git_feature(action: str, payload: dict) -> dict:
         return result.to_dict()
     elif action == "stage":
         file = payload.get("file", ".")
-        success = git_tools.stage_file(file, cwd)
+        safe_file = validate_path(file, must_exist=False)
+        success = git_tools.stage_file(safe_file, cwd)
         return {"success": success}
     elif action == "commit":
         message = payload.get("message", "更新")
@@ -226,7 +298,7 @@ def _handle_git_feature(action: str, payload: dict) -> dict:
         success = git_tools.checkout_branch(branch, cwd, create=create)
         return {"success": success}
     else:
-        return {"success": False, "error": f"未知 Git 操作: {action}"}
+        return {"success": False, "error": f"未知 Git 操作"}
 
 
 def _handle_session_feature(action: str, payload: dict) -> dict:

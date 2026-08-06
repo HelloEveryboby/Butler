@@ -320,6 +320,12 @@ class FloatingPopup {
         }
     }
 
+    setPlainText(text) {
+        if (this.contentEl) {
+            this.contentEl.textContent = text;
+        }
+    }
+
     setTitle(title) {
         this.title = title;
         const titleEl = this.headerEl.querySelector('div:nth-child(2)');
