@@ -93,6 +93,53 @@
                                 </div>
                             </div>
 
+                            <!-- Butler 应用功能 -->
+                            <div class="skill-section-divider">
+                                <span>🚀 Butler 应用功能</span>
+                            </div>
+                            <div class="quick-actions-container">
+                                <div class="quick-action-card" onclick="FeaturesHub.openSessionModeModal()" style="cursor: pointer;">
+                                    <i class="fas fa-code-branch" style="color: #34C759;"></i>
+                                    <span class="quick-action-title">会话模式</span>
+                                    <span class="quick-action-desc">本地 / Worktree / 云端模式切换</span>
+                                </div>
+                                <div class="quick-action-card" onclick="FeaturesHub.openGitPanel()" style="cursor: pointer;">
+                                    <i class="fas fa-code-compare" style="color: #FF9500;"></i>
+                                    <span class="quick-action-title">Git 工具</span>
+                                    <span class="quick-action-desc">Diff / Commit / Push / PR 管理</span>
+                                </div>
+                                <div class="quick-action-card" onclick="FeaturesHub.openProjectManager()" style="cursor: pointer;">
+                                    <i class="fas fa-folder-tree" style="color: #007AFF;"></i>
+                                    <span class="quick-action-title">多项目</span>
+                                    <span class="quick-action-desc">跨项目多任务并行管理</span>
+                                </div>
+                                <div class="quick-action-card" onclick="FeaturesHub.launchBrowser()" style="cursor: pointer;">
+                                    <i class="fas fa-globe" style="color: #5856D6;"></i>
+                                    <span class="quick-action-title">应用内浏览器</span>
+                                    <span class="quick-action-desc">预览 Web 应用并评论</span>
+                                </div>
+                                <div class="quick-action-card" onclick="FeaturesHub.createPopup()" style="cursor: pointer;">
+                                    <i class="fas fa-window-restore" style="color: #FF2D55;"></i>
+                                    <span class="quick-action-title">浮动窗口</span>
+                                    <span class="quick-action-desc">弹出独立对话线程</span>
+                                </div>
+                                <div class="quick-action-card" onclick="FeaturesHub.launchComputerUse()" style="cursor: pointer;">
+                                    <i class="fas fa-desktop" style="color: #AF52DE;"></i>
+                                    <span class="quick-action-title">计算机使用</span>
+                                    <span class="quick-action-desc">操作桌面应用、测试 GUI</span>
+                                </div>
+                                <div class="quick-action-card" onclick="FeaturesHub.launchVoiceDictation()" style="cursor: pointer;">
+                                    <i class="fas fa-microphone-lines" style="color: #30B0C7;"></i>
+                                    <span class="quick-action-title">语音听写</span>
+                                    <span class="quick-action-desc">按住录音发送指令</span>
+                                </div>
+                                <div class="quick-action-card" onclick="FeaturesHub.showWorktreeInfo()" style="cursor: pointer;">
+                                    <i class="fas fa-code-fork" style="color: #FF3B30;"></i>
+                                    <span class="quick-action-title">Worktree 管理</span>
+                                    <span class="quick-action-desc">隔离的 Git 工作树</span>
+                                </div>
+                            </div>
+
                             <!-- 无 AI 可用技能面板 -->
                             <div class="skill-section-divider">
                                 <span>🧰 本地技能 (Linux 风格, 无需 AI)</span>
@@ -605,6 +652,9 @@
     <script src="src/components/vault.js"></script>
     <script src="src/components/modal.js"></script>
     <script src="src/components/memos.js"></script>
+    <script src="src/components/browser.js"></script>
+    <script src="src/components/popup.js"></script>
+    <script src="src/components/features.js"></script>
     <script src="src/main.js"></script>
     <script src="src/components/skill_ui_loader.js"></script>
 
