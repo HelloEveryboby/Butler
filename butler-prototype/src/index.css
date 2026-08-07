@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  @layer base {
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      padding: 0;
+      margin: 0;
+    }
+
+    html,
+    body,
+    #root {
+      height: 100%;
+      min-height: 100svh;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #e4e4e7;
+      background: #0a0a0b;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    ::selection {
+      background: rgba(129, 140, 248, 0.3);
+      color: #e4e4e7;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1f1f23;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #2a2a30;
+    }
+  }
+}
+
+@layer utilities {
+  .bg-dot-grid {
+    background-image: radial-gradient(circle, #ffffff10 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .animate-fade-up {
+    animation: fade-up 0.5s ease-out both;
+  }
+  .animation-delay-60 {
+    animation-delay: 60ms;
+  }
+  .animation-delay-120 {
+    animation-delay: 120ms;
+  }
+  .animation-delay-180 {
+    animation-delay: 180ms;
+  }
+  .animation-delay-240 {
+    animation-delay: 240ms;
+  }
+  .shimmer-bg {
+    background: linear-gradient(90deg, #111113 25%, #16161a 50%, #111113 75%);
+    background-size: 200% 100%;
+  }
+}
