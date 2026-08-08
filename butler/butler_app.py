@@ -466,6 +466,112 @@ class Jarvis:
                 self._handle_advanced_encryption(path, mode)
         elif cmd.startswith("/legacy "):
             self._handle_legacy_command(cmd[8:])
+        elif cmd == "/skills":
+            report = ["🛠️ **Butler 技能列表:**\n"]
+            manifests = self.skill_manager.manifests
+            if not manifests:
+                report.append("当前无已加载的技能。")
+            else:
+                for s_id, meta in manifests.items():
+                    name = meta.get('name', s_id)
+                    desc = meta.get('description', '无描述')
+                    fmt = meta.get('format', 'unknown')
+                    risk = meta.get('risk', 'low')
+                    is_core = " [核心]" if meta.get('is_core') else ""
+                    has_python = "🐍" if meta.get('has_python') else ""
+                    has_binary = "⚙️" if meta.get('has_binary') else ""
+                    has_frontend = "🖥️" if meta.get('has_frontend') else ""
+                    report.append(
+                        f"- **{s_id}**{is_core} ({fmt})\n"
+                        f"  名称: {name}\n"
+                        f"  描述: {desc}\n"
+                        f"  风险等级: {risk}\n"
+                        f"  类型: {has_python}{has_binary}{has_frontend} {meta.get('type', '未分类')}"
+                    )
+            self.ui_print("\n".join(report), tag='system_message')
+        elif cmd.startswith("/use-skill ") or cmd.startswith("/skill "):
+            parts = cmd.split(maxsplit=2)
+            if len(parts) < 2:
+                self.ui_print("用法: /skill <技能ID> [action]\n可用技能列表请使用 /skills", tag='error')
+                return
+            skill_id = parts[1]
+            action = parts[2] if len(parts) > 2 else "run"
+
+            if skill_id not in self.skill_manager.manifests:
+                self.ui_print(f"❌ 技能 '{skill_id}' 未找到。使用 /skills 查看所有可用技能。", tag='error')
+                return
+
+            self.ui_print(f"🔧 正在手动调用技能: {skill_id} (action={action})...", tag='system_message')
+            manifest = self.skill_manager.manifests[skill_id]
+            entities = {"action": action}
+
+            skill_contents = self.skill_manager.get_skill_instruction(skill_id)
+            if skill_contents:
+                self.ui_print(f"📋 技能指令:\n{skill_contents[:500]}...", tag='system_message')
+
+            result = self.skill_manager.execute(
+                skill_id, action, entities=entities, jarvis_app=self
+            )
+
+            if isinstance(result, dict) and result.get("status") == "pending_confirmation":
+                self.speak(result.get("message", "需要确认"))
+            elif result:
+                self.ui_print(f"✅ 技能执行结果:\n{str(result)[:1000]}", tag='ai_response')
+                self.speak(str(result)[:200])
+            else:
+                self.ui_print("⚠️ 技能未返回有效结果。", tag='error')
+        elif cmd.startswith("/skill-info "):
+            skill_id = cmd.split(maxsplit=1)[1] if " " in cmd else ""
+            if not skill_id:
+                self.ui_print("用法: /skill-info <技能ID>", tag='error')
+                return
+
+            manifest = self.skill_manager.manifests.get(skill_id)
+            if not manifest:
+                self.ui_print(f"❌ 技能 '{skill_id}' 未找到。", tag='error')
+                return
+
+            contents = self.skill_manager.get_skill_instruction(skill_id)
+            config = self.skill_manager.configs.get(skill_id, {})
+
+            info = [
+                f"📖 **技能详情: {skill_id}**\n",
+                f"- 名称: {manifest.get('name', skill_id)}",
+                f"- 格式: {manifest.get('format', 'unknown')}",
+                f"- 描述: {manifest.get('description', '无描述')}",
+                f"- 版本: {manifest.get('version', 'N/A')}",
+                f"- 作者: {manifest.get('author', 'N/A')}",
+                f"- 风险等级: {manifest.get('risk', 'low')}",
+                f"- 核心插件: {'是' if manifest.get('is_core') else '否'}",
+                f"- Python: {'✅' if manifest.get('has_python') else '❌'}",
+                f"- 二进制: {'✅' if manifest.get('has_binary') else '❌'}",
+                f"- 前端: {'✅' if manifest.get('has_frontend') else '❌'}",
+                f"- 路径: {manifest.get('path', 'N/A')}",
+            ]
+
+            provides = manifest.get('provides', [])
+            if provides:
+                info.append(f"- 提供: {', '.join(provides)}")
+
+            requires = manifest.get('requires', {})
+            if requires:
+                info.append(f"- 依赖: {json.dumps(requires, ensure_ascii=False)}")
+
+            keywords = manifest.get('keywords', [])
+            if keywords:
+                info.append(f"- 关键词: {', '.join(keywords)}")
+
+            if actions := manifest.get('actions', []):
+                info.append(f"- 可用动作: {', '.join(actions)}")
+
+            if contents:
+                info.append(f"\n📋 **SKILL.md 指令摘要:**\n{contents[:300]}")
+
+            if config:
+                config_str = json.dumps(config, ensure_ascii=False, indent=2)
+                info.append(f"\n⚙️ **配置:**\n```\n{config_str[:500]}\n```")
+
+            self.ui_print("\n".join(info), tag='system_message')
         elif cmd.startswith("/py ") or cmd.startswith("/python "):
             code = cmd.split(maxsplit=1)[1]
             self._execute_with_interpreter("python", code)
