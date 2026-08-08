@@ -1055,6 +1055,10 @@ class ButlerTUI(App):
             "doctor": ("doctor", lambda a: {}),
             "skills_list": ("skills_list", lambda a: {}),
             "skills_find": ("skills_list", lambda a: {}),
+            # ── 辅助工具命令 ──
+            "tool_list": ("tool_list", lambda a: {}),
+            "tool_run": ("tool_run", lambda a: self._parse_tool_run_input(a)),
+            "tool_info": ("tool_info", lambda a: {"tool_name": a}),
             # ── 技能命令 (无 AI 可用) ──
             "markitdown": ("skill_markitdown", lambda a: {"path": a}),
             "docx_read": ("skill_docx", lambda a: {"action": "read", "file_path": a}),
@@ -1175,6 +1179,38 @@ class ButlerTUI(App):
         for i, part in enumerate(parts[1:], 1):
             result[f"arg{i}"] = part
         return result
+
+    def _parse_tool_run_input(self, text: str) -> dict:
+        """解析工具执行输入 (格式: <tool_name> --key value ...)."""
+        if not text:
+            return {"tool_name": ""}
+        parts = text.strip().split()
+        if not parts:
+            return {"tool_name": ""}
+        tool_name = parts[0]
+        args = {}
+        i = 1
+        while i < len(parts):
+            arg = parts[i]
+            if arg.startswith('--'):
+                key = arg[2:]
+                if i + 1 < len(parts) and not parts[i + 1].startswith('--'):
+                    args[key] = parts[i + 1]
+                    i += 2
+                else:
+                    args[key] = True
+                    i += 1
+            elif arg.startswith('-'):
+                key = arg[1:]
+                if i + 1 < len(parts) and not parts[i + 1].startswith('-'):
+                    args[key] = parts[i + 1]
+                    i += 2
+                else:
+                    args[key] = True
+                    i += 1
+            else:
+                i += 1
+        return {"tool_name": tool_name, "arguments": args}
 
     def _handle_slash_command(self, cmd: str):
         parts = cmd[1:].split(None, 1)
@@ -1970,10 +2006,8 @@ class ButlerTUI(App):
                 self._tool_doctor()
 
             elif tool_name == "skills_list":
-                from butler_cli import main as skills_main
-                # 列出技能
+                from butler.core.skill_manager import SkillManager
                 try:
-                    from butler.core.skill_manager import SkillManager
                     sm = SkillManager()
                     sm.load_skills()
                     text = "🛠️ 已加载技能:\n"
@@ -1982,6 +2016,83 @@ class ButlerTUI(App):
                     self._append_chat(text, "ai")
                 except Exception as e:
                     self._append_chat(f"❌ 技能列表加载失败: {e}", "error")
+
+            elif tool_name == "tool_list":
+                try:
+                    from butler.core.tool_bridge import list_tools
+                    tools = list_tools()
+                    text = "🔧 Butler 辅助工具:\n"
+                    text += "═" * 40 + "\n"
+                    always = [t for t in tools if t['permission_level'] == 'always_allow']
+                    confirm = [t for t in tools if t['permission_level'] == 'require_confirm']
+                    if always:
+                        text += f"\n  🔓 自动执行 ({len(always)} 个):\n"
+                        for t in always:
+                            ro = "👁" if t.get('is_read_only') else "  "
+                            ds = "💥" if t.get('is_destructive') else "  "
+                            text += f"  {ro}{ds} {t['name']:<20} {t['description'][:50]}\n"
+                    if confirm:
+                        text += f"\n  🔐 需确认 ({len(confirm)} 个):\n"
+                        for t in confirm:
+                            ro = "👁" if t.get('is_read_only') else "  "
+                            ds = "💥" if t.get('is_destructive') else "  "
+                            text += f"  {ro}{ds} {t['name']:<20} {t['description'][:50]}\n"
+                    text += f"\n  TOTAL {len(tools)} | 只读 {len([t for t in tools if t.get('is_read_only')])} | 破坏性 {len([t for t in tools if t.get('is_destructive')])}"
+                    self._append_chat(text, "ai")
+                except Exception as e:
+                    self._append_chat(f"❌ 工具列表加载失败: {e}", "error")
+
+            elif tool_name == "tool_run":
+                tool_name = params.get("tool_name", "")
+                tool_args = params.get("arguments", {})
+                if not tool_name:
+                    self._append_chat("用法: /tool_run <工具名> [--key value ...]", "system")
+                    self._append_chat("示例: /tool_run read --path config.yaml", "system")
+                    return
+                try:
+                    from butler.core.tool_bridge import ToolContext
+                    ctx = ToolContext()
+                    result = ctx.execute(tool_name, **tool_args)
+                    if result.get('success'):
+                        content = result.get('content', '')
+                        self._append_chat(f"✅ {tool_name} 执行成功:\n{content[:3000]}", "ai")
+                    else:
+                        self._append_chat(f"❌ {tool_name} 执行失败: {result.get('error', 'Unknown')}", "error")
+                except Exception as e:
+                    self._append_chat(f"❌ 工具执行异常: {e}", "error")
+
+            elif tool_name == "tool_info":
+                tool_name = params.get("tool_name", "")
+                if not tool_name:
+                    self._append_chat("用法: /tool_info <工具名>", "system")
+                    return
+                try:
+                    from butler.core.tool_bridge import ToolContext
+                    ctx = ToolContext()
+                    info = ctx.info(tool_name)
+                    if info:
+                        text = f"📋 工具详情: {tool_name}\n"
+                        text += "─" * 40 + "\n"
+                        text += f"  名称:       {info['name']}\n"
+                        text += f"  描述:       {info['description']}\n"
+                        text += f"  权限:       {info['permission_level']}\n"
+                        text += f"  只读:       {'是' if info['is_read_only'] else '否'}\n"
+                        text += f"  破坏性:     {'是' if info['is_destructive'] else '否'}\n"
+                        text += f"  并发安全:   {'是' if info['is_concurrency_safe'] else '否'}\n"
+                        schema = info.get('parameters_schema', {})
+                        if schema and schema.get('properties'):
+                            text += f"\n  参数定义:\n"
+                            required = schema.get('required', [])
+                            for pname, pdef in schema['properties'].items():
+                                req = " (必填)" if pname in required else ""
+                                ptype = pdef.get('type', 'string')
+                                desc = pdef.get('description', '')
+                                text += f"    - {pname} [{ptype}]{req}\n      {desc}\n"
+                        self._append_chat(text, "ai")
+                    else:
+                        self._append_chat(f"❌ 工具 '{tool_name}' 未找到", "error")
+                except Exception as e:
+                    self._append_chat(f"❌ 获取工具信息失败: {e}", "error")
 
             # ── 技能执行 (无 AI 可用) ──
             elif tool_name == "skill_markitdown":

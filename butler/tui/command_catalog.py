@@ -265,6 +265,35 @@ COMMANDS: list[CommandEntry] = [
         example="/skill_info butler_expert",
     ),
 
+    # ── 辅助工具 ──
+    CommandEntry(
+        name="tool_list", aliases=["tools", "tl", "工具列表"],
+        category="🔧 工具",
+        description="列出所有可用的辅助工具 (read/write/edit/bash 等)",
+        usage="/tool_list",
+        detail="显示 Butler 内置的所有辅助工具。\n按权限分级: 🔓 自动执行 (read/ls/glob/grep), 🔐 需确认 (write/edit/bash/delete 等)。",
+        tags=["工具", "tool", "列表", "工具列表", "辅助"],
+        example="/tool_list",
+    ),
+    CommandEntry(
+        name="tool_run", aliases=["tr", "执行工具", "运行工具"],
+        category="🔧 工具",
+        description="执行指定的辅助工具",
+        usage="/tool_run <工具名> [--key value ...]",
+        detail="直接运行 Butler 内置工具。\n支持的工具: read, write, edit, multi_edit, glob, grep, ls, delete, move, copy, bash。\n参数用 --key value 格式传递。",
+        tags=["工具", "tool", "执行", "运行", "run", "调用"],
+        example="/tool_run read --path config.yaml",
+    ),
+    CommandEntry(
+        name="tool_info", aliases=["ti", "工具详情"],
+        category="🔧 工具",
+        description="查看工具详细信息 (参数/权限)",
+        usage="/tool_info <工具名>",
+        detail="显示工具的完整信息，包括参数定义、权限级别、是否只读、是否破坏性等。",
+        tags=["工具", "详情", "info", "参数"],
+        example="/tool_info read",
+    ),
+
     # ── 对话/管理 ──
     CommandEntry(
         name="help", aliases=["h", "?", "帮助", "bz"],
@@ -927,6 +956,15 @@ FLAG_REGISTRY: dict[str, list[FlagDef]] = {
     "dep_all": [],
     "doctor": [],
     "skills_list": [],
+
+    # ── 辅助工具命令 ──
+    "tool_list": [],
+    "tool_run": [
+        FlagDef("-n", "--name", "tool_name", "工具名称", required=True),
+    ],
+    "tool_info": [
+        FlagDef("-n", "--name", "tool_name", "工具名称", required=True),
+    ],
 
     # ── 对话/管理命令 ──
     "help": [
