@@ -2506,20 +2506,17 @@ class ButlerTUI(App):
         skill_id, access_level = self._skill_selected_id
         skills = self._discover_skills_local()
         if skill_id in skills:
+            from butler.core.skill_registry import read_skill_contents
             path = skills[skill_id]
-            skill_md = path / "SKILL.md"
-            if skill_md.exists():
-                try:
-                    content = skill_md.read_text(encoding='utf-8')
-                    self._append_chat(f"📖 {skill_id} SKILL.md 指令:\n{'─' * 40}", "system")
-                    self._append_chat(content[:2000], "ai")
-                except Exception:
-                    self._append_chat(f"❌ 读取 SKILL.md 失败", "error")
+            contents = read_skill_contents(path)
+            if contents:
+                self._append_chat(f"📖 {skill_id} SKILL.md 指令:\n{'─' * 40}", "system")
+                self._append_chat(contents[:2000], "ai")
             else:
-                manifest = path / "manifest.json"
-                if manifest.exists():
+                manifest_path = path / "manifest.json"
+                if manifest_path.exists():
                     try:
-                        data = json.loads(manifest.read_text(encoding='utf-8'))
+                        data = json.loads(manifest_path.read_text(encoding='utf-8'))
                         self._append_chat(f"📖 {skill_id} manifest.json:\n{json.dumps(data, ensure_ascii=False, indent=2)}", "ai")
                     except Exception:
                         self._append_chat(f"❌ 读取 manifest.json 失败", "error")
@@ -2547,55 +2544,15 @@ class ButlerTUI(App):
                 self._append_chat(f"     如需手动调用，需在目录中添加 main.py 或 __init__.py", "system")
 
     def _discover_skills_local(self) -> dict:
-        root = Path(__file__).resolve().parent.parent.parent
-        skills_dir = root / "skills"
-        skills = {}
-        if not skills_dir.exists():
-            return skills
-
-        def _scan(d, depth=0):
-            if depth > 2:
-                return
-            try:
-                for item in d.iterdir():
-                    if item.is_dir() and not item.name.startswith('.') and item.name != "__pycache__":
-                        if (item / "SKILL.md").exists() or (item / "manifest.json").exists() or (item / "config.yaml").exists():
-                            skills[item.name] = item
-                        else:
-                            _scan(item, depth + 1)
-            except Exception:
-                pass
-
-        _scan(skills_dir)
-        return skills
+        from butler.core.skill_registry import discover_skills
+        return discover_skills()
 
     def _load_skill_meta_local(self, skill_id: str) -> dict:
-        skills = self._discover_skills_local()
-        if skill_id not in skills:
+        from butler.core.skill_registry import get_skill
+        result = get_skill(skill_id)
+        if result is None:
             return {}
-        path = skills[skill_id]
-        meta = {"id": skill_id, "path": str(path)}
-
-        manifest_path = path / "manifest.json"
-        if manifest_path.exists():
-            try:
-                m = json.loads(manifest_path.read_text(encoding='utf-8'))
-                meta.update({k: m[k] for k in ['name', 'version', 'description', 'author', 'format', 'actions', 'keywords'] if k in m})
-            except Exception:
-                pass
-
-        skill_md = path / "SKILL.md"
-        if skill_md.exists() and 'description' not in meta:
-            try:
-                content = skill_md.read_text(encoding='utf-8')
-                first_line = content.strip().split('\n')[0].strip('# ')
-                meta['description'] = first_line
-            except Exception:
-                pass
-
-        has_py = any((path / f).exists() for f in ['main.py', '__init__.py', 'run.py'])
-        meta['has_python'] = has_py
-        meta['access_level'] = 'user' if has_py else 'agent'
+        path, meta = result
         return meta
 
     def _refresh_skills(self):

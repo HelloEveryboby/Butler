@@ -10,6 +10,15 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 
+from butler.core.skill_registry import (
+    discover_skills,
+    load_skill_metadata,
+    load_all_skills,
+    read_skill_contents,
+    get_project_root,
+    ACCESS_LEVEL_INFO,
+)
+
 logger = logging.getLogger("SkillCLI")
 
 IS_TTY = sys.stdout.isatty()
@@ -40,194 +49,6 @@ def _c(text: str, *codes: str) -> str:
     return "".join(codes) + text + C.RESET
 
 
-def _get_project_root() -> Path:
-    return Path(__file__).resolve().parent.parent.parent
-
-
-def _find_skills_dir() -> Path:
-    return _get_project_root() / "skills"
-
-
-def _discover_skill_folders() -> Dict[str, Path]:
-    skills_dir = _find_skills_dir()
-    skills = {}
-    if not skills_dir.exists():
-        return skills
-
-    def _scan_recursive(current_dir: Path, depth=0):
-        if depth > 2:
-            return
-        try:
-            for item in current_dir.iterdir():
-                if item.is_dir() and not item.name.startswith('.') and item.name != "__pycache__":
-                    if (item / "SKILL.md").exists() or (item / "manifest.json").exists() or (item / "config.yaml").exists():
-                        skills[item.name] = item
-                    else:
-                        _scan_recursive(item, depth + 1)
-        except Exception:
-            pass
-
-    _scan_recursive(skills_dir)
-    return skills
-
-
-def _find_entry_point(skill_id: str, skill_path: Path) -> Optional[Path]:
-    candidates = ["main.py", "__init__.py", "run.py"]
-    for name in candidates:
-        p = skill_path / name
-        if p.exists():
-            return p
-    return None
-
-
-def _detect_callable_type(skill_id: str, skill_path: Path, meta: Dict) -> str:
-    explicit = meta.get('callable') or meta.get('access_level')
-    if explicit in ('user', 'agent'):
-        return explicit
-
-    manifest_path = skill_path / "manifest.json"
-    if manifest_path.exists():
-        try:
-            with open(manifest_path, 'r', encoding='utf-8') as f:
-                m = json.load(f)
-            if m.get('callable') in ('user', 'agent'):
-                return m['callable']
-            if m.get('access_level') in ('user', 'agent'):
-                return m['access_level']
-            if m.get('type') == 'agent':
-                return 'agent'
-        except Exception:
-            pass
-
-    config_path = skill_path / "config.yaml"
-    if config_path.exists():
-        try:
-            import yaml
-            with open(config_path, 'r', encoding='utf-8') as f:
-                c = yaml.safe_load(f)
-            if isinstance(c, dict):
-                if c.get('callable') in ('user', 'agent'):
-                    return c['callable']
-                if c.get('access_level') in ('user', 'agent'):
-                    return c['access_level']
-                if c.get('type') == 'agent':
-                    return 'agent'
-        except Exception:
-            pass
-
-    entry_file = meta.get('entry_file')
-    if not entry_file:
-        return 'agent'
-
-    try:
-        spec = importlib.util.spec_from_file_location(f"_detect_{skill_id}", entry_file)
-        if spec and spec.loader:
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[f"_detect_{skill_id}"] = module
-            try:
-                spec.loader.exec_module(module)
-                if hasattr(module, "handle_request") or (hasattr(module, "main") and callable(module.main)):
-                    return 'user'
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-    return 'agent'
-
-
-def _load_skill_metadata(skill_id: str, skill_path: Path) -> Dict[str, Any]:
-    meta = {"id": skill_id, "path": str(skill_path)}
-
-    skill_md = skill_path / "SKILL.md"
-    if skill_md.exists():
-        try:
-            content = skill_md.read_text(encoding='utf-8')
-            if content.startswith('---'):
-                parts = content.split('---', 2)
-                if len(parts) >= 3:
-                    import yaml
-                    md_meta = yaml.safe_load(parts[1]) or {}
-                    meta.update(md_meta)
-                    meta['description'] = meta.get('description', '')
-                    if not meta.get('description'):
-                        body = parts[2].strip()
-                        first_line = body.split('\n')[0].strip('# ')
-                        meta['description'] = first_line
-            else:
-                body = content.strip()
-                first_line = body.split('\n')[0].strip('# ')
-                meta['description'] = first_line
-            meta['format'] = 'SKILL.md'
-        except Exception as e:
-            logger.debug(f"Failed to parse SKILL.md for {skill_id}: {e}")
-
-    manifest_path = skill_path / "manifest.json"
-    if manifest_path.exists():
-        try:
-            with open(manifest_path, 'r', encoding='utf-8') as f:
-                manifest = json.load(f)
-            if 'description' not in meta:
-                meta['description'] = manifest.get('description', '')
-            if 'name' not in meta:
-                meta['name'] = manifest.get('name', skill_id)
-            if 'version' not in meta:
-                meta['version'] = manifest.get('version', 'N/A')
-            if 'keywords' not in meta:
-                meta['keywords'] = manifest.get('keywords', [])
-            if 'actions' not in meta:
-                meta['actions'] = manifest.get('actions', [])
-            if 'author' not in meta:
-                meta['author'] = manifest.get('author', 'N/A')
-            if 'format' not in meta:
-                meta['format'] = 'manifest.json'
-            if 'provides' not in meta:
-                meta['provides'] = manifest.get('provides', [])
-            if 'requires' not in meta:
-                meta['requires'] = manifest.get('requires', {})
-            if 'entry' not in meta:
-                meta['entry'] = manifest.get('entry', '')
-        except Exception as e:
-            logger.debug(f"Failed to parse manifest.json for {skill_id}: {e}")
-
-    config_path = skill_path / "config.yaml"
-    if config_path.exists():
-        try:
-            import yaml
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config_data = yaml.safe_load(f)
-            if config_data:
-                if 'description' not in meta:
-                    meta['description'] = config_data.get('description', '')
-                for field in ['version', 'author', 'keywords', 'actions']:
-                    if field not in meta and field in config_data:
-                        meta[field] = config_data[field]
-                if 'format' not in meta:
-                    meta['format'] = 'config.yaml'
-        except Exception as e:
-            logger.debug(f"Failed to parse config.yaml for {skill_id}: {e}")
-
-    entry_file = _find_entry_point(skill_id, skill_path)
-    if entry_file:
-        meta['entry_file'] = str(entry_file)
-        meta['has_python'] = True
-    else:
-        meta['has_python'] = False
-
-    meta['access_level'] = _detect_callable_type(skill_id, skill_path, meta)
-
-    return meta
-
-
-def _collect_all_skills() -> List[Tuple[str, Path, Dict]]:
-    skills = _discover_skill_folders()
-    result = []
-    for skill_id, path in sorted(skills.items()):
-        meta = _load_skill_metadata(skill_id, path)
-        result.append((skill_id, path, meta))
-    return result
-
-
 def _truncate(text: str, max_len: int) -> str:
     if len(text) <= max_len:
         return text
@@ -237,7 +58,7 @@ def _truncate(text: str, max_len: int) -> str:
 # ── Linux-style commands ──────────────────────────────────────────
 
 def cmd_list(args) -> int:
-    all_skills = _collect_all_skills()
+    all_skills = load_all_skills()
 
     if getattr(args, 'type', None) == 'user':
         filtered = [(s, p, m) for s, p, m in all_skills if m.get('access_level') == 'user']
@@ -361,7 +182,7 @@ def _list_long(user_skills, agent_skills) -> int:
 
 
 def cmd_run(args) -> int:
-    skills = _discover_skill_folders()
+    skills = discover_skills()
     skill_id = args.skill_id
 
     if skill_id not in skills:
@@ -374,13 +195,14 @@ def cmd_run(args) -> int:
         return 1
 
     skill_path = skills[skill_id]
-    meta = _load_skill_metadata(skill_id, skill_path)
+    meta = load_skill_metadata(skill_id, skill_path)
     access_level = meta.get('access_level', 'agent')
     action = getattr(args, 'skill_action', 'run') or 'run'
 
     if access_level == 'agent':
-        print(_c(f"\n❌ 技能 '{skill_id}' 是 Agent 技能", C.RED), file=sys.stderr)
-        print(f"  类型: {_c('仅 AI 大模型可用', C.DIM)}", file=sys.stderr)
+        info = ACCESS_LEVEL_INFO['agent']
+        print(_c(f"\n❌ 技能 '{skill_id}' 是 {info['label']} 技能", C.RED), file=sys.stderr)
+        print(f"  类型: {_c(info['description'], C.DIM)}", file=sys.stderr)
         print(f"  无法直接运行，请通过 AI 对话使用。", file=sys.stderr)
         print(f"  查看指令: {_c(f'python butler_cli.py skill info {skill_id}', C.CYAN)}", file=sys.stderr)
         print(f"  转为手动技能: 在 {skill_path} 中添加 main.py 或 __init__.py", file=sys.stderr)
@@ -414,7 +236,7 @@ def cmd_run(args) -> int:
             else:
                 i += 1
 
-    sys.path.insert(0, str(_get_project_root()))
+    sys.path.insert(0, str(get_project_root()))
 
     result = None
     if not getattr(args, 'iso', False):
@@ -455,7 +277,7 @@ def cmd_run(args) -> int:
 
 
 def cmd_info(args) -> int:
-    skills = _discover_skill_folders()
+    skills = discover_skills()
     skill_id = args.skill_id
 
     if skill_id not in skills:
@@ -464,22 +286,10 @@ def cmd_info(args) -> int:
         return 1
 
     skill_path = skills[skill_id]
-    meta = _load_skill_metadata(skill_id, skill_path)
+    meta = load_skill_metadata(skill_id, skill_path)
     access_level = meta.get('access_level', 'agent')
 
-    contents = ""
-    skill_md = skill_path / "SKILL.md"
-    if skill_md.exists():
-        try:
-            content = skill_md.read_text(encoding='utf-8')
-            if content.startswith('---'):
-                parts = content.split('---', 2)
-                if len(parts) >= 3:
-                    contents = parts[2].strip()
-            else:
-                contents = content.strip()
-        except Exception:
-            pass
+    contents = read_skill_contents(skill_path)
 
     if getattr(args, 'format', False):
         output = {
@@ -716,7 +526,7 @@ def _try_run_isolated(skill_id: str, skill_path: Path, entry_file: str, action: 
     if not entry_file.endswith('.py'):
         return None
 
-    project_root = str(_get_project_root())
+    project_root = str(get_project_root())
     skill_env = os.environ.copy()
     skill_env["PYTHONPATH"] = f"{project_root}{os.pathsep}{skill_env.get('PYTHONPATH', '')}"
 
