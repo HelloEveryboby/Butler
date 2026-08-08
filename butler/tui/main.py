@@ -3,6 +3,7 @@
 
 import sys
 import os
+import json
 import time
 import threading
 import logging
@@ -266,7 +267,17 @@ class ButlerTUI(App):
                     with Horizontal():
                         yield Button("🔄 刷新技能", id="btn-refresh-skills")
                         yield Input(placeholder="搜索技能...", id="skill-search")
-                    yield Tree("技能列表", id="skills-tree")
+                    yield Tabs(
+                        Tab("🐍 可调用技能", id="skills-tab-user"),
+                        Tab("🤖 Agent 技能", id="skills-tab-agent"),
+                    )
+                    yield Tree("可调用技能", id="skills-tree-user")
+                    yield Tree("Agent 技能", id="skills-tree-agent", visible=False)
+                    with Horizontal(id="skill-action-bar"):
+                        yield Button("▶ 运行", id="btn-skill-run", variant="success")
+                        yield Button("📖 查看指令", id="btn-skill-view", variant="primary")
+                        yield Button("📋 详情", id="btn-skill-info", variant="default")
+                        yield Label("", id="skill-selected-label")
 
                 # Packages view
                 with Vertical(id="view-packages", visible=False):
@@ -2411,27 +2422,235 @@ class ButlerTUI(App):
 
     def _init_skills_view(self):
         self._refresh_skills()
+        self._skill_current_tab = "user"
+        self._skill_selected_id = None
+
+    @on(Tabs.TabActivated, "#skills-tab-user")
+    def _on_skills_tab_user(self, event):
+        self._skill_current_tab = "user"
+        tree_user = self.query_existing("#skills-tree-user", Tree)
+        tree_agent = self.query_existing("#skills-tree-agent", Tree)
+        if tree_user:
+            tree_user.display = True
+        if tree_agent:
+            tree_agent.display = False
+        self._skill_selected_id = None
+        self._update_skill_action_bar()
+
+    @on(Tabs.TabActivated, "#skills-tab-agent")
+    def _on_skills_tab_agent(self, event):
+        self._skill_current_tab = "agent"
+        tree_user = self.query_existing("#skills-tree-user", Tree)
+        tree_agent = self.query_existing("#skills-tree-agent", Tree)
+        if tree_user:
+            tree_user.display = False
+        if tree_agent:
+            tree_agent.display = True
+        self._skill_selected_id = None
+        self._update_skill_action_bar()
+
+    def _update_skill_action_bar(self):
+        label = self.query_existing("#skill-selected-label", Label)
+        btn_run = self.query_existing("#btn-skill-run", Button)
+        btn_view = self.query_existing("#btn-skill-view", Button)
+
+        if not self._skill_selected_id:
+            if label:
+                label.update("")
+            if btn_run:
+                btn_run.disabled = True
+            if btn_view:
+                btn_view.disabled = True
+            return
+
+        skill_id, access_level = self._skill_selected_id
+        if label:
+            tag = "🐍" if access_level == "user" else "📖"
+            label.update(f"{tag} {skill_id}")
+        if btn_run:
+            btn_run.disabled = (access_level != "user")
+        if btn_view:
+            btn_view.disabled = False
+
+    @on(Tree.NodeHighlighted, "#skills-tree-user")
+    def _on_skill_tree_user_highlighted(self, event):
+        node = event.node
+        if node and hasattr(node, 'skill_id'):
+            self._skill_selected_id = (node.skill_id, 'user')
+            self._update_skill_action_bar()
+
+    @on(Tree.NodeHighlighted, "#skills-tree-agent")
+    def _on_skill_tree_agent_highlighted(self, event):
+        node = event.node
+        if node and hasattr(node, 'skill_id'):
+            self._skill_selected_id = (node.skill_id, 'agent')
+            self._update_skill_action_bar()
+
+    @on(Button.Pressed, "#btn-skill-run")
+    def _on_skill_run_clicked(self, _event):
+        if not self._skill_selected_id:
+            self._append_chat("请先从技能树中选择一个技能", "system")
+            return
+        skill_id, access_level = self._skill_selected_id
+        if access_level != "user":
+            self._append_chat(f"❌ {skill_id} 是 Agent 技能，只能通过 AI 对话调用", "error")
+            return
+        self._append_chat(f"▶ 正在运行技能: {skill_id}", "system")
+        self._execute_tool(f"skill_{skill_id}", {"action": "run"})
+
+    @on(Button.Pressed, "#btn-skill-view")
+    def _on_skill_view_clicked(self, _event):
+        if not self._skill_selected_id:
+            self._append_chat("请先从技能树中选择一个技能", "system")
+            return
+        skill_id, access_level = self._skill_selected_id
+        skills = self._discover_skills_local()
+        if skill_id in skills:
+            path = skills[skill_id]
+            skill_md = path / "SKILL.md"
+            if skill_md.exists():
+                try:
+                    content = skill_md.read_text(encoding='utf-8')
+                    self._append_chat(f"📖 {skill_id} SKILL.md 指令:\n{'─' * 40}", "system")
+                    self._append_chat(content[:2000], "ai")
+                except Exception:
+                    self._append_chat(f"❌ 读取 SKILL.md 失败", "error")
+            else:
+                manifest = path / "manifest.json"
+                if manifest.exists():
+                    try:
+                        data = json.loads(manifest.read_text(encoding='utf-8'))
+                        self._append_chat(f"📖 {skill_id} manifest.json:\n{json.dumps(data, ensure_ascii=False, indent=2)}", "ai")
+                    except Exception:
+                        self._append_chat(f"❌ 读取 manifest.json 失败", "error")
+                else:
+                    self._append_chat(f"⚠️  {skill_id} 无 SKILL.md 或 manifest.json", "system")
+
+    @on(Button.Pressed, "#btn-skill-info")
+    def _on_skill_info_clicked(self, _event):
+        if not self._skill_selected_id:
+            self._append_chat("请先从技能树中选择一个技能", "system")
+            return
+        skill_id, access_level = self._skill_selected_id
+        self._append_chat(f"📋 技能详情: {skill_id}", "system")
+        meta = self._load_skill_meta_local(skill_id)
+        if meta:
+            access_info = "🐍 可调用技能" if access_level == "user" else "📖 Agent 技能 (AI-only)"
+            self._append_chat(f"  类型: {access_info}", "ai")
+            for key in ['name', 'version', 'description', 'author', 'format']:
+                if meta.get(key):
+                    self._append_chat(f"  {key}: {meta[key]}", "ai")
+            if meta.get('actions'):
+                self._append_chat(f"  动作: {', '.join(meta['actions'])}", "ai")
+            if access_level == "agent":
+                self._append_chat(f"  ⚠️  此技能无 Python 入口，仅能通过 AI 对话使用", "system")
+                self._append_chat(f"     如需手动调用，需在目录中添加 main.py 或 __init__.py", "system")
+
+    def _discover_skills_local(self) -> dict:
+        root = Path(__file__).resolve().parent.parent.parent
+        skills_dir = root / "skills"
+        skills = {}
+        if not skills_dir.exists():
+            return skills
+
+        def _scan(d, depth=0):
+            if depth > 2:
+                return
+            try:
+                for item in d.iterdir():
+                    if item.is_dir() and not item.name.startswith('.') and item.name != "__pycache__":
+                        if (item / "SKILL.md").exists() or (item / "manifest.json").exists() or (item / "config.yaml").exists():
+                            skills[item.name] = item
+                        else:
+                            _scan(item, depth + 1)
+            except Exception:
+                pass
+
+        _scan(skills_dir)
+        return skills
+
+    def _load_skill_meta_local(self, skill_id: str) -> dict:
+        skills = self._discover_skills_local()
+        if skill_id not in skills:
+            return {}
+        path = skills[skill_id]
+        meta = {"id": skill_id, "path": str(path)}
+
+        manifest_path = path / "manifest.json"
+        if manifest_path.exists():
+            try:
+                m = json.loads(manifest_path.read_text(encoding='utf-8'))
+                meta.update({k: m[k] for k in ['name', 'version', 'description', 'author', 'format', 'actions', 'keywords'] if k in m})
+            except Exception:
+                pass
+
+        skill_md = path / "SKILL.md"
+        if skill_md.exists() and 'description' not in meta:
+            try:
+                content = skill_md.read_text(encoding='utf-8')
+                first_line = content.strip().split('\n')[0].strip('# ')
+                meta['description'] = first_line
+            except Exception:
+                pass
+
+        has_py = any((path / f).exists() for f in ['main.py', '__init__.py', 'run.py'])
+        meta['has_python'] = has_py
+        meta['access_level'] = 'user' if has_py else 'agent'
+        return meta
 
     def _refresh_skills(self):
-        tree = self.query_existing("#skills-tree", Tree)
-        if not tree:
+        tree_user = self.query_existing("#skills-tree-user", Tree)
+        tree_agent = self.query_existing("#skills-tree-agent", Tree)
+        if not tree_user or not tree_agent:
             return
-        tree.reset("技能列表")
-        tree.root.expand()
+
+        tree_user.reset("🐍 可调用技能 (用户可直接使用)")
+        tree_agent.reset("📖 Agent 技能 (仅 AI 大模型可用)")
+        tree_user.root.expand()
+        tree_agent.root.expand()
 
         try:
-            from butler.core.skill_manager import SkillManager
-            sm = SkillManager()
-            sm.load_skills()
-            for skill_id, manifest in sm.manifests.items():
-                node = tree.root.add(
-                    f"{skill_id} v{manifest.get('version', '?')}",
-                    expand=False,
-                )
-                node.add(f"描述: {manifest.get('description', 'N/A')}")
-                node.add(f"入口: {manifest.get('entry', 'N/A')}")
+            skills = self._discover_skills_local()
+            user_count = 0
+            agent_count = 0
+
+            for skill_id in sorted(skills.keys()):
+                path = skills[skill_id]
+                meta = self._load_skill_meta_local(skill_id)
+                has_py = meta.get('has_python', False)
+                access_level = 'user' if has_py else 'agent'
+                name = meta.get('name', skill_id)
+                desc = meta.get('description', '无描述')
+                version = meta.get('version', '?')
+
+                if access_level == 'user':
+                    node = tree_user.root.add(f"🐍 {skill_id} v{version}", expand=False)
+                    node.skill_id = skill_id
+                    node.add(f"名称: {name}")
+                    node.add(f"描述: {desc}")
+                    actions = meta.get('actions', [])
+                    if actions:
+                        node.add(f"动作: {', '.join(actions)}")
+                    node.add(f"路径: {path}")
+                    user_count += 1
+                else:
+                    node = tree_agent.root.add(f"📖 {skill_id} v{version}", expand=False)
+                    node.skill_id = skill_id
+                    node.add(f"名称: {name}")
+                    node.add(f"描述: {desc}")
+                    keywords = meta.get('keywords', [])
+                    if keywords:
+                        node.add(f"关键词: {', '.join(keywords)}")
+                    node.add(f"⚠️ 纯指令集，无 Python 入口")
+                    node.add(f"路径: {path}")
+                    agent_count += 1
+
+            tree_user.root.add(f"── 共 {user_count} 个可调用技能 ──")
+            tree_agent.root.add(f"── 共 {agent_count} 个 Agent 技能 ──")
+
         except Exception as e:
-            tree.root.add(f"(技能加载失败: {e})")
+            tree_user.root.add(f"(技能加载失败: {e})")
+            tree_agent.root.add(f"(技能加载失败: {e})")
 
     @on(Button.Pressed, "#btn-refresh-skills")
     def _on_refresh_skills(self, _event):

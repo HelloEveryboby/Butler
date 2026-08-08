@@ -124,7 +124,9 @@ def main():
     skill_parser = subparsers.add_parser("skill", help="技能独立运行器 (One Folder = One Skill)")
     skill_sub = skill_parser.add_subparsers(dest="skill_subcommand", help="技能操作")
 
-    skill_sub.add_parser("list", help="列出所有可用技能")
+    skill_list_parser = skill_sub.add_parser("list", help="列出所有可用技能 (区分手动/Agent)")
+    skill_list_parser.add_argument("--type", choices=["user", "agent"], default=None,
+                                    help="过滤类型: user=可调用, agent=Agent技能")
 
     skill_run_parser = skill_sub.add_parser("run", help="运行指定技能")
     skill_run_parser.add_argument("skill_id", help="技能 ID (skills/ 下的文件夹名)")
@@ -279,7 +281,8 @@ def main():
             from butler.cli.skill_cmd import list_skills, info_skill, run_skill
             skill_subcommand = getattr(args, 'skill_subcommand', None)
             if skill_subcommand == "list" or not skill_subcommand:
-                list_skills()
+                filter_type = getattr(args, 'type', None)
+                list_skills(filter_type)
             elif skill_subcommand == "info":
                 info_skill(args.skill_id)
             elif skill_subcommand == "run":
