@@ -178,6 +178,7 @@ class ButlerTUI(App):
             ("🧠 记忆", "memory"),
             ("📋 任务", "tasks"),
             ("🛠️ 技能", "skills"),
+            ("🔧 辅助工具", "tools2"),
             ("📦 包管理", "packages"),
             ("🤖 员工", "agents"),
             ("⏰ 时光机", "timemachine"),
@@ -279,6 +280,18 @@ class ButlerTUI(App):
                         yield Button("📋 详情", id="btn-skill-info", variant="default")
                         yield Label("", id="skill-selected-label")
 
+                # Tools view (辅助工具)
+                with Vertical(id="view-tools2", visible=False):
+                    yield Label("🔧 辅助工具", classes="tool-section-title")
+                    with Horizontal():
+                        yield Button("🔄 刷新工具", id="btn-refresh-tool-list")
+                        yield Select([], id="tool-filter", allow_blank=True, placeholder="筛选权限...")
+                    yield DataTable(id="tools-table")
+                    with Horizontal(id="tool-action-bar"):
+                        yield Button("▶ 执行", id="btn-tool-run", variant="success")
+                        yield Button("📋 详情", id="btn-tool-info", variant="default")
+                        yield Label("", id="tool-selected-label")
+
                 # Packages view
                 with Vertical(id="view-packages", visible=False):
                     yield Label("📦 包管理", classes="tool-section-title")
@@ -335,6 +348,7 @@ class ButlerTUI(App):
         self._init_memory_view()
         self._init_tasks_view()
         self._init_skills_view()
+        self._init_tools2_view()
         self._init_packages_view()
         self._init_agents_view()
         self._init_timemachine_view()
@@ -348,7 +362,8 @@ class ButlerTUI(App):
         for view_id in [
             "view-chat", "view-dashboard", "view-tools",
             "view-memory", "view-tasks", "view-skills",
-            "view-packages", "view-agents", "view-timemachine", "view-settings"
+            "view-tools2", "view-packages", "view-agents",
+            "view-timemachine", "view-settings"
         ]:
             v = self.query_existing(f"#{view_id}")
             if v:
@@ -2612,6 +2627,105 @@ class ButlerTUI(App):
     @on(Button.Pressed, "#btn-refresh-skills")
     def _on_refresh_skills(self, _event):
         self._refresh_skills()
+
+    # ------------------------ Tools View (辅助工具) ------------------------ #
+
+    def _init_tools2_view(self):
+        self._refresh_tools()
+        self._tool_selected = None
+        filter_select = self.query_existing("#tool-filter", Select)
+        if filter_select:
+            filter_select.set_options([
+                ("全部", ""),
+                ("自动执行", "always_allow"),
+                ("需确认", "require_confirm"),
+            ])
+
+    def _refresh_tools(self):
+        table = self.query_existing("#tools-table", DataTable)
+        if not table:
+            return
+        table.clear(columns=True)
+        table.add_columns("工具名", "描述", "权限", "只读", "破坏性")
+
+        try:
+            from butler.core.tool_bridge import list_tools
+            tools = list_tools()
+            for t in tools:
+                perm_icon = "🔓" if t['permission_level'] == 'always_allow' else "🔐"
+                ro = "👁" if t.get('is_read_only') else "✏️"
+                ds = "💥" if t.get('is_destructive') else ""
+                table.add_row(
+                    t['name'],
+                    t['description'][:45],
+                    f"{perm_icon} {t['permission_level']}",
+                    ro,
+                    ds,
+                )
+        except Exception as e:
+            table.add_row("(工具加载失败)", str(e), "", "", "")
+
+    @on(Button.Pressed, "#btn-refresh-tool-list")
+    def _on_refresh_tools(self, _event):
+        self._refresh_tools()
+
+    @on(DataTable.CellSelected, "#tools-table")
+    def _on_tool_selected(self, event):
+        table = self.query_existing("#tools-table", DataTable)
+        if not table:
+            return
+        row = event.row
+        if row < len(table.get_column(0)):
+            name = table.get_column(0)[row]
+            self._tool_selected = name
+            label = self.query_existing("#tool-selected-label", Label)
+            if label:
+                label.update(f"已选择: {name}")
+
+    @on(Button.Pressed, "#btn-tool-info")
+    def _on_tool_info(self, _event):
+        if not self._tool_selected:
+            self._append_chat("请先从列表中选择一个工具", "system")
+            return
+        name = self._tool_selected
+        self._append_chat(f"🔧 工具详情: {name}", "system")
+        try:
+            from butler.core.tool_bridge import ToolContext
+            ctx = ToolContext()
+            info = ctx.info(name)
+            if info:
+                self._append_chat(f"  描述: {info['description']}", "ai")
+                self._append_chat(f"  权限: {info['permission_level']}", "ai")
+                self._append_chat(f"  只读: {'是' if info['is_read_only'] else '否'}", "ai")
+                self._append_chat(f"  破坏性: {'是' if info['is_destructive'] else '否'}", "ai")
+                schema = info.get('parameters_schema', {})
+                if schema.get('properties'):
+                    self._append_chat(f"  参数:", "ai")
+                    required = schema.get('required', [])
+                    for pname, pdef in schema['properties'].items():
+                        req = " (必填)" if pname in required else ""
+                        self._append_chat(f"    - {pname} [{pdef.get('type', 'string')}]{req}: {pdef.get('description', '')}", "ai")
+        except Exception as e:
+            self._append_chat(f"❌ 获取工具信息失败: {e}", "error")
+
+    @on(Button.Pressed, "#btn-tool-run")
+    def _on_tool_run(self, _event):
+        if not self._tool_selected:
+            self._append_chat("请先从列表中选择一个工具", "system")
+            return
+        name = self._tool_selected
+        self._append_chat(f"▶ 执行工具: {name}", "system")
+        try:
+            from butler.core.tool_bridge import ToolContext
+            ctx = ToolContext()
+            result = ctx.execute(name)
+            if result.get('success'):
+                content = result.get('content', '')
+                self._append_chat(f"✅ 执行成功\n{content[:2000]}", "ai")
+            else:
+                self._append_chat(f"❌ 执行失败: {result.get('error', 'Unknown')}", "error")
+        except Exception as e:
+            self._append_chat(f"❌ 执行异常: {e}", "error")
 
     # ------------------------ Packages View ------------------------ #
 

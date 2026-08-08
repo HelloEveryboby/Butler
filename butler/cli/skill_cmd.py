@@ -240,7 +240,7 @@ def cmd_run(args) -> int:
 
     result = None
     if not getattr(args, 'iso', False):
-        result = _try_run_direct(skill_id, skill_path, entry_file, action, extra_params)
+        result = _try_run_direct(skill_id, skill_path, entry_file, action, extra_params, meta)
 
     if result is None:
         result = _try_run_skill_manager(skill_id, action, extra_params)
@@ -349,6 +349,10 @@ def cmd_info(args) -> int:
     if requires:
         req_str = json.dumps(requires, ensure_ascii=False)
         print(f"│  {_c('依赖', C.DIM)}   {req_str}")
+
+    tools = meta.get('tools', [])
+    if tools:
+        print(f"│  {_c('工具', C.DIM)}   {', '.join(tools)}")
 
     if contents:
         preview = contents[:getattr(args, 'preview', 600)]
@@ -475,7 +479,7 @@ def _print_result_nice(result):
         print(str(result))
 
 
-def _try_run_direct(skill_id: str, skill_path: Path, entry_file: str, action: str, extra_params: dict) -> Optional[Any]:
+def _try_run_direct(skill_id: str, skill_path: Path, entry_file: str, action: str, extra_params: dict, meta: dict = None) -> Optional[Any]:
     if not entry_file.endswith('.py'):
         return None
 
@@ -488,12 +492,20 @@ def _try_run_direct(skill_id: str, skill_path: Path, entry_file: str, action: st
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
 
+        kwargs = {"entities": extra_params or {}}
+
+        if meta and meta.get('tools'):
+            try:
+                from butler.core.tool_bridge import create_skill_tools_context
+                tools_ctx = create_skill_tools_context(meta)
+                kwargs["tools"] = tools_ctx
+            except Exception:
+                pass
+
         if hasattr(module, "handle_request"):
-            kwargs = {"entities": extra_params or {}}
             return module.handle_request(action, **kwargs)
 
         if hasattr(module, "main") and callable(module.main):
-            kwargs = extra_params or {}
             result = module.main(**kwargs)
             return result if result is not None else True
 

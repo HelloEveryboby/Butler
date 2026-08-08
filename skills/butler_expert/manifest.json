@@ -6,5 +6,6 @@
   "author": "Butler Community",
   "entry_point": "skills/butler_expert/__init__.py",
   "actions": ["ask", "explain", "troubleshoot"],
-  "keywords": ["butler", "expert", "architecture", "help", "guide", "faq"]
+  "keywords": ["butler", "expert", "architecture", "help", "guide", "faq"],
+  "tools": ["read", "write", "edit", "bash", "grep", "glob", "ls"]
 }

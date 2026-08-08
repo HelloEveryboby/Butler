@@ -156,7 +156,7 @@ def load_skill_metadata(skill_id: str, skill_path: Path) -> Dict[str, Any]:
             with open(manifest_path, 'r', encoding='utf-8') as f:
                 manifest = json.load(f)
             for key in ('description', 'name', 'version', 'keywords', 'actions',
-                         'author', 'provides', 'requires', 'entry'):
+                         'author', 'provides', 'requires', 'entry', 'tools'):
                 if key not in meta and key in manifest:
                     meta[key] = manifest[key]
             if 'format' not in meta:
@@ -171,7 +171,7 @@ def load_skill_metadata(skill_id: str, skill_path: Path) -> Dict[str, Any]:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config_data = yaml.safe_load(f)
             if config_data:
-                for key in ('description', 'version', 'author', 'keywords', 'actions'):
+                for key in ('description', 'version', 'author', 'keywords', 'actions', 'tools'):
                     if key not in meta and key in config_data:
                         meta[key] = config_data[key]
                 if 'format' not in meta:
@@ -243,3 +243,33 @@ ACCESS_LEVEL_INFO = {
         'run_cmd': '通过 AI 对话自动触发',
     },
 }
+
+# 已知的内置工具名称 (供 manifest.json 中 tools 字段验证)
+KNOWN_TOOLS = {
+    'read', 'write', 'edit', 'multi_edit', 'glob', 'grep',
+    'ls', 'delete', 'move', 'copy', 'bash',
+}
+
+
+def get_skill_tools(skill_id: str) -> List[str]:
+    """获取技能声明的工具列表。"""
+    result = get_skill(skill_id)
+    if result is None:
+        return []
+    path, meta = result
+    return meta.get('tools', [])
+
+
+def list_all_skill_tools() -> List[Dict[str, Any]]:
+    """获取所有技能声明的工具映射。"""
+    skills = load_all_skills()
+    tool_map = []
+    for skill_id, path, meta in skills:
+        tools = meta.get('tools', [])
+        if tools:
+            tool_map.append({
+                'skill_id': skill_id,
+                'tools': tools,
+                'access_level': meta.get('access_level', 'agent'),
+            })
+    return tool_map

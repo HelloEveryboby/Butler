@@ -124,6 +124,10 @@ def main():
     skill_parser = subparsers.add_parser("skill", help="技能独立运行器 (One Folder = One Skill)")
     skill_parser.add_argument("skill_args", nargs=argparse.REMAINDER, help="技能子命令 (list/run/info/help)")
 
+    # 17. 辅助工具 (Tool) - Linux 风格
+    tool_parser = subparsers.add_parser("tool", help="辅助工具 (read/write/edit/bash 等)")
+    tool_parser.add_argument("tool_args", nargs=argparse.REMAINDER, help="工具子命令 (list/run)")
+
     # --- 动态加载自定义技能 ---
     try:
         from butler.core.skill_manager import SkillManager
@@ -275,6 +279,18 @@ def main():
                 sys.exit(func(skill_ns))
             else:
                 skill_parser.print_help()
+                sys.exit(0)
+
+        elif args.command == "tool":
+            from butler.cli.tool_cmd import build_parser
+            tool_parser = build_parser()
+            tool_args_list = getattr(args, 'tool_args', []) or []
+            tool_ns = tool_parser.parse_args(tool_args_list)
+            func = getattr(tool_ns, 'func', None)
+            if func:
+                sys.exit(func(tool_ns))
+            else:
+                tool_parser.print_help()
                 sys.exit(0)
 
         # --- 处理动态技能调用 ---
