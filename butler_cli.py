@@ -120,21 +120,9 @@ def main():
     tui_parser = subparsers.add_parser("tui", help="启动 Butler TUI 终端用户界面")
     tui_parser.add_argument("--headless", action="store_true", help="无头模式 (仅 API 服务)")
 
-    # 16. 技能独立运行器 (Skill Runner)
+    # 16. 技能独立运行器 (Skill Runner) - Linux 风格
     skill_parser = subparsers.add_parser("skill", help="技能独立运行器 (One Folder = One Skill)")
-    skill_sub = skill_parser.add_subparsers(dest="skill_subcommand", help="技能操作")
-
-    skill_list_parser = skill_sub.add_parser("list", help="列出所有可用技能 (区分手动/Agent)")
-    skill_list_parser.add_argument("--type", choices=["user", "agent"], default=None,
-                                    help="过滤类型: user=可调用, agent=Agent技能")
-
-    skill_run_parser = skill_sub.add_parser("run", help="运行指定技能")
-    skill_run_parser.add_argument("skill_id", help="技能 ID (skills/ 下的文件夹名)")
-    skill_run_parser.add_argument("skill_action", nargs="?", default="run", help="技能动作 (默认: run)")
-    skill_run_parser.add_argument("params", nargs=argparse.REMAINDER, help="参数 (格式: --key value)")
-
-    skill_info_parser = skill_sub.add_parser("info", help="查看技能详情")
-    skill_info_parser.add_argument("skill_id", help="技能 ID (skills/ 下的文件夹名)")
+    skill_parser.add_argument("skill_args", nargs=argparse.REMAINDER, help="技能子命令 (list/run/info/help)")
 
     # --- 动态加载自定义技能 ---
     try:
@@ -151,7 +139,7 @@ def main():
                 s_parser.add_argument("action", nargs='?', default="run", help="执行动作 (默认: run)")
                 s_parser.add_argument("extra_args", nargs=argparse.REMAINDER, help="自定义参数 (格式: --key value)")
     except Exception as e:
-        print(f"⚠️ 加载自定义技能时出错: {e}")
+        print(f"⚠️ 加载自定义技能时出错: {e}", file=sys.stderr)
         skill_manager = None
 
     if len(sys.argv) == 1:
@@ -278,30 +266,16 @@ def main():
             run_tui()
 
         elif args.command == "skill":
-            from butler.cli.skill_cmd import list_skills, info_skill, run_skill
-            skill_subcommand = getattr(args, 'skill_subcommand', None)
-            if skill_subcommand == "list" or not skill_subcommand:
-                filter_type = getattr(args, 'type', None)
-                list_skills(filter_type)
-            elif skill_subcommand == "info":
-                info_skill(args.skill_id)
-            elif skill_subcommand == "run":
-                extra_params = {}
-                if hasattr(args, 'params') and args.params:
-                    i = 0
-                    while i < len(args.params):
-                        arg = args.params[i]
-                        if arg.startswith("--"):
-                            key = arg[2:]
-                            if i + 1 < len(args.params) and not args.params[i + 1].startswith("--"):
-                                extra_params[key] = args.params[i + 1]
-                                i += 2
-                            else:
-                                extra_params[key] = True
-                                i += 1
-                        else:
-                            i += 1
-                run_skill(args.skill_id, args.skill_action or "run", extra_params)
+            from butler.cli.skill_cmd import build_parser
+            skill_parser = build_parser()
+            skill_args_list = getattr(args, 'skill_args', []) or []
+            skill_ns = skill_parser.parse_args(skill_args_list)
+            func = getattr(skill_ns, 'func', None)
+            if func:
+                sys.exit(func(skill_ns))
+            else:
+                skill_parser.print_help()
+                sys.exit(0)
 
         # --- 处理动态技能调用 ---
         elif skill_manager and args.command in skill_manager.manifests:
@@ -327,7 +301,7 @@ def main():
             print(f"✅ 执行结果 ({args.command}:{args.action}):\n{result}")
 
     except Exception as e:
-        print(f"💥 执行过程中发生错误: {e}")
+        print(f"💥 执行过程中发生错误: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()
 
