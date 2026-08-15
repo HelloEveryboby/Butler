@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Butler AI Subtitles</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --bg-glass-frosted: rgba(18, 22, 32, 0.65);
+      --bg-glass-liquid: rgba(255, 255, 255, 0.08);
+      --border-glass: rgba(255, 255, 255, 0.18);
+      --glass-glow: rgba(0, 198, 255, 0.25);
+      --text-orig-color: #f1f5f9;
+      --text-trans-color: #38bdf8;
+      --font-size-base: 18px;
+      --window-opacity: 0.95;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+    }
+
+    /* Subtitle Container - Frosted Glass & Liquid Glass Theme */
+    .subtitle-card {
+      width: 100%;
+      height: 100%;
+      opacity: var(--window-opacity);
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-glass-frosted);
+      backdrop-filter: blur(28px) saturate(200%);
+      -webkit-backdrop-filter: blur(28px) saturate(200%);
+      border: 1px solid var(--border-glass);
+      border-radius: 18px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.25),
+                  0 0 20px var(--glass-glow);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Liquid Glass Animated Overlay */
+    .subtitle-card.theme-liquid {
+      background: radial-gradient(130% 100% at 50% 0%, rgba(255, 255, 255, 0.18) 0%, rgba(15, 23, 42, 0.75) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5),
+                  inset 0 2px 2px rgba(255, 255, 255, 0.4),
+                  0 0 35px rgba(56, 189, 248, 0.35);
+    }
+
+    .subtitle-card.theme-liquid::before {
+      content: "";
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.12) 0%, transparent 60%);
+      animation: liquidShimmer 8s infinite linear;
+      pointer-events: none;
+    }
+
+    @keyframes liquidShimmer {
+      0% { transform: rotate(0deg) scale(1); }
+      50% { transform: rotate(180deg) scale(1.1); }
+      100% { transform: rotate(360deg) scale(1); }
+    }
+
+    /* Header Bar */
+    .header-bar {
+      height: 36px;
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      -webkit-app-region: drag;
+      cursor: grab;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #e2e8f0;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      background: rgba(34, 197, 94, 0.18);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      border-radius: 12px;
+      color: #4ade80;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      background: #4ade80;
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      -webkit-app-region: no-drag;
+    }
+
+    .btn-icon {
+      background: transparent;
+      border: none;
+      color: rgba(241, 245, 249, 0.7);
+      cursor: pointer;
+      font-size: 13px;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .btn-icon:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+    }
+
+    /* Subtitle Content Area */
+    .content-area {
+      flex: 1;
+      padding: 12px 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+      overflow-y: auto;
+      z-index: 5;
+    }
+
+    .subtitle-orig {
+      font-size: calc(var(--font-size-base) - 2px);
+      color: var(--text-orig-color);
+      font-weight: 400;
+      line-height: 1.4;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+      transition: color 0.3s;
+    }
+
+    .subtitle-trans {
+      font-size: var(--font-size-base);
+      color: var(--text-trans-color);
+      font-weight: 600;
+      line-height: 1.4;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8), 0 0 10px var(--glass-glow);
+      transition: color 0.3s;
+    }
+
+    .cursor-blink {
+      display: inline-block;
+      width: 3px;
+      height: 1em;
+      background: var(--text-trans-color);
+      margin-left: 4px;
+      vertical-align: middle;
+      animation: blink 0.8s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* Settings Panel Overlay */
+    .settings-panel {
+      position: absolute;
+      top: 36px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(20px);
+      display: none;
+      flex-direction: column;
+      padding: 14px 18px;
+      gap: 12px;
+      z-index: 20;
+      overflow-y: auto;
+    }
+
+    .settings-panel.active {
+      display: flex;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #cbd5e1;
+      font-size: 12px;
+    }
+
+    .setting-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+    }
+
+    .setting-input {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    input[type="range"] {
+      width: 110px;
+      accent-color: #38bdf8;
+      cursor: pointer;
+    }
+
+    select, button.setting-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #f8fafc;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* Color Swatches */
+    .color-presets {
+      display: flex;
+      gap: 6px;
+    }
+
+    .color-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform 0.2s;
+    }
+
+    .color-dot:hover {
+      transform: scale(1.2);
+    }
+
+    .color-dot.active {
+      border-color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="subtitle-card" id="subtitleCard">
+    <!-- Header Drag Bar -->
+    <div class="header-bar">
+      <div class="brand">
+        <i class="fa-solid fa-closed-captioning" style="color: #38bdf8;"></i>
+        <span>AI 双语字幕</span>
+        <div class="live-badge">
+          <div class="pulse-dot"></div>
+          <span>实时翻译</span>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="btn-icon" id="btnTheme" title="切换毛玻璃/液态玻璃"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+        <button class="btn-icon" id="btnSettings" title="设置"><i class="fa-solid fa-sliders"></i></button>
+        <button class="btn-icon" id="btnPin" title="置顶"><i class="fa-solid fa-thumbtack" style="color: #38bdf8;"></i></button>
+      </div>
+    </div>
+
+    <!-- Subtitle Text Container -->
+    <div class="content-area" id="contentArea">
+      <div class="subtitle-orig" id="textOrig">正在准备系统音频与 ASR 识别...</div>
+      <div class="subtitle-trans" id="textTrans">Waiting for live audio stream...<span class="cursor-blink"></span></div>
+    </div>
+
+    <!-- Settings Overlay -->
+    <div class="settings-panel" id="settingsPanel">
+      <div class="setting-row">
+        <div class="setting-label"><i class="fa-solid fa-text-height"></i> 字号大小</div>
+        <div class="setting-input">
+          <input type="range" id="sliderFontSize" min="14" max="32" value="18">
+          <span id="valFontSize" style="width:28px; text-align:right;">18px</span>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label"><i class="fa-solid fa-eye"></i> 窗口透明度</div>
+        <div class="setting-input">
+          <input type="range" id="sliderOpacity" min="30" max="100" value="95">
+          <span id="valOpacity" style="width:28px; text-align:right;">95%</span>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label"><i class="fa-solid fa-palette"></i> 译文高亮配色</div>
+        <div class="color-presets">
+          <div class="color-dot active" style="background: #38bdf8;" data-color="#38bdf8" title="天空蓝"></div>
+          <div class="color-dot" style="background: #facc15;" data-color="#facc15" title="琥珀金"></div>
+          <div class="color-dot" style="background: #4ade80;" data-color="#4ade80" title="薄荷绿"></div>
+          <div class="color-dot" style="background: #f43f5e;" data-color="#f43f5e" title="珊瑚粉"></div>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label"><i class="fa-solid fa-language"></i> 字幕显示模式</div>
+        <div class="setting-input">
+          <select id="selectLangMode">
+            <option value="bilingual">双语对照 (原/译)</option>
+            <option value="trans_only">仅显示翻译字幕</option>
+            <option value="orig_only">仅显示原始字幕</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="setting-row" style="margin-top: 4px;">
+        <button class="setting-btn" id="btnCloseSettings" style="width: 100%;"><i class="fa-solid fa-check"></i> 完成设置</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const subtitleCard = document.getElementById('subtitleCard');
+      const textOrig = document.getElementById('textOrig');
+      const textTrans = document.getElementById('textTrans');
+      const settingsPanel = document.getElementById('settingsPanel');
+      const btnSettings = document.getElementById('btnSettings');
+      const btnCloseSettings = document.getElementById('btnCloseSettings');
+      const btnTheme = document.getElementById('btnTheme');
+      const sliderFontSize = document.getElementById('sliderFontSize');
+      const valFontSize = document.getElementById('valFontSize');
+      const sliderOpacity = document.getElementById('sliderOpacity');
+      const valOpacity = document.getElementById('valOpacity');
+      const selectLangMode = document.getElementById('selectLangMode');
+
+      let currentTheme = 'frosted'; // 'frosted' or 'liquid'
+
+      // UI Actions
+      btnSettings.addEventListener('click', () => {
+        settingsPanel.classList.toggle('active');
+      });
+
+      btnCloseSettings.addEventListener('click', () => {
+        settingsPanel.classList.remove('active');
+      });
+
+      btnTheme.addEventListener('click', () => {
+        if (currentTheme === 'frosted') {
+          currentTheme = 'liquid';
+          subtitleCard.classList.add('theme-liquid');
+        } else {
+          currentTheme = 'frosted';
+          subtitleCard.classList.remove('theme-liquid');
+        }
+      });
+
+      sliderFontSize.addEventListener('input', (e) => {
+        const val = e.target.value;
+        valFontSize.innerText = `${val}px`;
+        document.documentElement.style.setProperty('--font-size-base', `${val}px`);
+      });
+
+      sliderOpacity.addEventListener('input', (e) => {
+        const val = e.target.value;
+        valOpacity.innerText = `${val}%`;
+        document.documentElement.style.setProperty('--window-opacity', val / 100);
+      });
+
+      document.querySelectorAll('.color-dot').forEach(dot => {
+        dot.addEventListener('click', (e) => {
+          document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+          e.target.classList.add('active');
+          const color = e.target.getAttribute('data-color');
+          document.documentElement.style.setProperty('--text-trans-color', color);
+          document.documentElement.style.setProperty('--glass-glow', color + '40');
+        });
+      });
+
+      selectLangMode.addEventListener('change', (e) => {
+        const mode = e.target.value;
+        if (mode === 'trans_only') {
+          textOrig.style.display = 'none';
+          textTrans.style.display = 'block';
+        } else if (mode === 'orig_only') {
+          textOrig.style.display = 'block';
+          textTrans.style.display = 'none';
+        } else {
+          textOrig.style.display = 'block';
+          textTrans.style.display = 'block';
+        }
+      });
+
+      // Subtitle Event Handler
+      window.ButlerSubtitles = {
+        onEvent: function(payload) {
+          if (!payload) return;
+          if (payload.original !== undefined) {
+            textOrig.innerText = payload.original;
+          }
+          if (payload.translated !== undefined) {
+            const isPartial = !payload.is_final;
+            textTrans.innerHTML = payload.translated + (isPartial ? '<span class="cursor-blink"></span>' : '');
+          }
+        }
+      };
+    })();
+  </script>
+</body>
+</html>

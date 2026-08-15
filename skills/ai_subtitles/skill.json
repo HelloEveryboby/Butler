@@ -1,0 +1,13 @@
+{
+  "id": "ai_subtitles",
+  "name": "AI Subtitles",
+  "version": "1.0.0",
+  "description": "实时桌面 AI 双语字幕与翻译悬浮窗，采用质感毛玻璃与液态玻璃视觉设计。",
+  "author": "Butler Developer",
+  "entry_point": "main.py",
+  "frontend": "ui/index.html",
+  "icon": "fa-closed-captioning",
+  "is_core": true,
+  "is_long_running": true,
+  "permissions": []
+}
