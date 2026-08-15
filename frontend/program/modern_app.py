@@ -317,6 +317,14 @@ class ModernBridge:
                 })
         return ui_skills
 
+    def launch_ai_subtitles(self):
+        """Launches the floating AI Subtitles overlay window."""
+        try:
+            return self.jarvis.skill_manager.execute("ai_subtitles", "launch")
+        except Exception as e:
+            self.logger.error(f"Failed to launch AI Subtitles: {e}")
+            return {"status": "error", "message": str(e)}
+
     def load_skill_frontend(self, frontend_path: str):
         """Navigate the webview container to a skill's frontend HTML file."""
         import os
