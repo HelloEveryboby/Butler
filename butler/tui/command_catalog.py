@@ -413,6 +413,24 @@ COMMANDS: list[CommandEntry] = [
         example="/memory",
     ),
     CommandEntry(
+        name="memory_save", aliases=["memsave", "m_save", "保存记忆"],
+        category="🧠 记忆",
+        description="保存 AI 记忆或会话交接",
+        usage="/memory_save <标题> | <内容> | [摘要]",
+        detail="将关键信息保存至 Markdown 源文件与 SQLite+Zvec 索引库。",
+        tags=["记忆", "memory", "保存", "save", "handoff", "交接"],
+        example="/memory_save 架构决策 | 采用 SQLite FTS5 + Zvec | 完成索引设计",
+    ),
+    CommandEntry(
+        name="memory_query", aliases=["memquery", "m_query", "查询记忆"],
+        category="🧠 记忆",
+        description="混合检索 (RRF) AI 历史记忆",
+        usage="/memory_query <关键词/语义问题>",
+        detail="通过 RRF 倒数排名融合算法搜寻长期记忆与交接记录。",
+        tags=["记忆", "memory", "查询", "query", "搜索", "search"],
+        example="/memory_query FTS5 架构",
+    ),
+    CommandEntry(
         name="profile", aliases=["pf", "画像", "习惯"],
         category="💬 对话",
         description="查看用户画像",
@@ -990,6 +1008,14 @@ FLAG_REGISTRY: dict[str, list[FlagDef]] = {
     "tasks": [],
     "team": [],
     "memory": [],
+    "memory_save": [
+        FlagDef("-t", "--title", "title", "记忆标题", required=True),
+        FlagDef("-c", "--content", "content", "记忆正文", required=True),
+        FlagDef("-s", "--summary", "session_summary", "会话摘要 (可选)", required=False),
+    ],
+    "memory_query": [
+        FlagDef("-q", "--query", "query", "搜索关键词或语义问题", required=True),
+    ],
     "profile": [],
     "exit": [],
 
