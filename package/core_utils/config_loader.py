@@ -1,19 +1,24 @@
 import os
 import json
-import yaml
+try:
+    import yaml
+except ImportError:
+    yaml = None
 import re
 from typing import Any, Optional
 from pathlib import Path
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    load_dotenv = None
+
 from package.core_utils.log_manager import LogManager
 from butler.core.constants import PROJECT_ROOT, SYSTEM_CONFIG_YAML, SYSTEM_CONFIG_JSON
 from butler.core.config_model import ButlerConfig
 from pydantic import ValidationError
 
 logger = LogManager.get_logger(__name__)
-
-# Load environment variables once
-load_dotenv()
 
 class ConfigLoader:
     _instance = None
@@ -41,7 +46,7 @@ class ConfigLoader:
         config_data = {}
 
         # 1. Try YAML
-        if SYSTEM_CONFIG_YAML.exists():
+        if SYSTEM_CONFIG_YAML.exists() and yaml:
             try:
                 with open(SYSTEM_CONFIG_YAML, 'r', encoding='utf-8') as f:
                     content = f.read()
@@ -121,10 +126,12 @@ class ConfigLoader:
 
         try:
             SYSTEM_CONFIG_YAML.parent.mkdir(parents=True, exist_ok=True)
-            with open(SYSTEM_CONFIG_YAML, 'w', encoding='utf-8') as f:
-                # Save as YAML without env var expansion (to preserve structure, though env vars will be lost if not careful)
-                # Actually, standard practice is to save actual values.
-                yaml.dump(self._config_obj.model_dump(), f, allow_unicode=True, sort_keys=False)
+            if yaml:
+                with open(SYSTEM_CONFIG_YAML, 'w', encoding='utf-8') as f:
+                    yaml.dump(self._config_obj.model_dump(), f, allow_unicode=True, sort_keys=False)
+            else:
+                with open(SYSTEM_CONFIG_JSON, 'w', encoding='utf-8') as f:
+                    json.dump(self._config_obj.model_dump(), f, ensure_ascii=False, indent=2)
             return True
         except Exception as e:
             logger.error(f"Failed to save config: {e}")

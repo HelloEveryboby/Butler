@@ -24,6 +24,10 @@ temp_android_repo/
 .env_ready
 .tasks/
 
+# AI Memory runtime directories
+.butler-memory/
+butler-memory/
+
 # Executables and bin/ artifacts
 **/*_exec
 **/sysutil

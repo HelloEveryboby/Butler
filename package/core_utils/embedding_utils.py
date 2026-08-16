@@ -1,4 +1,7 @@
-import requests
+try:
+    import requests
+except ImportError:
+    requests = None
 
 try:
     import numpy as np
@@ -25,7 +28,7 @@ def get_embedding(text: str, api_key: str = None, offline: bool = False) -> Opti
     """
     获取向量嵌入。支持在线 (DeepSeek) 和离线 (简单哈希 fallback) 模式。
     """
-    if not offline and api_key:
+    if not offline and api_key and requests:
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         try:
             response = requests.post(

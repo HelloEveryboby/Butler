@@ -1,0 +1,9 @@
+{
+  "skill_id": "ai_memory",
+  "name": "AI 记忆服务",
+  "description": "借鉴 ai-memory 架构思想，以 Markdown 为事实来源、SQLite FTS5 + Zvec 为索引层，提供 RRF 混合搜索与 MCP (JSON-RPC) 标准接口。",
+  "actions": ["search", "save", "create_handoff", "get_latest_handoff", "index_file", "session_start", "session_end"],
+  "keywords": ["记忆", "memory", "ai-memory", "mcp", "handoff", "交接", "上下文"],
+  "has_frontend": false,
+  "icon": "fa-brain"
+}
