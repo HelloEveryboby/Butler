@@ -16,6 +16,7 @@ from butler.core.skill_registry import (
     load_all_skills,
     read_skill_contents,
     get_project_root,
+    get_skills_dir,
     ACCESS_LEVEL_INFO,
 )
 
@@ -383,6 +384,298 @@ def cmd_run_shell(args) -> int:
     return cmd_run(args)
 
 
+def cmd_install(args) -> int:
+    """从本地路径、远程 URL 或 stdin 安装技能。"""
+    import requests
+    import re
+
+    url = getattr(args, 'url', None)
+    local_path = getattr(args, 'path', None)
+    use_stdin = getattr(args, 'stdin', False)
+
+    # 自动检测管道: 无 --url / --path 且 stdin 非 TTY → 从 stdin 读取
+    if not url and not local_path and not use_stdin:
+        if not sys.stdin.isatty():
+            use_stdin = True
+
+    if not url and not local_path and not use_stdin:
+        print(_c("❌ 请指定 --url <SKILL.md URL> 或 --path <本地目录>，或通过管道传入 SKILL.md 内容", C.RED), file=sys.stderr)
+        print(_c("  用法: curl -fsSL https://xxx/SKILL.md | butler skill install", C.DIM), file=sys.stderr)
+        return 1
+
+    skills_dir = get_skills_dir()
+    skills_dir.mkdir(parents=True, exist_ok=True)
+
+    # ═══════════════════════════════════════════════════════
+    #  分支 A: 本地目录安装（直接复制，不走 SKILL.md 解析）
+    # ═══════════════════════════════════════════════════════
+    if local_path:
+        src = Path(local_path).resolve()
+        if not src.exists():
+            print(_c(f"❌ 路径不存在: {src}", C.RED), file=sys.stderr)
+            return 1
+        if not src.is_dir():
+            print(_c(f"❌ 不是目录: {src}", C.RED), file=sys.stderr)
+            return 1
+
+        skill_name = src.name
+        target_dir = skills_dir / skill_name
+
+        if target_dir.exists() and not getattr(args, 'force', False):
+            print(_c(f"❌ 技能 '{skill_name}' 已存在，使用 --force 覆盖", C.RED), file=sys.stderr)
+            return 1
+
+        import shutil
+        if target_dir.exists():
+            shutil.rmtree(target_dir)
+        shutil.copytree(src, target_dir)
+        print(_c(f"📥 已从本地安装: {src} → {target_dir}", C.GREEN))
+
+        skill_version = "1.0.0"
+        # 注册
+        _register_skill(skill_name, skill_version)
+        _print_install_summary(skill_name, target_dir)
+        return 0
+
+    # ═══════════════════════════════════════════════════════
+    #  分支 B: 远程 URL 或 stdin 安装
+    # ═══════════════════════════════════════════════════════
+    skill_md_content = None
+    source_url = None
+
+    # 从 stdin 读取
+    if use_stdin:
+        print(_c("📥 正在从 stdin 读取 SKILL.md ...", C.BOLD, C.CYAN), flush=True)
+        skill_md_content = sys.stdin.read()
+        if not skill_md_content.strip():
+            print(_c("❌ stdin 为空，未收到任何内容。", C.RED), file=sys.stderr)
+            return 1
+
+    # 从远程 URL 下载
+    elif url:
+        if url in ('-', '/dev/stdin'):
+            print(_c("📥 正在从 stdin 读取 SKILL.md ...", C.BOLD, C.CYAN), flush=True)
+            skill_md_content = sys.stdin.read()
+            if not skill_md_content.strip():
+                print(_c("❌ stdin 为空，未收到任何内容。", C.RED), file=sys.stderr)
+                return 1
+        else:
+            source_url = url
+            print(_c(f"📥 正在从远程下载技能: {url}", C.BOLD, C.CYAN), flush=True)
+            try:
+                resp = requests.get(url, timeout=60, headers={"User-Agent": "Butler/2.0"})
+                resp.raise_for_status()
+                skill_md_content = resp.text
+            except requests.exceptions.Timeout:
+                print(_c("❌ 下载超时 (60s)，请检查网络或 URL。", C.RED), file=sys.stderr)
+                return 1
+            except requests.exceptions.ConnectionError:
+                print(_c(f"❌ 无法连接到 {url}", C.RED), file=sys.stderr)
+                return 1
+            except requests.exceptions.HTTPError as e:
+                print(_c(f"❌ HTTP 错误: {e}", C.RED), file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(_c(f"❌ 下载失败: {e}", C.RED), file=sys.stderr)
+                return 1
+
+    # ── 解析 YAML frontmatter ──
+    skill_name = None
+    skill_version = "1.0.0"
+    skill_desc = ""
+
+    if skill_md_content.startswith('---'):
+        parts = skill_md_content.split('---', 2)
+        if len(parts) >= 3:
+            try:
+                import yaml
+                frontmatter = yaml.safe_load(parts[1]) or {}
+                skill_name = frontmatter.get('name') or frontmatter.get('id')
+                skill_version = frontmatter.get('version', '1.0.0')
+                skill_desc = frontmatter.get('description', '')
+            except Exception:
+                pass
+
+    # 从 URL 推断名称
+    if not skill_name and source_url:
+        parsed = re.sub(r'https?://', '', source_url)
+        parts = parsed.rstrip('/').split('/')
+        candidates = [p for p in parts if p and not p.endswith('.md') and '.' not in p]
+        if candidates:
+            skill_name = candidates[-1]
+        else:
+            skill_name = parts[0].replace('.', '_') if parts else 'remote_skill'
+
+    if not skill_name:
+        skill_name = 'remote_skill'
+
+    # 规范化名称
+    skill_name = re.sub(r'[^a-zA-Z0-9_-]', '_', skill_name).strip('_').lower()
+    if not skill_name:
+        skill_name = 'remote_skill'
+
+    target_dir = skills_dir / skill_name
+
+    # 已存在处理：版本比较
+    if target_dir.exists():
+        if getattr(args, 'force', False):
+            import shutil
+            shutil.rmtree(target_dir)
+            print(_c(f"🗑  已强制覆盖: {skill_name}", C.YELLOW))
+        else:
+            # 读取已安装技能的版本
+            existing_version = _read_installed_version(target_dir)
+            cmp = _compare_version(skill_version, existing_version)
+
+            if cmp > 0:
+                # 新版本更高 → 更新
+                import shutil
+                shutil.rmtree(target_dir)
+                print(_c(f"⬆  检测到新版本: {existing_version} → {skill_version}，正在更新...", C.GREEN))
+            elif cmp == 0:
+                # 版本相同 → 跳过
+                print(_c(f"⏭  技能 '{skill_name}' 已存在且版本相同 (v{skill_version})，跳过安装。", C.YELLOW))
+                print(_c(f"     使用 --force 强制覆盖。", C.DIM))
+                return 0
+            else:
+                # 新版本更低 → 跳过，防止降级
+                print(_c(f"⏭  技能 '{skill_name}' 已存在更高版本 (v{existing_version})，拒绝降级到 v{skill_version}。", C.YELLOW))
+                print(_c(f"     使用 --force 强制覆盖。", C.DIM))
+                return 0
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # 写入 SKILL.md
+    (target_dir / "SKILL.md").write_text(skill_md_content, encoding='utf-8')
+    print(f"  ✅ SKILL.md 已写入")
+
+    # manifest.json: URL 模式尝试下载，否则自动生成
+    if source_url:
+        base_url = source_url.rsplit('/', 1)[0] + '/'
+        manifest_url = base_url + "manifest.json"
+        try:
+            m_resp = requests.get(manifest_url, timeout=10, headers={"User-Agent": "Butler/2.0"})
+            if m_resp.status_code == 200:
+                (target_dir / "manifest.json").write_text(m_resp.text, encoding='utf-8')
+                print(f"  ✅ manifest.json 已同步下载")
+            else:
+                _generate_manifest(target_dir, skill_name, skill_version, skill_desc)
+                print(f"  ✅ manifest.json 已自动生成")
+        except Exception:
+            _generate_manifest(target_dir, skill_name, skill_version, skill_desc)
+            print(f"  ✅ manifest.json 已自动生成")
+    else:
+        _generate_manifest(target_dir, skill_name, skill_version, skill_desc)
+        print(f"  ✅ manifest.json 已自动生成")
+
+    # 注册
+    _register_skill(skill_name, skill_version)
+    _print_install_summary(skill_name, target_dir)
+    return 0
+
+
+def _register_skill(skill_name: str, skill_version: str):
+    """注册技能到 PackageRegistry。"""
+    try:
+        from butler.package_runtime.loader import PackageLoader
+        loader = PackageLoader()
+        existing = loader.registry.get_package_status(skill_name)
+        if not existing:
+            loader.registry.register(skill_name, skill_version, "active")
+            print(f"  ✅ 已注册到 PackageRegistry")
+        else:
+            print(f"  ℹ  已存在于 PackageRegistry，跳过注册")
+    except Exception as e:
+        print(f"  ⚠  注册到 PackageRegistry 失败 (非致命): {e}", file=sys.stderr)
+
+
+def _print_install_summary(skill_name: str, target_dir: Path):
+    """输出安装完成摘要。"""
+    print()
+    print(_c(f"🎉 技能安装完成!", C.BOLD, C.GREEN))
+    print(f"  名称:  {_c(skill_name, C.BOLD)}")
+    print(f"  路径:  {target_dir}")
+    print(f"  使用:  python butler_cli.py skill info {skill_name}")
+    print(f"         python butler_cli.py skill run {skill_name}")
+
+
+def _generate_manifest(target_dir: Path, name: str, version: str, description: str):
+    """为远程下载的技能自动生成 manifest.json。"""
+    manifest = {
+        "name": name,
+        "version": version,
+        "type": "skill",
+        "description": description or f"远程安装的技能: {name}",
+        "permissions": [],
+        "entry": "SKILL.md",
+        "dependencies": {}
+    }
+    (target_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False), encoding='utf-8'
+    )
+
+
+def _read_installed_version(skill_dir: Path) -> str:
+    """读取已安装技能的版本号。优先从 SKILL.md frontmatter 读取，其次 manifest.json。"""
+    # 1. 尝试 SKILL.md frontmatter
+    skill_md = skill_dir / "SKILL.md"
+    if skill_md.exists():
+        try:
+            content = skill_md.read_text(encoding='utf-8')
+            if content.startswith('---'):
+                parts = content.split('---', 2)
+                if len(parts) >= 3:
+                    import yaml
+                    meta = yaml.safe_load(parts[1]) or {}
+                    ver = meta.get('version')
+                    if ver:
+                        return str(ver)
+        except Exception:
+            pass
+
+    # 2. 尝试 manifest.json
+    manifest_file = skill_dir / "manifest.json"
+    if manifest_file.exists():
+        try:
+            data = json.loads(manifest_file.read_text(encoding='utf-8'))
+            ver = data.get('version')
+            if ver:
+                return str(ver)
+        except Exception:
+            pass
+
+    return "0.0.0"
+
+
+def _compare_version(new_ver: str, existing_ver: str) -> int:
+    """比较两个版本号。返回: 1=new更高, 0=相同, -1=existing更高。"""
+    def _parse(v: str) -> tuple:
+        # 去掉前缀 v, 处理 x.y.z 格式
+        v = v.strip().lstrip('vV')
+        parts = []
+        for p in v.split('.'):
+            try:
+                parts.append(int(p))
+            except ValueError:
+                parts.append(0)
+        # 补齐到 3 位
+        while len(parts) < 3:
+            parts.append(0)
+        return tuple(parts[:3])
+
+    try:
+        new = _parse(new_ver)
+        existing = _parse(existing_ver)
+        if new > existing:
+            return 1
+        elif new < existing:
+            return -1
+        else:
+            return 0
+    except Exception:
+        return 0
+
+
 def _print_man_page():
     lines = [
         _c("BUTLER-SKILL(1)                    User Commands                   BUTLER-SKILL(1)", C.BOLD),
@@ -409,6 +702,12 @@ def _print_man_page():
         "",
         _c("     info", C.CYAN, C.BOLD) + " <skill-id> [-j|--json] [-p|--preview N]",
         "           查看技能详情 (含类型标签和 SKILL.md 预览)",
+        "",
+        _c("     install", C.CYAN, C.BOLD) + " -u|--url <SKILL.md URL> [-f|--force]",
+        "           从远程 URL 下载并安装技能 (自动解析 frontmatter、生成 manifest)",
+        "",
+        _c("     install", C.CYAN, C.BOLD) + " -p|--path <本地目录> [-f|--force]",
+        "           从本地目录安装技能",
         "",
         _c("OPTIONS", C.BOLD),
         _c("     -t, --type <type>", C.CYAN) + "    过滤技能类型: user 或 agent",
@@ -637,6 +936,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_info.add_argument("-p", "--preview", type=int, default=600)
     p_info.add_argument("-h", "--help", action="store_true")
     p_info.set_defaults(func=cmd_info)
+
+    # ── install ──
+    p_install = sub.add_parser("install", add_help=False)
+    p_install.add_argument("-u", "--url", default=None, help="远程 SKILL.md 的 URL，或 '-' 表示从 stdin 读取")
+    p_install.add_argument("-p", "--path", default=None, help="本地技能目录路径")
+    p_install.add_argument("-s", "--stdin", action="store_true", help="从 stdin 读取 SKILL.md 内容")
+    p_install.add_argument("-f", "--force", action="store_true", help="强制覆盖已存在的技能")
+    p_install.add_argument("-h", "--help", action="store_true")
+    p_install.set_defaults(func=cmd_install)
 
     # ── help as subcommand ──
     p_help = sub.add_parser("help", add_help=False)
