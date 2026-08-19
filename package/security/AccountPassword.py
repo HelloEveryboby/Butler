@@ -5,7 +5,6 @@
 """
 
 import sqlite3
-import pyautogui
 import time
 import sys
 import os
@@ -13,16 +12,33 @@ import re
 import csv
 import threading
 from getpass import getpass
-import bcrypt
-import pyperclip
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
+
+try:
+    import pyautogui
+except ImportError:
+    pyautogui = None
+
+try:
+    import bcrypt
+except ImportError:
+    bcrypt = None
+
+try:
+    import pyperclip
+except ImportError:
+    pyperclip = None
+
+try:
+    from selenium import webdriver
+    from selenium.webdriver.chrome.service import Service as ChromeService
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.common.keys import Keys
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from webdriver_manager.chrome import ChromeDriverManager
+except ImportError:
+    webdriver = None
 from package.core_utils.log_manager import LogManager
 from package.security.crypto_core import SymmetricCrypto
 

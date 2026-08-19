@@ -781,14 +781,21 @@ def execute_network_diagnostics() -> Dict[str, Any]:
     return results
 
 
-# Master entry logic executing request routing from frontend
-def handle_request(action: str, **kwargs) -> Any:
-    # Auto-initialize server threads
+def ensure_services_started():
+    """Lazily initializes downloader scheduler and streaming server threads when needed."""
     global scheduler_thread, scheduler_running
     if not scheduler_running:
+        scheduler_running = True
         scheduler_thread = threading.Thread(target=run_scheduler_daemon, daemon=True)
         scheduler_thread.start()
         start_streaming_server()
+
+
+# Master entry logic executing request routing from frontend
+def handle_request(action: str, **kwargs) -> Any:
+    # Service lazy loading: only start services when active download actions are requested
+    if action in ["add_task", "resume_task", "start_service", "start_stream", "download"]:
+        ensure_services_started()
 
     # Access Jarvis references
     jarvis_app = kwargs.get("jarvis_app")
@@ -797,9 +804,14 @@ def handle_request(action: str, **kwargs) -> Any:
         return {
             "status": "ok",
             "standalone": get_standalone_status(),
+            "service_active": scheduler_running,
             "download_path": get_downloads_dir(),
             "config": load_local_config()
         }
+
+    elif action == "start_service":
+        ensure_services_started()
+        return {"status": "ok", "message": "服务已启动", "service_active": True}
 
     elif action == "save_settings":
         download_path = kwargs.get("download_path")

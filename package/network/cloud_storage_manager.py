@@ -6,18 +6,27 @@ import os
 import sys
 import io
 import contextlib
-from bypy import ByPy
+
+try:
+    from bypy import ByPy
+except ImportError:
+    ByPy = None
+
 from package.core_utils.log_manager import LogManager
 
 logger = LogManager.get_logger(__name__)
 
 class CloudStorageManager:
     def __init__(self):
-        # 禁用 bypy 的自动交互，防止在后台线程阻塞
-        self.bp = ByPy(quit_on_error=False)
+        if ByPy:
+            self.bp = ByPy(quit_on_error=False)
+        else:
+            self.bp = None
 
     def _capture_output(self, func, *args, **kwargs):
         """捕获函数的标准输出并返回字符串"""
+        if not self.bp:
+            return "错误：未安装 bypy 依赖库。"
         f = io.StringIO()
         with contextlib.redirect_stdout(f):
             try:
@@ -28,38 +37,42 @@ class CloudStorageManager:
 
     def list_files(self, remote_path='/'):
         """列出网盘文件"""
+        if not self.bp:
+            return "错误：未安装 bypy 依赖库。"
         logger.info(f"正在列出网盘目录: {remote_path}")
         output = self._capture_output(self.bp.list, remote_path)
         return output if output.strip() else "目录为空或读取失败。"
 
     def upload(self, local_path, remote_path='/'):
         """上传文件到网盘"""
+        if not self.bp:
+            return "错误：未安装 bypy 依赖库。"
         if not os.path.exists(local_path):
             return f"错误：本地文件 {local_path} 不存在。"
 
         logger.info(f"正在上传 {local_path} 到网盘 {remote_path}")
-        # upload 通常不会产生大量 stdout，但也捕获一下以防万一
         output = self._capture_output(self.bp.upload, local_path, remote_path)
         return output if output.strip() else "上传任务已处理。"
 
     def download(self, remote_path, local_path='.'):
         """从网盘下载文件"""
+        if not self.bp:
+            return "错误：未安装 bypy 依赖库。"
         logger.info(f"正在从网盘下载 {remote_path} 到 {local_path}")
         output = self._capture_output(self.bp.download, remote_path, local_path)
         return output if output.strip() else "下载任务已处理。"
 
     def get_quota(self):
         """查看网盘容量信息"""
+        if not self.bp:
+            return "错误：未安装 bypy 依赖库。"
         logger.info("正在查询网盘容量信息")
         output = self._capture_output(self.bp.info)
         return output if output.strip() else "无法获取空间信息。"
 
 def run(*args, **kwargs):
-    """
-    Butler ExtensionManager 的入口点。
-    """
-    # 检查 bypy 是否已经授权
-    # bypy 默认存储授权信息在 ~/.bypy 目录下
+    if not ByPy:
+        return "检测到未安装 bypy 库，请先安装 pip install bypy。"
     auth_file = os.path.expanduser('~/.bypy/bypy.json')
     if not os.path.exists(auth_file):
         return ("检测到网盘尚未授权。请在终端执行 'bypy info' 并按照提示完成授权，"

@@ -1,33 +1,50 @@
 import json
 import os
-import pyttsx3
 import datetime
-import schedule
 import time
 import threading
 
+try:
+    import schedule
+except ImportError:
+    schedule = None
+
+try:
+    import pyttsx3
+except ImportError:
+    pyttsx3 = None
+
 class ScheduleManager:
-    def __init__(self, jarvis, filename='schedule.json'):
+    def __init__(self, jarvis=None, filename='schedule.json'):
         self.jarvis = jarvis
         self.filename = filename
+        self.schedule = []
         self.load_schedule()
 
     def speak(self, message):
-        self.jarvis.speak(message)
+        if self.jarvis and hasattr(self.jarvis, "speak"):
+            self.jarvis.speak(message)
+        else:
+            print(f"[ScheduleManager] {message}")
 
     def takecommand(self):
-        return self.jarvis.takecommand()
+        if self.jarvis and hasattr(self.jarvis, "takecommand"):
+            return self.jarvis.takecommand()
+        return ""
 
     def load_schedule(self):
         if os.path.exists(self.filename):
-            with open(self.filename, 'r') as file:
-                self.schedule = json.load(file)
+            try:
+                with open(self.filename, 'r', encoding='utf-8') as file:
+                    self.schedule = json.load(file)
+            except Exception:
+                self.schedule = []
         else:
             self.schedule = []
 
     def save_schedule(self):
-        with open(self.filename, 'w') as file:
-            json.dump(self.schedule, file, indent=4)
+        with open(self.filename, 'w', encoding='utf-8') as file:
+            json.dump(self.schedule, file, indent=4, ensure_ascii=False)
 
     def add_event(self, date_time, event, reminder=None, repeat=None):
         try:
@@ -38,13 +55,14 @@ class ScheduleManager:
                                   'repeat': repeat})
             self.save_schedule()
             self.speak(f'事件 "{event}" 已添加到 {date_time}')
-            # 添加重复事件到 schedule 库
             if repeat:
                 self.schedule_event(datetime_obj, event, repeat)
         except ValueError:
             self.speak("日期或时间格式错误，请重新输入。")
 
     def schedule_event(self, datetime_obj, event, repeat):
+        if not schedule:
+            return
         if repeat == '每天':
             schedule.every().day.at(datetime_obj.strftime("%H:%M")).do(self.event_reminder, event)
         elif repeat == '每周':
@@ -57,14 +75,14 @@ class ScheduleManager:
 
     def run_scheduler(self):
         while True:
-            schedule.run_pending()
+            if schedule:
+                schedule.run_pending()
             time.sleep(1)
 
     def view_schedule(self):
         if not self.schedule:
             self.speak('没有已安排的事件。')
         else:
-            # 按时间排序
             self.schedule.sort(key=lambda item: datetime.datetime.strptime(item['date'], "%Y-%m-%d %H:%M"))
             for idx, entry in enumerate(self.schedule, start=1):
                 self.speak(f"{idx}. {entry['date']} - {entry['event']}")
@@ -96,7 +114,6 @@ class ScheduleManager:
                 event['event'] = new_event
             self.save_schedule()
             self.speak(f'事件已更新：{event["date"]} - {event["event"]}')
-            # 如果存在重复事件，则需要更新重复事件调度
             if 'repeat' in event and event['repeat']:
                 self.schedule_event(datetime_obj, event['event'], event['repeat'])
         except IndexError:
@@ -122,9 +139,9 @@ class ScheduleManager:
                 days = int(time_str.split('天')[0].strip())
                 future_date = datetime.datetime.now() + datetime.timedelta(days=days)
                 self.speak("请输入具体时间，格式为 HH:MM。")
-                time = takecommand()
-                if time:
-                    event_datetime = future_date.strftime("%Y-%m-%d") + " " + time
+                time_input = self.takecommand()
+                if time_input:
+                    event_datetime = future_date.strftime("%Y-%m-%d") + " " + time_input
                     self.add_event(event_datetime, event)
             else:
                 self.speak("无效的时间格式，请重新输入。")

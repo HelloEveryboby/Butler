@@ -1,7 +1,10 @@
 import requests
 import time
 import random
-import redis
+try:
+    import redis
+except ImportError:
+    redis = None
 import os
 import concurrent.futures
 import argparse
