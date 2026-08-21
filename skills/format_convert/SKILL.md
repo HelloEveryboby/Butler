@@ -1,7 +1,7 @@
 ---
 name: format_convert
-description: "高效、模块化的分布式文档格式转换工具，支持 Markdown -> HTML 以及 JSON/YAML -> CSV"
-version: "1.0.0"
+description: "全功能多格式文档互相转换工具，支持 Markdown、HTML、PDF、DOCX、EPUB、XLSX、CSV、JSON、YAML 以及图片格式的统一转换与倒查"
+version: "2.0.0"
 risk: "low"
 provides:
   - "document.converted"
@@ -9,11 +9,12 @@ requires: {}
 isolation: "process"
 ---
 
-# Document Format Conversion Tool
+# 全功能文档格式转换中心 (Format Convert Skill)
 
-This skill converts document formats using efficient streaming, distributed Go runners, or local Python fallbacks.
+整合全系统文档格式转换功能，提供统一的分布式与本地双引擎转换服务。
 
-## Supported Conversions:
-- **Markdown (MD) -> HTML**: Parses Markdown content with CSS styling and optional watermark.
-- **JSON -> CSV**: Flattens nested JSON objects or arrays and maps them to a CSV spreadsheet.
-- **YAML -> CSV**: Flattens nested YAML objects or arrays and maps them to a CSV spreadsheet.
+## 核心转换能力：
+- **Markdown 导出**：Markdown -> HTML / DOCX / EPUB / PDF / PNG / JPG / WEBP
+- **数据与表格**：JSON / YAML -> CSV / XLSX，CSV / JSON -> MD 表格
+- **逆向转成 Markdown**：DOCX / PDF / HTML / EPUB / PPTX / XLSX / CSV / 图片 -> Markdown
+- **图片编码处理**：PNG / JPG -> WEBP / BASE64
