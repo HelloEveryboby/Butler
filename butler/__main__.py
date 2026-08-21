@@ -88,6 +88,8 @@ def main():
         _launch_config(rest)
     elif mode == "doctor":
         _launch_doctor()
+    elif mode in ("download", "下载"):
+        _launch_download(rest)
     else:
         print(f"未知参数: {first}\n")
         _print_help()
@@ -206,6 +208,15 @@ def _launch_config(rest: list):
     from butler.cli import config_cmd
     sub = rest[0] if rest else ""
     config_cmd.run_config(sub)
+
+
+def _launch_download(rest: list):
+    """启动 Linux 风格 CLI / Rich TUI 资源下载器."""
+    from downloader.cli import build_cli_parser, download_cli
+    p = build_cli_parser()
+    args = p.parse_args(rest)
+    target_out = args.flag_output or args.pos_output
+    download_cli(args.url, output_dir=target_out, daemon=args.daemon)
 
 
 # ────────────────────────────────────────────────────────────

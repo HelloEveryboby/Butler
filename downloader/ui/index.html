@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Butler - Motrix 蓝本资源下载器</title>
+    <!-- Tailwind CSS & FontAwesome -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --sidebar-bg: rgba(15, 23, 42, 0.85);
+            --panel-bg: rgba(30, 41, 59, 0.7);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --item-bg: rgba(255, 255, 255, 0.03);
+            --item-border: rgba(255, 255, 255, 0.06);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-blue: #38bdf8;
+            --accent-green: #22c55e;
+            --accent-red: #ef4444;
+            --glass-blur: blur(20px);
+            --apple-easing: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* Sidebar Styling */
+        .motrix-sidebar {
+            width: 220px;
+            background: var(--sidebar-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border-right: 1px solid var(--panel-border);
+            display: flex;
+            flex-col;
+            justify-content: space-between;
+            padding: 1.25rem 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            space-x: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s var(--apple-easing);
+            margin-bottom: 0.35rem;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background: rgba(56, 189, 248, 0.15);
+            color: var(--accent-blue);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+        }
+
+        /* Main Panel Styling */
+        .motrix-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 50%);
+        }
+
+        .glass-card {
+            background: var(--item-bg);
+            border: 1px solid var(--item-border);
+            border-radius: 14px;
+            transition: all 0.25s var(--apple-easing);
+        }
+
+        .glass-card:hover {
+            border-color: var(--accent-blue);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .piece-block {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            margin: 1px;
+            display: inline-block;
+        }
+
+        .apple-input {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--panel-border);
+            color: var(--text-primary);
+            border-radius: 10px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .apple-input:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+        }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Left Motrix Sidebar -->
+    <div class="motrix-sidebar">
+        <div class="space-y-6">
+            <!-- App Logo -->
+            <div class="flex items-center space-x-3 px-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white font-bold shadow-lg">
+                    <i class="fas fa-download text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-sm tracking-wide text-gray-100">Butler Downloader</h1>
+                    <span class="text-xs text-sky-400 font-semibold">Motrix Edition</span>
+                </div>
+            </div>
+
+            <!-- New Task Button -->
+            <button onclick="switchTab('add')" class="w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold py-2.5 px-4 rounded-xl shadow-lg flex items-center justify-center space-x-2 transition">
+                <i class="fas fa-plus"></i>
+                <span>新建下载</span>
+            </button>
+
+            <!-- Nav Links -->
+            <nav>
+                <div onclick="switchTab('active')" id="nav-active" class="nav-item active">
+                    <i class="fas fa-arrow-down w-5"></i>
+                    <span>下载中</span>
+                    <span id="badge-active" class="ml-auto text-xs bg-sky-500 bg-opacity-20 text-sky-400 px-2 py-0.5 rounded-full font-mono">0</span>
+                </div>
+                <div onclick="switchTab('completed')" id="nav-completed" class="nav-item">
+                    <i class="fas fa-check w-5"></i>
+                    <span>已完成</span>
+                    <span id="badge-completed" class="ml-auto text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full font-mono">0</span>
+                </div>
+                <div onclick="switchTab('settings')" id="nav-settings" class="nav-item">
+                    <i class="fas fa-sliders w-5"></i>
+                    <span>偏好设置</span>
+                </div>
+            </nav>
+        </div>
+
+        <!-- Footer status -->
+        <div class="px-3 text-xs text-gray-500 font-mono">
+            <div class="flex items-center space-x-2 mb-1">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                <span>核心调度服务就绪</span>
+            </div>
+            <div>Butler v2.1.0</div>
+        </div>
+    </div>
+
+    <!-- Right Main Panel -->
+    <div class="motrix-main">
+        <!-- Top Status Bar -->
+        <div class="h-16 border-b border-gray-800 px-8 flex items-center justify-between">
+            <div class="flex items-center space-x-6">
+                <h2 id="page-title" class="text-lg font-bold text-gray-100">正在下载</h2>
+            </div>
+            <div class="flex items-center space-x-6 text-sm font-mono">
+                <div class="text-gray-400">
+                    全网总速: <span id="total-speed" class="text-sky-400 font-bold">0 B/s</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto p-8 space-y-6">
+
+            <!-- Active List -->
+            <div id="content-active" class="space-y-4">
+                <div id="active-list" class="space-y-4">
+                    <div class="text-center py-20 text-gray-500 text-sm">
+                        <i class="fas fa-download text-4xl mb-3 block opacity-30"></i>
+                        暂无正在下载的任务，点击左侧“新建下载”开始
+                    </div>
+                </div>
+            </div>
+
+            <!-- Completed List -->
+            <div id="content-completed" class="space-y-4 hidden">
+                <div id="completed-list" class="space-y-4">
+                    <div class="text-center py-20 text-gray-500 text-sm">暂无已完成或停用记录</div>
+                </div>
+            </div>
+
+            <!-- Add Task Panel -->
+            <div id="content-add" class="glass-card p-6 hidden max-w-2xl mx-auto">
+                <h3 class="text-base font-bold text-gray-100 mb-4 flex items-center space-x-2">
+                    <i class="fas fa-link text-sky-400"></i>
+                    <span>添加新建下载任务</span>
+                </h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-400 mb-2">资源 URL 链接</label>
+                        <textarea id="input-url" rows="4" class="w-full apple-input p-3 text-sm font-mono placeholder-gray-600" placeholder="支持 HTTP / HTTPS / 磁力链接"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-400 mb-2">存放位置 (默认 ./download/)</label>
+                        <input type="text" id="input-output" class="w-full apple-input p-3 text-sm font-mono" placeholder="留空则保存至默认 download 文件夹 (自动执行 mkdir -p)">
+                    </div>
+                    <div class="pt-2 flex justify-end space-x-3">
+                        <button onclick="switchTab('active')" class="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-400 hover:text-white">取消</button>
+                        <button onclick="submitNewTask()" class="bg-sky-500 hover:bg-sky-400 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow-lg transition">开始下载</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Panel -->
+            <div id="content-settings" class="glass-card p-6 hidden max-w-2xl mx-auto">
+                <h3 class="text-base font-bold text-gray-100 mb-4 flex items-center space-x-2">
+                    <i class="fas fa-sliders text-sky-400"></i>
+                    <span>偏好设置</span>
+                </h3>
+                <div class="space-y-4 text-sm">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">默认下载保存目录</label>
+                        <input type="text" id="setting-path" class="w-full apple-input p-2.5 font-mono text-sm" value="./download/">
+                    </div>
+                    <div class="flex justify-end pt-2">
+                        <button onclick="saveSettings()" class="bg-sky-500 hover:bg-sky-400 text-white font-bold px-6 py-2 rounded-xl transition">保存</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        let currentTab = 'active';
+
+        function switchTab(tab) {
+            currentTab = tab;
+            ['active', 'completed', 'add', 'settings'].forEach(t => {
+                const nav = document.getElementById(`nav-${t}`);
+                const content = document.getElementById(`content-${t}`);
+                if (nav) nav.classList.remove('active');
+                if (content) content.classList.add('hidden');
+            });
+
+            const activeNav = document.getElementById(`nav-${tab}`);
+            const activeContent = document.getElementById(`content-${tab}`);
+            if (activeNav) activeNav.classList.add('active');
+            if (activeContent) activeContent.classList.remove('hidden');
+
+            const titleMap = {
+                'active': '正在下载',
+                'completed': '已完成',
+                'add': '新建任务',
+                'settings': '偏好设置'
+            };
+            document.getElementById('page-title').innerText = titleMap[tab] || 'Motrix 下载器';
+        }
+
+        async function fetchTasks() {
+            try {
+                const res = await fetch('/api/list_tasks', { method: 'POST' });
+                if (!res.ok) return;
+                const tasks = await res.json();
+
+                let activeHtml = '';
+                let completedHtml = '';
+                let activeCount = 0;
+                let completedCount = 0;
+                let totalSpeed = 0;
+
+                for (const id in tasks) {
+                    const task = tasks[id];
+                    if (task.status === 'downloading' || task.status === 'pending') {
+                        activeCount++;
+                        activeHtml += renderTaskCard(task);
+                    } else {
+                        completedCount++;
+                        completedHtml += renderTaskCard(task);
+                    }
+                }
+
+                document.getElementById('badge-active').innerText = activeCount;
+                document.getElementById('badge-completed').innerText = completedCount;
+
+                if (activeCount > 0) document.getElementById('active-list').innerHTML = activeHtml;
+                if (completedCount > 0) document.getElementById('completed-list').innerHTML = completedHtml;
+
+            } catch (err) {}
+        }
+
+        function renderTaskCard(task) {
+            const isDone = task.status === 'completed';
+            const progress = task.progress || 0;
+
+            // Generate Motrix style chunk segment blocks
+            let blocksHtml = '';
+            for (let i = 0; i < 16; i++) {
+                const isFilled = (i / 16) < (progress / 100);
+                const bg = isFilled ? '#38bdf8' : '#1e293b';
+                blocksHtml += `<div class="piece-block" style="background-color: ${bg}"></div>`;
+            }
+
+            return `
+                <div class="glass-card p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="truncate pr-4">
+                            <span class="font-bold text-sm text-gray-100 block truncate">${task.name}</span>
+                            <span class="text-xs text-gray-400 font-mono">${task.speed || '0 B/s'} • ETA ${task.eta || '未知'}</span>
+                        </div>
+                        <span class="text-xs font-mono font-bold px-2.5 py-1 rounded-full ${isDone ? 'bg-green-500 bg-opacity-20 text-green-400' : 'bg-sky-500 bg-opacity-20 text-sky-400'}">${task.status}</span>
+                    </div>
+                    <div class="space-y-1">
+                        <div class="w-full h-2 bg-gray-900 rounded-full overflow-hidden">
+                            <div class="h-full bg-gradient-to-r from-sky-400 to-blue-500 rounded-full" style="width: ${progress}%"></div>
+                        </div>
+                        <div class="flex justify-between items-center text-xs text-gray-500 font-mono">
+                            <span>${progress}%</span>
+                            <div class="flex items-center space-x-1">${blocksHtml}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function submitNewTask() {
+            const url = document.getElementById('input-url').value.strip ? document.getElementById('input-url').value.trim() : document.getElementById('input-url').value;
+            const output = document.getElementById('input-output').value.trim ? document.getElementById('input-output').value.trim() : document.getElementById('input-output').value;
+
+            if (!url) return;
+
+            await fetch('/api/add_task', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url, save_location: output })
+            });
+
+            document.getElementById('input-url').value = '';
+            switchTab('active');
+            fetchTasks();
+        }
+
+        setInterval(fetchTasks, 1500);
+        fetchTasks();
+    </script>
+</body>
+</html>

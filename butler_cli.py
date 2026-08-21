@@ -128,6 +128,19 @@ def main():
     tool_parser = subparsers.add_parser("tool", help="辅助工具 (read/write/edit/bash 等)")
     tool_parser.add_argument("tool_args", nargs=argparse.REMAINDER, help="工具子命令 (list/run)")
 
+    # 18. 下载器 (Download / 下载) - Linux 风格
+    dl_parser = subparsers.add_parser("download", help="Linux 风格 CLI / TUI 资源下载器")
+    dl_parser.add_argument("url", help="要下载的资源 URL 链接")
+    dl_parser.add_argument("pos_output", nargs="?", default=None, help="目标保存目录 (可选，默认为 ./download/)")
+    dl_parser.add_argument("-o", "--output", dest="flag_output", default=None, help="目标保存目录")
+    dl_parser.add_argument("-d", "--daemon", action="store_true", help="是否后台守护进程形式下载")
+
+    dl_zh_parser = subparsers.add_parser("下载", help="Linux 风格 CLI / TUI 资源下载器 (中文别名)")
+    dl_zh_parser.add_argument("url", help="要下载的资源 URL 链接")
+    dl_zh_parser.add_argument("pos_output", nargs="?", default=None, help="目标保存目录 (可选，默认为 ./download/)")
+    dl_zh_parser.add_argument("-o", "--output", dest="flag_output", default=None, help="目标保存目录")
+    dl_zh_parser.add_argument("-d", "--daemon", action="store_true", help="是否后台守护进程形式下载")
+
     # --- 动态加载自定义技能 ---
     try:
         from butler.core.skill_manager import SkillManager
@@ -292,6 +305,11 @@ def main():
             else:
                 tool_parser.print_help()
                 sys.exit(0)
+
+        elif args.command in ["download", "下载"]:
+            from downloader.cli import download_cli
+            target_out = getattr(args, "flag_output", None) or getattr(args, "pos_output", None)
+            download_cli(args.url, output_dir=target_out, daemon=getattr(args, "daemon", False))
 
         # --- 处理动态技能调用 ---
         elif skill_manager and args.command in skill_manager.manifests:
