@@ -119,6 +119,7 @@ var (
 	runnerID     = flag.String("id", "default_runner", "Unique ID for this runner")
 	isSleeping   = false
 	mu           sync.Mutex
+	writeMu      sync.Mutex
 	blackboard   = make(map[string]interface{})
 	vault        = NewVaultEngine()
 	procMgr      *ProcessManager
@@ -361,7 +362,10 @@ func connect() error {
 		RunnerID: *runnerID,
 		Data:     envInfo,
 	}
-	if err := c.WriteJSON(regMsg); err != nil {
+	writeMu.Lock()
+	err = c.WriteJSON(regMsg)
+	writeMu.Unlock()
+	if err != nil {
 		return err
 	}
 
@@ -429,7 +433,9 @@ func connect() error {
 				RunnerID: *runnerID,
 				Token:    *authToken,
 			}
+			writeMu.Lock()
 			c.WriteJSON(metricsMsg)
+			writeMu.Unlock()
 		}()
 	}
 }
@@ -997,8 +1003,8 @@ func sendResp(c *websocket.Conn, status string, data interface{}, errMsg string)
 		Error:    errMsg,
 		RunnerID: *runnerID,
 	}
-	mu.Lock()
-	defer mu.Unlock()
+	writeMu.Lock()
+	defer writeMu.Unlock()
 	if err := c.WriteJSON(resp); err != nil {
 		log.Printf("⚠️ 发送响应失败: %v", err)
 	}
@@ -1012,8 +1018,8 @@ func sendRespWithID(c *websocket.Conn, status string, data interface{}, errMsg s
 		RunnerID:  *runnerID,
 		RequestID: requestID,
 	}
-	mu.Lock()
-	defer mu.Unlock()
+	writeMu.Lock()
+	defer writeMu.Unlock()
 	if err := c.WriteJSON(resp); err != nil {
 		log.Printf("⚠️ 发送响应失败: %v", err)
 	}

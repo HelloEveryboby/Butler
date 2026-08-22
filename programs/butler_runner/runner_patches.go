@@ -145,8 +145,8 @@ func sendBatch(conn *websocket.Conn, lines []StreamLine, skillID string) {
 		Token:    *authToken,
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
+	writeMu.Lock()
+	defer writeMu.Unlock()
 	conn.WriteJSON(msg)
 }
 
@@ -173,9 +173,9 @@ func initModules() {
 				RunnerID: *runnerID,
 				Token:    *authToken,
 			}
-			mu.Lock()
+			writeMu.Lock()
 			procMgr.conn.WriteJSON(msg)
-			mu.Unlock()
+			writeMu.Unlock()
 		}
 	})
 
@@ -283,9 +283,9 @@ func pushShellOutput(c *websocket.Conn, sessionID string) {
 			Token:     *authToken,
 			RequestID: sessionID,
 		}
-		mu.Lock()
+		writeMu.Lock()
 		c.WriteJSON(msg)
-		mu.Unlock()
+		writeMu.Unlock()
 	}
 }
 
