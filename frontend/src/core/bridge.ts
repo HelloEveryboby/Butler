@@ -2,7 +2,7 @@
  * PyWebView Bridge abstraction layer for Butler frontend.
  */
 
-class PyWebViewBridge {
+export class PyWebViewBridge {
   public static isAvailable(): boolean {
     return typeof window !== 'undefined' && typeof window.pywebview !== 'undefined' && typeof window.pywebview.api !== 'undefined';
   }
