@@ -15,6 +15,8 @@ export interface PyWebViewAPI {
   submit_flash_command(command: string): Promise<any>;
   hide_flash(): Promise<any>;
   unlock_vault?(pwd: string): Promise<boolean>;
+  set_voice_engine?(mode: string): Promise<boolean>;
+  get_input_suggestions?(prefix: string): Promise<string[]>;
 }
 
 export interface PyWebView {

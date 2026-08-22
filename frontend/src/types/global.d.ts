@@ -11,6 +11,35 @@ export interface BridgeResponse<T = any> {
   message?: string;
 }
 
+export interface BHLMessage<T = any> {
+  type: 'command' | 'response' | 'event' | 'voice_stream' | 'status_update';
+  action: string;
+  payload: T;
+  timestamp: number;
+  requestId?: string;
+}
+
+export interface BHLCommandPayload {
+  cmd: string;
+  args?: Record<string, any>;
+  source?: 'voice' | 'flash_input' | 'gui' | 'terminal';
+}
+
+export interface VoiceRecognizedEvent {
+  text: string;
+  confidence: number;
+  isFinal: boolean;
+  commandMatched?: string;
+}
+
+export interface VoiceStatus {
+  isListening: boolean;
+  isSpeaking: boolean;
+  wakeWordDetected: boolean;
+  engine: 'web_speech' | 'wasm_whisper' | 'python_backend';
+  volume: number;
+}
+
 export interface MemoItem {
   id: number;
   content: string;
@@ -32,6 +61,13 @@ declare global {
   interface Window {
     pywebview?: PyWebView;
     modernBridge?: any;
+
+    // Voice & Visualizer Singletons
+    voiceEngine?: any;
+    wakeWordDetector?: any;
+    ringVisualizer?: any;
+    bhlClient?: any;
+    glassUI?: any;
 
     // Singletons / Modules
     stateMatrix?: any;
@@ -84,6 +120,11 @@ declare global {
     startOnboardingTour?: () => void;
     nextOnboardingStep?: () => void;
     skipOnboarding?: () => void;
+
+    // Voice Callbacks
+    onVoiceStatusChange?: (isListening: boolean) => void;
+    onWakeWordDetected?: (wakeWord: string) => void;
+    onVoiceCommandRecognized?: (cmd: string) => void;
 
     // Event Stream callbacks
     onAIStreamStart?: () => void;

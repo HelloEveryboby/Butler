@@ -2,6 +2,27 @@
  * Butler Main Entry Point in TypeScript
  */
 
+import { styleManager } from './style';
+import { voiceEngine } from './voice/engine';
+import { wakeWordDetector } from './voice/wake-word';
+import { ringVisualizer } from './canvas/ring-visualizer';
+import { glassUI } from './ui/glassmorphism';
+import { bhlClient } from './ws/bhl-client';
+import { appConfig } from './config';
+import { PyWebViewBridge } from './core/bridge';
+
+// Export Singletons onto Window for Global Type Safety & Compatibility
+if (typeof window !== 'undefined') {
+  window.voiceEngine = voiceEngine;
+  window.wakeWordDetector = wakeWordDetector;
+  window.ringVisualizer = ringVisualizer;
+  window.glassUI = glassUI;
+  window.bhlClient = bhlClient;
+}
+
+// Initialize Dynamic Styles & Themes
+styleManager.injectBaseStyles();
+
 // Global Utilities
 window.escapeHTML = (str: any): string => {
   if (str === null || str === undefined) return '';
@@ -158,6 +179,9 @@ function showOnboardingStep(index: number): void {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize Glassmorphism DOM bindings
+  glassUI.initDOM();
+
   const interactionFlow = document.getElementById('interaction-flow');
   const chatInput = document.getElementById('chat-input');
   const sendBtn = document.getElementById('send-command-btn');
@@ -209,8 +233,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 3000);
   };
 
-  const modal = new (window as any).CopilotModal();
-
   const inputActionsLeft = document.querySelector('.input-actions-left');
   if (inputActionsLeft) {
     const confirmTrigger = document.createElement('button');
@@ -218,24 +240,24 @@ document.addEventListener('DOMContentLoaded', () => {
     confirmTrigger.innerHTML = '<i class="fas fa-shield-check"></i>';
     confirmTrigger.title = '触发确认框';
     confirmTrigger.onclick = () => {
-      modal.show({
-        title: '重构代码确认',
-        message: 'Butler 检测到 butler/core/workflow_engine.py 中的循环引用。是否允许自动重构该模块？此操作不可逆。',
-        onConfirm: () => {
-          console.log('[System] Action Approved: Executing task...');
-          window.showToast?.('系统任务', '任务已开始执行');
+      if ((window as any).CopilotModal) {
+        const modal = new (window as any).CopilotModal();
+        modal.show({
+          title: '重构代码确认',
+          message: 'Butler 检测到 butler/core/workflow_engine.py 中的循环引用。是否允许自动重构该模块？此操作不可逆。',
+          onConfirm: () => {
+            window.showToast?.('系统任务', '任务已开始执行');
+            const statusDot = document.getElementById('thinking-status');
+            if (statusDot) statusDot.classList.add('active');
 
-          const statusDot = document.getElementById('thinking-status');
-          if (statusDot) statusDot.classList.add('active');
-
-          setTimeout(() => {
-            if (statusDot) statusDot.classList.remove('active');
-            window.showToast?.('修复成功', '代码重构已完成。', 'success');
-            console.log('[System] Task Completed: Refactoring finished.');
-          }, 2000);
-        },
-        triggerBtn: confirmTrigger,
-      });
+            setTimeout(() => {
+              if (statusDot) statusDot.classList.remove('active');
+              window.showToast?.('修复成功', '代码重构已完成。', 'success');
+            }, 2000);
+          },
+          triggerBtn: confirmTrigger,
+        });
+      }
     };
     inputActionsLeft.appendChild(confirmTrigger);
   }
@@ -358,80 +380,131 @@ document.addEventListener('DOMContentLoaded', () => {
     interactionFlow.appendChild(card);
     interactionFlow.scrollTop = interactionFlow.scrollHeight;
   }
+});
 
-  let touchStartY = 0;
-  document.addEventListener(
-    'touchstart',
-    (e: TouchEvent) => {
-      touchStartY = e.touches[0].clientY;
-    },
-    { passive: true }
-  );
+// Terminal & Memos UI Window Toggles
+window.toggleTerminal = (): void => {
+  const el = document.getElementById('terminal-overlay');
+  if (!el) return;
+  el.classList.toggle('hidden');
+  if (!el.classList.contains('hidden')) {
+    if (!window.term && window.Terminal && window.FitAddon) {
+      window.term = new window.Terminal({
+        cursorBlink: true,
+        theme: { background: '#000000', foreground: '#f0f0f0' },
+        fontSize: 14,
+        fontFamily: 'SFMono-Regular, Consolas, monospace',
+      });
+      const fitAddon = new window.FitAddon.FitAddon();
+      window.term.loadAddon(fitAddon);
+      window.term.open(document.getElementById('terminal-container'));
+      setTimeout(() => fitAddon.fit(), 100);
+    }
+  }
+};
 
-  document.addEventListener(
-    'touchend',
-    (e: TouchEvent) => {
-      const dy = e.changedTouches[0].clientY - touchStartY;
-      const target = (e.target as HTMLElement)?.closest('.interaction-line, .dag-node, .fix-card') as HTMLElement;
+window.toggleMemos = (): void => {
+  const el = document.getElementById('memos-overlay');
+  if (!el) return;
+  el.classList.toggle('hidden');
+  if (!el.classList.contains('hidden') && window.memosManager) {
+    window.memosManager.refreshMemos();
+  }
+};
 
-      if (dy < -200 && target) {
-        triggerAirDrop(target);
-      }
-    },
-    { passive: true }
-  );
+// Vault Unlocking Visual Feedback
+window.onVaultUnlocking = (_data: any): void => {
+  const modal = document.createElement('div');
+  modal.className = 'fullscreen-notif-overlay';
+  modal.innerHTML = `
+    <div class="fullscreen-notif-card glass-surface vault-unlock-card" style="border: 1px solid #d4af37;">
+      <h2 style="color: #d4af37;"><i class="fas fa-shield-halved"></i> 密室正在解锁</h2>
+      <p>为了您的隐私安全，Butler 正在从安全内存派生密钥。</p>
+      <div class="vault-lock-animation active"><i class="fas fa-lock" style="font-size: 48px; color: #d4af37;"></i></div>
+      <div style="margin-top: 30px;" class="loading-spinner"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  setTimeout(() => modal.remove(), 3000);
+};
 
-  document.addEventListener('click', (e: MouseEvent) => {
-    if (e.shiftKey) {
-      const target = (e.target as HTMLElement)?.closest('.interaction-line, .dag-node, .fix-card') as HTMLElement;
-      if (target) triggerAirDrop(target);
+// File Listing Helper
+async function loadFiles(path: string): Promise<void> {
+  if (PyWebViewBridge.isAvailable()) {
+    const files = await PyWebViewBridge.listFiles(path);
+    const list = document.getElementById('files-list');
+    if (!list) return;
+    list.innerHTML = '';
+    files.forEach((file: any) => {
+      const item = document.createElement('div');
+      item.className = 'file-item';
+      item.innerHTML = `<i class="fas ${file.is_dir ? 'fa-folder' : 'fa-file-alt'}"></i> <span>${file.name}</span>`;
+      item.onclick = () => (file.is_dir ? loadFiles(file.path) : null);
+      list.appendChild(item);
+    });
+  }
+}
+
+// Skills Drawer & WebMessagePort Native Bridge Lifecycle
+document.addEventListener('DOMContentLoaded', () => {
+  loadFiles('.');
+
+  const drawer = document.querySelector('.skills-drawer');
+  if (drawer) {
+    const mockSkills = [
+      { name: '截图排障', icon: 'fa-bug', color: '#FF3B30' },
+      { name: '局域网同步', icon: 'fa-sync', color: '#34C759' },
+      { name: '系统清理', icon: 'fa-broom', color: '#FF9500' },
+    ];
+
+    mockSkills.forEach((skill) => {
+      const card = document.createElement('div');
+      card.className = 'dag-node glass-surface';
+      card.draggable = true;
+      card.style.position = 'relative';
+      card.style.marginBottom = '10px';
+      card.innerHTML = `<i class="fas ${skill.icon}" style="color: ${skill.color}"></i> <span>${skill.name}</span>`;
+      card.ondragstart = (e: DragEvent) => {
+        e.dataTransfer?.setData(
+          'application/json',
+          JSON.stringify({
+            type: 'skill',
+            name: skill.name,
+            icon: skill.icon,
+          })
+        );
+      };
+      drawer.appendChild(card);
+    });
+  }
+
+  window.addEventListener('message', function (event: MessageEvent) {
+    if (event.data === 'init_bridge' && event.ports[0]) {
+      const port = event.ports[0];
+      window.NativePort = port;
+
+      port.onmessage = function (e: MessageEvent) {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.timestamp && window.StateMatrix) {
+            window.StateMatrix.updateFromBackend(data);
+          }
+          if (data.type === 'DRAS') {
+            const indicator = document.getElementById('connection-status');
+            if (indicator) {
+              indicator.style.backgroundColor = data.active ? '#FF9500' : '#34C759';
+            }
+          }
+          if (data.type === 'LOG' && window.TimeMachine) {
+            window.TimeMachine.pushLog(data.data);
+          }
+        } catch (err) {
+          console.error('Native Bridge Parse Error:', err);
+        }
+      };
+      console.log('Butler Mobile Bridge: Active via WebMessagePort');
     }
   });
-
-  async function triggerAirDrop(element: HTMLElement): Promise<void> {
-    element.classList.add('airdrop-exit');
-
-    const streamer = document.createElement('div');
-    streamer.className = 'airdrop-streamer active';
-    document.body.appendChild(streamer);
-
-    if (window.pywebview && window.pywebview.api) {
-      const payload = {
-        type: 'asset_transfer',
-        timestamp: Date.now(),
-        content: element.innerText,
-        id: element.id || 'anonymous_card',
-      };
-
-      window.pywebview.api.call_skill('cluster_manager', 'airdrop_push', {
-        payload: payload,
-      });
-    }
-
-    setTimeout(() => {
-      element.remove();
-      streamer.remove();
-    }, 1000);
-  }
-
-  if (interactionFlow) {
-    const dropZone = document.createElement('div');
-    dropZone.className = 'interaction-line ai-output-line';
-    dropZone.style.border = '2px dashed rgba(255,255,255,0.2)';
-    dropZone.style.textAlign = 'center';
-    dropZone.innerHTML = '<i class="fas fa-file-import"></i> <span>将结果拖拽至此以启动流水线</span>';
-    interactionFlow.appendChild(dropZone);
-
-    dropZone.ondragover = (e) => {
-      e.preventDefault();
-      dropZone.classList.add('drop-zone-active');
-    };
-    dropZone.ondragleave = () => dropZone.classList.remove('drop-zone-active');
-    dropZone.ondrop = async (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('drop-zone-active');
-    };
-  }
 });
 
 // Settings Toggle and Form Lifecycle
@@ -511,16 +584,6 @@ window.onMemoryDbChange = (): void => {
   const badge = document.getElementById('active-memory-db-badge');
   if (badge) {
     badge.innerText = dbType.toUpperCase() + ' Database';
-    if (dbType === 'redis') {
-      badge.style.background = 'rgba(0, 122, 255, 0.2)';
-      badge.style.color = '#007AFF';
-    } else if (dbType === 'zvec') {
-      badge.style.background = 'rgba(52, 199, 89, 0.2)';
-      badge.style.color = '#34C759';
-    } else {
-      badge.style.background = 'rgba(255, 149, 0, 0.2)';
-      badge.style.color = '#FF9500';
-    }
   }
 };
 
@@ -545,64 +608,46 @@ window.toggleThemeMode = (): void => {
   const toggleInput = document.getElementById('setting-theme-toggle') as HTMLInputElement;
   if (toggleInput) {
     if (toggleInput.checked) {
-      document.body.classList.remove('theme-apple');
-      document.body.classList.add('theme-dark');
-      localStorage.setItem('setting_theme', 'dark');
-      window.showToast?.('深浅主题', '已切换至「Midnight Cyberpunk」暗黑磨砂玻璃极客主题。', 'success');
+      styleManager.applyTheme('dark');
+      window.showToast?.('深浅主题', '已切换至暗黑磨砂玻璃主题。', 'success');
     } else {
-      document.body.classList.remove('theme-dark');
-      document.body.classList.add('theme-apple');
-      localStorage.setItem('setting_theme', 'light');
-      window.showToast?.('深浅主题', '已切换至「Apple Premium Light」白磨砂玻璃极简主题。', 'success');
+      styleManager.applyTheme('apple');
+      window.showToast?.('深浅主题', '已切换至 Apple 白磨砂极简主题。', 'success');
     }
   }
 };
 
 window.updateBlurValue = (val: string | number): void => {
-  document.documentElement.style.setProperty('--glass-blur', `${val}px`);
-  localStorage.setItem('setting_blur', String(val));
+  appConfig.set('blurAmount', Number(val));
+  styleManager.injectBaseStyles();
 };
 
 window.updateFontFamily = (val: string): void => {
-  document.documentElement.style.setProperty('--font-family', val);
-  localStorage.setItem('setting_font_family', val);
+  appConfig.set('fontFamily', val);
+  styleManager.injectBaseStyles();
   window.showToast?.('字体样式', '系统字体样式已成功更新。', 'success');
 };
 
 window.updateFontSize = (val: string): void => {
-  document.documentElement.style.setProperty('--font-size', val);
-  localStorage.setItem('setting_font_size', val);
+  appConfig.set('fontSize', val);
+  styleManager.injectBaseStyles();
   window.showToast?.('字体大小', `系统基本字号已调整为 ${val}。`, 'success');
 };
 
 window.launchPixelPet = async (): Promise<void> => {
   try {
-    if (window.pywebview && window.pywebview.api && window.pywebview.api.call_skill) {
-      const res = await window.pywebview.api.call_skill('pixel_pet', 'launch');
+    if (PyWebViewBridge.isAvailable()) {
+      const res = await PyWebViewBridge.callSkill('pixel_pet', 'launch');
       if (res && res.status === 'success') {
-        window.showToast?.('电子宠物', '桌面电子小狗已成功启动！快去桌面右下角看看吧 🐾', 'success');
+        window.showToast?.('电子宠物', '桌面电子小狗已成功启动！🐾', 'success');
       } else {
         window.showToast?.('电子宠物', '启动电子宠物失败：' + (res ? res.message : '未知错误'), 'error');
       }
     } else {
-      window.showToast?.('电子宠物', '当前处于浏览器预览模式，无法运行本地桌面小部件。请在 Butler 桌面客户端中启动 🐾', 'warning');
+      window.showToast?.('电子宠物', '当前处于浏览器预览模式。请在 Butler 桌面客户端中启动 🐾', 'warning');
     }
   } catch (e: any) {
     window.showToast?.('电子宠物', '启动失败：' + e.message, 'error');
-  }
-};
-
-window.toggleHeatmapAnimation = (): void => {
-  const toggle = document.getElementById('setting-heatmap-toggle') as HTMLInputElement;
-  const canvas = document.getElementById('substrate-heatmap');
-  if (canvas) {
-    if (toggle && toggle.checked) {
-      canvas.style.display = 'block';
-      localStorage.setItem('setting_heatmap', 'true');
-    } else {
-      canvas.style.display = 'none';
-      localStorage.setItem('setting_heatmap', 'false');
-    }
   }
 };
 
@@ -627,225 +672,4 @@ function loadSettingsForm(): void {
     const el = document.getElementById('setting-base-url') as HTMLInputElement;
     if (el) el.value = baseUrl;
   }
-  const memoryDb = localStorage.getItem('setting_memory_db');
-  if (memoryDb) {
-    const el = document.getElementById('setting-memory-db') as HTMLSelectElement;
-    if (el) {
-      el.value = memoryDb;
-      window.onMemoryDbChange?.();
-    }
-  }
-  const dreamEngine = localStorage.getItem('setting_dream_engine');
-  if (dreamEngine) {
-    const el = document.getElementById('setting-dream-engine') as HTMLInputElement;
-    if (el) el.checked = dreamEngine === 'true';
-  }
-  const theme = localStorage.getItem('setting_theme');
-  if (theme) {
-    const el = document.getElementById('setting-theme-toggle') as HTMLInputElement;
-    if (el) el.checked = theme === 'dark';
-  }
-  const interfaceMode = localStorage.getItem('setting_interface_mode');
-  if (interfaceMode) {
-    const el = document.getElementById('setting-interface-mode') as HTMLSelectElement;
-    if (el) el.value = interfaceMode;
-  }
-  const blur = localStorage.getItem('setting_blur');
-  if (blur) {
-    const el = document.getElementById('setting-blur-slider') as HTMLInputElement;
-    if (el) el.value = blur;
-    document.documentElement.style.setProperty('--glass-blur', `${blur}px`);
-  }
-  const heatmap = localStorage.getItem('setting_heatmap');
-  if (heatmap) {
-    const heatmapOn = heatmap === 'true';
-    const el = document.getElementById('setting-heatmap-toggle') as HTMLInputElement;
-    if (el) el.checked = heatmapOn;
-    const canvas = document.getElementById('substrate-heatmap');
-    if (canvas) canvas.style.display = heatmapOn ? 'block' : 'none';
-  }
-  const fontFamily = localStorage.getItem('setting_font_family');
-  if (fontFamily) {
-    const el = document.getElementById('setting-font-family') as HTMLSelectElement;
-    if (el) el.value = fontFamily;
-  }
-  const fontSize = localStorage.getItem('setting_font_size');
-  if (fontSize) {
-    const el = document.getElementById('setting-font-size') as HTMLSelectElement;
-    if (el) el.value = fontSize;
-  }
 }
-
-window.onVaultUnlocking = (_data: any): void => {
-  const modal = document.createElement('div');
-  modal.className = 'fullscreen-notif-overlay';
-  modal.innerHTML = `
-    <div class="fullscreen-notif-card glass-surface vault-unlock-card" style="border: 1px solid #d4af37;">
-      <h2 style="color: #d4af37;"><i class="fas fa-shield-halved"></i> 密室正在解锁</h2>
-      <p>为了您的隐私安全，Butler 正在从安全内存派生密钥。</p>
-      <div class="vault-lock-animation active"><i class="fas fa-lock" style="font-size: 48px; color: #d4af37;"></i></div>
-      <div style="margin-top: 30px;" class="loading-spinner"></div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  setTimeout(() => modal.remove(), 3000);
-};
-
-document.addEventListener('DOMContentLoaded', () => {
-  if (localStorage.getItem('butler_onboarding_completed') === 'true') {
-    document.body.classList.add('onboarding-completed');
-  }
-
-  const savedTheme = localStorage.getItem('setting_theme');
-  if (savedTheme === 'dark') {
-    document.body.classList.remove('theme-apple');
-    document.body.classList.add('theme-dark');
-  } else {
-    document.body.classList.remove('theme-dark');
-    document.body.classList.add('theme-apple');
-  }
-
-  const savedInterface = localStorage.getItem('setting_interface_mode') || 'desktop';
-  if (savedInterface === 'mobile') {
-    document.body.classList.remove('interface-desktop');
-    document.body.classList.add('interface-mobile');
-  } else {
-    document.body.classList.remove('interface-mobile');
-    document.body.classList.add('interface-desktop');
-  }
-
-  const savedBlur = localStorage.getItem('setting_blur');
-  if (savedBlur) {
-    document.documentElement.style.setProperty('--glass-blur', `${savedBlur}px`);
-  }
-
-  const savedHeatmap = localStorage.getItem('setting_heatmap');
-  if (savedHeatmap === 'false') {
-    const canvas = document.getElementById('substrate-heatmap');
-    if (canvas) canvas.style.display = 'none';
-  }
-
-  const savedFontFamily = localStorage.getItem('setting_font_family');
-  if (savedFontFamily) {
-    document.documentElement.style.setProperty('--font-family', savedFontFamily);
-  }
-
-  const savedFontSize = localStorage.getItem('setting_font_size');
-  if (savedFontSize) {
-    document.documentElement.style.setProperty('--font-size', savedFontSize);
-  }
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-  const drawer = document.querySelector('.skills-drawer');
-  if (drawer) {
-    const mockSkills = [
-      { name: '截图排障', icon: 'fa-bug', color: '#FF3B30' },
-      { name: '局域网同步', icon: 'fa-sync', color: '#34C759' },
-      { name: '系统清理', icon: 'fa-broom', color: '#FF9500' },
-    ];
-
-    mockSkills.forEach((skill) => {
-      const card = document.createElement('div');
-      card.className = 'dag-node glass-surface';
-      card.draggable = true;
-      card.style.position = 'relative';
-      card.style.marginBottom = '10px';
-      card.innerHTML = `<i class="fas ${skill.icon}" style="color: ${skill.color}"></i> <span>${skill.name}</span>`;
-      card.ondragstart = (e: DragEvent) => {
-        e.dataTransfer?.setData(
-          'application/json',
-          JSON.stringify({
-            type: 'skill',
-            name: skill.name,
-            icon: skill.icon,
-          })
-        );
-      };
-      drawer.appendChild(card);
-    });
-  }
-});
-
-window.toggleTerminal = (): void => {
-  const el = document.getElementById('terminal-overlay');
-  if (!el) return;
-  el.classList.toggle('hidden');
-  if (!el.classList.contains('hidden')) {
-    if (!window.term && window.Terminal && window.FitAddon) {
-      window.term = new window.Terminal({
-        cursorBlink: true,
-        theme: { background: '#000000', foreground: '#f0f0f0' },
-        fontSize: 14,
-        fontFamily: 'SFMono-Regular, Consolas, monospace',
-      });
-      const fitAddon = new window.FitAddon.FitAddon();
-      window.term.loadAddon(fitAddon);
-      window.term.open(document.getElementById('terminal-container'));
-      setTimeout(() => fitAddon.fit(), 100);
-    }
-  }
-};
-
-window.toggleMemos = (): void => {
-  const el = document.getElementById('memos-overlay');
-  if (!el) return;
-  el.classList.toggle('hidden');
-  if (!el.classList.contains('hidden') && window.memosManager) {
-    window.memosManager.refreshMemos();
-  }
-};
-
-async function loadFiles(path: string): Promise<void> {
-  if (window.pywebview && window.pywebview.api) {
-    const files = await window.pywebview.api.list_files(path);
-    const list = document.getElementById('files-list');
-    if (!list) return;
-    list.innerHTML = '';
-    files.forEach((file: any) => {
-      const item = document.createElement('div');
-      item.className = 'file-item';
-      item.innerHTML = `<i class="fas ${file.is_dir ? 'fa-folder' : 'fa-file-alt'}"></i> <span>${file.name}</span>`;
-      item.onclick = () => (file.is_dir ? loadFiles(file.path) : null);
-      list.appendChild(item);
-    });
-  }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  loadFiles('.');
-
-  setTimeout(() => {
-    if (!localStorage.getItem('butler_onboarding_completed')) {
-      window.startOnboardingTour?.();
-    }
-  }, 1500);
-
-  window.addEventListener('message', function (event: MessageEvent) {
-    if (event.data === 'init_bridge' && event.ports[0]) {
-      const port = event.ports[0];
-      window.NativePort = port;
-
-      port.onmessage = function (e: MessageEvent) {
-        try {
-          const data = JSON.parse(e.data);
-          if (data.timestamp && window.StateMatrix) {
-            window.StateMatrix.updateFromBackend(data);
-          }
-          if (data.type === 'DRAS') {
-            const indicator = document.getElementById('connection-status');
-            if (indicator) {
-              indicator.style.backgroundColor = data.active ? '#FF9500' : '#34C759';
-            }
-          }
-          if (data.type === 'LOG' && window.TimeMachine) {
-            window.TimeMachine.pushLog(data.data);
-          }
-        } catch (err) {
-          console.error('Native Bridge Parse Error:', err);
-        }
-      };
-      console.log('Butler Mobile Bridge: Active via WebMessagePort');
-    }
-  });
-});
