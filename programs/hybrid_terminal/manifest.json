@@ -1,0 +1,15 @@
+{
+  "name": "hybrid_terminal",
+  "version": "1.0.0",
+  "language": "go",
+  "description": "High-performance interactive terminal backend service in Go",
+  "type": "binary",
+  "entry": {
+    "source": ["terminal_service.go"],
+    "executable": "terminal_service"
+  },
+  "build": {
+    "command": "go build -o terminal_service terminal_service.go",
+    "auto_build": true
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "hybrid_memos",
+  "version": "1.0.0",
+  "language": "go",
+  "description": "High-performance Go backend for Butler Memos service",
+  "type": "binary",
+  "entry": {
+    "source": ["memos_service.go"],
+    "executable": "memos_service"
+  },
+  "build": {
+    "command": "bash build.sh",
+    "auto_build": true
+  }
+}

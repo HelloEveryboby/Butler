@@ -1,9 +1,16 @@
 {
-  "id": "hybrid_ts",
-  "name": "TypeScript 混合工具",
-  "description": "提供基于 TypeScript 的逻辑处理能力",
+  "name": "hybrid_ts_tool",
   "version": "1.0.0",
-  "entry": "node programs/hybrid_ts_tool/dist/index.js",
-  "type": "executable",
-  "language": "typescript"
+  "language": "typescript",
+  "description": "提供基于 TypeScript 的逻辑处理能力",
+  "type": "script",
+  "entry": {
+    "source": ["src/index.ts"],
+    "executable": "dist/index.js"
+  },
+  "build": {
+    "command": "bun build src/index.ts --outfile dist/index.js || npx tsc",
+    "auto_build": true
+  },
+  "run": "node dist/index.js {args}"
 }
