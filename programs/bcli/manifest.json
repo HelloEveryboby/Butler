@@ -1,0 +1,15 @@
+{
+  "name": "bcli",
+  "version": "1.0.0",
+  "language": "c",
+  "description": "Butler C Language Command Line Interface and native agent backend bridge",
+  "type": "binary",
+  "entry": {
+    "source": ["src/main.c"],
+    "executable": "butler-c"
+  },
+  "build": {
+    "command": "make",
+    "auto_build": true
+  }
+}
