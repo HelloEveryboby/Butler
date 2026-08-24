@@ -106,6 +106,7 @@ class SkillManager:
         self.manifests: Dict[str, Dict[str, Any]] = {}  # skill_id -> metadata (Stage 1 & 2)
         self.configs: Dict[str, Dict[str, Any]] = {}    # skill_id -> config
         self.skill_contents: Dict[str, str] = {}        # skill_id -> SKILL.md body (Stage 2)
+        self.skill_status: Dict[str, str] = {}          # skill_id -> ENABLED / DISABLED
         self.installed_deps: set = set()                # 已安装依赖的技能路径记录
 
         # 监控相关
@@ -229,11 +230,12 @@ class SkillManager:
         if not skill_dir.exists():
             # 处理删除逻辑
             logger.info(f"🗑️ 检测到技能目录删除: {skill_id}")
-            self.manifests.pop(skill_id, None)
-            self.configs.pop(skill_id, None)
-            self.skill_contents.pop(skill_id, None)
-            self.loaded_skills.pop(skill_id, None)
+            self.unload_skill(skill_id)
             return
+
+        # 如果已有已装载的 module，先清理 modules 模块缓存以支持干净热重载
+        if skill_id in self.loaded_skills or skill_id in self.manifests:
+            self.unload_skill(skill_id)
 
         # 稳定性保障：如果是新拖入的，检查核心元数据文件是否就绪
         skill_md = skill_dir / "SKILL.md"
@@ -248,9 +250,10 @@ class SkillManager:
         success = self._discover_skill(skill_id, self.manifests, self.configs, self.skill_contents)
 
         if success:
+            self.skill_status[skill_id] = "ENABLED"
             logger.info(f"✅ 技能 [{skill_id}] 热加载/更新成功！")
-            # 如果该技能之前已加载过 Python 模块，可能需要考虑重新加载（此处暂不强制，通常由子进程方案解决）
         else:
+            self.skill_status[skill_id] = "DISABLED"
             logger.error(f"❌ 技能 [{skill_id}] 热加载失败 (未发现有效元数据)")
 
     def _is_skill_safe(self, entry_file: str) -> bool:
@@ -284,6 +287,69 @@ class SkillManager:
         except Exception as e:
             logger.error(f"Error performing AST check on {entry_file}: {e}")
             return False
+
+    def unload_skill(self, skill_id: str):
+        """干净地卸载指定技能，并彻底从 sys.modules 清理该技能的模块缓存"""
+        self.manifests.pop(skill_id, None)
+        self.configs.pop(skill_id, None)
+        self.skill_contents.pop(skill_id, None)
+        self.loaded_skills.pop(skill_id, None)
+        self.skill_status.pop(skill_id, None)
+
+        # 从 sys.modules 中彻底移除技能及其所有子模块
+        module_prefix = f"skills.{skill_id}"
+        to_remove = [mod_name for mod_name in list(sys.modules.keys())
+                     if mod_name == module_prefix or mod_name.startswith(f"{module_prefix}.")]
+        for mod_name in to_remove:
+            sys.modules.pop(mod_name, None)
+
+        logger.info(f"Cleanly unloaded skill and purged sys.modules for: {skill_id}")
+
+    def export_openai_tools(self) -> List[Dict[str, Any]]:
+        """
+        导出所有正常运行状态 (ENABLED) 技能为 OpenAI Tool / JSON Schema 格式，
+        供 LLM Router / Planner 动态感知与 Function Calling 调用。
+        """
+        tools = []
+        for s_id, meta in self.manifests.items():
+            if self.skill_status.get(s_id) == "DISABLED":
+                continue
+
+            name = meta.get('id', s_id)
+            desc = meta.get('description', f"Execute skill {s_id}")
+
+            params = meta.get('parameters') or meta.get('inputs')
+            if not params:
+                params = {
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "description": "要执行的具体动作名称"
+                        },
+                        "kwargs": {
+                            "type": "object",
+                            "description": "传给技能的附加参数字典"
+                        }
+                    },
+                    "required": ["action"]
+                }
+            elif isinstance(params, dict) and "type" not in params:
+                params = {
+                    "type": "object",
+                    "properties": params,
+                    "required": list(params.keys())
+                }
+
+            tools.append({
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": desc,
+                    "parameters": params
+                }
+            })
+        return tools
 
     def load_skills(self):
         """
@@ -321,6 +387,11 @@ class SkillManager:
         self.manifests = new_manifests
         self.configs = new_configs
         self.skill_contents = new_skill_contents
+
+        # 初始化技能状态
+        for s_id in self.manifests:
+            if s_id not in self.skill_status:
+                self.skill_status[s_id] = "ENABLED"
 
         logger.info(f"Skill Stage 1 complete: Discovered {len(self.manifests)} skills.")
 
@@ -575,6 +646,7 @@ class SkillManager:
         if not manifest.get('is_core') and entry_file:
             if not self._is_skill_safe(entry_file):
                 logger.error(f"Security Alert: Non-core skill '{skill_id}' failed AST safety check. Loading aborted.")
+                self.skill_status[skill_id] = "DISABLED"
                 return False
 
         # 安装依赖
@@ -604,8 +676,10 @@ class SkillManager:
                     return True
                 else:
                     logger.error(f"Skill {skill_id} is missing 'handle_request' function.")
+                    self.skill_status[skill_id] = "DISABLED"
         except Exception as e:
             logger.error(f"Error loading Python runtime for {skill_id}: {e}", exc_info=True)
+            self.skill_status[skill_id] = "DISABLED"
 
         return False
 
@@ -660,6 +734,9 @@ class SkillManager:
 
         if skill_id not in self.manifests:
             return f"Error: 技能 '{skill_id}' 未发现。"
+
+        if self.skill_status.get(skill_id) == "DISABLED":
+            return f"Error: 技能 '{skill_id}' 处于 DISABLED (故障/隔离) 状态，拒绝执行。"
 
         # --- LDST 影子链解析 ---
         try:
