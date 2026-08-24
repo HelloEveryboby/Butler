@@ -9,8 +9,12 @@ import logging
 from typing import Dict, Any, List
 import tempfile
 import shutil
-import tkinter as tk
 from pathlib import Path
+
+try:
+    import tkinter as tk
+except ImportError:
+    tk = None  # headless 模式不需要 tkinter
 from dotenv import load_dotenv
 
 # Add project root and local lib to sys.path to support portable/local dependency installation
@@ -1222,8 +1226,11 @@ def main():
         load_dotenv(override=True)
 
     # --- TUI 入口（显式 --tui 或 CommandPanel 已不再是 tk.Frame 时） ---
-    import tkinter as _tk
-    _is_tk_frame = isinstance(CommandPanel, type) and issubclass(CommandPanel, _tk.Frame)
+    try:
+        import tkinter as _tk
+    except ImportError:
+        _tk = None
+    _is_tk_frame = _tk is not None and isinstance(CommandPanel, type) and issubclass(CommandPanel, _tk.Frame)
 
     if args.tui or not _is_tk_frame:
         if args.classic and not args.tui and not _is_tk_frame:
@@ -1242,6 +1249,9 @@ def main():
             modern_app.main(); return
         except Exception: pass
 
+    if tk is None:
+        print("错误: tkinter 未安装，无法启动 GUI 模式。请安装 python3-tk 或使用 tui/headless 模式。", file=sys.stderr)
+        sys.exit(1)
     root = tk.Tk(); root.title("Jarvis 助手 [管理模式]")
     jarvis = Jarvis(root, usb_screen, headless=False)
     all_tools = {t['name']: t.get('path', t.get('module')) for t in extension_manager.get_all_tools()}

@@ -47,6 +47,9 @@ class ButlerTUI(App):
         background: $panel;
         color: $text;
     }
+    .hidden {
+        display: none;
+    }
     #sidebar {
         width: 24;
         background: $surface;
@@ -192,12 +195,12 @@ class ButlerTUI(App):
             # Sidebar
             with Vertical(id="sidebar"):
                 yield Label("Butler v2.0", id="sidebar-label")
-                nav_list = ListView(id="nav-list")
+                nav_items = []
                 for icon_name, key in self._nav_items:
                     li = ListItem(Label(icon_name, markup=False))
                     li.nav_key = key
-                    nav_list.append(li)
-                yield nav_list
+                    nav_items.append(li)
+                yield ListView(*nav_items, id="nav-list")
 
                 # Status mini-panel
                 yield Static("", id="status-mini")
@@ -224,7 +227,7 @@ class ButlerTUI(App):
                         yield Button("清空", id="btn-clear", variant="default")
 
                 # Dashboard view
-                with Vertical(id="view-dashboard", visible=False):
+                with Vertical(id="view-dashboard", classes="hidden"):
                     yield Label("📊 系统仪表板", classes="tool-section-title")
                     with Horizontal():
                         yield Static("", id="dash-system")
@@ -233,7 +236,7 @@ class ButlerTUI(App):
                     yield DataTable(id="dash-tasks-table")
 
                 # Tools view
-                with Vertical(id="view-tools", visible=False):
+                with Vertical(id="view-tools", classes="hidden"):
                     yield Label("🔧 Butler 工具箱", classes="tool-section-title")
                     yield Tabs(
                         Tab("🌐 网络", id="tools-network"),
@@ -245,7 +248,7 @@ class ButlerTUI(App):
                     yield VerticalScroll(id="tools-content")
 
                 # Memory view
-                with Vertical(id="view-memory", visible=False):
+                with Vertical(id="view-memory", classes="hidden"):
                     yield Label("🧠 Butler 记忆库", classes="tool-section-title")
                     yield Tabs(
                         Tab("📝 备忘录", id="memos-tab"),
@@ -255,7 +258,7 @@ class ButlerTUI(App):
                     yield VerticalScroll(id="memory-content")
 
                 # Tasks view
-                with Vertical(id="view-tasks", visible=False):
+                with Vertical(id="view-tasks", classes="hidden"):
                     yield Label("📋 任务看板", classes="tool-section-title")
                     with Horizontal():
                         yield Button("➕ 新建任务", id="btn-new-task", variant="primary")
@@ -263,7 +266,7 @@ class ButlerTUI(App):
                     yield DataTable(id="tasks-table")
 
                 # Skills view
-                with Vertical(id="view-skills", visible=False):
+                with Vertical(id="view-skills", classes="hidden"):
                     yield Label("🛠️ 技能管理", classes="tool-section-title")
                     with Horizontal():
                         yield Button("🔄 刷新技能", id="btn-refresh-skills")
@@ -273,7 +276,7 @@ class ButlerTUI(App):
                         Tab("🤖 Agent 技能", id="skills-tab-agent"),
                     )
                     yield Tree("可调用技能", id="skills-tree-user")
-                    yield Tree("Agent 技能", id="skills-tree-agent", visible=False)
+                    yield Tree("Agent 技能", id="skills-tree-agent", classes="hidden")
                     with Horizontal(id="skill-action-bar"):
                         yield Button("▶ 运行", id="btn-skill-run", variant="success")
                         yield Button("📖 查看指令", id="btn-skill-view", variant="primary")
@@ -281,11 +284,11 @@ class ButlerTUI(App):
                         yield Label("", id="skill-selected-label")
 
                 # Tools view (辅助工具)
-                with Vertical(id="view-tools2", visible=False):
+                with Vertical(id="view-tools2", classes="hidden"):
                     yield Label("🔧 辅助工具", classes="tool-section-title")
                     with Horizontal():
                         yield Button("🔄 刷新工具", id="btn-refresh-tool-list")
-                        yield Select([], id="tool-filter", allow_blank=True, placeholder="筛选权限...")
+                        yield Select([], id="tool-filter", allow_blank=True, prompt="筛选权限...")
                     yield DataTable(id="tools-table")
                     with Horizontal(id="tool-action-bar"):
                         yield Button("▶ 执行", id="btn-tool-run", variant="success")
@@ -293,7 +296,7 @@ class ButlerTUI(App):
                         yield Label("", id="tool-selected-label")
 
                 # Packages view
-                with Vertical(id="view-packages", visible=False):
+                with Vertical(id="view-packages", classes="hidden"):
                     yield Label("📦 包管理", classes="tool-section-title")
                     with Horizontal():
                         yield Button("📋 列出包", id="btn-list-pkgs")
@@ -302,7 +305,7 @@ class ButlerTUI(App):
                     yield DataTable(id="pkgs-table")
 
                 # Agents view
-                with Vertical(id="view-agents", visible=False):
+                with Vertical(id="view-agents", classes="hidden"):
                     yield Label("🤖 数字员工管理", classes="tool-section-title")
                     with Horizontal():
                         yield Button("🔄 刷新员工", id="btn-refresh-agents")
@@ -313,7 +316,7 @@ class ButlerTUI(App):
                         yield Button("▶️ 执行任务", id="btn-run-agent", variant="primary")
 
                 # TimeMachine view
-                with Vertical(id="view-timemachine", visible=False):
+                with Vertical(id="view-timemachine", classes="hidden"):
                     yield Label("⏰ 时光机", classes="tool-section-title")
                     with Horizontal():
                         yield Button("🔄 刷新快照", id="btn-refresh-tm")
@@ -321,7 +324,7 @@ class ButlerTUI(App):
                     yield DataTable(id="tm-table")
 
                 # Settings view
-                with Vertical(id="view-settings", visible=False):
+                with Vertical(id="view-settings", classes="hidden"):
                     yield Label("⚙️ Butler 设置", classes="tool-section-title")
                     yield Tabs(
                         Tab("🎨 主题", id="tab-theme"),
@@ -353,7 +356,9 @@ class ButlerTUI(App):
         self._init_agents_view()
         self._init_timemachine_view()
         self._init_settings_view()
-        self._update_status("Butler TUI 就绪")
+        # 如果启动前已设置特殊状态（如演示模式），保留它
+        if self.status_message == "就绪":
+            self._update_status("Butler TUI 就绪")
 
     # ------------------------ View Management ------------------------ #
 
@@ -365,15 +370,19 @@ class ButlerTUI(App):
             "view-tools2", "view-packages", "view-agents",
             "view-timemachine", "view-settings"
         ]:
-            v = self.query_existing(f"#{view_id}")
+            v = self.query_one(f"#{view_id}")
             if v:
-                v.display = view_id == f"view-{view_key}"
+                if view_id == f"view-{view_key}":
+                    v.remove_class("hidden")
+                else:
+                    v.add_class("hidden")
         # Update nav highlight
-        nav = self.query_existing("#nav-list", ListView)
+        nav = self.query_one("#nav-list", ListView)
         if nav:
+            children = list(nav.children)
             for i, (_, key) in enumerate(self._nav_items):
-                li = nav.get_child_at(i)
-                if li:
+                if i < len(children):
+                    li = children[i]
                     if key == view_key:
                         li.add_class("active")
                     else:
@@ -389,7 +398,7 @@ class ButlerTUI(App):
     # ------------------------ Chat ------------------------ #
 
     def _init_chat_output(self):
-        output = self.query_existing("#chat-output", VerticalScroll)
+        output = self.query_one("#chat-output", VerticalScroll)
         if output:
             output.mount(Label(""))
         self._append_chat("🎯 Butler AI 助手 v2.0 已就绪", "system")
@@ -411,7 +420,7 @@ class ButlerTUI(App):
         }
         color = color_map.get(tag, "#cccccc")
 
-        output = self.query_existing("#chat-output", VerticalScroll)
+        output = self.query_one("#chat-output", VerticalScroll)
         if output:
             prefix = ""
             if tag == "user":
@@ -467,7 +476,7 @@ class ButlerTUI(App):
 
     def _render_hints(self):
         """渲染命令建议列表到 #cmd-hints 面板."""
-        panel = self.query_existing("#cmd-hints", Vertical)
+        panel = self.query_one("#cmd-hints", Vertical)
         if not panel:
             return
         # 清除旧条目
@@ -488,7 +497,7 @@ class ButlerTUI(App):
 
     def _hide_hints(self):
         """隐藏命令建议面板."""
-        panel = self.query_existing("#cmd-hints", Vertical)
+        panel = self.query_one("#cmd-hints", Vertical)
         if panel:
             panel.display = False
             for child in list(panel.children):
@@ -498,7 +507,7 @@ class ButlerTUI(App):
 
     def _apply_hint(self, cmd):
         """应用选中的建议，填入输入框."""
-        inp = self.query_existing("#chat-input", Input)
+        inp = self.query_one("#chat-input", Input)
         if inp:
             inp.value = f"/{cmd.name} "
             inp.focus()
@@ -510,7 +519,7 @@ class ButlerTUI(App):
 
     def on_key(self, event):
         """键盘导航: Up/Down 选择, Tab 应用, Esc 关闭."""
-        panel = self.query_existing("#cmd-hints", Vertical)
+        panel = self.query_one("#cmd-hints", Vertical)
         if not panel or not panel.display or not self._hint_results:
             return
         if event.key == "up":
@@ -531,7 +540,7 @@ class ButlerTUI(App):
 
     @on(Button.Pressed, "#btn-send")
     def _on_send_click(self, _event):
-        inp = self.query_existing("#chat-input", Input)
+        inp = self.query_one("#chat-input", Input)
         if inp:
             text = inp.value.strip()
             if text:
@@ -540,7 +549,7 @@ class ButlerTUI(App):
 
     @on(Button.Pressed, "#btn-clear")
     def _on_clear_chat(self, _event):
-        output = self.query_existing("#chat-output", VerticalScroll)
+        output = self.query_one("#chat-output", VerticalScroll)
         if output:
             for child in list(output.children):
                 child.remove()
@@ -1389,7 +1398,7 @@ class ButlerTUI(App):
 
     def _update_tools_content(self, tab_id: str):
         self._current_tools_tab = tab_id
-        content = self.query_existing("#tools-content", VerticalScroll)
+        content = self.query_one("#tools-content", VerticalScroll)
         if not content:
             return
         for child in list(content.children):
@@ -1534,143 +1543,106 @@ class ButlerTUI(App):
         from textual.containers import Horizontal
 
         if tab_id == "tools-network":
-            # URL crawl
             content.mount(Label("  快速操作:"))
-            row1 = Horizontal()
-            btn_crawl = Button("🌐 爬取网页", id="tool-crawl-url", variant="primary")
-            btn_email = Button("📧 发邮件", id="tool-email-send", variant="success")
-            btn_weather = Button("☀️ 天气", id="tool-weather", variant="warning")
-            row1.mount(btn_crawl)
-            row1.mount(btn_email)
-            row1.mount(btn_weather)
-            content.mount(row1)
-
-            row2 = Horizontal()
-            btn_translate = Button("🌐 翻译", id="tool-translate", variant="primary")
-            btn_img = Button("🖼️ 搜图", id="tool-img-search", variant="success")
-            row2.mount(btn_translate)
-            row2.mount(btn_img)
-            content.mount(row2)
+            content.mount(Horizontal(
+                Button("🌐 爬取网页", id="tool-crawl-url", variant="primary"),
+                Button("📧 发邮件", id="tool-email-send", variant="success"),
+                Button("☀️ 天气", id="tool-weather", variant="warning"),
+            ))
+            content.mount(Horizontal(
+                Button("🌐 翻译", id="tool-translate", variant="primary"),
+                Button("🖼️ 搜图", id="tool-img-search", variant="success"),
+            ))
 
         elif tab_id == "tools-security":
-            row = Horizontal()
-            btn_enc = Button("🔐 加密文件", id="tool-encrypt", variant="primary")
-            btn_dec = Button("🔓 解密文件", id="tool-decrypt", variant="warning")
-            btn_audit = Button("🛡️ 安全审计", id="tool-audit-security", variant="error")
-            row.mount(btn_enc)
-            row.mount(btn_dec)
-            row.mount(btn_audit)
-            content.mount(row)
+            content.mount(Horizontal(
+                Button("🔐 加密文件", id="tool-encrypt", variant="primary"),
+                Button("🔓 解密文件", id="tool-decrypt", variant="warning"),
+                Button("🛡️ 安全审计", id="tool-audit-security", variant="error"),
+            ))
 
         elif tab_id == "tools-doc":
-            row = Horizontal()
-            btn_conv = Button("🔄 格式转换", id="tool-convert", variant="primary")
-            btn_file = Button("📁 文件管理", id="tool-file-mgr", variant="success")
-            row.mount(btn_conv)
-            row.mount(btn_file)
-            content.mount(row)
+            content.mount(Horizontal(
+                Button("🔄 格式转换", id="tool-convert", variant="primary"),
+                Button("📁 文件管理", id="tool-file-mgr", variant="success"),
+            ))
 
         elif tab_id == "tools-system":
-            row = Horizontal()
-            btn_mon = Button("📊 系统监控", id="tool-monitor", variant="primary")
-            btn_dep = Button("📦 依赖管理", id="tool-dependency", variant="success")
-            btn_doc = Button("🔍 系统诊断", id="tool-doctor", variant="warning")
-            btn_skills = Button("🛠️ 技能列表", id="tool-skills-list", variant="default")
-            row.mount(btn_mon)
-            row.mount(btn_dep)
-            row.mount(btn_doc)
-            row.mount(btn_skills)
-            content.mount(row)
+            content.mount(Horizontal(
+                Button("📊 系统监控", id="tool-monitor", variant="primary"),
+                Button("📦 依赖管理", id="tool-dependency", variant="success"),
+                Button("🔍 系统诊断", id="tool-doctor", variant="warning"),
+                Button("🛠️ 技能列表", id="tool-skills-list", variant="default"),
+            ))
 
         elif tab_id == "tools-skills":
             content.mount(Label("  快速操作:"))
-
-            # 文档处理行
-            row1 = Horizontal()
-            row1.mount(Button("📄 转 Markdown", id="skill-btn-markitdown", variant="primary"))
-            row1.mount(Button("📝 读 Word", id="skill-btn-docx-read", variant="success"))
-            row1.mount(Button("✍️ 建 Word", id="skill-btn-docx-create", variant="success"))
-            content.mount(row1)
-
-            row2 = Horizontal()
-            row2.mount(Button("📑 提取 PDF", id="skill-btn-pdf-extract", variant="primary"))
-            row2.mount(Button("🔗 合并 PDF", id="skill-btn-pdf-merge", variant="primary"))
-            row2.mount(Button("✂️ 拆分 PDF", id="skill-btn-pdf-split", variant="primary"))
-            content.mount(row2)
-
-            row3 = Horizontal()
-            row3.mount(Button("🔄 格式转换", id="skill-btn-format-convert", variant="success"))
-            content.mount(row3)
-
-            # 压缩归档行
+            content.mount(Horizontal(
+                Button("📄 转 Markdown", id="skill-btn-markitdown", variant="primary"),
+                Button("📝 读 Word", id="skill-btn-docx-read", variant="success"),
+                Button("✍️ 建 Word", id="skill-btn-docx-create", variant="success"),
+            ))
+            content.mount(Horizontal(
+                Button("📑 提取 PDF", id="skill-btn-pdf-extract", variant="primary"),
+                Button("🔗 合并 PDF", id="skill-btn-pdf-merge", variant="primary"),
+                Button("✂️ 拆分 PDF", id="skill-btn-pdf-split", variant="primary"),
+            ))
+            content.mount(Horizontal(
+                Button("🔄 格式转换", id="skill-btn-format-convert", variant="success"),
+            ))
             content.mount(Label("  压缩归档:"))
-            row4 = Horizontal()
-            row4.mount(Button("📦 压缩", id="skill-btn-archive-compress", variant="primary"))
-            row4.mount(Button("📤 解压", id="skill-btn-archive-extract", variant="success"))
-            row4.mount(Button("📋 列出内容", id="skill-btn-archive-list", variant="default"))
-            content.mount(row4)
-
-            # 系统管理行
+            content.mount(Horizontal(
+                Button("📦 压缩", id="skill-btn-archive-compress", variant="primary"),
+                Button("📤 解压", id="skill-btn-archive-extract", variant="success"),
+                Button("📋 列出内容", id="skill-btn-archive-list", variant="default"),
+            ))
             content.mount(Label("  系统管理:"))
-            row5 = Horizontal()
-            row5.mount(Button("📜 软件列表", id="skill-btn-uninstaller", variant="warning"))
-            row5.mount(Button("🔍 残留扫描", id="skill-btn-uninstall-scan", variant="warning"))
-            row5.mount(Button("🗑️ 深度卸载", id="skill-btn-uninstall-do", variant="error"))
-            content.mount(row5)
-
-            row5b = Horizontal()
-            row5b.mount(Button("🧹 垃圾扫描", id="skill-btn-junk-scan", variant="warning"))
-            row5b.mount(Button("🧽 垃圾清理", id="skill-btn-junk-clean", variant="error"))
-            row5b.mount(Button("📊 系统信息", id="skill-btn-sys-info", variant="primary"))
-            content.mount(row5b)
-
-            row5c = Horizontal()
-            row5c.mount(Button("📈 Top进程", id="skill-btn-top-procs", variant="primary"))
-            row5c.mount(Button("🎵 媒体扫描", id="skill-btn-media-scan", variant="success"))
-            content.mount(row5c)
-
-            # 安装追踪行
+            content.mount(Horizontal(
+                Button("📜 软件列表", id="skill-btn-uninstaller", variant="warning"),
+                Button("🔍 残留扫描", id="skill-btn-uninstall-scan", variant="warning"),
+                Button("🗑️ 深度卸载", id="skill-btn-uninstall-do", variant="error"),
+            ))
+            content.mount(Horizontal(
+                Button("🧹 垃圾扫描", id="skill-btn-junk-scan", variant="warning"),
+                Button("🧽 垃圾清理", id="skill-btn-junk-clean", variant="error"),
+                Button("📊 系统信息", id="skill-btn-sys-info", variant="primary"),
+            ))
+            content.mount(Horizontal(
+                Button("📈 Top进程", id="skill-btn-top-procs", variant="primary"),
+                Button("🎵 媒体扫描", id="skill-btn-media-scan", variant="success"),
+            ))
             content.mount(Label("  安装追踪 (3步):"))
-            row_track = Horizontal()
-            row_track.mount(Button("1️⃣ 安装前快照", id="skill-btn-track-start", variant="default"))
-            row_track.mount(Button("2️⃣ 安装后差异", id="skill-btn-track-stop", variant="default"))
-            row_track.mount(Button("3️⃣ 执行清理", id="skill-btn-track-clean", variant="error"))
-            content.mount(row_track)
-
-            # 云盘操作行
+            content.mount(Horizontal(
+                Button("1️⃣ 安装前快照", id="skill-btn-track-start", variant="default"),
+                Button("2️⃣ 安装后差异", id="skill-btn-track-stop", variant="default"),
+                Button("3️⃣ 执行清理", id="skill-btn-track-clean", variant="error"),
+            ))
             content.mount(Label("  云盘操作:"))
-            row6 = Horizontal()
-            row6.mount(Button("☁️ 云盘列表", id="skill-btn-storage-hub", variant="primary"))
-            row6.mount(Button("📁 列出文件", id="skill-btn-cloud-list", variant="primary"))
-            row6.mount(Button("🔍 搜索文件", id="skill-btn-cloud-search", variant="success"))
-            content.mount(row6)
-
-            row6b = Horizontal()
-            row6b.mount(Button("📋 传输状态", id="skill-btn-cloud-status", variant="default"))
-            row6b.mount(Button("🔁 查找重复", id="skill-btn-cloud-dup", variant="default"))
-            content.mount(row6b)
-
-            # 剪贴板服务行
+            content.mount(Horizontal(
+                Button("☁️ 云盘列表", id="skill-btn-storage-hub", variant="primary"),
+                Button("📁 列出文件", id="skill-btn-cloud-list", variant="primary"),
+                Button("🔍 搜索文件", id="skill-btn-cloud-search", variant="success"),
+            ))
+            content.mount(Horizontal(
+                Button("📋 传输状态", id="skill-btn-cloud-status", variant="default"),
+                Button("🔁 查找重复", id="skill-btn-cloud-dup", variant="default"),
+            ))
             content.mount(Label("  剪贴板服务:"))
-            row7 = Horizontal()
-            row7.mount(Button("▶️ 启动", id="skill-btn-clip-magic", variant="success"))
-            row7.mount(Button("⏹️ 停止", id="skill-btn-clip-stop", variant="error"))
-            row7.mount(Button("📊 状态", id="skill-btn-clip-status", variant="primary"))
-            row7.mount(Button("📋 历史", id="skill-btn-clip-history", variant="default"))
-            content.mount(row7)
-
-            # 安全测试行
+            content.mount(Horizontal(
+                Button("▶️ 启动", id="skill-btn-clip-magic", variant="success"),
+                Button("⏹️ 停止", id="skill-btn-clip-stop", variant="error"),
+                Button("📊 状态", id="skill-btn-clip-status", variant="primary"),
+                Button("📋 历史", id="skill-btn-clip-history", variant="default"),
+            ))
             content.mount(Label("  安全测试:"))
-            row8 = Horizontal()
-            row8.mount(Button("🔍 端口扫描", id="skill-btn-sec-scan", variant="error"))
-            row8.mount(Button("🛡️ Web 测试", id="skill-btn-web-sec", variant="error"))
-            content.mount(row8)
-
-            # 全局控制行
+            content.mount(Horizontal(
+                Button("🔍 端口扫描", id="skill-btn-sec-scan", variant="error"),
+                Button("🛡️ Web 测试", id="skill-btn-web-sec", variant="error"),
+            ))
             content.mount(Label("  服务控制:"))
-            row9 = Horizontal()
-            row9.mount(Button("📊 全部状态", id="skill-btn-all-status", variant="primary"))
-            content.mount(row9)
+            content.mount(Horizontal(
+                Button("📊 全部状态", id="skill-btn-all-status", variant="primary"),
+            ))
 
     @on(Tabs.TabActivated, "#view-tools Tabs")
     def _on_tools_tab_changed(self, event):
@@ -2414,15 +2386,15 @@ class ButlerTUI(App):
         sys_info = self._get_system_info()
         mem_info = self._get_memory_info()
 
-        sys_static = self.query_existing("#dash-system", Static)
+        sys_static = self.query_one("#dash-system", Static)
         if sys_static:
             sys_static.update(sys_info)
 
-        mem_static = self.query_existing("#dash-memory", Static)
+        mem_static = self.query_one("#dash-memory", Static)
         if mem_static:
             mem_static.update(mem_info)
 
-        tasks_table = self.query_existing("#dash-tasks-table", DataTable)
+        tasks_table = self.query_one("#dash-tasks-table", DataTable)
         if tasks_table:
             tasks_table.clear(columns=True)
             tasks_table.add_columns("ID", "任务", "状态", "负责人")
@@ -2468,7 +2440,7 @@ class ButlerTUI(App):
     # ------------------------ Memory View ------------------------ #
 
     def _init_memory_view(self):
-        tabs = self.query_existing("#view-memory", Vertical)
+        tabs = self.query_one("#view-memory", Vertical)
         if not tabs:
             return
 
@@ -2476,7 +2448,7 @@ class ButlerTUI(App):
         self._update_memory_content("memos")
 
     def _update_memory_content(self, tab_id: str):
-        content = self.query_existing("#memory-content", VerticalScroll)
+        content = self.query_one("#memory-content", VerticalScroll)
         if not content:
             return
         for child in list(content.children):
@@ -2515,13 +2487,13 @@ class ButlerTUI(App):
     # ------------------------ Tasks View ------------------------ #
 
     def _init_tasks_view(self):
-        table = self.query_existing("#tasks-table", DataTable)
+        table = self.query_one("#tasks-table", DataTable)
         if table:
             table.add_columns("ID", "任务", "状态", "负责人", "操作")
             self._refresh_tasks()
 
     def _refresh_tasks(self):
-        table = self.query_existing("#tasks-table", DataTable)
+        table = self.query_one("#tasks-table", DataTable)
         if not table:
             return
         table.clear()
@@ -2554,8 +2526,8 @@ class ButlerTUI(App):
     @on(Tabs.TabActivated, "#skills-tab-user")
     def _on_skills_tab_user(self, event):
         self._skill_current_tab = "user"
-        tree_user = self.query_existing("#skills-tree-user", Tree)
-        tree_agent = self.query_existing("#skills-tree-agent", Tree)
+        tree_user = self.query_one("#skills-tree-user", Tree)
+        tree_agent = self.query_one("#skills-tree-agent", Tree)
         if tree_user:
             tree_user.display = True
         if tree_agent:
@@ -2566,8 +2538,8 @@ class ButlerTUI(App):
     @on(Tabs.TabActivated, "#skills-tab-agent")
     def _on_skills_tab_agent(self, event):
         self._skill_current_tab = "agent"
-        tree_user = self.query_existing("#skills-tree-user", Tree)
-        tree_agent = self.query_existing("#skills-tree-agent", Tree)
+        tree_user = self.query_one("#skills-tree-user", Tree)
+        tree_agent = self.query_one("#skills-tree-agent", Tree)
         if tree_user:
             tree_user.display = False
         if tree_agent:
@@ -2576,9 +2548,9 @@ class ButlerTUI(App):
         self._update_skill_action_bar()
 
     def _update_skill_action_bar(self):
-        label = self.query_existing("#skill-selected-label", Label)
-        btn_run = self.query_existing("#btn-skill-run", Button)
-        btn_view = self.query_existing("#btn-skill-view", Button)
+        label = self.query_one("#skill-selected-label", Label)
+        btn_run = self.query_one("#btn-skill-run", Button)
+        btn_view = self.query_one("#btn-skill-view", Button)
 
         if not self._skill_selected_id:
             if label:
@@ -2682,8 +2654,8 @@ class ButlerTUI(App):
         return meta
 
     def _refresh_skills(self):
-        tree_user = self.query_existing("#skills-tree-user", Tree)
-        tree_agent = self.query_existing("#skills-tree-agent", Tree)
+        tree_user = self.query_one("#skills-tree-user", Tree)
+        tree_agent = self.query_one("#skills-tree-agent", Tree)
         if not tree_user or not tree_agent:
             return
 
@@ -2744,7 +2716,7 @@ class ButlerTUI(App):
     def _init_tools2_view(self):
         self._refresh_tools()
         self._tool_selected = None
-        filter_select = self.query_existing("#tool-filter", Select)
+        filter_select = self.query_one("#tool-filter", Select)
         if filter_select:
             filter_select.set_options([
                 ("全部", ""),
@@ -2753,7 +2725,7 @@ class ButlerTUI(App):
             ])
 
     def _refresh_tools(self):
-        table = self.query_existing("#tools-table", DataTable)
+        table = self.query_one("#tools-table", DataTable)
         if not table:
             return
         table.clear(columns=True)
@@ -2782,14 +2754,14 @@ class ButlerTUI(App):
 
     @on(DataTable.CellSelected, "#tools-table")
     def _on_tool_selected(self, event):
-        table = self.query_existing("#tools-table", DataTable)
+        table = self.query_one("#tools-table", DataTable)
         if not table:
             return
         row = event.row
         if row < len(table.get_column(0)):
             name = table.get_column(0)[row]
             self._tool_selected = name
-            label = self.query_existing("#tool-selected-label", Label)
+            label = self.query_one("#tool-selected-label", Label)
             if label:
                 label.update(f"已选择: {name}")
 
@@ -2841,13 +2813,13 @@ class ButlerTUI(App):
     # ------------------------ Packages View ------------------------ #
 
     def _init_packages_view(self):
-        table = self.query_existing("#pkgs-table", DataTable)
+        table = self.query_one("#pkgs-table", DataTable)
         if table:
             table.add_columns("名称", "版本", "状态", "类型")
         self._refresh_packages()
 
     def _refresh_packages(self):
-        table = self.query_existing("#pkgs-table", DataTable)
+        table = self.query_one("#pkgs-table", DataTable)
         if not table:
             return
         table.clear()
@@ -2869,7 +2841,7 @@ class ButlerTUI(App):
 
     @on(Button.Pressed, "#btn-install-pkg")
     def _on_install_pkg(self, _event):
-        path_input = self.query_existing("#pkg-path", Input)
+        path_input = self.query_one("#pkg-path", Input)
         if not path_input or not path_input.value.strip():
             self._append_chat("请先输入包路径", "error")
             return
@@ -2892,7 +2864,7 @@ class ButlerTUI(App):
         self._refresh_agents()
 
     def _refresh_agents(self):
-        tree = self.query_existing("#agents-tree", Tree)
+        tree = self.query_one("#agents-tree", Tree)
         if not tree:
             return
         tree.root.add("🔄 正在加载员工列表...", expand=False)
@@ -2920,8 +2892,8 @@ class ButlerTUI(App):
 
     @on(Button.Pressed, "#btn-run-agent")
     def _on_run_agent(self, _event):
-        role_input = self.query_existing("#agent-role", Input)
-        task_input = self.query_existing("#agent-task", Input)
+        role_input = self.query_one("#agent-role", Input)
+        task_input = self.query_one("#agent-task", Input)
         if not role_input or not role_input.value.strip():
             self._append_chat("请输入员工角色名称", "error")
             return
@@ -2950,7 +2922,7 @@ class ButlerTUI(App):
         self._refresh_timemachine()
 
     def _refresh_timemachine(self):
-        table = self.query_existing("#tm-table", DataTable)
+        table = self.query_one("#tm-table", DataTable)
         if not table:
             return
         table.clear(columns=True)
@@ -2981,7 +2953,7 @@ class ButlerTUI(App):
     # ------------------------ Settings View ------------------------ #
 
     def _init_settings_view(self):
-        content = self.query_existing("#settings-content", VerticalScroll)
+        content = self.query_one("#settings-content", VerticalScroll)
         if not content:
             return
         settings_html = self._build_settings_html()
@@ -3107,7 +3079,7 @@ class ButlerTUI(App):
 
     def _update_status(self, msg: str):
         self.status_message = msg
-        st = self.query_existing("#status-text", Static)
+        st = self.query_one("#status-text", Static)
         if st:
             st.update(f"● {msg}")
 
@@ -3163,7 +3135,7 @@ def run_tui():
         jarvis.main()
     except Exception as e:
         logger.warning(f"Jarvis 初始化失败 (TUI 将以演示模式运行): {e}")
-        app._update_status("演示模式 - Jarvis 未连接")
+        app.status_message = "演示模式 - Jarvis 未连接"
 
     try:
         app.run()
