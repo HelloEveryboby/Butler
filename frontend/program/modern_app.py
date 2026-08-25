@@ -325,6 +325,15 @@ class ModernBridge:
             self.logger.error(f"Failed to launch AI Subtitles: {e}")
             return {"status": "error", "message": str(e)}
 
+    def launch_screen_capture(self):
+        """Launches the Screen Capture & Recording floating panel."""
+        try:
+            self.window.evaluate_js("if (window.ScreenCapture) window.ScreenCapture.openPanel();")
+            return {"status": "ok"}
+        except Exception as e:
+            self.logger.error(f"Failed to launch Screen Capture: {e}")
+            return {"status": "error", "message": str(e)}
+
     def load_skill_frontend(self, frontend_path: str):
         """Navigate the webview container to a skill's frontend HTML file."""
         import os
