@@ -15,6 +15,7 @@ export class ScreenCaptureController {
   private _panelModalEl: HTMLElement | null = null;
   private _overlayEl: HTMLElement | null = null;
   private _recordingIndicatorEl: HTMLElement | null = null;
+  private _recordingRegionBorderEl: HTMLElement | null = null;
   private _annotationModalEl: HTMLElement | null = null;
 
   private _isSelecting: boolean = false;
@@ -451,6 +452,7 @@ export class ScreenCaptureController {
 
     if (this._activeMode === 'record') {
       this._removeOverlay();
+      this.showRecordingAreaBorder(rect);
       this.startRecordingUI(`区域录制 (${rect.width}×${rect.height})`);
       try {
         if ((window as any).pywebview?.api) {
@@ -544,6 +546,45 @@ export class ScreenCaptureController {
     }, 1000);
   }
 
+  public showRecordingAreaBorder(rect: SelectionRect): void {
+    this.removeRecordingAreaBorder();
+
+    const border = document.createElement('div');
+    border.id = 'sc-recording-region-border';
+    border.style.cssText = `
+      position: fixed; left: ${rect.x}px; top: ${rect.y}px;
+      width: ${rect.width}px; height: ${rect.height}px;
+      border: 2px dashed #FF3B30; box-shadow: 0 0 12px rgba(255, 59, 48, 0.6);
+      pointer-events: none; z-index: 10007;
+      animation: scBorderPulse 1.2s infinite alternate;
+    `;
+    border.innerHTML = `
+      <div style="
+          position: absolute; top: -26px; left: 0;
+          background: #FF3B30; color: #fff; font-size: 11px;
+          font-family: SFMono-Regular, Consolas, monospace; font-weight: bold;
+          padding: 2px 8px; border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      ">
+        ⏺ 录制区域: ${Math.round(rect.width)} × ${Math.round(rect.height)} px
+      </div>
+      <style>
+        @keyframes scBorderPulse {
+          from { border-color: #FF3B30; box-shadow: 0 0 8px rgba(255, 59, 48, 0.4); }
+          to { border-color: #FF9500; box-shadow: 0 0 16px rgba(255, 149, 0, 0.8); }
+        }
+      </style>
+    `;
+    document.body.appendChild(border);
+    this._recordingRegionBorderEl = border;
+  }
+
+  public removeRecordingAreaBorder(): void {
+    if (this._recordingRegionBorderEl) {
+      this._recordingRegionBorderEl.remove();
+      this._recordingRegionBorderEl = null;
+    }
+  }
+
   public async stopRecordingUI(): Promise<void> {
     if (this._recordingTimer) {
       clearInterval(this._recordingTimer);
@@ -554,6 +595,8 @@ export class ScreenCaptureController {
       this._recordingIndicatorEl.remove();
       this._recordingIndicatorEl = null;
     }
+
+    this.removeRecordingAreaBorder();
 
     this._isRecording = false;
 

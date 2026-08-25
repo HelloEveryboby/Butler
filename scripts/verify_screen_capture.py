@@ -35,12 +35,12 @@ async def run_verification():
         await page.screenshot(path=f"{screenshot_dir}/screen_capture_area_selection.png")
         print("[+] Screen capture area selection & live dimension label verified.")
 
-        # 3. Trigger Recording UI Indicator
+        # 3. Trigger Recording UI Indicator & Region Border
         await page.evaluate("if (window.ScreenCapture) window.ScreenCapture.closeAll();")
-        await page.evaluate("if (window.ScreenCapture) window.ScreenCapture.startRecordingUI('区域录制 (450×280)');")
+        await page.evaluate("if (window.ScreenCapture) { window.ScreenCapture.showRecordingAreaBorder({x:200, y:200, width:450, height:280}); window.ScreenCapture.startRecordingUI('区域录制 (450×280)'); }")
         await page.wait_for_timeout(500)
         await page.screenshot(path=f"{screenshot_dir}/screen_capture_recording_indicator.png")
-        print("[+] Screen capture recording indicator verified.")
+        print("[+] Screen capture recording indicator & active region border verified.")
 
         await page.screenshot(path=f"{screenshot_dir}/verification.png")
         await browser.close()
