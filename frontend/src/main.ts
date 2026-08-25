@@ -10,6 +10,7 @@ import { glassUI } from './ui/glassmorphism';
 import { bhlClient } from './ws/bhl-client';
 import { appConfig } from './config';
 import { PyWebViewBridge } from './core/bridge';
+import { screenCaptureController } from './components/screen_capture';
 
 // Export Singletons onto Window for Global Type Safety & Compatibility
 if (typeof window !== 'undefined') {
@@ -18,6 +19,7 @@ if (typeof window !== 'undefined') {
   window.ringVisualizer = ringVisualizer;
   window.glassUI = glassUI;
   window.bhlClient = bhlClient;
+  (window as any).ScreenCapture = screenCaptureController;
 }
 
 // Initialize Dynamic Styles & Themes
