@@ -30,10 +30,10 @@ Butler UI 3.0 breaks the mold of conventional flat, one-dimensional web navigati
 
 | **(0, 0) Smart Chat & Multi-Modal Diagnostics** | **(1, 0) DAG Visual Workflow Pipeline** |
 | :---: | :---: |
-| <img src="assets/ui_2_0/matrix_chat.png" width="100%" alt="Smart Chat"/> | <img src="assets/ui_2_0/matrix_dag.png" width="100%" alt="DAG Pipeline"/> |
+| <img src="assets/ui_screenshots/ui_chat.png" width="100%" alt="Smart Chat"/> | <img src="assets/ui_screenshots/ui_workspace.png" width="100%" alt="DAG Pipeline"/> |
 | Capture screenshots for immediate troubleshooting; scans and parses compiler errors and offers one-click resolutions. | Interactive nodes built on spring physics (Hooke's Law) and glowing connections to drag-and-drop automation workflows. |
 | **(0, 1) Unified Time Machine Observability** | **(1, 1) Modular Skills & File Compartments** |
-| <img src="assets/ui_2_0/matrix_timemachine.png" width="100%" alt="Time Machine"/> | <img src="assets/ui_2_0/matrix_terminal.png" width="100%" alt="Skills and Terminal"/> |
+| <img src="assets/ui_screenshots/ui_timemachine.png" width="100%" alt="Time Machine"/> | <img src="assets/ui_screenshots/ui_terminal.png" width="100%" alt="Skills and Terminal"/> |
 | Cinematic rollback of system state; use the timeline slider to view past metrics, with automatic highlighting of past warnings. | "One Folder = One Skill" drawer layout featuring transparent high-performance overlay terminal and memo panels. |
 
 *Note: Includes a fast-access floating overlay (`flash_input.html` triggered via Alt+Space) for seamless keystroke autocomplete, command submission, and full desktop control.*

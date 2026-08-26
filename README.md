@@ -30,10 +30,10 @@ Butler UI 3.0 彻底颠覆了传统的单维网页导航，引入了 **$2 \times
 
 | **(0, 0) 智能对话与多模态排障** | **(1, 0) DAG 可视化任务流水线** |
 | :---: | :---: |
-| <img src="assets/ui_2_0/matrix_chat.png" width="100%" alt="Smart Chat"/> | <img src="assets/ui_2_0/matrix_dag.png" width="100%" alt="DAG Pipeline"/> |
+| <img src="assets/ui_screenshots/ui_chat.png" width="100%" alt="Smart Chat"/> | <img src="assets/ui_screenshots/ui_workspace.png" width="100%" alt="DAG Pipeline"/> |
 | 支持“截图即排障”，激光扫描分析 Error 关键字并提供一键修复方案。 | 采用发光实体连接线与弹簧物理反馈，拖拽即可构建复杂的自动化 DAG 流。 |
 | **(0, 1) 全局可观测时光机** | **(1, 1) 模块化技能与文件仓** |
-| <img src="assets/ui_2_0/matrix_timemachine.png" width="100%" alt="Time Machine"/> | <img src="assets/ui_2_0/matrix_terminal.png" width="100%" alt="Skills and Terminal"/> |
+| <img src="assets/ui_screenshots/ui_timemachine.png" width="100%" alt="Time Machine"/> | <img src="assets/ui_screenshots/ui_terminal.png" width="100%" alt="Skills and Terminal"/> |
 | 影音级状态回溯，通过时间轴滑块重现系统历史快照，报错状态全局视觉高亮。 | One Folder = One Skill 的抽屉式管理，集成高性能终端与备忘录透明叠加层。 |
 
 *注：前端包含 Alt+Space 快捷浮窗（`flash_input.html`）唤醒特效，支持智能输入联想建议与极速命令提交，赋予您操作系统的极致掌控力。*
