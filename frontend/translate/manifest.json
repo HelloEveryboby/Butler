@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "Butler Translate",
+  "version": "1.0.0",
+  "description": "沉浸式双语翻译 — 网页 + 桌面任意软件",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "contextMenus",
+    "sidePanel",
+    "clipboardRead"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/index.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options/options.html",
+  "commands": {
+    "toggle-translate": {
+      "suggested_key": { "default": "Alt+Q" },
+      "description": "翻译/还原当前页面"
+    },
+    "screenshot-translate": {
+      "suggested_key": { "default": "Alt+S" },
+      "description": "截图翻译"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

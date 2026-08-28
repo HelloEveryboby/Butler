@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=800">
+  <title>Butler Translate — 设置</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      color: #333;
+      background: #f5f7fa;
+      line-height: 1.6;
+    }
+    .container { max-width: 720px; margin: 0 auto; padding: 24px 20px; }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      color: #1a6dd4;
+    }
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 20px 0 12px;
+      color: #333;
+      border-bottom: 1px solid #e8e8e8;
+      padding-bottom: 6px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e8e8e8;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .form-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .form-row:last-child { margin-bottom: 0; }
+    .form-label {
+      width: 120px;
+      flex-shrink: 0;
+      font-size: 13px;
+      color: #666;
+    }
+    .form-control { flex: 1; }
+    .form-control input, .form-control select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 13px;
+      background: #f8f9fa;
+    }
+    .form-control input:focus, .form-control select:focus {
+      border-color: #4a9eff;
+      outline: none;
+      background: #fff;
+    }
+    .form-hint { font-size: 11px; color: #999; margin-top: 4px; }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary { background: #4a9eff; color: #fff; }
+    .btn-primary:hover { background: #3a8eef; }
+    .btn-danger { background: #e74c3c; color: #fff; }
+    .btn-danger:hover { background: #c0392b; }
+    .btn-outline {
+      background: #fff;
+      color: #4a9eff;
+      border: 1px solid #4a9eff;
+    }
+    .btn-outline:hover { background: #f0f8ff; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    .provider-list { margin-top: 12px; }
+    .provider-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border: 1px solid #f0f0f0;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      background: #fafafa;
+    }
+    .provider-item.active { border-color: #4a9eff; background: #f0f8ff; }
+    .provider-info { flex: 1; }
+    .provider-name { font-weight: 600; font-size: 14px; }
+    .provider-type { font-size: 11px; color: #999; }
+    .provider-actions { display: flex; gap: 6px; }
+
+    .add-form { margin-top: 16px; padding: 16px; background: #f8f9fa; border-radius: 8px; }
+    .add-form .form-row { margin-bottom: 10px; }
+
+    .test-result {
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+    }
+    .test-result.success { background: #d4edda; color: #155724; display: block; }
+    .test-result.error { background: #f8d7da; color: #721c24; display: block; }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .tag-free { background: #d4edda; color: #155724; }
+    .tag-key { background: #fff3cd; color: #856404; }
+
+    .exclude-list { margin-top: 8px; }
+    .exclude-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      background: #f0f0f0;
+      border-radius: 4px;
+      margin: 2px;
+      font-size: 12px;
+    }
+    .exclude-item button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #999;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🌐 Butler Translate 设置</h1>
+
+    <!-- 翻译源管理 -->
+    <h2>翻译源</h2>
+    <div class="card">
+      <div class="form-row">
+        <span class="form-label">当前翻译源</span>
+        <div class="form-control">
+          <select id="active-provider"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">降级链</span>
+        <div class="form-control">
+          <div id="fallback-chain" class="form-hint">自动按顺序尝试</div>
+        </div>
+      </div>
+
+      <div class="provider-list" id="provider-list"></div>
+
+      <button class="btn btn-outline" id="show-add-form" style="margin-top: 12px;">+ 添加翻译源</button>
+
+      <div class="add-form" id="add-form" style="display: none;">
+        <div class="form-row">
+          <span class="form-label">类型</span>
+          <div class="form-control">
+            <select id="new-type">
+              <option value="openai-compat">OpenAI 兼容（DeepSeek/GPT/Ollama…）</option>
+              <option value="google-free">Google 免费翻译</option>
+              <option value="bing-free">微软免费翻译</option>
+              <option value="deepl">DeepL</option>
+              <option value="baidu">百度翻译</option>
+              <option value="butler-bhl">Butler 本地翻译</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <span class="form-label">显示名称</span>
+          <div class="form-control">
+            <input type="text" id="new-name" placeholder="例: DeepSeek / GPT-4o / 本地 Ollama">
+          </div>
+        </div>
+        <div class="form-row" id="new-endpoint-row">
+          <span class="form-label">API 地址</span>
+          <div class="form-control">
+            <input type="text" id="new-endpoint" placeholder="https://api.deepseek.com/v1">
+            <div class="form-hint">OpenAI 兼容格式的 API 地址</div>
+          </div>
+        </div>
+        <div class="form-row" id="new-key-row">
+          <span class="form-label">API Key</span>
+          <div class="form-control">
+            <input type="text" id="new-key" placeholder="sk-...">
+          </div>
+        </div>
+        <div class="form-row" id="new-model-row">
+          <span class="form-label">模型名</span>
+          <div class="form-control">
+            <input type="text" id="new-model" placeholder="deepseek-chat">
+          </div>
+        </div>
+        <div class="form-row">
+          <span class="form-label">自定义提示词</span>
+          <div class="form-control">
+            <input type="text" id="new-prompt" placeholder="可选，默认: 请将以下{from}文本翻译为{to}，只输出译文">
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+          <button class="btn btn-primary" id="save-provider">保存</button>
+          <button class="btn btn-outline" id="test-provider">测试此模型</button>
+          <button class="btn btn-outline" id="cancel-add">取消</button>
+        </div>
+        <div class="test-result" id="test-result"></div>
+      </div>
+    </div>
+
+    <!-- 翻译行为 -->
+    <h2>翻译行为</h2>
+    <div class="card">
+      <div class="form-row">
+        <span class="form-label">目标语言</span>
+        <div class="form-control"><select id="target-lang"></select></div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">显示模式</span>
+        <div class="form-control">
+          <select id="display-mode">
+            <option value="bilingual">双语对照</option>
+            <option value="translation-only">仅译文</option>
+            <option value="hover">悬停翻译</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">页面加载后自动翻译</span>
+        <div class="form-control"><input type="checkbox" id="auto-translate"></div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">全文翻译快捷键</span>
+        <div class="form-control"><input type="text" id="trigger-key" placeholder="Alt+Q"></div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">输入框翻译快捷键</span>
+        <div class="form-control"><input type="text" id="input-key" placeholder="Ctrl+Enter"></div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">截图翻译快捷键</span>
+        <div class="form-control"><input type="text" id="screenshot-key" placeholder="Alt+S"></div>
+      </div>
+    </div>
+
+    <!-- 样式 -->
+    <h2>译文样式</h2>
+    <div class="card">
+      <div class="form-row">
+        <span class="form-label">主题</span>
+        <div class="form-control">
+          <select id="theme">
+            <option value="underline">下划线</option>
+            <option value="highlight">高亮</option>
+            <option value="background">背景色</option>
+            <option value="bubble">气泡</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">译文颜色跟随原文</span>
+        <div class="form-control"><input type="checkbox" id="color-follow" checked></div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">字号</span>
+        <div class="form-control">
+          <select id="font-size">
+            <option value="inherit">跟随原文</option>
+            <option value="12px">12px</option>
+            <option value="14px">14px</option>
+            <option value="16px">16px</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 排除网站 -->
+    <h2>排除网站</h2>
+    <div class="card">
+      <div class="form-hint" style="margin-bottom: 8px;">这些网站不会自动翻译</div>
+      <div class="exclude-list" id="exclude-list"></div>
+      <div style="display: flex; gap: 6px; margin-top: 10px;">
+        <input type="text" id="new-exclude" placeholder="example.com" style="flex: 1; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px;">
+        <button class="btn btn-outline btn-sm" id="add-exclude">添加</button>
+      </div>
+    </div>
+
+    <!-- Butler 后端 -->
+    <h2>Butler 后端</h2>
+    <div class="card">
+      <div class="form-row">
+        <span class="form-label">后端地址</span>
+        <div class="form-control">
+          <input type="text" id="butler-url" placeholder="ws://127.0.0.1:8765">
+          <div class="form-hint">用于截图翻译和本地模型翻译</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+      Butler Translate v1.0 · 全部功能免费
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

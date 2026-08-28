@@ -1,0 +1,25 @@
+{
+  "name": "butler-translate",
+  "version": "1.0.0",
+  "description": "Butler 沉浸式翻译 — 浏览器网页 + 桌面任意软件",
+  "private": true,
+  "scripts": {
+    "build": "tsx node_modules/.bin/webpack --mode production",
+    "dev": "tsx node_modules/.bin/webpack --mode development --watch",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "webpack": "^5.90.0",
+    "webpack-cli": "^5.1.4",
+    "ts-loader": "^9.5.1",
+    "tsx": "^4.7.0",
+    "copy-webpack-plugin": "^12.0.2",
+    "html-webpack-plugin": "^5.6.0",
+    "html-loader": "^5.0.0",
+    "css-loader": "^6.10.0",
+    "style-loader": "^3.3.4",
+    "mini-css-extract-plugin": "^2.8.1",
+    "@types/node": "^20.11.0"
+  }
+}
