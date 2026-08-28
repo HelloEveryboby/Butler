@@ -17,6 +17,7 @@ import { initScreenshotTranslate } from './features/screenshot-translate';
 import { initSubtitleTranslate, toggleSubtitleTranslate, isSubtitleTranslateEnabled, stopSubtitleTranslate } from './features/subtitle-translate';
 import { initPDFTranslate, startPDFTranslate, stopPDFTranslate, isPDFPage } from './features/pdf-translate';
 import { showDocumentTranslator, removeDocumentTranslator } from './features/document-translate';
+import { translateImage, translateDocumentImages } from './features/image-translate';
 
 // UI
 import { initFloatingBall, updateBallState } from './ui/floating-ball';
@@ -96,6 +97,19 @@ async function init() {
     }
     if (msg.type === 'SHOW_DOC_TRANSLATOR') {
       if (config) showDocumentTranslator(config);
+      sendResponse({ type: 'OK' });
+    }
+    if (msg.type === 'TRANSLATE_IMAGE_CONTEXT' && msg.imageUrl && config) {
+      const img = document.querySelector(`img[src="${msg.imageUrl}"]`) as HTMLImageElement;
+      if (img) {
+        try {
+          const result = await translateImage(img, config, 'side');
+          img.parentNode?.insertBefore(result, img);
+          img.style.display = 'none';
+        } catch (err) {
+          console.error('[ButlerTranslate] Image context translate failed:', err);
+        }
+      }
       sendResponse({ type: 'OK' });
     }
     if (msg.type === 'TRANSLATE_SELECTION' && msg.text) {

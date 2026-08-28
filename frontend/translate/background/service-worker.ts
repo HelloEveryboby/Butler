@@ -156,6 +156,11 @@ function setupContextMenu() {
       title: '翻译选中文本',
       contexts: ['selection'],
     });
+    chrome.contextMenus?.create?.({
+      id: 'butler-translate-image',
+      title: '翻译此图片 (OCR)',
+      contexts: ['image'],
+    });
   });
 
   chrome.contextMenus?.onClicked?.addListener?.((info, tab) => {
@@ -166,6 +171,12 @@ function setupContextMenu() {
       chrome.tabs.sendMessage(tab.id, {
         type: 'TRANSLATE_SELECTION',
         text: info.selectionText,
+      });
+    }
+    if (info.menuItemId === 'butler-translate-image' && info.srcUrl && tab?.id) {
+      chrome.tabs.sendMessage(tab.id, {
+        type: 'TRANSLATE_IMAGE_CONTEXT',
+        imageUrl: info.srcUrl,
       });
     }
   });

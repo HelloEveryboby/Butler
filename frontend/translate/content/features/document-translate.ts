@@ -7,6 +7,7 @@
 import { sendMessage } from '../../utils/messaging';
 import { TranslateConfig } from '../../utils/types';
 import { injectStyles } from '../styles/styles';
+import { ocrImage, translateDocumentImages } from './image-translate';
 
 /** 支持的文件格式 */
 const SUPPORTED_FORMATS: Record<string, { name: string; handler: string }> = {
@@ -93,10 +94,15 @@ export function showDocumentTranslator(config: TranslateConfig): void {
           <option value="ko">한국어</option>
         </select>
 
-        <label style="font-size: 13px; color: 666;">翻译源</label>
+        <label style="font-size: 13px; color: #666;">翻译源</label>
         <select id="bt-doc-provider" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
           <option value="">默认</option>
         </select>
+      </div>
+      <div style="margin-top: 10px; display: flex; gap: 16px; align-items: center;">
+        <label style="font-size: 13px; color: #666; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" id="bt-doc-translate-images"> 🖼️ 翻译文档内图片（OCR）
+        </label>
       </div>
 
       <!-- 状态 -->
@@ -531,6 +537,8 @@ async function translatePdfFile(
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.worker.min.js';
   }
 
+  const translateImages = (panelEl?.querySelector('#bt-doc-translate-images') as HTMLInputElement)?.checked ?? false;
+
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const translatedPages: string[] = [];
@@ -545,16 +553,49 @@ async function translatePdfFile(
       .filter((item: any) => item.str?.trim().length >= 2)
       .map((item: any) => item.str);
 
+    let pageResult = '';
+
+    // 翻译文字
     if (texts.length > 0) {
       const resp = await sendMessage({ type: 'TRANSLATE', texts, to: targetLang });
       if (resp.type === 'TRANSLATE_RESULT') {
-        translatedPages.push(resp.results.map(r => r.translated).join('\n'));
+        pageResult = resp.results.map(r => r.translated).join('\n');
       } else {
-        translatedPages.push(texts.join('\n'));
+        pageResult = texts.join('\n');
       }
-    } else {
-      translatedPages.push('');
     }
+
+    // OCR 翻译图片
+    if (translateImages) {
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d')!;
+
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      try {
+        const ocrResult = await ocrImage(canvas);
+        if (ocrResult.text.length >= 3) {
+          if (statusEl) statusEl.textContent = `翻译 PDF 第 ${i} 页图片...`;
+          const imgResp = await sendMessage({ type: 'TRANSLATE', texts: [ocrResult.text], to: targetLang });
+          if (imgResp.type === 'TRANSLATE_RESULT') {
+            const imgTranslated = imgResp.results[0]?.translated;
+            if (imgTranslated) {
+              pageResult += '\n\n[图片文字]\n' + imgTranslated;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`[ButlerTranslate] PDF page ${i} image OCR failed:`, err);
+      }
+
+      // 清理 canvas
+      canvas.remove();
+    }
+
+    translatedPages.push(pageResult);
   }
 
   return translatedPages.join('\n\n--- 第 {} 页 ---\n\n'.replace('{}', ''));
