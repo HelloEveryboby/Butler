@@ -79,6 +79,31 @@ async function init() {
     window.close();
   });
 
+  // PDF 翻译
+  document.getElementById('translate-pdf')?.addEventListener('click', () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.id) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'TOGGLE_PDF' }, (resp) => {
+          if (resp?.enabled) {
+            window.close();
+          } else {
+            alert(resp?.message || '当前页面不是 PDF');
+          }
+        });
+      }
+    });
+  });
+
+  // 文档翻译
+  document.getElementById('translate-doc')?.addEventListener('click', () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.id) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'SHOW_DOC_TRANSLATOR' });
+        window.close();
+      }
+    });
+  });
+
   // 视频字幕翻译
   const subtitleBtn = document.getElementById('translate-subtitle') as HTMLButtonElement;
   subtitleBtn?.addEventListener('click', () => {

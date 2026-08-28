@@ -15,6 +15,8 @@ import { initInputTranslate } from './features/input-translate';
 import { initClipboardTranslate } from './features/clipboard-translate';
 import { initScreenshotTranslate } from './features/screenshot-translate';
 import { initSubtitleTranslate, toggleSubtitleTranslate, isSubtitleTranslateEnabled, stopSubtitleTranslate } from './features/subtitle-translate';
+import { initPDFTranslate, startPDFTranslate, stopPDFTranslate, isPDFPage } from './features/pdf-translate';
+import { showDocumentTranslator, removeDocumentTranslator } from './features/document-translate';
 
 // UI
 import { initFloatingBall, updateBallState } from './ui/floating-ball';
@@ -50,6 +52,7 @@ async function init() {
   initClipboardTranslate(config);
   initScreenshotTranslate(config);
   initSubtitleTranslate(config);
+  initPDFTranslate(config);
 
   initFloatingBall(config, () => {
     if (config) toggleTranslate(config);
@@ -82,6 +85,18 @@ async function init() {
         const enabled = toggleSubtitleTranslate(config);
         sendResponse({ type: 'OK', enabled });
       }
+    }
+    if (msg.type === 'TOGGLE_PDF') {
+      if (config && isPDFPage()) {
+        await startPDFTranslate(config);
+        sendResponse({ type: 'OK', enabled: true });
+      } else {
+        sendResponse({ type: 'OK', enabled: false, message: '当前页面不是 PDF' });
+      }
+    }
+    if (msg.type === 'SHOW_DOC_TRANSLATOR') {
+      if (config) showDocumentTranslator(config);
+      sendResponse({ type: 'OK' });
     }
     if (msg.type === 'TRANSLATE_SELECTION' && msg.text) {
       // 从右键菜单触发的划词翻译
