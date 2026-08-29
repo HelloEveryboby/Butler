@@ -12,6 +12,7 @@ import { appConfig } from './config';
 import { PyWebViewBridge } from './core/bridge';
 import { screenCaptureController } from './components/screen_capture';
 import { previewMedia, closeMediaPreview } from './components/media_preview';
+import { downloadManager } from '../download/download';
 
 // Export Singletons onto Window for Global Type Safety & Compatibility
 if (typeof window !== 'undefined') {
@@ -23,6 +24,8 @@ if (typeof window !== 'undefined') {
   (window as any).ScreenCapture = screenCaptureController;
   (window as any).previewMedia = previewMedia;
   (window as any).closeMediaPreview = closeMediaPreview;
+  (window as any).downloadManager = downloadManager;
+  downloadManager.init();
 }
 
 // Initialize Dynamic Styles & Themes
