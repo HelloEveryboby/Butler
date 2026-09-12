@@ -1,0 +1,58 @@
+{
+  "player": {
+    "preferred": "mpv",
+    "fallback_chain": ["mpv", "vlc", "ffplay", "system"],
+    "mpv": {
+      "vo": "gpu",
+      "hwdec": "auto",
+      "gpu_api": "auto",
+      "cache": "yes",
+      "demuxer_max_bytes": "150M",
+      "demuxer_max_back_bytes": "75M",
+      "sub_auto": "fuzzy",
+      "sub_font_size": 42,
+      "audio_channels": "stereo",
+      "cursor_autohide": 1000,
+      "keep_open": "yes"
+    },
+    "vlc": {
+      "network_caching": 1000,
+      "file_caching": 1000
+    }
+  },
+  "library": {
+    "scan_dirs": ["~/Videos", "~/Movies", "~/Downloads"],
+    "scan_recursive": true,
+    "auto_scan_interval_min": 30,
+    "auto_scan_on_startup": true,
+    "thumbnail_dir": "~/.butler/thumbnails/video",
+    "supported_extensions": [
+      ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm",
+      ".m4v", ".ts", ".m2ts", ".rmvb", ".rm", ".3gp", ".mpg",
+      ".mpeg", ".vob", ".asf", ".ogv", ".f4v", ".mts", ".mxf",
+      ".divx", ".ogm", ".wtv", ".m2v", ".m2t", ".tp", ".trp"
+    ]
+  },
+  "playback": {
+    "default_volume": 80,
+    "default_speed": 1.0,
+    "resume_enabled": true,
+    "resume_save_interval_sec": 5,
+    "auto_play_next": true,
+    "prefer_best_audio_track": true,
+    "preferred_audio_lang": "chi",
+    "preferred_subtitle_lang": "chi",
+    "auto_subtitle_if_missing": true,
+    "screenshot_dir": "~/Pictures/ButlerScreenshots",
+    "screenshot_format": "png"
+  },
+  "cache": {
+    "db_path": "~/.butler/data/video_library.db",
+    "max_thumbnail_count": 10
+  },
+  "api": {
+    "host": "127.0.0.1",
+    "port": 5800,
+    "cors_origins": ["*"]
+  }
+}
