@@ -1241,6 +1241,73 @@ body.onboarding-completed .view-title {
     opacity: 0.9;
 }
 
+.apple-btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s var(--apple-easing);
+}
+
+.apple-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--accent-color);
+}
+
+.preset-pill-btn {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 2px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.preset-pill-btn:hover {
+    background: var(--accent-color);
+    color: #fff;
+    border-color: var(--accent-color);
+}
+
+.model-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.3s var(--apple-easing);
+}
+
+.model-status-badge.idle {
+    background: rgba(142, 142, 147, 0.15);
+    color: var(--text-secondary);
+}
+
+.model-status-badge.testing {
+    background: rgba(0, 122, 255, 0.15);
+    color: #007AFF;
+}
+
+.model-status-badge.success {
+    background: rgba(52, 199, 89, 0.15);
+    color: #34C759;
+    border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.model-status-badge.error {
+    background: rgba(255, 59, 48, 0.15);
+    color: #FF3B30;
+    border: 1px solid rgba(255, 59, 48, 0.3);
+}
+
 .switch {
     position: relative;
     display: inline-block;

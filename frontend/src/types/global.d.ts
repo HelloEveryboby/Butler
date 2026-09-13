@@ -101,6 +101,11 @@ declare global {
     switchSettingsTab?: (tabId: string) => void;
     toggleApiKeyVisibility?: () => void;
     onProviderChange?: () => void;
+    onModelPresetChange?: () => void;
+    testModelConnection?: () => void;
+    toggleAdvancedParams?: () => void;
+    updateTemperatureVal?: (val: string) => void;
+    setMaxTokens?: (tokens: number) => void;
     saveModelSettings?: () => void;
     onMemoryDbChange?: () => void;
     saveMemorySettings?: () => void;
