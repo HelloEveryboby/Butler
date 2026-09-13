@@ -65,6 +65,12 @@ PROVIDER_DEFAULTS = {
         "key_env": "QIANFAN_API_KEY",
         "display_name": "百度文心一言 (千帆)",
     },
+    "ollama": {
+        "base_url": "http://localhost:11434",
+        "model_name": "llama3",
+        "key_env": "OLLAMA_API_KEY",
+        "display_name": "Local Ollama",
+    },
     "custom": {
         "base_url": "",
         "model_name": "",
@@ -83,6 +89,7 @@ PROVIDER_KEY_PATHS = {
     "gemini":    ("api.gemini_key",    "GEMINI_API_KEY",      "gemini_key"),
     "dashscope": ("api.dashscope_key", "DASHSCOPE_API_KEY",   "dashscope_key"),
     "qianfan":   ("api.qianfan_key",   "QIANFAN_API_KEY",     "qianfan_key"),
+    "ollama":    ("api.ollama_key",    "OLLAMA_API_KEY",      "ollama_key"),
     "custom":    ("api.custom_key",    "CUSTOM_API_KEY",     "custom_key"),
 }
 
@@ -105,6 +112,7 @@ class ApiConfig(BaseModel):
     gemini_key: str | None = Field(None, alias="GEMINI_API_KEY")
     dashscope_key: str | None = Field(None, alias="DASHSCOPE_API_KEY")
     qianfan_key: str | None = Field(None, alias="QIANFAN_API_KEY")
+    ollama_key: str | None = Field(None, alias="OLLAMA_API_KEY")
     custom_key: str | None = Field(None, alias="CUSTOM_API_KEY")
 
     # 百度语音

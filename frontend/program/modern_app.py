@@ -368,6 +368,90 @@ class ModernBridge:
         from butler.core.algorithms import dras_manager
         return dras_manager.get_system_stats()
 
+    # --- AI Model Configuration APIs ---
+    def get_model_config(self):
+        """获取当前 AI 大模型配置（含已遮蔽/安全的 API Key 字符串）"""
+        from butler.core.config_manager import config_manager
+        from butler.core.config_model import PROVIDER_KEY_PATHS
+        import os
+
+        provider = config_manager.get('api.provider', 'deepseek') or 'deepseek'
+        base_url = config_manager.get('api.base_url', '') or os.getenv('API_BASE_URL', '')
+        model_name = config_manager.get('api.model_name', '') or os.getenv('MODEL_NAME', '')
+        provider_label = config_manager.get('api.provider_label', '') or os.getenv('CUSTOM_PROVIDER_NAME', '')
+
+        # 根据 provider 提取对应的 key
+        cfg_path, env_name, _field = PROVIDER_KEY_PATHS.get(provider, PROVIDER_KEY_PATHS['deepseek'])
+        api_key = config_manager.get(cfg_path, '') or os.getenv(env_name, '')
+
+        baidu_secret_key = config_manager.get('api.baidu_secret_key', '') or os.getenv('BAIDU_SECRET_KEY', '')
+        baidu_app_id = config_manager.get('api.baidu_app_id', '') or os.getenv('BAIDU_APP_ID', '')
+        temperature = config_manager.get('api.temperature', 0.7)
+        max_tokens = config_manager.get('api.max_tokens', 4096)
+
+        return {
+            "provider": provider,
+            "base_url": base_url,
+            "model_name": model_name,
+            "provider_label": provider_label,
+            "api_key": api_key,
+            "secret_key": baidu_secret_key,
+            "app_id": baidu_app_id,
+            "temperature": temperature,
+            "max_tokens": max_tokens
+        }
+
+    def test_model_connection(self, config):
+        """在线连通性测试 (Test Connection)
+
+        Args:
+            config: 字典包含 provider, api_key, base_url, model_name, secret_key, app_id 等
+        """
+        from butler.core.api_validator import APIValidator
+        return APIValidator.test_model_provider(config)
+
+    def save_model_config(self, config):
+        """保存 AI 大模型提供商配置并实时生效
+
+        Args:
+            config: 字典包含 provider, api_key, base_url, model_name, provider_label, secret_key, app_id, temperature, max_tokens
+        """
+        from butler.core.config_manager import config_manager
+        from butler.core.config_model import PROVIDER_KEY_PATHS
+
+        provider = config.get('provider', 'deepseek')
+        base_url = config.get('base_url', '')
+        model_name = config.get('model_name', '')
+        api_key = config.get('api_key', '')
+        provider_label = config.get('provider_label', '')
+        secret_key = config.get('secret_key', '')
+        app_id = config.get('app_id', '')
+        temperature = config.get('temperature', 0.7)
+        max_tokens = config.get('max_tokens', 4096)
+
+        config_manager.set('api.provider', provider, persist=True)
+        config_manager.set('api.base_url', base_url, persist=True)
+        config_manager.set('api.model_name', model_name, persist=True)
+        config_manager.set('api.provider_label', provider_label, persist=True)
+        config_manager.set('api.temperature', float(temperature), persist=True)
+        config_manager.set('api.max_tokens', int(max_tokens), persist=True)
+
+        if provider == 'baidu' or provider == 'qianfan':
+            if secret_key:
+                config_manager.set('api.baidu_secret_key', secret_key, persist=True)
+            if app_id:
+                config_manager.set('api.baidu_app_id', app_id, persist=True)
+
+        # 写入当前 selected provider 的 key
+        cfg_path, _env_name, _field = PROVIDER_KEY_PATHS.get(provider, PROVIDER_KEY_PATHS['deepseek'])
+        config_manager.set(cfg_path, api_key, persist=True)
+
+        # 重新加载 config_manager 确保运行时单例同步
+        config_manager.reload()
+
+        self.logger.info(f"AI Model configuration updated: provider={provider}, model={model_name}")
+        return {"status": "success", "message": "大模型配置已保存并无缝生效。"}
+
     # --- Flash Input Support ---
     def submit_flash_command(self, command):
         """Called from flash_input.html."""

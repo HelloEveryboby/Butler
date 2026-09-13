@@ -38,6 +38,179 @@ class APIValidator:
         }
     }
     
+    @classmethod
+    def test_model_provider(cls, config: Dict[str, Any]) -> Dict[str, Any]:
+        """通用 AI 大模型提供商连通性与密钥在线测试
+
+        Args:
+            config: 包含 provider, api_key, base_url, model_name, secret_key, app_id 等字典
+
+        Returns:
+            {
+                'valid': bool,
+                'latency_ms': int,
+                'error': Optional[str],
+                'models': List[str]
+            }
+        """
+        import time
+        provider = config.get('provider', 'deepseek').lower()
+        api_key = config.get('api_key', '').strip()
+        base_url = (config.get('base_url') or '').rstrip('/')
+        model_name = config.get('model_name', '').strip()
+        secret_key = config.get('secret_key', '').strip()
+        app_id = config.get('app_id', '').strip()
+
+        start_time = time.time()
+
+        # 1. Ollama (本地免 Key)
+        if provider == 'ollama':
+            url = base_url if base_url else "http://localhost:11434"
+            try:
+                # 获取可用模型列表
+                resp = requests.get(f"{url}/api/tags", timeout=5)
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                if resp.status_code == 200:
+                    models_data = resp.json().get('models', [])
+                    model_list = [m.get('name') for m in models_data if m.get('name')]
+                    return {
+                        'valid': True,
+                        'latency_ms': elapsed_ms,
+                        'error': None,
+                        'models': model_list
+                    }
+                else:
+                    return {'valid': False, 'latency_ms': elapsed_ms, 'error': f"Ollama 服务响应 HTTP {resp.status_code}", 'models': []}
+            except Exception as e:
+                return {'valid': False, 'latency_ms': 0, 'error': f"无法连接 Local Ollama: {str(e)[:80]}", 'models': []}
+
+        # 2. 百度千帆 (Qianfan / Baidu)
+        if provider in ('qianfan', 'baidu'):
+            # 若提供了 api_key + secret_key 走 oauth
+            if secret_key:
+                try:
+                    oauth_url = f"https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id={api_key}&client_secret={secret_key}"
+                    token_resp = requests.get(oauth_url, timeout=5)
+                    elapsed_ms = int((time.time() - start_time) * 1000)
+                    if token_resp.status_code == 200 and 'access_token' in token_resp.json():
+                        return {'valid': True, 'latency_ms': elapsed_ms, 'error': None, 'models': ['ernie-4.0-8k', 'ernie-3.5-8k', 'ernie-speed-128k']}
+                    else:
+                        err = token_resp.json().get('error_description', f'HTTP {token_resp.status_code}')
+                        return {'valid': False, 'latency_ms': elapsed_ms, 'error': f"百度 Auth 校验失败: {err}", 'models': []}
+                except Exception as e:
+                    return {'valid': False, 'latency_ms': 0, 'error': f"百度 Auth 请求失败: {str(e)[:80]}", 'models': []}
+            elif not api_key:
+                return {'valid': False, 'latency_ms': 0, 'error': "API Key 不能为空", 'models': []}
+
+        # 3. Anthropic (Claude)
+        if provider in ('anthropic', 'claude'):
+            if not api_key:
+                return {'valid': False, 'latency_ms': 0, 'error': "API Key 不能为空", 'models': []}
+            url = base_url if base_url else "https://api.anthropic.com"
+            try:
+                resp = requests.post(
+                    f"{url}/v1/messages",
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json"
+                    },
+                    json={
+                        "model": model_name or "claude-3-5-sonnet-20241022",
+                        "max_tokens": 1,
+                        "messages": [{"role": "user", "content": "ping"}]
+                    },
+                    timeout=8
+                )
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                if resp.status_code == 200:
+                    return {'valid': True, 'latency_ms': elapsed_ms, 'error': None, 'models': ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229']}
+                elif resp.status_code == 401:
+                    return {'valid': False, 'latency_ms': elapsed_ms, 'error': "Anthropic API Key 无效或未授权 (401)", 'models': []}
+                else:
+                    err_msg = resp.json().get('error', {}).get('message', f'HTTP {resp.status_code}')
+                    return {'valid': False, 'latency_ms': elapsed_ms, 'error': f"Anthropic 错误: {err_msg}", 'models': []}
+            except Exception as e:
+                return {'valid': False, 'latency_ms': 0, 'error': f"连接 Anthropic 失败: {str(e)[:80]}", 'models': []}
+
+        # 4. Standard OpenAI / DeepSeek / Custom OpenAI-compatible
+        if not api_key and provider != 'custom':
+            return {'valid': False, 'latency_ms': 0, 'error': "API Key 不能为空", 'models': []}
+
+        # Determine target Base URL
+        if not base_url:
+            if provider == 'deepseek':
+                base_url = "https://api.deepseek.com"
+            elif provider == 'openai':
+                base_url = "https://api.openai.com/v1"
+            elif provider == 'zhipu':
+                base_url = "https://open.bigmodel.cn/api/paas/v4"
+            else:
+                base_url = "https://api.openai.com/v1"
+
+        test_model = model_name or ("deepseek-chat" if provider == 'deepseek' else "gpt-3.5-turbo")
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+
+        # Fetch models list if available
+        fetched_models = []
+        try:
+            models_resp = requests.get(f"{base_url}/models", headers=headers, timeout=5)
+            if models_resp.status_code == 200:
+                data = models_resp.json().get('data', [])
+                if isinstance(data, list):
+                    fetched_models = [m.get('id') for m in data if isinstance(m, dict) and m.get('id')]
+        except Exception:
+            pass
+
+        # Perform chat completion ping
+        try:
+            chat_url = f"{base_url}/chat/completions"
+            payload = {
+                "model": test_model,
+                "messages": [{"role": "user", "content": "ping"}],
+                "max_tokens": 1
+            }
+            resp = requests.post(chat_url, headers=headers, json=payload, timeout=8)
+            elapsed_ms = int((time.time() - start_time) * 1000)
+
+            if resp.status_code == 200:
+                return {
+                    'valid': True,
+                    'latency_ms': elapsed_ms,
+                    'error': None,
+                    'models': fetched_models
+                }
+            elif resp.status_code == 401:
+                return {'valid': False, 'latency_ms': elapsed_ms, 'error': "API 密钥无效或未授权 (错误 401)", 'models': fetched_models}
+            elif resp.status_code == 404:
+                # If models endpoint worked or chat completions not found, fallback to checking /models
+                if fetched_models:
+                    return {'valid': True, 'latency_ms': elapsed_ms, 'error': None, 'models': fetched_models}
+                return {'valid': False, 'latency_ms': elapsed_ms, 'error': f"Base URL Endpoint 未找到 (错误 404): {chat_url}", 'models': []}
+            else:
+                err_msg = f"HTTP 错误 {resp.status_code}"
+                try:
+                    r_json = resp.json()
+                    if 'error' in r_json:
+                        if isinstance(r_json['error'], dict):
+                            err_msg = r_json['error'].get('message', err_msg)
+                        else:
+                            err_msg = str(r_json['error'])
+                except Exception:
+                    pass
+                return {'valid': False, 'latency_ms': elapsed_ms, 'error': err_msg, 'models': fetched_models}
+
+        except requests.exceptions.Timeout:
+            return {'valid': False, 'latency_ms': 0, 'error': '连接超时（网络似乎稍慢）', 'models': fetched_models}
+        except requests.exceptions.ConnectionError:
+            return {'valid': False, 'latency_ms': 0, 'error': '网络连接失败（请检查 Endpoint URL）', 'models': fetched_models}
+        except Exception as e:
+            return {'valid': False, 'latency_ms': 0, 'error': str(e)[:100], 'models': fetched_models}
+
     @staticmethod
     def validate_deepseek(api_key: str) -> Dict[str, Any]:
         """验证 DeepSeek API 密钥

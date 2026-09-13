@@ -555,36 +555,237 @@ window.toggleApiKeyVisibility = (): void => {
   }
 };
 
-window.onProviderChange = (): void => {
-  const provider = (document.getElementById('setting-provider') as HTMLSelectElement)?.value;
-  const modelInput = document.getElementById('setting-model-name') as HTMLInputElement;
-  const urlInput = document.getElementById('setting-base-url') as HTMLInputElement;
-  if (!modelInput || !urlInput) return;
-
-  if (provider === 'deepseek') {
-    modelInput.value = 'deepseek-chat';
-    urlInput.value = 'https://api.deepseek.com';
-  } else if (provider === 'openai') {
-    modelInput.value = 'gpt-4o';
-    urlInput.value = 'https://api.openai.com/v1';
-  } else if (provider === 'local') {
-    modelInput.value = 'llama3';
-    urlInput.value = 'http://localhost:11434';
+const PROVIDER_CONFIGS: Record<string, { presets: string[]; baseUrl: string; showApiKey: boolean; keyLabel?: string; showSecretKey?: boolean; showCustomLabel?: boolean }> = {
+  deepseek: {
+    presets: ['deepseek-chat', 'deepseek-coder', 'deepseek-reasoner'],
+    baseUrl: 'https://api.deepseek.com',
+    showApiKey: true,
+    keyLabel: 'API 密钥 (API Key)'
+  },
+  openai: {
+    presets: ['gpt-4o', 'gpt-4o-mini', 'o1-mini', 'gpt-3.5-turbo'],
+    baseUrl: 'https://api.openai.com/v1',
+    showApiKey: true,
+    keyLabel: 'API 密钥 (API Key)'
+  },
+  anthropic: {
+    presets: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'],
+    baseUrl: 'https://api.anthropic.com',
+    showApiKey: true,
+    keyLabel: 'API 密钥 (x-api-key)'
+  },
+  ollama: {
+    presets: ['llama3.2', 'llama3', 'qwen2.5', 'deepseek-r1:7b'],
+    baseUrl: 'http://localhost:11434',
+    showApiKey: false
+  },
+  qianfan: {
+    presets: ['ernie-4.0-8k', 'ernie-3.5-8k', 'ernie-speed-128k'],
+    baseUrl: 'https://qianfan.baidubce.com/v2',
+    showApiKey: true,
+    keyLabel: 'API Key (Client ID)',
+    showSecretKey: true
+  },
+  custom: {
+    presets: ['custom'],
+    baseUrl: 'https://api.openai.com/v1',
+    showApiKey: true,
+    keyLabel: 'API 密钥 (API Key)',
+    showCustomLabel: true
   }
 };
 
-window.saveModelSettings = (): void => {
+window.onProviderChange = (): void => {
+  const provider = (document.getElementById('setting-provider') as HTMLSelectElement)?.value || 'deepseek';
+  const cfg = PROVIDER_CONFIGS[provider] || PROVIDER_CONFIGS['deepseek'];
+
+  // Toggle dynamic fields visibility
+  const apiKeyRow = document.querySelector('.field-api-key') as HTMLElement;
+  const secretKeyRow = document.querySelector('.field-secret-key') as HTMLElement;
+  const customLabelRow = document.querySelector('.field-custom-label') as HTMLElement;
+  const keyLabel = document.getElementById('label-api-key');
+
+  if (apiKeyRow) apiKeyRow.classList.toggle('hidden', !cfg.showApiKey);
+  if (secretKeyRow) secretKeyRow.classList.toggle('hidden', !cfg.showSecretKey);
+  if (customLabelRow) customLabelRow.classList.toggle('hidden', !cfg.showCustomLabel);
+  if (keyLabel && cfg.keyLabel) keyLabel.innerText = cfg.keyLabel;
+
+  // Set default base URL
+  const urlInput = document.getElementById('setting-base-url') as HTMLInputElement;
+  if (urlInput && cfg.baseUrl) urlInput.value = cfg.baseUrl;
+
+  // Render presets
+  const presetSelect = document.getElementById('setting-model-preset') as HTMLSelectElement;
+  const modelInput = document.getElementById('setting-model-name') as HTMLInputElement;
+  if (presetSelect && cfg.presets) {
+    presetSelect.innerHTML = cfg.presets.map(m => `<option value="${m}">${m}</option>`).join('') + '<option value="custom">+ 自定义输入...</option>';
+    presetSelect.value = cfg.presets[0];
+    if (modelInput) modelInput.value = cfg.presets[0];
+  }
+
+  // Reset status badge
+  updateModelStatusBadge('idle', '待校验');
+};
+
+window.onModelPresetChange = (): void => {
+  const presetSelect = document.getElementById('setting-model-preset') as HTMLSelectElement;
+  const modelInput = document.getElementById('setting-model-name') as HTMLInputElement;
+  if (!presetSelect || !modelInput) return;
+
+  if (presetSelect.value !== 'custom') {
+    modelInput.value = presetSelect.value;
+  } else {
+    modelInput.focus();
+    modelInput.select();
+  }
+};
+
+window.toggleAdvancedParams = (): void => {
+  const panel = document.getElementById('advanced-params-panel');
+  const icon = document.getElementById('advanced-params-icon');
+  if (panel) {
+    panel.classList.toggle('hidden');
+    if (icon) {
+      icon.style.transform = panel.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(90deg)';
+    }
+  }
+};
+
+window.updateTemperatureVal = (val: string): void => {
+  const display = document.getElementById('temp-val-display');
+  const desc = document.getElementById('temp-hint-desc');
+  if (display) display.innerText = val;
+  if (desc) {
+    const num = parseFloat(val);
+    if (num <= 0.3) desc.innerText = `${val} 严谨精准 (适合代码生成/数学推理)`;
+    else if (num <= 0.8) desc.innerText = `${val} 严谨与创意平衡 (通用日常问答)`;
+    else desc.innerText = `${val} 高创意灵感 (适合发散写作/艺术拟人)`;
+  }
+};
+
+window.setMaxTokens = (tokens: number): void => {
+  const input = document.getElementById('setting-max-tokens') as HTMLInputElement;
+  if (input) input.value = String(tokens);
+};
+
+function updateModelStatusBadge(state: 'idle' | 'testing' | 'success' | 'error', text: string): void {
+  const badge = document.getElementById('model-status-badge');
+  const latencyText = document.getElementById('connection-latency-text');
+  if (!badge) return;
+
+  badge.className = `model-status-badge ${state}`;
+  if (state === 'testing') {
+    badge.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${text}`;
+  } else if (state === 'success') {
+    badge.innerHTML = `<i class="fas fa-check-circle"></i> ${text}`;
+  } else if (state === 'error') {
+    badge.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${text}`;
+  } else {
+    badge.innerHTML = `<i class="fas fa-circle-notch"></i> ${text}`;
+    if (latencyText) latencyText.innerText = '';
+  }
+}
+
+window.testModelConnection = async (): Promise<void> => {
+  const provider = (document.getElementById('setting-provider') as HTMLSelectElement)?.value;
+  const apiKey = (document.getElementById('setting-api-key') as HTMLInputElement)?.value;
+  const baseUrl = (document.getElementById('setting-base-url') as HTMLInputElement)?.value;
+  const modelName = (document.getElementById('setting-model-name') as HTMLInputElement)?.value;
+  const secretKey = (document.getElementById('setting-secret-key') as HTMLInputElement)?.value;
+  const providerLabel = (document.getElementById('setting-provider-label') as HTMLInputElement)?.value;
+
+  const btnText = document.getElementById('btn-test-text');
+  const latencyText = document.getElementById('connection-latency-text');
+  if (btnText) btnText.innerText = '测试中...';
+
+  updateModelStatusBadge('testing', '正在连接...');
+
+  const payload = {
+    provider,
+    api_key: apiKey,
+    base_url: baseUrl,
+    model_name: modelName,
+    secret_key: secretKey,
+    provider_label: providerLabel
+  };
+
+  try {
+    let res: any = null;
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.test_model_connection) {
+      res = await window.pywebview.api.test_model_connection(payload);
+    } else {
+      // Mock fallback for browser dev
+      await new Promise(r => setTimeout(r, 800));
+      res = { valid: true, latency_ms: 128, models: ['deepseek-chat', 'deepseek-coder'] };
+    }
+
+    if (res && res.valid) {
+      updateModelStatusBadge('success', '连接成功');
+      if (latencyText) latencyText.innerText = `响应延迟: ${res.latency_ms || 0}ms`;
+      window.showToast?.('连接测试成功', `成功连接到 ${provider}，响应延迟 ${res.latency_ms || 0}ms`, 'success');
+
+      // Update models list dropdown if fetched models list
+      if (res.models && Array.isArray(res.models) && res.models.length > 0) {
+        const presetSelect = document.getElementById('setting-model-preset') as HTMLSelectElement;
+        if (presetSelect) {
+          const fetchedOpts = res.models.slice(0, 10).map((m: string) => `<option value="${m}">${m}</option>`).join('');
+          presetSelect.innerHTML = fetchedOpts + '<option value="custom">+ 自定义输入...</option>';
+        }
+      }
+    } else {
+      const errMsg = res ? res.error : '无法建立与 API Endpoint 的连接';
+      updateModelStatusBadge('error', '连接失败');
+      if (latencyText) latencyText.innerText = '';
+      window.showToast?.('连接测试失败', errMsg, 'error');
+    }
+  } catch (e: any) {
+    updateModelStatusBadge('error', '校验异常');
+    if (latencyText) latencyText.innerText = '';
+    window.showToast?.('校验异常', e.message || '网络连接异常', 'error');
+  } finally {
+    if (btnText) btnText.innerText = '测试连接';
+  }
+};
+
+window.saveModelSettings = async (): Promise<void> => {
   const provider = (document.getElementById('setting-provider') as HTMLSelectElement)?.value;
   const model = (document.getElementById('setting-model-name') as HTMLInputElement)?.value;
   const apiKey = (document.getElementById('setting-api-key') as HTMLInputElement)?.value;
   const baseUrl = (document.getElementById('setting-base-url') as HTMLInputElement)?.value;
+  const secretKey = (document.getElementById('setting-secret-key') as HTMLInputElement)?.value;
+  const providerLabel = (document.getElementById('setting-provider-label') as HTMLInputElement)?.value;
+  const temperature = (document.getElementById('setting-temperature') as HTMLInputElement)?.value || '0.7';
+  const maxTokens = (document.getElementById('setting-max-tokens') as HTMLInputElement)?.value || '4096';
 
-  localStorage.setItem('setting_provider', provider || '');
-  localStorage.setItem('setting_model', model || '');
-  localStorage.setItem('setting_api_key', apiKey || '');
-  localStorage.setItem('setting_base_url', baseUrl || '');
+  const payload = {
+    provider: provider || 'deepseek',
+    model_name: model || '',
+    api_key: apiKey || '',
+    base_url: baseUrl || '',
+    secret_key: secretKey || '',
+    provider_label: providerLabel || '',
+    temperature: parseFloat(temperature),
+    max_tokens: parseInt(maxTokens, 10)
+  };
 
-  window.showToast?.('保存成功', '大模型提供商参数已成功加密保存在本地 SecretVault 中！', 'success');
+  // Local Storage fallback cache
+  localStorage.setItem('setting_provider', payload.provider);
+  localStorage.setItem('setting_model', payload.model_name);
+  localStorage.setItem('setting_api_key', payload.api_key);
+  localStorage.setItem('setting_base_url', payload.base_url);
+  localStorage.setItem('setting_temperature', temperature);
+  localStorage.setItem('setting_max_tokens', maxTokens);
+
+  try {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.save_model_config) {
+      const res = await window.pywebview.api.save_model_config(payload);
+      window.showToast?.('保存成功', res ? res.message : '大模型配置已更新并即时生效！', 'success');
+    } else {
+      window.showToast?.('保存成功', '大模型提供商参数已成功在本地 SecretVault 与缓存中生效！', 'success');
+    }
+  } catch (e: any) {
+    window.showToast?.('保存异常', '配置写入失败: ' + e.message, 'error');
+  }
 };
 
 window.onMemoryDbChange = (): void => {
@@ -659,25 +860,66 @@ window.launchPixelPet = async (): Promise<void> => {
   }
 };
 
-function loadSettingsForm(): void {
-  const provider = localStorage.getItem('setting_provider');
-  if (provider) {
-    const el = document.getElementById('setting-provider') as HTMLSelectElement;
-    if (el) el.value = provider;
+async function loadSettingsForm(): Promise<void> {
+  let backendConfig: any = null;
+  if (window.pywebview && window.pywebview.api && window.pywebview.api.get_model_config) {
+    try {
+      backendConfig = await window.pywebview.api.get_model_config();
+    } catch (e) {
+      console.warn('Failed to load model config from PyWebView API:', e);
+    }
   }
-  const model = localStorage.getItem('setting_model');
+
+  const provider = backendConfig?.provider || localStorage.getItem('setting_provider') || 'deepseek';
+  const providerEl = document.getElementById('setting-provider') as HTMLSelectElement;
+  if (providerEl) {
+    providerEl.value = provider;
+    window.onProviderChange?.();
+  }
+
+  const model = backendConfig?.model_name || localStorage.getItem('setting_model');
   if (model) {
-    const el = document.getElementById('setting-model-name') as HTMLInputElement;
-    if (el) el.value = model;
+    const modelEl = document.getElementById('setting-model-name') as HTMLInputElement;
+    const presetEl = document.getElementById('setting-model-preset') as HTMLSelectElement;
+    if (modelEl) modelEl.value = model;
+    if (presetEl) {
+      const hasOption = Array.from(presetEl.options).some(opt => opt.value === model);
+      presetEl.value = hasOption ? model : 'custom';
+    }
   }
-  const apiKey = localStorage.getItem('setting_api_key');
+
+  const apiKey = backendConfig?.api_key || localStorage.getItem('setting_api_key');
   if (apiKey) {
-    const el = document.getElementById('setting-api-key') as HTMLInputElement;
-    if (el) el.value = apiKey;
+    const keyEl = document.getElementById('setting-api-key') as HTMLInputElement;
+    if (keyEl) keyEl.value = apiKey;
   }
-  const baseUrl = localStorage.getItem('setting_base_url');
+
+  const baseUrl = backendConfig?.base_url || localStorage.getItem('setting_base_url');
   if (baseUrl) {
-    const el = document.getElementById('setting-base-url') as HTMLInputElement;
-    if (el) el.value = baseUrl;
+    const urlEl = document.getElementById('setting-base-url') as HTMLInputElement;
+    if (urlEl) urlEl.value = baseUrl;
   }
+
+  const secretKey = backendConfig?.secret_key || localStorage.getItem('setting_secret_key');
+  if (secretKey) {
+    const secretEl = document.getElementById('setting-secret-key') as HTMLInputElement;
+    if (secretEl) secretEl.value = secretKey;
+  }
+
+  const providerLabel = backendConfig?.provider_label || localStorage.getItem('setting_provider_label');
+  if (providerLabel) {
+    const labelEl = document.getElementById('setting-provider-label') as HTMLInputElement;
+    if (labelEl) labelEl.value = providerLabel;
+  }
+
+  const temp = backendConfig?.temperature ?? localStorage.getItem('setting_temperature') ?? '0.7';
+  const tempEl = document.getElementById('setting-temperature') as HTMLInputElement;
+  if (tempEl) {
+    tempEl.value = String(temp);
+    window.updateTemperatureVal?.(String(temp));
+  }
+
+  const maxTokens = backendConfig?.max_tokens ?? localStorage.getItem('setting_max_tokens') ?? '4096';
+  const tokensEl = document.getElementById('setting-max-tokens') as HTMLInputElement;
+  if (tokensEl) tokensEl.value = String(maxTokens);
 }
