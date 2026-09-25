@@ -138,7 +138,7 @@ class Jarvis:
         self._setup_kairos_tasks()
 
         # Apply voice config
-        voice_mode = self.config.get("voice", {}).get("mode", "offline")
+        voice_mode = self.config.get("voice", {}).get("mode", "auto")
         self.voice_service.set_voice_mode(voice_mode)
 
         # Initialize Hybrid Link for system utility
@@ -208,14 +208,17 @@ class Jarvis:
         # 2. Determine Voice Mode
         try:
             v_mode = self.voice_service.mode
-            if v_mode == "online":
-                voice_status = "Online (Baidu)"
-            elif v_mode == "local":
-                voice_status = "Local (Faster-Whisper)"
-            else:
-                voice_status = "Offline"
+            _voice_labels = {
+                "native": "系统原生",
+                "local": "本地 Faster-Whisper",
+                "baidu": "百度语音 API",
+                "google": "Google Cloud",
+                "azure": "Azure Speech",
+                "text": "纯文本",
+            }
+            voice_status = _voice_labels.get(v_mode, f"模式: {v_mode}")
         except Exception:
-            voice_status = "Offline"
+            voice_status = "未知"
 
         # 3. Determine UI Mode
         if headless:

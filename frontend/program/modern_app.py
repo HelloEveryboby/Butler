@@ -269,6 +269,13 @@ class ModernBridge:
     def set_voice_engine(self, engine_mode):
         return self.jarvis.voice_service.set_voice_mode(engine_mode)
 
+    def get_voice_status(self):
+        """获取语音服务状态：当前引擎、可用引擎列表、平台。"""
+        try:
+            return self.jarvis.voice_service.get_status()
+        except Exception as e:
+            return {"mode": "text", "available": False, "error": str(e)}
+
     # --- New APIs for Volume & Hardware ---
     def set_volume(self, volume):
         self.hardware.set_volume(int(volume))

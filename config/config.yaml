@@ -43,8 +43,17 @@ api:
     consumed: 0.0002
 
 voice:
-  # 模式: online (百度), local (Faster-Whisper), offline
-  mode: "online"
+  # 语音引擎模式:
+  #   auto    - 自动选择（按可用性降级）
+  #   native  - 操作系统原生语音 (Windows SAPI / macOS / Linux)
+  #   local   - 本地模型 Faster-Whisper（离线）
+  #   baidu   - 百度语音 API（在线）
+  #   google  - Google Cloud Speech API（在线）
+  #   azure   - Microsoft Azure Speech（在线）
+  #   text    - 纯文本（关闭语音）
+  # 兼容旧值: system→native, online→baidu
+  mode: "auto"
+  # 本地 Whisper 模型大小: tiny / base / small / medium / large
   local_stt_model: "base"
 
 persona:
