@@ -558,7 +558,7 @@ window.toggleApiKeyVisibility = (): void => {
 const PROVIDER_CONFIGS: Record<string, { presets: string[]; baseUrl: string; showApiKey: boolean; keyLabel?: string; showSecretKey?: boolean; showCustomLabel?: boolean }> = {
   deepseek: {
     presets: ['deepseek-chat', 'deepseek-coder', 'deepseek-reasoner'],
-    baseUrl: 'https://api.deepseek.com',
+    baseUrl: 'https://api.deepseek.com/v1',
     showApiKey: true,
     keyLabel: 'API 密钥 (API Key)'
   },
@@ -574,9 +574,27 @@ const PROVIDER_CONFIGS: Record<string, { presets: string[]; baseUrl: string; sho
     showApiKey: true,
     keyLabel: 'API 密钥 (x-api-key)'
   },
+  gemini: {
+    presets: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'],
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    showApiKey: true,
+    keyLabel: 'API 密钥 (API Key)'
+  },
+  zhipu: {
+    presets: ['glm-4-flash', 'glm-4-plus', 'glm-4-long'],
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    showApiKey: true,
+    keyLabel: 'API 密钥 (API Key)'
+  },
+  dashscope: {
+    presets: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen3-coder-plus'],
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    showApiKey: true,
+    keyLabel: 'API 密钥 (API Key)'
+  },
   ollama: {
     presets: ['llama3.2', 'llama3', 'qwen2.5', 'deepseek-r1:7b'],
-    baseUrl: 'http://localhost:11434',
+    baseUrl: 'http://localhost:11434/v1',
     showApiKey: false
   },
   qianfan: {
@@ -613,6 +631,12 @@ window.onProviderChange = (): void => {
   // Set default base URL
   const urlInput = document.getElementById('setting-base-url') as HTMLInputElement;
   if (urlInput && cfg.baseUrl) urlInput.value = cfg.baseUrl;
+
+  // 切换提供商时清空密钥输入框（各提供商密钥相互独立，避免显示上一家的掩码）
+  const keyInput = document.getElementById('setting-api-key') as HTMLInputElement;
+  if (keyInput) keyInput.value = '';
+  const secretInput = document.getElementById('setting-secret-key') as HTMLInputElement;
+  if (secretInput) secretInput.value = '';
 
   // Render presets
   const presetSelect = document.getElementById('setting-model-preset') as HTMLSelectElement;

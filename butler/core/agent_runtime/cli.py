@@ -401,6 +401,15 @@ def _create_llm_handler():
         )
         model = config_loader.get("api.deepseek.model") or "deepseek-chat"
 
+        # 从用户配置读取采样参数（界面设置的 temperature / max_tokens）
+        try:
+            from butler.core.config_manager import config_manager
+            default_temp = float(config_manager.get("api.temperature", 0.7) or 0.7)
+            default_max_tokens = int(config_manager.get("api.max_tokens", 4096) or 4096)
+        except Exception:
+            default_temp = 0.7
+            default_max_tokens = 4096
+
         def llm_call_handler(messages, tools, **kwargs):
             """调用 DeepSeek API with tool calling。"""
             import requests
@@ -416,8 +425,8 @@ def _create_llm_handler():
                 "messages": messages,
                 "tools": tools if tools else None,
                 "tool_choice": "auto" if tools else None,
-                "max_tokens": kwargs.get("max_tokens", 4096),
-                "temperature": kwargs.get("temperature", 0.2),
+                "max_tokens": kwargs.get("max_tokens", default_max_tokens),
+                "temperature": kwargs.get("temperature", default_temp),
             }
 
             # 移除 None 值

@@ -66,9 +66,13 @@ class APIValidator:
         # 1. Ollama (本地免 Key)
         if provider == 'ollama':
             url = base_url if base_url else "http://localhost:11434"
+            # Ollama 模型列表接口固定为 /api/tags，去除可能的 /v1 后缀
+            tags_base = url.rstrip('/')
+            if tags_base.endswith('/v1'):
+                tags_base = tags_base[:-3]
             try:
                 # 获取可用模型列表
-                resp = requests.get(f"{url}/api/tags", timeout=5)
+                resp = requests.get(f"{tags_base}/api/tags", timeout=5)
                 elapsed_ms = int((time.time() - start_time) * 1000)
                 if resp.status_code == 200:
                     models_data = resp.json().get('models', [])
@@ -140,7 +144,7 @@ class APIValidator:
         # Determine target Base URL
         if not base_url:
             if provider == 'deepseek':
-                base_url = "https://api.deepseek.com"
+                base_url = "https://api.deepseek.com/v1"
             elif provider == 'openai':
                 base_url = "https://api.openai.com/v1"
             elif provider == 'zhipu':

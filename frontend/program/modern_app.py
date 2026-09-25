@@ -400,8 +400,17 @@ class ModernBridge:
         return dras_manager.get_system_stats()
 
     # --- AI Model Configuration APIs ---
+    @staticmethod
+    def _mask_secret(value: str) -> str:
+        """对密钥做掩码：长度 > 8 时显示前 4 + •••• + 后 4，否则全掩码。"""
+        if not value:
+            return ""
+        if len(value) > 8:
+            return f"{value[:4]}••••{value[-4:]}"
+        return "••••"
+
     def get_model_config(self):
-        """获取当前 AI 大模型配置（含已遮蔽/安全的 API Key 字符串）"""
+        """获取当前 AI 大模型配置（API Key 以掩码形式返回，避免明文泄露）"""
         from butler.core.config_manager import config_manager
         from butler.core.config_model import PROVIDER_KEY_PATHS
         import os
@@ -425,8 +434,10 @@ class ModernBridge:
             "base_url": base_url,
             "model_name": model_name,
             "provider_label": provider_label,
-            "api_key": api_key,
-            "secret_key": baidu_secret_key,
+            "api_key": self._mask_secret(api_key),
+            "api_key_set": bool(api_key),
+            "secret_key": self._mask_secret(baidu_secret_key),
+            "secret_key_set": bool(baidu_secret_key),
             "app_id": baidu_app_id,
             "temperature": temperature,
             "max_tokens": max_tokens
@@ -437,9 +448,32 @@ class ModernBridge:
 
         Args:
             config: 字典包含 provider, api_key, base_url, model_name, secret_key, app_id 等
+            若 api_key/secret_key 为掩码占位，会从配置中取真实密钥进行测试。
         """
         from butler.core.api_validator import APIValidator
+        from butler.core.config_manager import config_manager
+        from butler.core.config_model import PROVIDER_KEY_PATHS
+
+        provider = config.get('provider', 'deepseek')
+        cfg_path, _env, _field = PROVIDER_KEY_PATHS.get(provider, PROVIDER_KEY_PATHS['deepseek'])
+
+        # 若前端回传的是掩码或空值，从配置中读取真实密钥用于测试
+        if self._is_masked_or_empty(config.get('api_key', '')):
+            config = dict(config)
+            config['api_key'] = config_manager.get(cfg_path, '') or ''
+
+        if self._is_masked_or_empty(config.get('secret_key', '')):
+            config = dict(config)
+            config['secret_key'] = config_manager.get('api.baidu_secret_key', '') or ''
+
         return APIValidator.test_model_provider(config)
+
+    @staticmethod
+    def _is_masked_or_empty(value: str) -> bool:
+        """判断前端回传的密钥是否为掩码占位或空值（此时应保留原值）。"""
+        if not value:
+            return True
+        return "••••" in value or value.strip() == "••••"
 
     def save_model_config(self, config):
         """保存 AI 大模型提供商配置并实时生效
@@ -468,14 +502,15 @@ class ModernBridge:
         config_manager.set('api.max_tokens', int(max_tokens), persist=True)
 
         if provider == 'baidu' or provider == 'qianfan':
-            if secret_key:
+            if not self._is_masked_or_empty(secret_key):
                 config_manager.set('api.baidu_secret_key', secret_key, persist=True)
             if app_id:
                 config_manager.set('api.baidu_app_id', app_id, persist=True)
 
-        # 写入当前 selected provider 的 key
+        # 写入当前 selected provider 的 key；若前端回传掩码/空值则保留原值
         cfg_path, _env_name, _field = PROVIDER_KEY_PATHS.get(provider, PROVIDER_KEY_PATHS['deepseek'])
-        config_manager.set(cfg_path, api_key, persist=True)
+        if not self._is_masked_or_empty(api_key):
+            config_manager.set(cfg_path, api_key, persist=True)
 
         # 重新加载 config_manager 确保运行时单例同步
         config_manager.reload()
