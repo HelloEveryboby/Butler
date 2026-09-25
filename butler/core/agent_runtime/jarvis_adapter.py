@@ -217,8 +217,8 @@ class JarvisAgentBridge:
                     "messages": messages,
                     "tools": tools if tools else None,
                     "tool_choice": "auto" if tools else None,
-                    "max_tokens": 4096,
-                    "temperature": 0.2,
+                    "max_tokens": self._resolve_max_tokens(),
+                    "temperature": self._resolve_temperature(),
                 }
 
                 # 移除 None 值
@@ -257,6 +257,22 @@ class JarvisAgentBridge:
                 }
 
         return handler
+
+    def _resolve_temperature(self) -> float:
+        """从配置读取用户设置的 temperature，默认 0.7。"""
+        try:
+            from butler.core.config_manager import config_manager
+            return float(config_manager.get("api.temperature", 0.7) or 0.7)
+        except Exception:
+            return 0.7
+
+    def _resolve_max_tokens(self) -> int:
+        """从配置读取用户设置的 max_tokens，默认 4096。"""
+        try:
+            from butler.core.config_manager import config_manager
+            return int(config_manager.get("api.max_tokens", 4096) or 4096)
+        except Exception:
+            return 4096
 
     def _create_summarize_handler(self) -> Callable[[str], str] | None:
         """创建上下文压缩的 LLM 摘要回调。"""

@@ -67,6 +67,16 @@ class NLUService:
         self.base_url = cfg["base_url"]
         self.url = f"{self.base_url}/chat/completions" if self.base_url else ""
 
+        # 从配置读取用户在界面设置的采样参数（界面默认 0.7 / 4096）
+        try:
+            self.temperature = float(config_manager.get("api.temperature", 0.7) or 0.7)
+        except (TypeError, ValueError):
+            self.temperature = 0.7
+        try:
+            self.max_tokens = int(config_manager.get("api.max_tokens", 4096) or 4096)
+        except (TypeError, ValueError):
+            self.max_tokens = 4096
+
         # 显示名用于错误提示
         self._provider_display = PROVIDER_DEFAULTS.get(
             self.provider, PROVIDER_DEFAULTS["deepseek"]
@@ -141,7 +151,7 @@ class NLUService:
         payload = {
             "model": self.model_name,
             "messages": messages,
-            "max_tokens": 512,
+            "max_tokens": min(self.max_tokens, 1024),
             "temperature": 0
         }
 
@@ -209,8 +219,8 @@ class NLUService:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text}
             ],
-            "max_tokens": 150,
-            "temperature": 0.5
+            "max_tokens": min(self.max_tokens, 1024),
+            "temperature": self.temperature
         }
         try:
             headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
@@ -301,8 +311,8 @@ class NLUService:
         payload = {
             "model": model,
             "messages": messages,
-            "max_tokens": 2048,
-            "temperature": 0.2
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature
         }
 
         try:

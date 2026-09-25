@@ -108,6 +108,7 @@ declare global {
     setMaxTokens?: (tokens: number) => void;
     saveModelSettings?: () => void;
     onMemoryDbChange?: () => void;
+    onVoiceEngineChange?: () => Promise<void>;
     saveMemorySettings?: () => void;
     testHalConnection?: () => void;
     toggleThemeMode?: () => void;

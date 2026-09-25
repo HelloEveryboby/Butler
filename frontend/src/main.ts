@@ -558,7 +558,7 @@ window.toggleApiKeyVisibility = (): void => {
 const PROVIDER_CONFIGS: Record<string, { presets: string[]; baseUrl: string; showApiKey: boolean; keyLabel?: string; showSecretKey?: boolean; showCustomLabel?: boolean }> = {
   deepseek: {
     presets: ['deepseek-chat', 'deepseek-coder', 'deepseek-reasoner'],
-    baseUrl: 'https://api.deepseek.com',
+    baseUrl: 'https://api.deepseek.com/v1',
     showApiKey: true,
     keyLabel: 'API 密钥 (API Key)'
   },
@@ -574,9 +574,27 @@ const PROVIDER_CONFIGS: Record<string, { presets: string[]; baseUrl: string; sho
     showApiKey: true,
     keyLabel: 'API 密钥 (x-api-key)'
   },
+  gemini: {
+    presets: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'],
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    showApiKey: true,
+    keyLabel: 'API 密钥 (API Key)'
+  },
+  zhipu: {
+    presets: ['glm-4-flash', 'glm-4-plus', 'glm-4-long'],
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    showApiKey: true,
+    keyLabel: 'API 密钥 (API Key)'
+  },
+  dashscope: {
+    presets: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen3-coder-plus'],
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    showApiKey: true,
+    keyLabel: 'API 密钥 (API Key)'
+  },
   ollama: {
     presets: ['llama3.2', 'llama3', 'qwen2.5', 'deepseek-r1:7b'],
-    baseUrl: 'http://localhost:11434',
+    baseUrl: 'http://localhost:11434/v1',
     showApiKey: false
   },
   qianfan: {
@@ -613,6 +631,12 @@ window.onProviderChange = (): void => {
   // Set default base URL
   const urlInput = document.getElementById('setting-base-url') as HTMLInputElement;
   if (urlInput && cfg.baseUrl) urlInput.value = cfg.baseUrl;
+
+  // 切换提供商时清空密钥输入框（各提供商密钥相互独立，避免显示上一家的掩码）
+  const keyInput = document.getElementById('setting-api-key') as HTMLInputElement;
+  if (keyInput) keyInput.value = '';
+  const secretInput = document.getElementById('setting-secret-key') as HTMLInputElement;
+  if (secretInput) secretInput.value = '';
 
   // Render presets
   const presetSelect = document.getElementById('setting-model-preset') as HTMLSelectElement;
@@ -922,4 +946,55 @@ async function loadSettingsForm(): Promise<void> {
   const maxTokens = backendConfig?.max_tokens ?? localStorage.getItem('setting_max_tokens') ?? '4096';
   const tokensEl = document.getElementById('setting-max-tokens') as HTMLInputElement;
   if (tokensEl) tokensEl.value = String(maxTokens);
+
+  // 加载语音引擎状态
+  loadVoiceEngineStatus();
+}
+
+/** 加载语音引擎当前状态并回显到设置页 */
+async function loadVoiceEngineStatus() {
+  try {
+    const api = (window as any).butlerApi as PyWebViewAPI;
+    if (!api?.get_voice_status) return;
+    const status = await api.get_voice_status();
+    if (!status) return;
+
+    // 回显当前引擎
+    const select = document.getElementById('setting-voice-engine') as HTMLSelectElement;
+    if (select) select.value = status.mode || 'auto';
+
+    // 显示状态
+    const statusEl = document.getElementById('voice-engine-status');
+    if (statusEl) {
+      const engine = status.current_engine || status.mode;
+      const avail = status.available ? '✓ 可用' : '✗ 不可用';
+      const platform = status.platform || '';
+      statusEl.textContent = `${engine} — ${avail}${platform ? ` (${platform})` : ''}`;
+      statusEl.style.color = status.available ? '#34C759' : '#FF3B30';
+    }
+  } catch (e) {
+    console.warn('[Voice] 加载状态失败:', e);
+  }
+}
+
+/** 切换语音引擎 */
+window.onVoiceEngineChange = async (): Promise<void> => {
+  const select = document.getElementById('setting-voice-engine') as HTMLSelectElement;
+  if (!select) return;
+  const mode = select.value;
+  try {
+    const api = (window as any).butlerApi as PyWebViewAPI;
+    if (api?.set_voice_engine) {
+      const ok = await api.set_voice_engine(mode);
+      const statusEl = document.getElementById('voice-engine-status');
+      if (statusEl) {
+        statusEl.textContent = ok ? `已切换到 ${select.options[select.selectedIndex].text}` : '切换失败，请检查依赖/API Key';
+        statusEl.style.color = ok ? '#34C759' : '#FF3B30';
+      }
+      // 刷新状态
+      setTimeout(loadVoiceEngineStatus, 500);
+    }
+  } catch (e) {
+    console.error('[Voice] 切换引擎失败:', e);
+  }
 }

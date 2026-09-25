@@ -511,11 +511,14 @@
                         <div class="settings-row">
                             <span class="row-label">提供商 (Provider)</span>
                             <select class="apple-select" id="setting-provider" onchange="onProviderChange()" style="width: 220px;">
-                                <option value="deepseek">DeepSeek AI</option>
+                                <option value="deepseek">DeepSeek</option>
                                 <option value="openai">OpenAI</option>
                                 <option value="anthropic">Claude (Anthropic)</option>
-                                <option value="ollama">Local Ollama (本地免Key)</option>
+                                <option value="gemini">Google Gemini</option>
+                                <option value="zhipu">智谱 AI (GLM)</option>
+                                <option value="dashscope">通义千问 (DashScope)</option>
                                 <option value="qianfan">百度文心一言 (千帆)</option>
+                                <option value="ollama">Local Ollama (本地免Key)</option>
                                 <option value="custom">Custom (自定义兼容接口)</option>
                             </select>
                         </div>
@@ -598,6 +601,27 @@
                     </div>
 
                     <button class="apple-btn-primary" onclick="saveModelSettings()">保存配置并立即生效</button>
+
+                    <!-- 语音引擎设置 -->
+                    <div class="settings-group-card" style="margin-top: 16px;">
+                        <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">🎙️ 语音输入/输出引擎</div>
+                        <div class="settings-row">
+                            <span class="row-label">语音引擎</span>
+                            <select class="apple-select" id="setting-voice-engine" onchange="onVoiceEngineChange()" style="width: 220px;">
+                                <option value="auto">自动选择（推荐）</option>
+                                <option value="native">系统原生 (Windows SAPI / macOS / Linux)</option>
+                                <option value="local">本地模型 (Faster-Whisper)</option>
+                                <option value="baidu">百度语音 API</option>
+                                <option value="google">Google Cloud Speech</option>
+                                <option value="azure">Microsoft Azure Speech</option>
+                                <option value="text">纯文本（关闭语音）</option>
+                            </select>
+                        </div>
+                        <div class="settings-row">
+                            <span class="row-label">当前引擎状态</span>
+                            <span id="voice-engine-status" style="color: var(--text-secondary); font-size: 13px;">检测中...</span>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Tab 2: Memory Config -->
