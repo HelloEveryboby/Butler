@@ -466,6 +466,27 @@ def text_cosine_similarity(text1, text2):
     similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
     return similarity[0][0]
 
+def char_ngram_cosine(text1, text2, n: int = 2):
+    """
+    字符 n-gram 余弦相似度（中文友好）。
+    TfidfVectorizer 默认分词对无空格中文会把整句当一个词，故短语级
+    中文相似度用本函数（同义词归一、话题检索等场景）。
+    """
+    import re as _re
+
+    def grams(t):
+        t = _re.sub(r"\s+", "", str(t).lower())
+        if not t:
+            return set()
+        if len(t) < n:
+            return {t}
+        return {t[i:i + n] for i in range(len(t) - n + 1)}
+
+    g1, g2 = grams(text1), grams(text2)
+    if not g1 or not g2:
+        return 0.0
+    return len(g1 & g2) / ((len(g1) ** 0.5) * (len(g2) ** 0.5))
+
 # 5. Image Processing Algorithm
 def edge_detection(image_path):
     """

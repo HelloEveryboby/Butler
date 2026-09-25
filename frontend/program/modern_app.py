@@ -83,6 +83,10 @@ class ModernBridge:
             self.jarvis.voice_service.start_listening()
 
     def _run_command(self, command):
+        from butler.core.window_registry import window_registry
+        # 命令/程序执行期间，主界面对应的呼吸灯快闪
+        bl_task = window_registry.bind_task(
+            "win:main", threading.current_thread(), kind="thread", label=str(command)[:40])
         try:
             self.window.evaluate_js("window.onAIStreamStart()")
 
@@ -127,6 +131,8 @@ class ModernBridge:
             self.logger.error(f"Error in ModernBridge: {e}")
             self.window.evaluate_js(f"window.onAIStreamChunk(' Error: {str(e)}')")
             self.window.evaluate_js("window.onAIStreamEnd()")
+        finally:
+            window_registry.unbind_task("win:main", bl_task)
 
     def pause_output(self):
         # Implementation to pause/stop Jarvis interpreter
@@ -155,12 +161,23 @@ class ModernBridge:
             def on_event(event):
                 if event.get("method") == "terminal_output":
                     output = event.get("params")
+                    try:
+                        from butler.core.window_registry import window_registry
+                        window_registry.touch("view:terminal")
+                    except Exception:
+                        pass
                     self.window.evaluate_js(f"window.onTerminalOutput({json.dumps(output)})")
 
             self.terminal_client.register_event_callback(on_event)
             self.terminal_client.call("start_terminal", {})
 
     def terminal_input(self, data):
+        # 终端有输入/输出 → 呼吸灯将"终端"子界面标记为活动（快闪）
+        try:
+            from butler.core.window_registry import window_registry
+            window_registry.touch("view:terminal")
+        except Exception:
+            pass
         if hasattr(self, 'terminal_client'):
             self.terminal_client.call("write_input", {"data": data})
 
@@ -180,10 +197,21 @@ class ModernBridge:
         return False
 
     def save_editor_content(self, content, filename):
-        save_path = os.path.join(project_root, "data", filename)
+        from butler.core.naming_policy import contains_cjk, make_unique_name
+        from butler.core.alias_store import alias_store
+
+        data_dir = os.path.join(project_root, "data")
+        # 中文文件名 → 真实名保持英文/拼音，并登记中文显示名（别名层）
+        if contains_cjk(filename):
+            real_name = make_unique_name(data_dir, filename)
+        else:
+            real_name = filename
+        save_path = os.path.join(data_dir, real_name)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         with open(save_path, 'w', encoding='utf-8') as f:
             f.write(content)
+        if real_name != filename:
+            alias_store.set_alias(save_path, filename, created_by="auto")
         return save_path
 
     # --- New APIs for File Management ---
@@ -212,12 +240,15 @@ class ModernBridge:
 
             items = os.listdir(full_path)
             result = []
+            from butler.core.alias_store import alias_store
             for item in items:
                 item_path = os.path.join(path, item)
                 is_protected = self.guard.is_protected(item_path)
                 is_dir = os.path.isdir(os.path.join(full_path, item))
                 result.append({
-                    "name": item,
+                    # 别名层: 界面显示中文名，真实文件名不变（操作仍用 path）
+                    "name": alias_store.resolve_display(item_path, item),
+                    "real_name": item,
                     "path": item_path,
                     "is_protected": is_protected,
                     "is_dir": is_dir
@@ -472,6 +503,79 @@ class ModernBridge:
         """Hides the flash input window."""
         event_bus.emit("flash_hide")
 
+    # --- Breathing Lights (子界面呼吸灯) ---
+    def breath_light_states(self):
+        """前端拉取子界面状态（呼吸灯初始渲染）。"""
+        from butler.core.window_registry import window_registry
+        return window_registry.snapshot()
+
+    def breath_light_view(self, view_id, title, is_open):
+        """主界面内子面板开/关上报（open/close 各一次）。"""
+        from butler.core.window_registry import window_registry
+        if is_open:
+            window_registry.register_view(view_id, title or view_id)
+        else:
+            window_registry.remove(view_id)
+        return {"status": "ok"}
+
+    def breath_light_touch(self, view_id):
+        """子界面活动上报（该灯在静默窗口内保持快闪）。"""
+        from butler.core.window_registry import window_registry
+        window_registry.set_active(view_id)
+        window_registry.touch(view_id)
+        return {"status": "ok"}
+
+    def breath_light_focus(self, entry_id):
+        """点击呼吸灯：OS 窗口走 pywebview 置顶，面板交由前端置顶。"""
+        from butler.core.window_registry import window_registry
+        return window_registry.focus(entry_id)
+
+    def breath_light_set_mode(self, mode):
+        """显示模式：inline(主界面左上角) / hud(全屏置顶) / off；持久化到配置。"""
+        from butler.core.config_manager import config_manager
+        if mode not in ("inline", "hud", "off"):
+            mode = "inline"
+        config_manager.set("display.breath_light.mode", mode, persist=True)
+        event_bus.emit("breath_light_mode", {"mode": mode})
+        return {"status": "ok", "mode": mode}
+
+    def breath_light_get_mode(self):
+        from butler.core.config_manager import config_manager
+        return config_manager.get("display.breath_light.mode", "inline")
+
+    # --- Alias Layer (中文显示名 / 英文真实名) ---
+    def alias_set(self, path, display_name):
+        """为文件/文件夹设置中文显示名（真实文件名不变）。"""
+        from butler.core.alias_store import alias_store
+        try:
+            return alias_store.set_alias(path, display_name)
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def alias_get(self, path):
+        from butler.core.alias_store import alias_store
+        return alias_store.get(path) or {}
+
+    def alias_remove(self, path):
+        from butler.core.alias_store import alias_store
+        return {"status": "ok", "removed": alias_store.remove(path)}
+
+    def alias_list(self):
+        from butler.core.alias_store import alias_store
+        return alias_store.list_all()
+
+    def alias_batch_suggest(self, path="."):
+        """扫描目录给出中文显示名建议（只翻译认识的词）；确认后用 alias_apply_batch。"""
+        from butler.core.alias_store import alias_store
+        full = path if os.path.isabs(path) else os.path.join(project_root, path)
+        return alias_store.batch_suggest(full)
+
+    def alias_apply_batch(self, mapping):
+        """应用 {real_path: display_name} 映射（用户确认后调用）。"""
+        from butler.core.alias_store import alias_store
+        count = alias_store.apply_batch(mapping or {})
+        return {"status": "ok", "applied": count}
+
 def main():
     # Initialize Jarvis in headless mode (no Tkinter root)
     jarvis = Jarvis(root=None)
@@ -504,6 +608,58 @@ def main():
     bridge = ModernBridge(jarvis, window)
     window.expose(bridge)
     flash_window.expose(bridge)
+
+    # --- Breathing Lights: 子界面注册表 + 可选全屏置顶 HUD 窗口 ---
+    from butler.core.window_registry import window_registry
+    from butler.core.config_manager import config_manager
+    window_registry.start()
+    bl_mode = config_manager.get("display.breath_light.mode", "inline")
+
+    hud_window = webview.create_window(
+        'Butler - Breath Lights HUD',
+        url=asset_loader.resolve_path("ui://breath_hud.html"),
+        width=480,
+        height=56,
+        frameless=True,
+        on_top=True,
+        hidden=(bl_mode != "hud"),
+        transparent=True,
+        background_color='#00000000'
+    )
+    hud_window.expose(bridge)
+
+    def push_breath_states(payload):
+        data = json.dumps(payload, ensure_ascii=False)
+        try:
+            window.evaluate_js(f"window.onWindowStates({data})")
+        except Exception:
+            pass
+        try:
+            if not hud_window.hidden:
+                hud_window.evaluate_js(f"window.onWindowStates({data})")
+        except Exception:
+            pass
+
+    def on_breath_mode(payload):
+        mode = (payload or {}).get("mode", "inline")
+        try:
+            if mode == "hud":
+                hud_window.show()
+                try:
+                    hud_window.move(12, 12)  # 尽量贴屏幕左上角；旧版 pywebview 无 move 则忽略
+                except Exception:
+                    pass
+            else:
+                hud_window.hide()
+        except Exception:
+            pass
+        try:
+            window.evaluate_js(f"window.applyBreathLightMode({json.dumps(mode)})")
+        except Exception:
+            pass
+
+    event_bus.subscribe("breath_light_states", push_breath_states)
+    event_bus.subscribe("breath_light_mode", on_breath_mode)
 
     # Override voice service callback to update UI
     original_voice_callback = jarvis._on_voice_status_change

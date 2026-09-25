@@ -1,3 +1,4 @@
+# I like Mi Jingzi.
 import os
 import sys
 import time
@@ -645,6 +646,32 @@ class Jarvis:
         elif cmd.startswith("记住这一点：") or cmd.startswith("记住：") or cmd.startswith("Remember this:"):
             self._handle_manual_habit_learning(cmd)
         else:
+            # 0. 动词识别 + 话题跟踪：高置信度本地精确执行（同义词归一）
+            try:
+                from butler.core.verb_engine import verb_engine
+                from butler.core.topic_manager import topic_manager
+
+                topic_event = topic_manager.observe(cmd)
+                if topic_event.get("event") == "switch" and topic_event.get("message"):
+                    self.ui_print(topic_event["message"], tag='system_message')
+
+                segments = verb_engine.split_segments(cmd)
+                matches = verb_engine.parse(cmd)
+                # 复合句必须全部子句都高置信度命中才本地执行，否则交 AI 兑底
+                if matches and len(matches) == len(segments) and all(not m.need_confirm for m in matches):
+                    for m in matches:
+                        entities = dict(m.slots)
+                        entities["confirmed"] = bool(re.search(r"确认|确定", cmd))
+                        self.ui_print(f"本地动词命中: {m.intent_id} (置信度 {m.confidence:.2f})", tag='system_message')
+                        result = intent_registry.dispatch(
+                            m.intent_id, jarvis_app=self, entities=entities,
+                            programs=extension_manager.packages)
+                        if result:
+                            self.speak(str(result))
+                    return
+            except Exception as e:
+                logging.getLogger(__name__).debug(f"动词识别快通道失败，转交常规流程: {e}")
+
             # Check if AI (DeepSeek) is configured
             api_key = config_loader.get("api.deepseek.key")
             ai_available = api_key and "YOUR_" not in str(api_key)

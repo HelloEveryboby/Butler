@@ -90,7 +90,12 @@ def initialize_core(context) -> None:
     # 2. Spawn the transparent UI window in a separate Python subprocess to avoid webview thread lock conflicts.
     try:
         entry_script = os.path.join(SKILL_DIR, "main.py")
-        subprocess.Popen([sys.executable, entry_script, str(os.getpid())], cwd=SKILL_DIR, start_new_session=True)
+        proc = subprocess.Popen([sys.executable, entry_script, str(os.getpid())], cwd=SKILL_DIR, start_new_session=True)
+        try:
+            from butler.core.window_registry import window_registry
+            window_registry.register_window("win:pixel_pet", "电子宠物", pid=proc.pid)
+        except Exception:
+            pass
         logger.info("Pixel Pet UI subprocess spawned successfully.")
     except Exception as e:
         logger.error(f"Failed to spawn Pixel Pet UI subprocess: {e}")
@@ -105,7 +110,12 @@ def handle_request(action: str, **kwargs):
     elif action in ("open", "launch"):
         try:
             entry_script = os.path.join(SKILL_DIR, "main.py")
-            subprocess.Popen([sys.executable, entry_script, str(os.getpid())], cwd=SKILL_DIR, start_new_session=True)
+            proc = subprocess.Popen([sys.executable, entry_script, str(os.getpid())], cwd=SKILL_DIR, start_new_session=True)
+            try:
+                from butler.core.window_registry import window_registry
+                window_registry.register_window("win:pixel_pet", "电子宠物", pid=proc.pid)
+            except Exception:
+                pass
             return {"status": "success", "message": "电子宠物启动成功"}
         except Exception as e:
             return {"status": "error", "message": f"启动失败: {e}"}

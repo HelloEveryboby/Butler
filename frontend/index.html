@@ -706,6 +706,14 @@
                             <span class="row-label">桌面电子小狗 (Pixel Pet)</span>
                             <button class="apple-btn-primary" onclick="launchPixelPet()" style="padding: 6px 14px; font-size: 12px; border-radius: 6px; width: 200px;">启动电子宠物 🐾</button>
                         </div>
+                        <div class="settings-row">
+                            <span class="row-label">子界面呼吸灯 (Breathing Lights)</span>
+                            <select class="apple-select" id="setting-breath-light-mode" onchange="setBreathLightMode(this.value)" style="width: 200px;">
+                                <option value="inline">主界面左上角 (Inline)</option>
+                                <option value="hud">全屏置顶 HUD</option>
+                                <option value="off">关闭 (Off)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -733,6 +741,7 @@
     <script src="dist/components/features.js"></script>
     <script src="dist/bundle.js"></script>
     <script src="dist/components/skill_ui_loader.js"></script>
+    <script src="src/components/breathing_lights.js"></script>
 
     <!-- Copilot Confirmation Modal -->
     <div id="copilot-modal">

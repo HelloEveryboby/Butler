@@ -3776,3 +3776,102 @@ body.interface-mobile .terminal-output,
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* ===== 呼吸灯子界面指示器 (Breathing Lights) =====
+   一开一个子界面 = 一颗灯：慢呼吸=空闲 / 快闪=有程序在运行 / 红色=异常 */
+#breath-lights {
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    z-index: 9990;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    pointer-events: none;
+}
+
+.breath-dot {
+    position: relative;
+    width: 14px;
+    height: 14px;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.breath-dot-core {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--accent-color, #5856D6);
+    box-shadow: 0 0 8px 1px var(--accent-color, #5856D6);
+    transform-origin: center;
+    will-change: opacity, transform;
+}
+
+.breath-dot.state-idle .breath-dot-core {
+    animation: breath-breathe 2s ease-in-out infinite;
+}
+
+.breath-dot.state-running .breath-dot-core {
+    background: #FF9500;
+    box-shadow: 0 0 10px 2px rgba(255, 149, 0, 0.8);
+    animation: breath-flash 0.5s ease-in-out infinite;
+}
+
+.breath-dot.state-error .breath-dot-core {
+    background: #FF3B30;
+    box-shadow: 0 0 10px 2px rgba(255, 59, 48, 0.8);
+    animation: breath-alert 1s ease-in-out infinite;
+}
+
+@keyframes breath-breathe {
+    0%, 100% { opacity: 0.25; transform: scale(0.85); }
+    50%      { opacity: 1;    transform: scale(1.1); }
+}
+
+@keyframes breath-flash {
+    0%, 100% { opacity: 0.45; transform: scale(0.9); }
+    50%      { opacity: 1;    transform: scale(1.25); }
+}
+
+@keyframes breath-alert {
+    0%, 100% { opacity: 0.9;  transform: scale(1.05); }
+    50%      { opacity: 0.35; transform: scale(0.9); }
+}
+
+.breath-tooltip {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 10px;
+    border-radius: 8px;
+    background: rgba(20, 20, 24, 0.92);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+    color: var(--text-primary, #fff);
+    font-size: 11px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+.breath-dot:hover .breath-tooltip {
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .breath-dot-core,
+    .breath-dot.state-idle .breath-dot-core,
+    .breath-dot.state-running .breath-dot-core,
+    .breath-dot.state-error .breath-dot-core {
+        animation: none;
+        opacity: 0.9;
+    }
+}
+
+/* HUD 模式（独立置顶小窗承载时背景透明） */
+#breath-lights.breath-lights-hud {
+    top: 14px;
+    left: 14px;
+}

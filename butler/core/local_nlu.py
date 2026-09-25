@@ -22,6 +22,24 @@ class LocalNLU:
         """
         text = text.strip()
 
+        # 0. 动词识别引擎：同义表述归一（如 记录当前画面/屏幕留个档 → screen.capture）
+        try:
+            from butler.core.verb_engine import verb_engine
+            matches = verb_engine.parse(text)
+            if matches:
+                top = matches[0]
+                entities = self._extract_entities_for_intent(top.intent_id, text)
+                entities.update(top.slots)
+                entities["need_confirm"] = top.need_confirm
+                entities["verb_confidence"] = top.confidence
+                if len(matches) > 1:
+                    entities["chained"] = [
+                        {"intent": m.intent_id, "slots": m.slots} for m in matches[1:]
+                    ]
+                return top.intent_id, entities, 'intent'
+        except Exception as e:
+            logger.debug(f"VerbEngine 解析失败，回退旧通道: {e}")
+
         # 1. 尝试匹配已注册的 Legacy Intents (使用相似度或关键词)
         intent_id = intent_registry.match_intent_locally(text, threshold=0.8)
         if intent_id:

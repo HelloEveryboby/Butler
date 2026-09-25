@@ -96,7 +96,12 @@ def handle_request(action: str, **kwargs):
     if action in ("open", "launch", "start"):
         try:
             entry_script = os.path.join(SKILL_DIR, "main.py")
-            subprocess.Popen([sys.executable, entry_script, str(os.getpid())], cwd=SKILL_DIR, start_new_session=True)
+            proc = subprocess.Popen([sys.executable, entry_script, str(os.getpid())], cwd=SKILL_DIR, start_new_session=True)
+            try:
+                from butler.core.window_registry import window_registry
+                window_registry.register_window("win:ai_subtitles", "AI 字幕悬浮窗", pid=proc.pid)
+            except Exception:
+                pass
             return {"status": "success", "message": "AI 字幕悬浮窗已成功启动"}
         except Exception as e:
             return {"status": "error", "message": f"启动字幕悬浮窗失败: {e}"}

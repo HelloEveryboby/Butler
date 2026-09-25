@@ -1,0 +1,134 @@
+# 动词识别评测集 (tests/test_verb_engine.py 自动加载)
+# 目标: 同义表述归一准确率 ≥ 95%
+# 字段: text=用户原话 | intent=期望规范意图 | scope=期望范围槽位(可选) | no_match=期望无匹配(可选)
+
+# --- screen.capture: 同义表述全家福 ---
+- text: '记录当前画面'
+  intent: screen.capture
+  scope: fullscreen
+- text: '记录当前眼前画面'
+  intent: screen.capture
+  scope: fullscreen
+- text: '截个屏'
+  intent: screen.capture
+  scope: fullscreen
+- text: '帮我截一下屏幕'
+  intent: screen.capture
+  scope: fullscreen
+- text: '屏幕留个档'
+  intent: screen.capture
+  scope: fullscreen
+- text: '来张截图'
+  intent: screen.capture
+  scope: fullscreen
+- text: '拍一下当前界面'
+  intent: screen.capture
+  scope: fullscreen
+- text: '截图'
+  intent: screen.capture
+  scope: fullscreen
+- text: '抓取全屏画面'
+  intent: screen.capture
+  scope: fullscreen
+- text: '帮我拍下显示器画面'
+  intent: screen.capture
+  scope: fullscreen
+- text: '把屏幕内容存下来'
+  intent: screen.capture
+  scope: fullscreen
+- text: '来一张屏幕截图'
+  intent: screen.capture
+  scope: fullscreen
+- text: '记录当前窗口'
+  intent: screen.capture
+  scope: window
+- text: '截一下活动窗口'
+  intent: screen.capture
+  scope: window
+- text: '框选区域截图'
+  intent: screen.capture
+  scope: region
+- text: '帮我截取指定区域'
+  intent: screen.capture
+  scope: region
+
+# --- textfile.edit ---
+- text: '编辑文本文档'
+  intent: textfile.edit
+- text: '修改一下这个文本文件'
+  intent: textfile.edit
+- text: '把文档润色一下'
+  intent: textfile.edit
+- text: '帮我编写一份文档'
+  intent: textfile.edit
+- text: '修订一下稿件'
+  intent: textfile.edit
+- text: '编辑 /home/u/notes.txt 写入 "hello"'
+  intent: textfile.edit
+
+# --- file.move ---
+- text: '把这个文件移动到下载目录'
+  intent: file.move
+- text: '挪一下这个文档'
+  intent: file.move
+- text: '把资料转移到 D 盘'
+  intent: file.move
+- text: '把文件夹搬到回收站'
+  intent: file.move
+
+# --- file.copy ---
+- text: '复制这个文件到桌面'
+  intent: file.copy
+- text: '把文档备份一份'
+  intent: file.copy
+- text: '拷贝一下这个文件夹'
+  intent: file.copy
+
+# --- file.rename ---
+- text: '给这个文件改名'
+  intent: file.rename
+- text: '把文件夹重命名一下'
+  intent: file.rename
+
+# --- file.delete ---
+- text: '删除这个文件'
+  intent: file.delete
+- text: '把这个文件夹删掉'
+  intent: file.delete
+
+# --- topic.* ---
+- text: '回到刚才的话题'
+  intent: topic.recall
+- text: '我们说回之前那个话题'
+  intent: topic.recall
+- text: '继续刚才聊的那个'
+  intent: topic.recall
+- text: '我们聊过哪些话题'
+  intent: topic.list
+- text: '显示话题列表'
+  intent: topic.list
+- text: '把这个话题先存档'
+  intent: topic.save
+- text: '当前话题挂起一下'
+  intent: topic.save
+- text: '我们换个话题吧'
+  intent: topic.switch
+- text: '开始一个新话题'
+  intent: topic.switch
+
+# --- 复合句: 拆分后全部命中 ---
+- text: '截个屏，然后记录当前画面'
+  intent: screen.capture
+  count: 2
+
+# --- 干扰样本: 不应命中任何动词意图 ---
+- text: '帮我排序 [3, 1, 4]'
+  no_match: true
+- text: "打开程序 'Notepad'"
+  no_match: true
+- text: '今天天气怎么样'
+  no_match: true
+- text: '介绍一下你自己'
+  no_match: true
+- text: '帮我写一段 Python 代码'
+  no_match: true
