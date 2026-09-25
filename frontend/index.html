@@ -477,7 +477,11 @@
         </div>
         <div class="settings-wrapper">
             <div class="settings-sidebar">
-                <div class="settings-nav-item active" id="tab-btn-model-config" onclick="switchSettingsTab('model-config')">
+                <div class="settings-nav-item active" id="tab-btn-all-config" onclick="switchSettingsTab('all-config')">
+                    <div class="settings-icon icon-cyan"><i class="fas fa-sliders-h"></i></div>
+                    <span>全部配置</span>
+                </div>
+                <div class="settings-nav-item" id="tab-btn-model-config" onclick="switchSettingsTab('model-config')">
                     <div class="settings-icon icon-blue"><i class="fas fa-brain"></i></div>
                     <span>模型配置</span>
                 </div>
@@ -495,8 +499,18 @@
                 </div>
             </div>
             <div class="settings-content">
+                <!-- Tab 0: All Config (Unified) -->
+                <div id="settings-tab-all-config" class="settings-panel active">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <div class="settings-title" style="margin-bottom: 0;">⚙️ 全部配置中心</div>
+                        <button class="apple-btn-primary" onclick="saveAllConfig()">💾 保存全部配置</button>
+                    </div>
+                    <div id="all-config-status" style="font-size: 13px; margin-bottom: 12px; color: var(--text-secondary);">加载中...</div>
+                    <div id="all-config-container" style="display: flex; flex-direction: column; gap: 14px;"></div>
+                </div>
+
                 <!-- Tab 1: Model Config -->
-                <div id="settings-tab-model-config" class="settings-panel active">
+                <div id="settings-tab-model-config" class="settings-panel">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <div class="settings-title" style="margin-bottom: 0;">AI 大模型配置中心</div>
                         <div id="model-test-badge-container">

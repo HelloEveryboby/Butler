@@ -17,6 +17,11 @@ export interface PyWebViewAPI {
   unlock_vault?(pwd: string): Promise<boolean>;
   set_voice_engine?(mode: string): Promise<boolean>;
   get_voice_status?(): Promise<any>;
+  get_all_config?(): Promise<Record<string, any>>;
+  save_all_config?(config: Record<string, any>): Promise<any>;
+  get_model_config?(): Promise<any>;
+  save_model_config?(config: any): Promise<any>;
+  test_model_connection?(config: any): Promise<any>;
   get_input_suggestions?(prefix: string): Promise<string[]>;
 }
 

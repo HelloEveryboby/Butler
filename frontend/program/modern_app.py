@@ -4,6 +4,7 @@ import threading
 import time
 import webview
 import json
+from typing import Dict, Any
 
 # Add project root to sys.path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -524,6 +525,79 @@ class ModernBridge:
 
         self.logger.info(f"AI Model configuration updated: provider={provider}, model={model_name}")
         return {"status": "success", "message": "大模型配置已保存并无缝生效。"}
+
+    # ── 统一配置中心：获取/保存全部配置 ──
+
+    # 敏感字段关键词（命中即掩码）
+    _SENSITIVE_KEYWORDS = ("key", "token", "secret", "password", "app_id")
+
+    def _is_sensitive_key(self, key: str) -> bool:
+        k = key.lower()
+        return any(kw in k for kw in self._SENSITIVE_KEYWORDS)
+
+    def get_all_config(self):
+        """获取全部配置（敏感字段掩码）。返回扁平 dict，key 为点路径。"""
+        from butler.core.config_manager import config_manager
+
+        raw = config_manager.get_all()
+        flat: Dict[str, Any] = {}
+
+        def _walk(obj: Any, prefix: str = ""):
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    path = f"{prefix}.{k}" if prefix else k
+                    _walk(v, path)
+            else:
+                flat[prefix] = obj
+
+        _walk(raw)
+
+        # 掩码敏感字段
+        result = {}
+        for k, v in flat.items():
+            if self._is_sensitive_key(k) and isinstance(v, str) and v:
+                result[k] = {"value": self._mask_secret(v), "set": True, "sensitive": True}
+            else:
+                result[k] = {"value": v, "set": bool(v), "sensitive": self._is_sensitive_key(k)}
+        return result
+
+    def save_all_config(self, config: Dict[str, Any]):
+        """保存全部配置。
+        Args:
+            config: 扁平 dict，key 为点路径，value 为字段值。
+                    敏感字段若为掩码占位则保留原值。
+        """
+        from butler.core.config_manager import config_manager
+
+        saved, skipped = 0, 0
+        for key, value in config.items():
+            # 敏感字段：掩码或空值则跳过（保留原值）
+            if self._is_sensitive_key(key):
+                if self._is_masked_or_empty(str(value) if value is not None else ""):
+                    skipped += 1
+                    continue
+            try:
+                # 类型推断：数字字符串转 number，"true"/"false" 转 bool
+                if isinstance(value, str):
+                    if value.lower() in ("true", "false"):
+                        value = value.lower() == "true"
+                    else:
+                        try:
+                            if "." in value:
+                                value = float(value)
+                            else:
+                                value = int(value)
+                        except ValueError:
+                            pass
+                config_manager.set(key, value, persist=True)
+                saved += 1
+            except Exception as e:
+                self.logger.warning(f"保存配置失败 {key}={value}: {e}")
+
+        config_manager.reload()
+        self.logger.info(f"全部配置已保存: saved={saved}, skipped(sensitive)={skipped}")
+        return {"status": "success", "saved": saved, "skipped": skipped,
+                "message": f"配置已保存（{saved} 项更新，{skipped} 项敏感字段保留原值）"}
 
     # --- Flash Input Support ---
     def submit_flash_command(self, command):

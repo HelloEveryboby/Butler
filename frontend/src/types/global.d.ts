@@ -109,6 +109,8 @@ declare global {
     saveModelSettings?: () => void;
     onMemoryDbChange?: () => void;
     onVoiceEngineChange?: () => Promise<void>;
+    saveAllConfig?: () => Promise<void>;
+    loadAllConfig?: () => Promise<void>;
     saveMemorySettings?: () => void;
     testHalConnection?: () => void;
     toggleThemeMode?: () => void;

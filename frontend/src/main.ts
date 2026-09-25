@@ -522,6 +522,7 @@ window.toggleSettings = (): void => {
     overlay.classList.toggle('hidden');
     if (!overlay.classList.contains('hidden')) {
       loadSettingsForm();
+      window.loadAllConfig?.();
     }
   }
 };
@@ -539,6 +540,10 @@ window.switchSettingsTab = (tabId: string): void => {
 
   const targetPanel = document.getElementById(`settings-tab-${tabId}`);
   if (targetPanel) targetPanel.classList.add('active');
+
+  if (tabId === 'all-config') {
+    window.loadAllConfig?.();
+  }
 };
 
 window.toggleApiKeyVisibility = (): void => {
@@ -998,3 +1003,260 @@ window.onVoiceEngineChange = async (): Promise<void> => {
     console.error('[Voice] 切换引擎失败:', e);
   }
 }
+
+// ══════════════════════════════════════════════════════════════
+// 统一配置中心：Schema + 动态渲染
+// ══════════════════════════════════════════════════════════════
+
+interface ConfigFieldDef {
+  key: string;          // 点路径，如 api.provider
+  label: string;        // 中文名
+  type: 'string' | 'number' | 'boolean' | 'select' | 'password';
+  options?: { value: string; label: string }[];
+  placeholder?: string;
+  hint?: string;
+}
+
+interface ConfigSectionDef {
+  id: string;
+  title: string;
+  icon: string;
+  fields: ConfigFieldDef[];
+}
+
+const CONFIG_SCHEMA: ConfigSectionDef[] = [
+  {
+    id: 'api', title: '🧠 AI 模型与 API', icon: 'fa-brain',
+    fields: [
+      { key: 'api.provider', label: '模型提供商', type: 'select', options: [
+        { value: 'deepseek', label: 'DeepSeek' },
+        { value: 'openai', label: 'OpenAI' },
+        { value: 'zhipu', label: '智谱 GLM' },
+        { value: 'anthropic', label: 'Claude' },
+        { value: 'gemini', label: 'Google Gemini' },
+        { value: 'dashscope', label: '通义千问' },
+        { value: 'qianfan', label: '百度千帆' },
+        { value: 'custom', label: '自定义兼容接口' },
+      ]},
+      { key: 'api.base_url', label: 'API Base URL', type: 'string', placeholder: '留空使用提供商默认' },
+      { key: 'api.model_name', label: '模型名称', type: 'string', placeholder: '如 deepseek-chat' },
+      { key: 'api.provider_label', label: '自定义提供商名', type: 'string' },
+      { key: 'api.temperature', label: 'Temperature (温度)', type: 'number', hint: '0-2，越高越随机' },
+      { key: 'api.max_tokens', label: 'Max Tokens', type: 'number' },
+      { key: 'api.deepseek_key', label: 'DeepSeek Key', type: 'password' },
+      { key: 'api.openai_key', label: 'OpenAI Key', type: 'password' },
+      { key: 'api.zhipu_key', label: '智谱 Key', type: 'password' },
+      { key: 'api.anthropic_key', label: 'Claude Key', type: 'password' },
+      { key: 'api.gemini_key', label: 'Gemini Key', type: 'password' },
+      { key: 'api.dashscope_key', label: '通义千问 Key', type: 'password' },
+      { key: 'api.qianfan_key', label: '千帆 Key', type: 'password' },
+      { key: 'api.custom_key', label: '自定义 Key', type: 'password' },
+      { key: 'api.baidu_app_id', label: '百度 APP ID', type: 'string' },
+      { key: 'api.baidu_api_key', label: '百度 API Key', type: 'password' },
+      { key: 'api.baidu_secret_key', label: '百度 Secret Key', type: 'password' },
+      { key: 'api.picovoice_access_key', label: 'Picovoice Key', type: 'password' },
+    ],
+  },
+  {
+    id: 'voice', title: '🎙️ 语音输入输出', icon: 'fa-microphone',
+    fields: [
+      { key: 'voice.mode', label: '语音引擎', type: 'select', options: [
+        { value: 'auto', label: '自动选择' },
+        { value: 'native', label: '系统原生 (SAPI/macOS/Linux)' },
+        { value: 'local', label: '本地模型 Faster-Whisper' },
+        { value: 'baidu', label: '百度语音 API' },
+        { value: 'google', label: 'Google Cloud Speech' },
+        { value: 'azure', label: 'Azure Speech' },
+        { value: 'text', label: '纯文本（关闭语音）' },
+      ]},
+      { key: 'voice.local_stt_model', label: 'Whisper 模型大小', type: 'select', options: [
+        { value: 'tiny', label: 'tiny' }, { value: 'base', label: 'base' },
+        { value: 'small', label: 'small' }, { value: 'medium', label: 'medium' },
+        { value: 'large', label: 'large' },
+      ]},
+    ],
+  },
+  {
+    id: 'persona', title: '🎭 管家人格', icon: 'fa-user-astronaut',
+    fields: [
+      { key: 'persona.emotional_mode', label: '情感模式', type: 'boolean' },
+    ],
+  },
+  {
+    id: 'display', title: '🖥️ 显示与界面', icon: 'fa-desktop',
+    fields: [
+      { key: 'display.default_mode', label: '默认显示模式', type: 'select', options: [
+        { value: 'host', label: '主机模式' },
+        { value: 'cyberpunk', label: '赛博朋克' },
+      ]},
+      { key: 'display.theme', label: '主题', type: 'select', options: [
+        { value: 'google', label: 'Google 风格' },
+        { value: 'glass', label: '玻璃拟态' },
+      ]},
+      { key: 'display.usb_screen.width', label: 'USB 屏宽度', type: 'number' },
+      { key: 'display.usb_screen.height', label: 'USB 屏高度', type: 'number' },
+    ],
+  },
+  {
+    id: 'performance', title: '⚡ 性能模式', icon: 'fa-tachometer-alt',
+    fields: [
+      { key: 'performance.mode', label: '性能模式', type: 'select', options: [
+        { value: 'NORMAL', label: 'NORMAL 均衡' },
+        { value: 'ECO', label: 'ECO 节能' },
+        { value: 'HIGH_PERFORMANCE', label: 'HIGH_PERFORMANCE 高性能' },
+      ]},
+    ],
+  },
+  {
+    id: 'interpreter', title: '🔧 代码解释器', icon: 'fa-code',
+    fields: [
+      { key: 'interpreter.safety_mode', label: '安全模式', type: 'boolean' },
+      { key: 'interpreter.max_iterations', label: '最大迭代次数', type: 'number' },
+    ],
+  },
+  {
+    id: 'runner_server', title: '🌐 Runner 服务', icon: 'fa-server',
+    fields: [
+      { key: 'runner_server.host', label: '监听地址', type: 'string' },
+      { key: 'runner_server.port', label: '端口', type: 'number' },
+      { key: 'runner_server.token', label: '访问 Token', type: 'password' },
+    ],
+  },
+  {
+    id: 'update_source', title: '📦 资源与更新', icon: 'fa-cloud-download-alt',
+    fields: [
+      { key: 'update_source.assets_base_url', label: '资源下载基址', type: 'string' },
+      { key: 'update_source.api_latest_release', label: '最新 Release API', type: 'string' },
+    ],
+  },
+];
+
+/** 渲染单个字段的 HTML */
+function renderField(field: ConfigFieldDef, value: any, sensitive: boolean): string {
+  const id = `cfg-${field.key.replace(/\./g, '-')}`;
+  const val = value ?? '';
+  const isBool = field.type === 'boolean';
+  const checked = isBool ? (val === true || val === 'true') : false;
+
+  let control = '';
+  if (field.type === 'select') {
+    control = `<select class="apple-select" id="${id}" data-key="${field.key}">
+      ${(field.options || []).map(o =>
+        `<option value="${o.value}" ${String(val) === o.value ? 'selected' : ''}>${o.label}</option>`
+      ).join('')}
+    </select>`;
+  } else if (field.type === 'boolean') {
+    control = `<label class="switch">
+      <input type="checkbox" id="${id}" data-key="${field.key}" ${checked ? 'checked' : ''}>
+      <span class="slider round"></span>
+    </label>`;
+  } else if (field.type === 'password') {
+    control = `<input type="password" class="apple-select" id="${id}" data-key="${field.key}"
+      value="${String(val).replace(/"/g, '&quot;')}" placeholder="${field.placeholder || ''}">`;
+  } else if (field.type === 'number') {
+    control = `<input type="number" class="apple-select" id="${id}" data-key="${field.key}"
+      value="${val}" placeholder="${field.placeholder || ''}" style="width: 140px;">`;
+  } else {
+    control = `<input type="text" class="apple-select" id="${id}" data-key="${field.key}"
+      value="${String(val).replace(/"/g, '&quot;')}" placeholder="${field.placeholder || ''}">`;
+  }
+
+  const hintHtml = field.hint ? `<div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">${field.hint}</div>` : '';
+  const sensitiveBadge = sensitive ? `<span style="font-size: 10px; background: rgba(255,149,0,0.15); color: #FF9500; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">敏感</span>` : '';
+
+  return `<div class="settings-row">
+    <div style="display: flex; flex-direction: column;">
+      <span class="row-label">${field.label}${sensitiveBadge}</span>
+      ${hintHtml}
+    </div>
+    ${control}
+  </div>`;
+}
+
+/** 加载并渲染全部配置 */
+window.loadAllConfig = async (): Promise<void> => {
+  const container = document.getElementById('all-config-container');
+  const statusEl = document.getElementById('all-config-status');
+  if (!container) return;
+
+  try {
+    const api = (window as any).butlerApi as PyWebViewAPI;
+    if (!api?.get_all_config) {
+      if (statusEl) statusEl.textContent = '⚠️ 后端不支持统一配置 API';
+      return;
+    }
+
+    if (statusEl) statusEl.textContent = '加载中...';
+    const allConfig = await api.get_all_config();
+    if (!allConfig) {
+      if (statusEl) statusEl.textContent = '加载失败';
+      return;
+    }
+
+    let html = '';
+    for (const section of CONFIG_SCHEMA) {
+      const fieldsHtml = section.fields.map(f => {
+        const entry = allConfig[f.key] || { value: '', set: false, sensitive: false };
+        return renderField(f, entry.value, entry.sensitive);
+      }).join('');
+
+      html += `<div class="settings-group-card">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+          <i class="fas ${section.icon}" style="color: var(--accent-color);"></i>
+          <span style="font-size: 14px; font-weight: 600; color: var(--text-primary);">${section.title}</span>
+        </div>
+        ${fieldsHtml}
+      </div>`;
+    }
+
+    container.innerHTML = html;
+    const count = CONFIG_SCHEMA.reduce((s, sec) => s + sec.fields.length, 0);
+    if (statusEl) {
+      statusEl.innerHTML = `✅ 已加载 ${CONFIG_SCHEMA.length} 个分组，共 ${count} 项配置。密钥类字段已脱敏，留空则保留原值。`;
+      statusEl.style.color = '#34C759';
+    }
+  } catch (e) {
+    console.error('[AllConfig] 加载失败:', e);
+    if (statusEl) statusEl.textContent = '⚠️ 加载失败: ' + (e as Error).message;
+  }
+};
+
+/** 收集并保存全部配置 */
+window.saveAllConfig = async (): Promise<void> => {
+  const statusEl = document.getElementById('all-config-status');
+  const payload: Record<string, any> = {};
+
+  document.querySelectorAll<HTMLElement>('#all-config-container [data-key]').forEach(el => {
+    const key = el.getAttribute('data-key')!;
+    if (el instanceof HTMLInputElement) {
+      if (el.type === 'checkbox') {
+        payload[key] = el.checked;
+      } else if (el.type === 'number') {
+        payload[key] = el.value === '' ? '' : Number(el.value);
+      } else {
+        payload[key] = el.value;
+      }
+    } else if (el instanceof HTMLSelectElement) {
+      payload[key] = el.value;
+    }
+  });
+
+  try {
+    const api = (window as any).butlerApi as PyWebViewAPI;
+    if (!api?.save_all_config) {
+      alert('后端不支持统一配置 API');
+      return;
+    }
+    if (statusEl) { statusEl.textContent = '保存中...'; statusEl.style.color = 'var(--text-secondary)'; }
+    const res = await api.save_all_config(payload);
+    if (statusEl) {
+      statusEl.textContent = res?.message || '保存成功';
+      statusEl.style.color = '#34C759';
+    }
+    // 重新加载以反映掩码
+    setTimeout(() => window.loadAllConfig?.(), 300);
+  } catch (e) {
+    console.error('[AllConfig] 保存失败:', e);
+    if (statusEl) { statusEl.textContent = '⚠️ 保存失败: ' + (e as Error).message; statusEl.style.color = '#FF3B30'; }
+  }
+};
