@@ -11,6 +11,23 @@ export interface LangItem {
   nameEn: string;     // 英文名
 }
 
+// ---------- 术语表 ----------
+export interface GlossaryEntry {
+  source: string;
+  target: string;
+}
+
+// ---------- 翻译历史 ----------
+export interface HistoryEntry {
+  original: string;
+  translated: string;
+  from?: LangCode;
+  to?: LangCode;
+  provider: string;
+  favorite?: boolean;
+  ts: number;
+}
+
 // ---------- 翻译 Provider ----------
 export type ProviderId =
   | 'deepseek'
@@ -64,6 +81,7 @@ export interface TranslateConfig {
   targetLang: LangCode;
   autoTranslate: boolean;         // 页面加载后自动翻译
   displayMode: 'bilingual' | 'translation-only' | 'hover';
+  bilingualLayout: 'stacked' | 'columns';  // 双语排版：堆叠 / 双栏并排
   triggerKey: string;             // 全文翻译快捷键
   inputTranslateKey: string;      // 输入框翻译快捷键
   screenshotKey: string;          // 截图翻译快捷键
@@ -82,6 +100,13 @@ export interface TranslateConfig {
   // 缓存
   cacheEnabled: boolean;
   cacheMaxSize: number;
+
+  // 术语表
+  glossary: GlossaryEntry[];
+
+  // 历史
+  historyEnabled: boolean;
+  historyMaxSize: number;
 
   // Butler 后端
   butlerBackendUrl: string;
@@ -110,7 +135,12 @@ export type MsgType =
   | { type: 'ADD_PROVIDER'; provider: ProviderConfig }
   | { type: 'UPDATE_PROVIDER'; id: string; patch: Partial<ProviderConfig> }
   | { type: 'DELETE_PROVIDER'; id: string }
-  | { type: 'TEST_PROVIDER'; provider: ProviderConfig };
+  | { type: 'TEST_PROVIDER'; provider: ProviderConfig }
+  | { type: 'GET_GLOSSARY' }
+  | { type: 'ADD_GLOSSARY'; source: string; target: string }
+  | { type: 'REMOVE_GLOSSARY'; source: string }
+  | { type: 'GET_HISTORY'; limit?: number }
+  | { type: 'CLEAR_HISTORY' };
 
 export type MsgResponse =
   | { type: 'TRANSLATE_RESULT'; results: TranslationResult[] }
@@ -119,6 +149,8 @@ export type MsgResponse =
   | { type: 'PROVIDERS'; providers: ProviderConfig[] }
   | { type: 'TEST_RESULT'; success: boolean; message: string }
   | { type: 'IMAGE_TRANSLATE_RESULT'; original: string; translated: string }
+  | { type: 'GLOSSARY'; entries: GlossaryEntry[] }
+  | { type: 'HISTORY'; entries: HistoryEntry[] }
   | { type: 'OK' };
 
 // ---------- 站点规则 ----------

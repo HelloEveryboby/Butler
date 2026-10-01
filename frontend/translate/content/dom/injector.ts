@@ -7,11 +7,19 @@ import { TextSegment } from '../../utils/types';
 /** 译文容器 class */
 const TRANSLATED_CLASS = 'bt-translated';
 const LOADING_CLASS = 'bt-trans-loading';
+const BICOLUMN_CLASS = 'bt-bicolumn';
 
 /**
  * 在原文后注入译文（双语对照模式）
+ * layout: 'stacked' 上下堆叠 | 'columns' 双栏并排（解决英文长中文短的留白）
  */
-export function injectBilingual(segment: TextSegment, translated: string): void {
+export function injectBilingual(segment: TextSegment, translated: string,
+                                layout: 'stacked' | 'columns' = 'stacked'): void {
+  if (layout === 'columns') {
+    injectBicolumn(segment, translated);
+    return;
+  }
+
   // 检查是否已经注入过
   const existing = segment.parentElement.querySelector(`.${TRANSLATED_CLASS}`);
   if (existing) {
@@ -35,6 +43,49 @@ export function injectBilingual(segment: TextSegment, translated: string): void 
 
   // 注入到原文后
   segment.parentElement.insertAdjacentElement('afterend', wrapper);
+}
+
+/**
+ * 双栏并排：原文左栏、译文右栏，各自独立换行，消除长短不一的留白
+ */
+function injectBicolumn(segment: TextSegment, translated: string): void {
+  const parent = segment.parentElement;
+
+  // 已有双栏容器则只更新译文
+  const existingWrap = parent.parentElement?.classList.contains(BICOLUMN_CLASS)
+    ? parent.parentElement
+    : null;
+  if (existingWrap) {
+    const target = existingWrap.querySelector(`.${TRANSLATED_CLASS}`);
+    if (target) { target.textContent = translated; return; }
+  }
+
+  // 用 flex 容器包裹原文与译文
+  const wrap = document.createElement('div');
+  wrap.className = BICOLUMN_CLASS;
+  wrap.setAttribute('data-bt-id', segment.id);
+
+  const source = document.createElement('div');
+  source.className = 'bt-bicolumn-source';
+  source.appendChild(parent.cloneNode(true));
+
+  const target = document.createElement('div');
+  target.className = `${TRANSLATED_CLASS} bt-bicolumn-target`;
+  target.setAttribute('data-bt-id', segment.id);
+  target.textContent = translated;
+
+  // 继承原文样式
+  const cs = window.getComputedStyle(parent);
+  target.style.color = cs.color;
+  target.style.fontSize = cs.fontSize;
+  target.style.fontFamily = cs.fontFamily;
+  target.style.lineHeight = cs.lineHeight;
+
+  wrap.appendChild(source);
+  wrap.appendChild(target);
+
+  // 替换原元素为双栏容器
+  parent.replaceWith(wrap);
 }
 
 /**
@@ -100,6 +151,16 @@ export function removeLoading(segment: TextSegment): void {
  * 还原：移除所有翻译节点，恢复原文
  */
 export function restoreAll(): void {
+  // 还原双栏容器：把原文放回去，移除容器和译文
+  document.querySelectorAll(`.${BICOLUMN_CLASS}`).forEach(wrap => {
+    const source = wrap.querySelector('.bt-bicolumn-source');
+    if (source && source.firstElementChild) {
+      wrap.replaceWith(source.firstElementChild);
+    } else {
+      wrap.remove();
+    }
+  });
+
   // 移除所有翻译节点
   document.querySelectorAll(`.${TRANSLATED_CLASS}`).forEach(el => el.remove());
   // 移除所有 loading

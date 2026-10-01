@@ -35,6 +35,7 @@ export const DEFAULT_CONFIG: TranslateConfig = {
   targetLang: 'zh-CN',
   autoTranslate: false,
   displayMode: 'bilingual',
+  bilingualLayout: 'stacked',
   triggerKey: 'Alt+Q',
   inputTranslateKey: 'Ctrl+Enter',
   screenshotKey: 'Alt+S',
@@ -47,6 +48,9 @@ export const DEFAULT_CONFIG: TranslateConfig = {
   excludeSelectors: ['pre', 'code', 'script', 'style', 'noscript', 'svg', 'canvas'],
   cacheEnabled: true,
   cacheMaxSize: 2000,
+  glossary: [],
+  historyEnabled: true,
+  historyMaxSize: 500,
   butlerBackendUrl: 'ws://127.0.0.1:8765',
   fallbackChain: ['deepseek-default', 'google-free', 'bing-free'],
 };
