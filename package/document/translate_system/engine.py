@@ -167,9 +167,9 @@ class TranslationSystem:
     ) -> List[dict]:
         """双语翻译，返回 [{source, target}, ...]。"""
         target = to or self.config.target_lang
-        # 按段落切分
-        segments = re.split(r"\n\s*\n", text.strip())
-        segments = [s.strip() for s in segments if s.strip()]
+        # 按段落切分，保留每段原始内容（不 strip），仅过滤空段
+        segments = re.split(r"\n\s*\n", text)
+        segments = [s for s in segments if s.strip()]
         if not segments:
             return []
 

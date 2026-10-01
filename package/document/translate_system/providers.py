@@ -43,6 +43,7 @@ class OpenAICompatProvider(TranslationProvider):
         self.model = config.model or "deepseek-chat"
         self.prompt = config.prompt or (
             "请将以下{from}文本翻译为{to}，只输出译文，不要解释、不要加引号、不要附加任何其他内容。"
+            "必须严格保留原文中的换行符、缩进和空白字符，译文的排版与原文完全一致。"
         )
 
     def _system_prompt(self, from_lang: str, to_lang: str) -> str:
@@ -87,7 +88,11 @@ class OpenAICompatProvider(TranslationProvider):
 
     def translate_batch(self, texts: List[str], from_lang: str, to_lang: str) -> List[str]:
         numbered = "\n\n".join(f"[{i}] {t}" for i, t in enumerate(texts))
-        user_msg = f"请逐条翻译以下文本，保持编号格式不变，每条翻译后空一行：\n\n{numbered}"
+        user_msg = (
+            "请逐条翻译以下文本，保持编号格式不变，每条翻译后空一行。"
+            "每条内部的换行符和空白必须严格保留，排版与原文一致：\n\n"
+            f"{numbered}"
+        )
         content = self._post(
             [
                 {"role": "system", "content": self._system_prompt(from_lang, to_lang)},
