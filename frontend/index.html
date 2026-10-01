@@ -1,823 +1,399 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Butler AI - Next Gen Matrix</title>
-    <link rel="stylesheet" href="src/style.css">
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Xterm.js -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"></script>
-    <!-- PDF.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <!-- Monaco Editor -->
-    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.36.1/min/vs/loader.js"></script>
-    <script>
-        require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.36.1/min/vs' }});
-        require(['vs/editor/editor.main'], function() {
-            window.monaco_ready = true;
-        });
-    </script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Butler — Adaptive Canvas</title>
+<link rel="stylesheet" href="src/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- xterm.js for terminal overlay -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.min.js"></script>
+<!-- markdown rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
 </head>
-<body class="theme-apple matrix-mode">
-    <!-- Global Background Substrate Heatmap -->
-    <canvas id="substrate-heatmap"></canvas>
+<body>
 
-    <div class="app-container">
-        <div id="dynamic-island">Butler</div>
+<div class="app">
 
-        <!-- Floating Dock -->
-        <nav class="floating-dock glass-surface damping-transition">
-            <div class="dock-item active" id="dock-0-0" onclick="matrix.moveTo(0,0)" title="智能助手 (0,0)">
-                <i class="fas fa-comment-dots"></i>
-                <span class="dock-dot"></span>
-            </div>
-            <div class="dock-item" id="dock-1-0" onclick="matrix.moveTo(1,0)" title="时光监控 (1,0)">
-                <i class="fas fa-history"></i>
-                <span class="dock-dot"></span>
-            </div>
-            <div class="dock-item" id="dock-0-1" onclick="matrix.moveTo(0,1)" title="任务画布 (0,1)">
-                <i class="fas fa-project-diagram"></i>
-                <span class="dock-dot"></span>
-            </div>
-            <div class="dock-item" id="dock-1-1" onclick="matrix.moveTo(1,1)" title="技能仓储 (1,1)">
-                <i class="fas fa-box-open"></i>
-                <span class="dock-dot"></span>
-            </div>
-            <div class="dock-divider"></div>
-            <div class="dock-item" id="dock-settings" onclick="toggleSettings()" title="系统设置">
-                <i class="fas fa-cog"></i>
-            </div>
-        </nav>
-        <main class="main-content">
-            <div id="workspace-matrix">
-                <!-- (0,0) Quadrant: Smart Chat & Debugger -->
-                <section class="matrix-cell" id="cell-0-0">
-                    <div class="view-header">
-                        <div class="view-title" id="chat-view-title">智能助手 (Smart Chat)</div>
-                        <div class="status-indicators">
-                            <span id="connection-status" class="status-dot green active"></span>
-                            <span id="thinking-status" class="status-dot blue"></span>
-                        </div>
-                    </div>
-                    <div id="interaction-flow">
-                        <div class="welcome-message">
-                            <h1>你好，Butler</h1>
-                            <p>随时拖入报错截图，我将为你即刻修复。</p>
-                            <div class="quick-actions-container">
-                                <div class="quick-action-card" onclick="triggerQuickAction('🔍 系统自检与安全审计', '🔍')">
-                                    <i class="fas fa-shield-halved" style="color: #007AFF;"></i>
-                                    <span class="quick-action-title">系统自检与审计</span>
-                                    <span class="quick-action-desc">扫描安全配置、开放端口与环境沙箱</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('🧹 一键清理系统垃圾', '🧹')">
-                                    <i class="fas fa-broom" style="color: #FF9500;"></i>
-                                    <span class="quick-action-title">一键清理垃圾</span>
-                                    <span class="quick-action-desc">扫描并清除冗余缓存，恢复磁盘空间</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('🎙️ 运行本地 FFT 音频降噪', '🎙️')">
-                                    <i class="fas fa-wave-square" style="color: #34C759;"></i>
-                                    <span class="quick-action-title">本地 FFT 降噪</span>
-                                    <span class="quick-action-desc"> C++ 音频算法降阶滤波与离线提取</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('🛡️ 开启局域网同步', '🛡️')">
-                                    <i class="fas fa-network-wired" style="color: #AF52DE;"></i>
-                                    <span class="quick-action-title">局域网同步</span>
-                                    <span class="quick-action-desc">一键同步代码与资产到局域网节点</span>
-                                </div>
-                            </div>
-
-                            <!-- Butler 应用功能 -->
-                            <div class="skill-section-divider">
-                                <span>🚀 Butler 应用功能</span>
-                            </div>
-                            <div class="quick-actions-container">
-                                <div class="quick-action-card" onclick="FeaturesHub.openSessionModeModal()" style="cursor: pointer;">
-                                    <i class="fas fa-code-branch" style="color: #34C759;"></i>
-                                    <span class="quick-action-title">会话模式</span>
-                                    <span class="quick-action-desc">本地 / Worktree / 云端模式切换</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.openGitPanel()" style="cursor: pointer;">
-                                    <i class="fas fa-code-compare" style="color: #FF9500;"></i>
-                                    <span class="quick-action-title">Git 工具</span>
-                                    <span class="quick-action-desc">Diff / Commit / Push / PR 管理</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.openProjectManager()" style="cursor: pointer;">
-                                    <i class="fas fa-folder-tree" style="color: #007AFF;"></i>
-                                    <span class="quick-action-title">多项目</span>
-                                    <span class="quick-action-desc">跨项目多任务并行管理</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.launchBrowser()" style="cursor: pointer;">
-                                    <i class="fas fa-globe" style="color: #5856D6;"></i>
-                                    <span class="quick-action-title">应用内浏览器</span>
-                                    <span class="quick-action-desc">预览 Web 应用并评论</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.createPopup()" style="cursor: pointer;">
-                                    <i class="fas fa-window-restore" style="color: #FF2D55;"></i>
-                                    <span class="quick-action-title">浮动窗口</span>
-                                    <span class="quick-action-desc">弹出独立对话线程</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.launchComputerUse()" style="cursor: pointer;">
-                                    <i class="fas fa-desktop" style="color: #AF52DE;"></i>
-                                    <span class="quick-action-title">计算机使用</span>
-                                    <span class="quick-action-desc">操作桌面应用、测试 GUI</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.launchVoiceDictation()" style="cursor: pointer;">
-                                    <i class="fas fa-microphone-lines" style="color: #30B0C7;"></i>
-                                    <span class="quick-action-title">语音听写</span>
-                                    <span class="quick-action-desc">按住录音发送指令</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.showWorktreeInfo()" style="cursor: pointer;">
-                                    <i class="fas fa-code-fork" style="color: #FF3B30;"></i>
-                                    <span class="quick-action-title">Worktree 管理</span>
-                                    <span class="quick-action-desc">隔离的 Git 工作树</span>
-                                </div>
-                            </div>
-
-                            <!-- 无 AI 可用技能面板 -->
-                            <div class="skill-section-divider">
-                                <span>🧰 本地技能 (Linux 风格, 无需 AI)</span>
-                            </div>
-                            <div class="quick-actions-container">
-                                <div class="quick-action-card" onclick="triggerQuickAction('markitdown -i ', '📄')">
-                                    <i class="fas fa-file-lines" style="color: #007AFF;"></i>
-                                    <span class="quick-action-title">转 Markdown</span>
-                                    <span class="quick-action-desc">-i &lt;文件&gt; PDF/DOCX 转为 Markdown</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('docx_read -i ', '📝')">
-                                    <i class="fas fa-file-word" style="color: #2B579A;"></i>
-                                    <span class="quick-action-title">读取 Word</span>
-                                    <span class="quick-action-desc">-i &lt;文件&gt; 提取 .docx 文本</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('pdf_extract -i ', '📑')">
-                                    <i class="fas fa-file-pdf" style="color: #FF3B30;"></i>
-                                    <span class="quick-action-title">提取 PDF</span>
-                                    <span class="quick-action-desc">-i &lt;文件&gt; 提取 PDF 文本</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('archive_compress -o ', '📦')">
-                                    <i class="fas fa-file-zipper" style="color: #FF9500;"></i>
-                                    <span class="quick-action-title">压缩打包</span>
-                                    <span class="quick-action-desc">-o &lt;输出&gt; -t &lt;目标&gt; [-p 密码]</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('archive_extract -i ', '📤')">
-                                    <i class="fas fa-box-open" style="color: #34C759;"></i>
-                                    <span class="quick-action-title">解压文件</span>
-                                    <span class="quick-action-desc">-i &lt;压缩包&gt; [-d 目录] [-p 密码]</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('archive_list -i ', '📋')">
-                                    <i class="fas fa-list" style="color: #5856D6;"></i>
-                                    <span class="quick-action-title">查看压缩包</span>
-                                    <span class="quick-action-desc">-i &lt;压缩包&gt; 列出内容</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('uninstaller', '🗑️')">
-                                    <i class="fas fa-trash-can" style="color: #FF3B30;"></i>
-                                    <span class="quick-action-title">软件卸载</span>
-                                    <span class="quick-action-desc">列出/卸载已安装软件</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('media_scan', '🎵')">
-                                    <i class="fas fa-music" style="color: #FF2D55;"></i>
-                                    <span class="quick-action-title">媒体扫描</span>
-                                    <span class="quick-action-desc">全盘扫描 MP3/WAV/JPG</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('storage_hub --action list', '☁️')">
-                                    <i class="fas fa-cloud" style="color: #007AFF;"></i>
-                                    <span class="quick-action-title">云盘管理</span>
-                                    <span class="quick-action-desc">OneDrive/WebDAV/百度</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('sec_scan -t ', '🔍')">
-                                    <i class="fas fa-radar" style="color: #FF9500;"></i>
-                                    <span class="quick-action-title">端口扫描</span>
-                                    <span class="quick-action-desc">-t &lt;IP&gt; [-p 端口范围]</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('web_sec_test -t ', '🛡️')">
-                                    <i class="fas fa-shield-halved" style="color: #AF52DE;"></i>
-                                    <span class="quick-action-title">Web 安全测试</span>
-                                    <span class="quick-action-desc">-t &lt;URL&gt; [-m recon|scan|full]</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('format_convert -i ', '🔄')">
-                                    <i class="fas fa-arrows-rotate" style="color: #34C759;"></i>
-                                    <span class="quick-action-title">格式转换</span>
-                                    <span class="quick-action-desc">-i &lt;输入&gt; -f &lt;docx|epub|png&gt;</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="chat-input-container">
-                        <div class="input-actions-left">
-                            <button class="icon-btn-small" id="voice-toggle-btn"><i class="fas fa-microphone"></i></button>
-                            <button class="icon-btn-small"><i class="fas fa-plus"></i></button>
-                        </div>
-                        <div class="input-wrapper">
-                            <div id="chat-input" contenteditable="true" placeholder="发送消息或拖入截图..."></div>
-                        </div>
-                        <div class="input-actions-right">
-                            <button class="send-btn" id="send-command-btn"><i class="fas fa-arrow-up"></i></button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- (1,0) Quadrant: Time Machine -->
-                <section class="matrix-cell" id="cell-1-0">
-                    <div class="view-header">
-                        <div class="view-title" id="tm-view-title">时光监控 (Time Machine)</div>
-                    </div>
-                    <div class="timemachine-container">
-                        <div class="metrics-visualizer" id="tm-metrics">
-                        </div>
-                        <div class="history-log-view" id="tm-logs">
-                        </div>
-                        <div class="tm-slider-bar glass-surface">
-                            <input type="range" id="global-tm-slider" min="0" max="100" value="100">
-                            <div class="tm-time-label">现在</div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- (0,1) Quadrant: DAG Pipeline -->
-                <section class="matrix-cell" id="cell-0-1">
-                    <div class="view-header">
-                        <div class="view-title" id="dag-view-title">任务画布 (DAG Canvas)</div>
-                        <div class="dag-toolbar glass-surface" style="display: flex; gap: 8px; padding: 6px 12px; border-radius: 8px; border: var(--subpixel-border);">
-                            <button class="icon-btn-small" onclick="runDagPipeline()" title="启动流水线" style="color: #34C759; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 600;"><i class="fas fa-play"></i> 启动</button>
-                            <button class="icon-btn-small" onclick="pauseDagPipeline()" title="暂停流水线" style="color: #FF9500; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 600;"><i class="fas fa-pause"></i> 暂停</button>
-                            <button class="icon-btn-small" onclick="clearDagCanvas()" title="清空画布" style="color: #FF3B30; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 600;"><i class="fas fa-trash-alt"></i> 清空</button>
-                        </div>
-                    </div>
-                    <div class="dag-canvas" id="workflow-canvas">
-                        <svg id="dag-svg" style="position:absolute; width:100%; height:100%; pointer-events:none;"></svg>
-                        <div class="canvas-placeholder">
-                            <i class="fas fa-project-diagram"></i>
-                            <h3>拖动技能卡片到此处构建流水线</h3>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- (1,1) Quadrant: Skills & Files -->
-                <section class="matrix-cell" id="cell-1-1">
-                    <div class="view-header">
-                        <div class="view-title" id="skills-view-title">技能仓储 (Skills & Files)</div>
-                        <div class="header-actions">
-                            <button class="icon-btn-small" onclick="toggleTerminal()" title="打开终端"><i class="fas fa-terminal"></i></button>
-                            <button class="icon-btn-small" onclick="toggleMemos()" title="备忘录"><i class="fas fa-sticky-note"></i></button>
-                        </div>
-                    </div>
-                    <div class="skills-files-layout">
-                        <div class="skills-drawer" id="skills-drawer">
-                            <!-- Skill Cards -->
-                        </div>
-                        <div class="files-explorer-mini">
-                            <div class="files-grid" id="files-list"></div>
-                        </div>
-                    </div>
-                </section>
-            </div>
-        </main>
+  <!-- ─── Top Command Bar ─── -->
+  <header class="topbar">
+    <div class="traffic"><i></i><i></i><i></i></div>
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <span>Butler</span>
     </div>
 
-    <!-- Wormhole Overlays -->
-    <div id="wormhole-gate-tl" class="wormhole-gate" data-quadrant="0,0"></div>
-    <div id="wormhole-gate-tr" class="wormhole-gate" data-quadrant="1,0"></div>
-    <div id="wormhole-gate-bl" class="wormhole-gate" data-quadrant="0,1"></div>
-    <div id="wormhole-gate-br" class="wormhole-gate" data-quadrant="1,1"></div>
-
-    <!-- Overlay Terminal -->
-    <div id="terminal-overlay" class="hidden glass-surface overlay-panel">
-        <div class="panel-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 15px;">
-            <div class="window-controls">
-                <span class="control-dot close" onclick="toggleTerminal()"></span>
-                <span class="control-dot minimize"></span>
-                <span class="control-dot maximize"></span>
-            </div>
-            <span style="font-size: 15px; font-weight: 600; color: var(--text-primary);"><i class="fas fa-terminal" style="color: var(--accent-color); margin-right: 6px;"></i> 终端会话 (Terminal)</span>
-            <div style="width: 52px;"></div>
-        </div>
-        <div id="terminal-container"></div>
+    <div class="cmd-bar" id="cmdBar" onclick="openPalette()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <span class="placeholder">搜索技能、运行命令、导航…</span>
+      <span class="kbd">⌘K</span>
     </div>
 
-    <!-- Overlay Memos -->
-    <div id="memos-overlay" class="hidden glass-surface overlay-panel" style="width: 85%; height: 85%; max-width: 1200px;">
-        <div class="panel-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 15px;">
-            <div class="window-controls">
-                <span class="control-dot close" onclick="toggleMemos()"></span>
-                <span class="control-dot minimize"></span>
-                <span class="control-dot maximize"></span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 16px; font-weight: 700; color: var(--text-primary);"><i class="fas fa-sticky-note" style="color: var(--accent-color);"></i> Memos 备忘空间</span>
-                <span style="font-size: 11px; background: rgba(0,122,255,0.15); color: var(--accent-color); padding: 2px 6px; border-radius: 10px; font-weight: 600;">Butler AI Brain v2.5</span>
-            </div>
-            <div style="width: 52px;"></div>
-        </div>
+    <div class="top-actions">
+      <div class="model-pill" id="modelPill">
+        <span class="dot"></span>
+        <span id="modelName">deepseek-chat</span>
+      </div>
+      <button class="icon-btn" id="btnVoice" title="语音输入" onclick="toggleVoice()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+      </button>
+      <button class="icon-btn" title="通知" onclick="toggleNotificationPanel()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      </button>
+      <button class="icon-btn" title="设置" onclick="toggleSettings()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </header>
 
-        <div class="memos-main-layout" style="display: flex; flex: 1; overflow: hidden; position: relative; gap: 20px; width: 100%; height: 100%;">
-            <!-- Left panel: content list & editor -->
-            <div class="memos-content-panel" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto; gap: 15px; padding-right: 5px;">
-
-                <!-- Header Toolbar -->
-                <div class="memos-toolbar-row" style="display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;">
-                    <div class="memos-search-bar" style="flex: 1; min-width: 250px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); border-radius: 10px; display: flex; align-items: center; padding: 0 16px; gap: 10px;">
-                        <i class="fas fa-search" style="color: var(--text-secondary);"></i>
-                        <input type="text" id="memo-search-input" placeholder="搜索备忘录内容、#标签 或拖拽归入..." style="background: transparent; border: none; color: var(--text-primary); flex: 1; padding: 8px 0; outline: none; font-size: 14px;">
-                    </div>
-
-                    <div class="view-mode-toggle" style="display: flex; background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 2px;">
-                        <button id="memos-list-view-btn" class="icon-btn-small active" title="时间轴视图"><i class="fas fa-list"></i></button>
-                        <button id="memos-gallery-view-btn" class="icon-btn-small" title="画廊瀑布流视图"><i class="fas fa-th-large"></i></button>
-                        <button id="memos-spatial-view-btn" class="icon-btn-small" title="智能关联图谱"><i class="fas fa-project-diagram"></i></button>
-                    </div>
-
-                    <div style="display: flex; gap: 8px;">
-                        <button id="select-memos-btn" class="apple-btn-primary" onclick="window.memosManager.toggleSelectionMode()" style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid var(--border-color);"><i class="fas fa-check-double"></i> <span>选择</span></button>
-                        <button id="new-memo-btn" class="apple-btn-primary" style="display: flex; align-items: center; gap: 6px;"><i class="fas fa-plus"></i> 新建备忘</button>
-                        <button id="archive-view-toggle-btn" class="icon-btn-small" title="切换显示已归档" style="border: 1px solid var(--border-color); border-radius: 8px; width: 34px; height: 34px;"><i class="fas fa-archive"></i></button>
-                    </div>
-                </div>
-
-                <!-- 30-Day Heatmap Activity -->
-                <div id="memos-heatmap-container" class="memos-heatmap-card" style="margin-bottom: 5px;">
-                    <div class="heatmap-header" style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-                        <span>最近 30 天备忘活动热力图</span>
-                        <span id="heatmap-count-indicator" style="font-size: 10px; opacity: 0.8;">0 条记录</span>
-                    </div>
-                    <div id="memos-heatmap" class="heatmap-body"></div>
-                </div>
-
-                <!-- Editor Card (Initially Hidden) -->
-                <div id="memo-editor-container" class="memo-editor-card hidden" style="display: none;">
-                    <div id="memo-drop-zone" class="drop-zone" style="margin-bottom: 10px; padding: 12px; border: 1.5px dashed var(--border-color); border-radius: 10px; font-size: 12px; color: var(--text-secondary); transition: all 0.2s;">
-                        <i class="fas fa-cloud-upload-alt" style="margin-right: 6px;"></i> 拖拽图片、音视频文件到此处直接上传，支持 #标签
-                    </div>
-
-                    <div class="editor-header" style="display: flex; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">
-                        <i class="fas fa-hashtag" style="color: var(--accent-color); align-self: center;"></i>
-                        <input type="text" id="memo-tags-input" placeholder="输入标签，例如: #工作 #灵感 (空格分隔，支持 # 自动联想)" style="background: transparent; border: none; color: var(--text-primary); font-size: 14px; width: 100%; outline: none;">
-                    </div>
-
-                    <div class="editor-body" style="position: relative; margin-top: 8px;">
-                        <textarea id="memo-content-input" placeholder="写点什么吧... 支持标准 Markdown 格式即时渲染。首行可作为摘要，支持拖拽和 Ctrl + Enter 极速保存" style="width: 100%; min-height: 110px; background: transparent; border: none; color: var(--text-primary); font-size: 15px; resize: vertical; outline: none; font-family: inherit; line-height: 1.5;"></textarea>
-
-                        <!-- Auto-Complete Dropdown -->
-                        <div id="tag-autocomplete-list" class="tag-autocomplete-dropdown hidden"></div>
-                    </div>
-
-                    <!-- AI Suggestion Confirmation Bar -->
-                    <div id="ai-tag-suggestion-bar" class="ai-suggestion-bar hidden">
-                        <span style="font-size: 12px; color: var(--text-secondary);"><i class="fas fa-robot" style="color: #5856D6;"></i> AI 建议标签：</span>
-                        <div id="ai-suggested-tags-container" style="display: inline-flex; gap: 6px; flex-wrap: wrap;"></div>
-                    </div>
-
-                    <div class="editor-footer" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px; margin-top: 5px;">
-                        <div class="editor-tools" style="display: flex; gap: 10px; align-items: center;">
-                            <label class="icon-btn-small" title="添加图片/音视频附件" style="cursor: pointer; margin: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px;">
-                                <i class="fas fa-paperclip" style="font-size: 16px;"></i>
-                                <input type="file" id="memo-file-upload" multiple style="display: none;">
-                            </label>
-
-                            <div class="ai-magic-trigger-wrapper" style="position: relative;">
-                                <button id="memo-ai-magic-btn" class="icon-btn-small" title="AI 魔棒助手 (润色/总结/Todo)" style="color: #5856D6;"><i class="fas fa-magic" style="font-size: 15px;"></i></button>
-                                <!-- AI Magic Wand Menu -->
-                                <div id="ai-magic-wand-menu" class="ai-popup-menu hidden">
-                                    <div class="ai-menu-item" data-action="summary"><i class="fas fa-compress-alt"></i> 一键总结 (TL;DR)</div>
-                                    <div class="ai-menu-item" data-action="polish"><i class="fas fa-feather-alt"></i> 排版美化与润色</div>
-                                    <div class="ai-menu-item" data-action="todo"><i class="fas fa-clipboard-list"></i> 转化为待办列表</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div style="display: flex; gap: 8px;">
-                            <button id="cancel-memo-btn" class="modal-btn modal-btn-dismiss" style="padding: 6px 14px; font-size: 13px; margin: 0; border-radius: 8px;">取消</button>
-                            <button id="save-memo-btn" class="apple-btn-primary" style="padding: 6px 16px; font-size: 13px; border-radius: 8px;">保存备忘</button>
-                        </div>
-                    </div>
-
-                    <div class="attachment-preview-list" id="memo-attachment-preview" style="margin-top: 10px;"></div>
-                </div>
-
-                <!-- Live Lists -->
-                <!-- Pinned Section -->
-                <div id="memos-pinned-section" class="hidden" style="margin-bottom: 10px;">
-                    <div style="font-size: 11px; font-weight: 700; color: var(--accent-color); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-                        <i class="fas fa-thumbtack" style="transform: rotate(45deg);"></i> <span>已置顶备忘录</span>
-                    </div>
-                    <div id="memos-pinned-wrapper" class="memos-timeline" style="margin-bottom: 15px;"></div>
-                </div>
-
-                <!-- Main Section -->
-                <div id="memos-main-section">
-                    <div id="memos-all-header-title" style="font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-                        <i class="fas fa-sticky-note"></i> <span>所有备忘录</span>
-                    </div>
-                    <div id="memos-list-wrapper" class="memos-timeline">
-                        <div id="memos-timeline" class="memos-timeline"></div>
-                    </div>
-                </div>
-
-                <!-- 批量操作栏 -->
-                <div class="batch-bar" id="batchBar" style="display: none; margin-top: 20px; padding: 12px 18px; border-radius: 16px; border: 1px solid var(--border-color); align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
-                    <span class="info" id="batchInfo" style="font-size: 14px; font-weight: 500;">已选择 0 项</span>
-                    <div class="actions" style="display: flex; gap: 12px;">
-                        <button class="btn-batch-cancel" onclick="window.memosManager.cancelSelection()" style="padding: 8px 24px; border-radius: 40px; border: none; font-weight: 500; cursor: pointer; background: rgba(255,255,255,0.1); color: var(--text-primary);">取消</button>
-                        <button class="btn-batch-delete" id="batchDeleteBtn" onclick="window.memosManager.deleteSelected()" disabled style="padding: 8px 24px; border-radius: 40px; border: none; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; background: #FF3B30; color: white;">
-                            <i class="fas fa-trash"></i> 删除选中
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Spatial Graph View -->
-                <div id="memos-spatial-wrapper" class="hidden" style="width: 100%; height: 420px; border-radius: 16px; overflow: hidden; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); position: relative;">
-                    <div id="memos-spatial-container" style="width: 100%; height: 100%;"></div>
-                </div>
-
-            </div>
-
-            <!-- Right detail panel -->
-            <div id="memo-detail-sidebar" class="side-panel-hidden" style="width: 320px; border-left: 1px solid var(--border-color); padding-left: 20px; display: flex; flex-direction: column; overflow-y: auto; transition: transform 0.4s var(--apple-easing);">
-                <div class="side-panel-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;">
-                    <h3 style="font-size: 15px; font-weight: 700; color: var(--text-primary);"><i class="fas fa-info-circle" style="color: var(--accent-color); margin-right: 6px;"></i> 备忘卡片分析</h3>
-                    <button class="icon-btn-small" id="close-memo-sidebar"><i class="fas fa-times"></i></button>
-                </div>
-                <div class="side-panel-body" style="flex: 1; display: flex; flex-direction: column; gap: 15px;">
-                    <div id="sidebar-memo-date" style="font-size: 12px; color: var(--text-secondary); font-family: monospace;"></div>
-
-                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-top: 10px;">备忘内容预览</div>
-                    <div id="sidebar-memo-content-display" class="memo-card-content" style="max-height: 200px; overflow-y: auto; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 14px;"></div>
-
-                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-top: 10px;">备忘标签</div>
-                    <div id="sidebar-memo-tags" class="memo-tags"></div>
-
-                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-top: 10px;">多模态附件</div>
-                    <div id="sidebar-memo-resources" class="memo-resource-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; max-height: 150px; overflow-y: auto;"></div>
-
-                    <div class="sidebar-actions" style="margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
-                        <button id="sidebar-pin-btn" class="apple-btn-primary" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;"><i class="fas fa-thumbtack"></i> 切换置顶状态</button>
-                        <button id="sidebar-archive-btn" class="apple-btn-primary" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: #FF9500;"><i class="fas fa-archive"></i> 归档此备忘</button>
-                        <button id="sidebar-delete-btn" class="apple-btn-primary" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: #FF3B30;"><i class="fas fa-trash-alt"></i> 彻底删除备忘</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+  <!-- ─── Left Rail ─── -->
+  <nav class="rail">
+    <div class="rail-item active" data-view="chat">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span class="rail-tip">对话</span>
+    </div>
+    <div class="rail-item" data-view="dag">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/><line x1="12" y1="22" x2="12" y2="15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/></svg>
+      <span class="rail-tip">任务画布</span>
+    </div>
+    <div class="rail-item" data-view="history">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span class="rail-tip">时光机</span>
+    </div>
+    <div class="rail-item" data-view="skills">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
+      <span class="rail-tip">技能仓储</span>
     </div>
 
-    <!-- Overlay Settings -->
-    <div id="settings-overlay" class="hidden glass-surface overlay-panel" style="width: 80%; height: 80%; max-width: 1000px;">
-        <div class="panel-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 15px;">
-            <div class="window-controls">
-                <span class="control-dot close" onclick="toggleSettings()"></span>
-                <span class="control-dot minimize"></span>
-                <span class="control-dot maximize"></span>
-            </div>
-            <span style="font-size: 15px; font-weight: 600; color: var(--text-primary);"><i class="fas fa-cog" style="color: var(--accent-color); margin-right: 6px;"></i> 系统设置 (Settings)</span>
-            <div style="width: 52px;"></div>
-        </div>
-        <div class="settings-wrapper">
-            <div class="settings-sidebar">
-                <div class="settings-nav-item active" id="tab-btn-all-config" onclick="switchSettingsTab('all-config')">
-                    <div class="settings-icon icon-cyan"><i class="fas fa-sliders-h"></i></div>
-                    <span>全部配置</span>
-                </div>
-                <div class="settings-nav-item" id="tab-btn-model-config" onclick="switchSettingsTab('model-config')">
-                    <div class="settings-icon icon-blue"><i class="fas fa-brain"></i></div>
-                    <span>模型配置</span>
-                </div>
-                <div class="settings-nav-item" id="tab-btn-memory-config" onclick="switchSettingsTab('memory-config')">
-                    <div class="settings-icon icon-orange"><i class="fas fa-sd-card"></i></div>
-                    <span>记忆库管理</span>
-                </div>
-                <div class="settings-nav-item" id="tab-btn-hal-status" onclick="switchSettingsTab('hal-status')">
-                    <div class="settings-icon icon-green"><i class="fas fa-microchip"></i></div>
-                    <span>系统与硬件 HAL</span>
-                </div>
-                <div class="settings-nav-item" id="tab-btn-theme-config" onclick="switchSettingsTab('theme-config')">
-                    <div class="settings-icon icon-purple"><i class="fas fa-palette"></i></div>
-                    <span>界面与主题</span>
-                </div>
-            </div>
-            <div class="settings-content">
-                <!-- Tab 0: All Config (Unified) -->
-                <div id="settings-tab-all-config" class="settings-panel active">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <div class="settings-title" style="margin-bottom: 0;">⚙️ 全部配置中心</div>
-                        <button class="apple-btn-primary" onclick="saveAllConfig()">💾 保存全部配置</button>
-                    </div>
-                    <div id="all-config-status" style="font-size: 13px; margin-bottom: 12px; color: var(--text-secondary);">加载中...</div>
-                    <div id="all-config-container" style="display: flex; flex-direction: column; gap: 14px;"></div>
-                </div>
+    <div class="rail-spacer"></div>
+    <div class="rail-divider"></div>
 
-                <!-- Tab 1: Model Config -->
-                <div id="settings-tab-model-config" class="settings-panel">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <div class="settings-title" style="margin-bottom: 0;">AI 大模型配置中心</div>
-                        <div id="model-test-badge-container">
-                            <span id="model-status-badge" class="model-status-badge idle">
-                                <i class="fas fa-circle-notch"></i> 待校验
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="settings-group-card">
-                        <!-- Provider Choice -->
-                        <div class="settings-row">
-                            <span class="row-label">提供商 (Provider)</span>
-                            <select class="apple-select" id="setting-provider" onchange="onProviderChange()" style="width: 220px;">
-                                <option value="deepseek">DeepSeek</option>
-                                <option value="openai">OpenAI</option>
-                                <option value="anthropic">Claude (Anthropic)</option>
-                                <option value="gemini">Google Gemini</option>
-                                <option value="zhipu">智谱 AI (GLM)</option>
-                                <option value="dashscope">通义千问 (DashScope)</option>
-                                <option value="qianfan">百度文心一言 (千帆)</option>
-                                <option value="ollama">Local Ollama (本地免Key)</option>
-                                <option value="custom">Custom (自定义兼容接口)</option>
-                            </select>
-                        </div>
-
-                        <!-- Custom Provider Name (Shown when Custom selected) -->
-                        <div class="settings-row field-dynamic field-custom-label hidden">
-                            <span class="row-label">自定义提供商名称</span>
-                            <input type="text" class="apple-select" id="setting-provider-label" placeholder="例如: Local vLLM" style="width: 220px;">
-                        </div>
-
-                        <!-- API Key field (Hidden for Ollama) -->
-                        <div class="settings-row field-dynamic field-api-key">
-                            <span class="row-label" id="label-api-key">API 密钥 (API Key)</span>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <input type="password" class="apple-select" id="setting-api-key" placeholder="输入 API Key" style="width: 220px;">
-                                <button class="icon-btn-small" onclick="toggleApiKeyVisibility()" style="background: transparent; border: none; cursor: pointer; color: var(--text-secondary);"><i class="fas fa-eye" id="api-key-eye"></i></button>
-                            </div>
-                        </div>
-
-                        <!-- Baidu Secret Key (Shown for Baidu/Qianfan) -->
-                        <div class="settings-row field-dynamic field-secret-key hidden">
-                            <span class="row-label">Secret Key</span>
-                            <input type="password" class="apple-select" id="setting-secret-key" placeholder="输入 Baidu Secret Key" style="width: 220px;">
-                        </div>
-
-                        <!-- Base URL field -->
-                        <div class="settings-row field-dynamic field-base-url">
-                            <span class="row-label">API 基础路径 (Base URL)</span>
-                            <input type="text" class="apple-select" id="setting-base-url" value="https://api.deepseek.com" style="width: 220px;">
-                        </div>
-
-                        <!-- Model Selection -->
-                        <div class="settings-row">
-                            <span class="row-label">模型名称 (Model)</span>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <select class="apple-select" id="setting-model-preset" onchange="onModelPresetChange()" style="width: 140px;">
-                                    <option value="deepseek-chat">deepseek-chat</option>
-                                    <option value="deepseek-coder">deepseek-coder</option>
-                                    <option value="custom">+ 自定义输入...</option>
-                                </select>
-                                <input type="text" class="apple-select" id="setting-model-name" value="deepseek-chat" style="width: 140px;">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Connection Testing & Validation Action Bar -->
-                    <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 20px;">
-                        <button class="apple-btn-secondary" id="btn-test-connection" onclick="testModelConnection()" style="display: flex; align-items: center; gap: 6px;">
-                            <i class="fas fa-plug"></i> <span id="btn-test-text">测试连接</span>
-                        </button>
-                        <span id="connection-latency-text" style="font-size: 13px; color: var(--text-secondary); font-family: monospace;"></span>
-                    </div>
-
-                    <!-- Advanced Parameters Collapsible Section -->
-                    <div class="advanced-params-toggle" onclick="toggleAdvancedParams()" style="margin-bottom: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--accent-color); font-size: 13px; font-weight: 600;">
-                        <i class="fas fa-chevron-right" id="advanced-params-icon" style="transition: transform 0.3s var(--apple-easing);"></i>
-                        <span>高级参数设置 (Temperature / Max Tokens)</span>
-                    </div>
-
-                    <div id="advanced-params-panel" class="settings-group-card hidden" style="margin-bottom: 24px;">
-                        <div class="settings-row">
-                            <div>
-                                <div class="row-label">Temperature (随机性/温度)</div>
-                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;" id="temp-hint-desc">0.7 严谨与创意平衡</div>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <input type="range" id="setting-temperature" min="0.0" max="2.0" step="0.1" value="0.7" style="width: 120px;" oninput="updateTemperatureVal(this.value)">
-                                <span id="temp-val-display" style="font-family: monospace; font-weight: 600; min-width: 30px;">0.7</span>
-                            </div>
-                        </div>
-                        <div class="settings-row">
-                            <div class="row-label">Max Tokens (最大生成长度)</div>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <button class="preset-pill-btn" onclick="setMaxTokens(2048)">2K</button>
-                                <button class="preset-pill-btn" onclick="setMaxTokens(4096)">4K</button>
-                                <button class="preset-pill-btn" onclick="setMaxTokens(8192)">8K</button>
-                                <input type="number" class="apple-select" id="setting-max-tokens" value="4096" style="width: 90px;">
-                            </div>
-                        </div>
-                    </div>
-
-                    <button class="apple-btn-primary" onclick="saveModelSettings()">保存配置并立即生效</button>
-
-                    <!-- 语音引擎设置 -->
-                    <div class="settings-group-card" style="margin-top: 16px;">
-                        <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">🎙️ 语音输入/输出引擎</div>
-                        <div class="settings-row">
-                            <span class="row-label">语音引擎</span>
-                            <select class="apple-select" id="setting-voice-engine" onchange="onVoiceEngineChange()" style="width: 220px;">
-                                <option value="auto">自动选择（推荐）</option>
-                                <option value="native">系统原生 (Windows SAPI / macOS / Linux)</option>
-                                <option value="local">本地模型 (Faster-Whisper)</option>
-                                <option value="baidu">百度语音 API</option>
-                                <option value="google">Google Cloud Speech</option>
-                                <option value="azure">Microsoft Azure Speech</option>
-                                <option value="text">纯文本（关闭语音）</option>
-                            </select>
-                        </div>
-                        <div class="settings-row">
-                            <span class="row-label">当前引擎状态</span>
-                            <span id="voice-engine-status" style="color: var(--text-secondary); font-size: 13px;">检测中...</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tab 2: Memory Config -->
-                <div id="settings-tab-memory-config" class="settings-panel">
-                    <div class="settings-title">多级降级记忆库</div>
-                    <div class="settings-group-card">
-                        <div class="settings-row">
-                            <span class="row-label">向量数据库选型</span>
-                            <select class="apple-select" id="setting-memory-db" onchange="onMemoryDbChange()">
-                                <option value="redis">Redis (云端/高性能)</option>
-                                <option value="zvec">Zvec (本地嵌入式/免依赖)</option>
-                                <option value="sqlite">SQLite (全文检索/无损兼容)</option>
-                            </select>
-                        </div>
-                        <div class="settings-row">
-                            <span class="row-label">当前活跃记忆数据库</span>
-                            <span id="active-memory-db-badge" style="background: rgba(52, 199, 89, 0.2); color: #34C759; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600;">Zvec Database</span>
-                        </div>
-                        <div class="settings-row">
-                            <span class="row-label">做梦引擎自动精简记忆</span>
-                            <label class="switch">
-                                <input type="checkbox" id="setting-dream-engine" checked>
-                                <span class="slider round"></span>
-                            </label>
-                        </div>
-                    </div>
-                    <button class="apple-btn-primary" onclick="saveMemorySettings()">更新记忆库配置</button>
-                </div>
-
-                <!-- Tab 3: HAL Status -->
-                <div id="settings-tab-hal-status" class="settings-panel">
-                    <div class="settings-title">系统与硬件 HAL (Hardware Abstraction Layer)</div>
-                    <div class="settings-group-card">
-                        <div class="settings-row">
-                            <span class="row-label">硬件抽象层连接状态</span>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span id="hal-indicator-dot" class="status-dot green active" style="position:static; display:inline-block;"></span>
-                                <span id="hal-status-text" style="color: #34C759; font-weight: 500;">已连接到物理 STM32 网关</span>
-                            </div>
-                        </div>
-                        <div class="settings-row">
-                            <span class="row-label">USB 屏幕联动状态</span>
-                            <span id="hal-usb-screen-text" style="color: var(--text-secondary);">就绪 (128x64 OLED)</span>
-                        </div>
-                        <div class="settings-row">
-                            <span class="row-label">环境传感器遥测</span>
-                            <span style="color: var(--text-primary); font-family: monospace;">26.4°C / 54% RH</span>
-                        </div>
-                    </div>
-                    <button class="apple-btn-primary" onclick="testHalConnection()">运行硬件回路测试</button>
-                </div>
-
-                <!-- Tab 4: Theme Config -->
-                <div id="settings-tab-theme-config" class="settings-panel">
-                    <div class="settings-title">界面与主题设置</div>
-                    <div class="settings-group-card">
-                        <div class="settings-row">
-                            <span class="row-label">深浅色模式切换</span>
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <span style="font-size: 14px; opacity: 0.8;">Light</span>
-                                <label class="switch">
-                                    <input type="checkbox" id="setting-theme-toggle" onchange="toggleThemeMode()">
-                                    <span class="slider round"></span>
-                                </label>
-                                <span style="font-size: 14px; opacity: 0.8;">Dark (Midnight Cyberpunk)</span>
-                            </div>
-                        </div>
-                        <div class="settings-row">
-                            <span class="row-label">全局高斯模糊度</span>
-                            <input type="range" id="setting-blur-slider" min="10" max="50" value="30" oninput="updateBlurValue(this.value)">
-                        </div>
-                        <div class="settings-row">
-                            <span class="row-label">背景能量热力图</span>
-                            <label class="switch">
-                                <input type="checkbox" id="setting-heatmap-toggle" checked onchange="toggleHeatmapAnimation()">
-                                <span class="slider round"></span>
-                            </label>
-                        </div>
-                        <div class="settings-row">
-                            <span class="row-label">操作界面模式 (Interface)</span>
-                            <select class="apple-select" id="setting-interface-mode" onchange="toggleInterfaceMode()" style="width: 200px;">
-                                <option value="desktop">电脑端界面 (Desktop Mode)</option>
-                                <option value="mobile">手机端界面 (Mobile Mode)</option>
-                            </select>
-                        </div>
-                        <div class="settings-row">
-                            <span class="row-label">系统字体样式 (Font Family)</span>
-                            <select class="apple-select" id="setting-font-family" onchange="updateFontFamily(this.value)" style="width: 200px;">
-                                <option value="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', sans-serif">苹果原生 SF 字体</option>
-                                <option value="'Inter', -apple-system, sans-serif">Inter 极简字体</option>
-                                <option value="'SF Mono', 'PingFang SC', 'JetBrains Mono', monospace">等宽极客字体</option>
-                                <option value="'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif">苹方简约黑体</option>
-                            </select>
-                        </div>
-                        <div class="settings-row">
-                            <span class="row-label">系统字体大小 (Font Size)</span>
-                            <select class="apple-select" id="setting-font-size" onchange="updateFontSize(this.value)" style="width: 200px;">
-                                <option value="13px">13px (小 / Compact)</option>
-                                <option value="14px">14px (标准 / Default)</option>
-                                <option value="15px" selected>15px (舒适 / Comfortable)</option>
-                                <option value="16px">16px (大气 / Large)</option>
-                                <option value="18px">18px (极高 / X-Large)</option>
-                            </select>
-                        </div>
-                        <div class="settings-row">
-                            <span class="row-label">桌面电子小狗 (Pixel Pet)</span>
-                            <button class="apple-btn-primary" onclick="launchPixelPet()" style="padding: 6px 14px; font-size: 12px; border-radius: 6px; width: 200px;">启动电子宠物 🐾</button>
-                        </div>
-                        <div class="settings-row">
-                            <span class="row-label">子界面呼吸灯 (Breathing Lights)</span>
-                            <select class="apple-select" id="setting-breath-light-mode" onchange="setBreathLightMode(this.value)" style="width: 200px;">
-                                <option value="inline">主界面左上角 (Inline)</option>
-                                <option value="hud">全屏置顶 HUD</option>
-                                <option value="off">关闭 (Off)</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="rail-item" id="toggleInspector" title="检视器">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+      <span class="rail-tip">切换检视器</span>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <script src="dist/core/bridge.js"></script>
-    <script src="dist/core/event_bus.js"></script>
-    <script src="dist/components/StateMatrix.js"></script>
-    <script src="dist/components/telemetry.js"></script>
-    <script src="dist/effects/physics.js"></script>
-    <script src="dist/components/matrix.js"></script>
-    <script src="dist/components/dag_engine.js"></script>
-    <script src="dist/components/time_machine_ui.js"></script>
-    <script src="dist/components/heatmap.js"></script>
-    <script src="dist/components/wormhole.js"></script>
-    <script src="dist/components/slits_editor.js"></script>
-    <script src="dist/components/vault.js"></script>
-    <script src="dist/components/modal.js"></script>
-    <script src="dist/components/memos.js"></script>
-    <script src="dist/components/browser.js"></script>
-    <script src="dist/components/popup.js"></script>
-    <script src="dist/components/features.js"></script>
-    <script src="dist/bundle.js"></script>
-    <script src="dist/components/skill_ui_loader.js"></script>
-    <script src="src/components/breathing_lights.js"></script>
-
-    <!-- Copilot Confirmation Modal -->
-    <div id="copilot-modal">
-        <div class="modal-container">
-            <div class="modal-header">
-                <div class="modal-title">确认操作</div>
-            </div>
-            <div class="modal-body">
-                <div class="modal-body-text">你确定要执行此操作吗？</div>
-            </div>
-            <div class="modal-footer">
-                <button class="modal-btn modal-btn-dismiss">解雇</button>
-                <button class="modal-btn modal-btn-allow">允许</button>
-            </div>
-        </div>
+    <div class="rail-item" id="btnTerminal" title="终端" onclick="toggleTerminal()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      <span class="rail-tip">终端</span>
     </div>
+  </nav>
 
-    <!-- Global Notification Container -->
-    <div id="notifier-container" class="notifier-container"></div>
+  <!-- ─── Main Canvas ─── -->
+  <main class="main" id="main">
+    <section class="canvas">
 
-    <!-- Interactive Onboarding Tour Overlay -->
-    <div id="onboarding-tour-overlay">
-        <div class="onboarding-bubble" id="onboarding-bubble-el">
-            <div class="onboarding-header">
-                <span id="onboarding-title">新手引导</span>
-                <button class="icon-btn-small" onclick="skipOnboarding()" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer;"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="onboarding-body" id="onboarding-body-text">
-                欢迎来到 Butler，开启极致本地优先的 AI 空间。
-            </div>
-            <div class="onboarding-footer">
-                <span class="onboarding-step-indicator" id="onboarding-step-indicator">1 / 4</span>
-                <div>
-                    <button class="onboarding-btn-skip" onclick="skipOnboarding()">跳过</button>
-                    <button class="onboarding-btn" id="onboarding-next-btn" onclick="nextOnboardingStep()">下一步</button>
-                </div>
-            </div>
+      <!-- Chat -->
+      <div class="view chat-view active" id="view-chat">
+        <div class="chat-header">
+          <h1>对话 <span class="sub">/ 智能助手</span></h1>
+          <div class="chat-tools">
+            <button class="dag-btn" onclick="runQuick('系统自检与安全审计')">🛡 自检</button>
+            <button class="dag-btn" onclick="runQuick('一键清理系统垃圾')">🧹 清理</button>
+          </div>
         </div>
+
+        <div class="messages" id="messages">
+          <div class="msg ai">
+            <div class="avatar">B</div>
+            <div class="bubble">
+              你好，我是 Butler。随时拖入报错截图，我会即刻诊断并修复。<br><br>
+              以下是你可以立刻尝试的操作：
+            </div>
+          </div>
+
+          <div class="quick-grid" id="quickGrid">
+            <div class="quick-card" onclick="runQuick('系统自检与安全审计')">
+              <div class="qc-icon">🛡</div>
+              <div class="qc-title">系统自检与审计</div>
+              <div class="qc-desc">扫描安全配置、开放端口与环境沙箱</div>
+            </div>
+            <div class="quick-card" onclick="runQuick('一键清理系统垃圾')">
+              <div class="qc-icon">🧹</div>
+              <div class="qc-title">一键清理垃圾</div>
+              <div class="qc-desc">清除冗余缓存，恢复磁盘空间</div>
+            </div>
+            <div class="quick-card" onclick="runQuick('开启局域网同步')">
+              <div class="qc-icon">🛰</div>
+              <div class="qc-title">局域网同步</div>
+              <div class="qc-desc">同步代码与资产到局域网节点</div>
+            </div>
+            <div class="quick-card" onclick="runQuick('本地 FFT 音频降噪')">
+              <div class="qc-icon">🎙</div>
+              <div class="qc-title">FFT 音频降噪</div>
+              <div class="qc-desc">C++ 音频算法离线提取</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="composer">
+          <textarea id="composerInput" placeholder="发送消息或拖入截图…  (Shift+Enter 换行)" rows="1"></textarea>
+          <div class="composer-row">
+            <div class="composer-tools">
+              <button class="icon-btn" title="附件" onclick="document.getElementById('fileInput').click()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </button>
+              <input type="file" id="fileInput" style="display:none" multiple>
+              <button class="icon-btn" title="语音" onclick="toggleVoice()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+              </button>
+            </div>
+            <button class="send-btn" onclick="sendMessage()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DAG -->
+      <div class="view dag-view" id="view-dag">
+        <div class="dag-toolbar">
+          <span class="title">任务画布</span>
+          <button class="dag-btn run" onclick="toggleRunDag()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            运行流水线
+          </button>
+          <div style="flex:1"></div>
+          <button class="dag-btn" onclick="clearDag()">清空</button>
+        </div>
+        <div class="dag-canvas" id="dagCanvas">
+          <svg id="dagSvg"></svg>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div class="view history-view" id="view-history">
+        <div class="history-header">
+          <h1>时光机</h1>
+          <p style="color:var(--text-mute);font-size:12px;margin-top:4px;">全局活动回溯 · 从后端 time_machine 拉取历史数据</p>
+        </div>
+        <div class="timeline" id="timeline">
+          <div class="tl-empty" style="color:var(--text-mute);padding:20px 0;">点击「刷新」加载历史记录…</div>
+        </div>
+        <div style="margin-top:16px;">
+          <button class="dag-btn" onclick="loadTimeMachine()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            刷新历史
+          </button>
+        </div>
+      </div>
+
+      <!-- Skills -->
+      <div class="view skills-view scroll-area" id="view-skills">
+        <div class="skills-header">
+          <h1>技能仓储</h1>
+          <div class="search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="skillSearch" placeholder="搜索技能…" oninput="filterSkills(this.value)">
+          </div>
+        </div>
+        <div class="skills-grid" id="skillsGrid">
+          <div style="color:var(--text-mute);">加载技能列表中…</div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Inspector -->
+    <aside class="inspector" id="inspector">
+      <div class="insp-head">
+        <span class="label">上下文检视器</span>
+        <button class="icon-btn" style="width:24px;height:24px" onclick="toggleInspector()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+      <div class="insp-body" id="inspBody">
+        <div class="insp-section">
+          <div class="insp-section-title">系统指标</div>
+          <div class="stat-row"><span class="k">CPU</span><span class="v" id="mCpu">--</span></div>
+          <div class="meter"><div id="mCpuBar" style="width:0%;background:var(--green)"></div></div>
+          <div class="stat-row" style="margin-top:8px"><span class="k">内存</span><span class="v" id="mMem">--</span></div>
+          <div class="meter"><div id="mMemBar" style="width:0%;background:var(--amber)"></div></div>
+          <div class="stat-row" style="margin-top:8px"><span class="k">向量库</span><span class="v" id="mVec">--</span></div>
+          <div class="meter"><div id="mVecBar" style="width:0%;background:var(--teal)"></div></div>
+        </div>
+
+        <div class="insp-section">
+          <div class="insp-section-title">当前任务</div>
+          <div class="stat-row"><span class="k">状态</span><span class="v" id="taskStatus" style="color:var(--green)">空闲</span></div>
+          <div class="stat-row"><span class="k">队列</span><span class="v" id="taskQueue">0 / 4</span></div>
+        </div>
+
+        <div class="insp-section">
+          <div class="insp-section-title">活跃技能</div>
+          <div id="activeSkills"><div style="font-size:11px;color:var(--text-mute)">暂无</div></div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ─── Status Bar ─── -->
+  <footer class="statusbar">
+    <div class="sb-item"><span class="led" id="connLed" style="background:var(--green);box-shadow:0 0 6px var(--green)"></span> <span id="connText">已连接</span></div>
+    <div class="sb-item">模型: <span id="sbModel">deepseek-chat</span></div>
+    <div class="sb-item">延迟: <span id="sbLatency">--</span></div>
+    <div class="sb-spacer"></div>
+    <div class="sb-item" id="sbGit">main</div>
+    <div class="sb-item">⌘K 命令面板</div>
+  </footer>
+
+</div>
+
+<!-- ─── Terminal Overlay ─── -->
+<div id="terminal-overlay" class="overlay hidden">
+  <div class="overlay-panel glass">
+    <div class="overlay-head">
+      <div class="window-controls">
+        <span class="control-dot close" onclick="toggleTerminal()"></span>
+        <span class="control-dot minimize"></span>
+        <span class="control-dot maximize"></span>
+      </div>
+      <span style="font-size:14px;font-weight:600;"><i class="term-ic">▸_</i> 终端会话</span>
+      <div style="width:52px"></div>
     </div>
+    <div id="terminal-container"></div>
+  </div>
+</div>
+
+<!-- ─── Settings Overlay ─── -->
+<div id="settings-overlay" class="overlay hidden">
+  <div class="overlay-panel glass settings-panel">
+    <div class="overlay-head">
+      <div class="window-controls">
+        <span class="control-dot close" onclick="toggleSettings()"></span>
+        <span class="control-dot minimize"></span>
+        <span class="control-dot maximize"></span>
+      </div>
+      <span style="font-size:14px;font-weight:600;">⚙ 系统设置</span>
+      <div style="width:52px"></div>
+    </div>
+    <div class="settings-body">
+      <div class="settings-tabs">
+        <div class="settings-tab active" data-tab="model" onclick="switchSettingsTab('model')">大模型配置</div>
+        <div class="settings-tab" data-tab="all" onclick="switchSettingsTab('all')">全部配置</div>
+        <div class="settings-tab" data-tab="voice" onclick="switchSettingsTab('voice')">语音引擎</div>
+        <div class="settings-tab" data-tab="quota" onclick="switchSettingsTab('quota')">额度管理</div>
+      </div>
+      <div class="settings-content">
+        <!-- Model -->
+        <div class="settings-pane active" id="pane-model">
+          <div class="settings-row">
+            <span class="row-label">提供商</span>
+            <select class="apple-select" id="setting-provider" onchange="onProviderChange()">
+              <option value="deepseek">DeepSeek</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Claude</option>
+              <option value="gemini">Gemini</option>
+              <option value="zhipu">智谱 GLM</option>
+              <option value="dashscope">通义千问</option>
+              <option value="qianfan">百度文心</option>
+              <option value="ollama">Ollama (本地)</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+          <div class="settings-row field-custom-label hidden">
+            <span class="row-label">自定义名称</span>
+            <input type="text" class="apple-select" id="setting-provider-label" placeholder="Local vLLM">
+          </div>
+          <div class="settings-row">
+            <span class="row-label">API 密钥</span>
+            <div style="display:flex;gap:8px">
+              <input type="password" class="apple-select" id="setting-api-key" placeholder="输入 API Key">
+              <button class="icon-btn" onclick="toggleApiKeyVisibility()"><i class="fas fa-eye" id="api-key-eye"></i></button>
+            </div>
+          </div>
+          <div class="settings-row field-secret-key hidden">
+            <span class="row-label">Secret Key</span>
+            <input type="password" class="apple-select" id="setting-secret-key">
+          </div>
+          <div class="settings-row">
+            <span class="row-label">Base URL</span>
+            <input type="text" class="apple-select" id="setting-base-url" value="https://api.deepseek.com">
+          </div>
+          <div class="settings-row">
+            <span class="row-label">模型名称</span>
+            <input type="text" class="apple-select" id="setting-model-name" value="deepseek-chat">
+          </div>
+          <div class="settings-row">
+            <span class="row-label">Temperature</span>
+            <div style="display:flex;align-items:center;gap:10px">
+              <input type="range" id="setting-temperature" min="0" max="2" step="0.1" value="0.7" oninput="document.getElementById('temp-val').textContent=this.value">
+              <span id="temp-val" class="mono">0.7</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <span class="row-label">Max Tokens</span>
+            <input type="number" class="apple-select" id="setting-max-tokens" value="4096">
+          </div>
+          <div style="display:flex;gap:10px;margin-top:16px">
+            <button class="btn-secondary" onclick="testModelConnection()">测试连接</button>
+            <button class="btn-primary" onclick="saveModelSettings()">保存并生效</button>
+            <span id="model-status-badge" class="badge idle">待校验</span>
+          </div>
+        </div>
+
+        <!-- All Config -->
+        <div class="settings-pane" id="pane-all">
+          <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+            <span class="settings-title">全部配置中心</span>
+            <button class="btn-primary" onclick="saveAllConfig()">💾 保存全部</button>
+          </div>
+          <div id="all-config-status" style="font-size:12px;color:var(--text-mute);margin-bottom:10px">加载中…</div>
+          <div id="all-config-container" class="config-list"></div>
+        </div>
+
+        <!-- Voice -->
+        <div class="settings-pane" id="pane-voice">
+          <div class="settings-row">
+            <span class="row-label">语音引擎</span>
+            <select class="apple-select" id="setting-voice-engine" onchange="onVoiceEngineChange()">
+              <option value="auto">自动选择</option>
+              <option value="native">系统原生</option>
+              <option value="local">本地 Faster-Whisper</option>
+              <option value="baidu">百度语音</option>
+              <option value="google">Google Speech</option>
+              <option value="azure">Azure Speech</option>
+              <option value="text">纯文本</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <span class="row-label">引擎状态</span>
+            <span id="voice-engine-status" style="color:var(--text-mute);font-size:12px">检测中…</span>
+          </div>
+        </div>
+
+        <!-- Quota -->
+        <div class="settings-pane" id="pane-quota">
+          <div class="settings-title">API 额度使用</div>
+          <div id="quota-container" style="margin-top:12px">加载中…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Command Palette ─── -->
+<div class="palette-overlay" id="palette" onclick="if(event.target===this)closePalette()">
+  <div class="palette">
+    <div class="palette-input">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="paletteInput" placeholder="输入命令或搜索…" oninput="filterPalette(this.value)">
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="palette-list" id="paletteList"></div>
+  </div>
+</div>
+
+<!-- ─── Notifications ─── -->
+<div id="notification-container" class="notif-container"></div>
+
+<!-- ─── Toast ─── -->
+<div id="toast-container" class="toast-container"></div>
+
+<script src="dist/main.js"></script>
 </body>
 </html>
