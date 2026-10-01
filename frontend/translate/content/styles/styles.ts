@@ -22,6 +22,35 @@ const STYLES: Record<string, string> = {
     animation: bt-fadeIn 0.3s ease forwards;
   `,
 
+  // ---------- 双栏并排布局（解决英文长中文短的留白） ----------
+  'bt-bicolumn': `
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    margin: 2px 0 6px 0;
+  `,
+
+  'bt-bicolumn-source': `
+    flex: 1.2;
+    min-width: 0;
+  `,
+
+  'bt-bicolumn-target': `
+    flex: 1;
+    min-width: 0;
+    margin: 0 !important;
+    padding: 2px 8px !important;
+    border-left: 3px solid #4a9eff;
+    background: rgba(74, 158, 255, 0.06);
+    border-radius: 0 4px 4px 0;
+  `,
+
+  // 窄屏自动切回堆叠
+  '@media (max-width: 640px)': `
+    .bt-bicolumn { flex-direction: column; gap: 4px; }
+    .bt-bicolumn-source, .bt-bicolumn-target { flex: none; width: 100%; }
+  `,
+
   'bt-translated::before': `
     content: '🌐';
     font-size: 10px;
@@ -388,7 +417,12 @@ function buildCSS(): string {
 
   // 选择器样式
   for (const [selector, body] of Object.entries(STYLES)) {
-    css += `.${selector} { ${body} }\n`;
+    if (selector.startsWith('@')) {
+      // at-rule（@media 等）原样输出，不加 . 前缀
+      css += `${selector} { ${body} }\n`;
+    } else {
+      css += `.${selector} { ${body} }\n`;
+    }
   }
 
   // 动画帧

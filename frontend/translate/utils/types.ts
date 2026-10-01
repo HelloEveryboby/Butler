@@ -81,6 +81,7 @@ export interface TranslateConfig {
   targetLang: LangCode;
   autoTranslate: boolean;         // 页面加载后自动翻译
   displayMode: 'bilingual' | 'translation-only' | 'hover';
+  bilingualLayout: 'stacked' | 'columns';  // 双语排版：堆叠 / 双栏并排
   triggerKey: string;             // 全文翻译快捷键
   inputTranslateKey: string;      // 输入框翻译快捷键
   screenshotKey: string;          // 截图翻译快捷键

@@ -35,6 +35,7 @@ export const DEFAULT_CONFIG: TranslateConfig = {
   targetLang: 'zh-CN',
   autoTranslate: false,
   displayMode: 'bilingual',
+  bilingualLayout: 'columns',
   triggerKey: 'Alt+Q',
   inputTranslateKey: 'Ctrl+Enter',
   screenshotKey: 'Alt+S',

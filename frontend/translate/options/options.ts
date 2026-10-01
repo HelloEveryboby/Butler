@@ -211,6 +211,7 @@ function clearAddForm() {
 // ---------- 翻译行为 ----------
 function renderBehavior() {
   (document.getElementById('display-mode') as HTMLSelectElement).value = config.displayMode;
+  (document.getElementById('bilingual-layout') as HTMLSelectElement).value = config.bilingualLayout || 'columns';
   (document.getElementById('auto-translate') as HTMLInputElement).checked = config.autoTranslate;
   (document.getElementById('trigger-key') as HTMLInputElement).value = config.triggerKey;
   (document.getElementById('input-key') as HTMLInputElement).value = config.inputTranslateKey;
@@ -253,6 +254,7 @@ function renderButlerBackend() {
 async function saveAll() {
   await saveConfig({
     displayMode: (document.getElementById('display-mode') as HTMLSelectElement).value as any,
+    bilingualLayout: (document.getElementById('bilingual-layout') as HTMLSelectElement).value as any,
     autoTranslate: (document.getElementById('auto-translate') as HTMLInputElement).checked,
     triggerKey: (document.getElementById('trigger-key') as HTMLInputElement).value,
     inputTranslateKey: (document.getElementById('input-key') as HTMLInputElement).value,

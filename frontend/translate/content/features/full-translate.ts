@@ -63,7 +63,7 @@ export async function startFullTranslate(config: TranslateConfig): Promise<void>
             removeLoading(seg);
             const translated = results[idx]?.translated;
             if (translated) {
-              applyTranslation(seg, translated, config.displayMode);
+              applyTranslation(seg, translated, config);
               translatedSegments.push(seg);
             }
           });
@@ -79,10 +79,10 @@ export async function startFullTranslate(config: TranslateConfig): Promise<void>
 }
 
 /** 应用翻译结果 */
-function applyTranslation(segment: TextSegment, translated: string, mode: string): void {
-  switch (mode) {
+function applyTranslation(segment: TextSegment, translated: string, config: TranslateConfig): void {
+  switch (config.displayMode) {
     case 'bilingual':
-      injectBilingual(segment, translated);
+      injectBilingual(segment, translated, config.bilingualLayout || 'stacked');
       break;
     case 'translation-only':
       injectReplace(segment, translated);
