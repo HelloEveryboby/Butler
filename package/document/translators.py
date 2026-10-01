@@ -1,210 +1,92 @@
-import os
-import requests
-import uuid
-from bs4 import BeautifulSoup
-from dotenv import load_dotenv
-from package.core_utils.config_loader import config_loader
-import json
-from package.core_utils.quota_manager import quota_manager
+"""翻译模块 — 已升级为统一翻译系统的兼容门面。
 
-def load_api_key():
-    return config_loader.get("api.deepseek.key")
+所有实际逻辑迁移至 package.document.translate_system。
+本文件保留原有函数签名，确保 TUI / CLI / 既有调用方无需改动。
+"""
 
-def detect_language(text):
-    if not quota_manager.check_quota():
-        return "quota_exceeded"
+from __future__ import annotations
 
-    api_key = load_api_key()
-    endpoint = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
+from typing import Optional
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
+from package.document.translate_system import (
+    TranslationSystem,
+    get_default_system,
+    translate_bilingual as _translate_bilingual,
+    translate_file as _translate_file,
+    translate_text as _translate_text,
+    translate_website as _translate_website,
+)
+from package.document.translate_system.languages import detect_language
 
-    payload = {
-        "model": "deepseek-chat",
-        "messages": [
-            {"role": "system", "content": "You are a language detector. Respond only with the ISO 639-1 language code of the input text (e.g., 'en', 'fr', 'ja')."},
-            {"role": "user", "content": text}
-        ],
-        "temperature": 0
-    }
+__all__ = [
+    "TranslationSystem",
+    "detect_language",
+    "translate_text",
+    "translate_bilingual",
+    "translate_file",
+    "translate_website",
+    "translate_website_bilingual",
+    "translators",
+]
 
-    response = requests.post(endpoint, headers=headers, json=payload)
-    response.raise_for_status()
-    resp_json = response.json()
 
-    # Update quota
-    usage = resp_json.get('usage', {})
-    total_tokens = usage.get('total_tokens', 0)
-    if total_tokens > 0:
-        quota_manager.update_usage(total_tokens)
+def translate_text(text: str, to: Optional[str] = None) -> str:
+    return _translate_text(text, to=to)
 
-    language = resp_json['choices'][0]['message']['content'].strip().lower()
-    return language
 
-def translate_text(text):
-    if not quota_manager.check_quota():
-        return "Error: API 额度已用尽。"
+def translate_bilingual(text: str, context: Optional[str] = None,
+                        to: Optional[str] = None):
+    return _translate_bilingual(text, context=context, to=to)
 
-    api_key = load_api_key()
-    endpoint = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
+def translate_file(input_file: str, output_file: Optional[str] = None,
+                   to: Optional[str] = None) -> str:
+    return _translate_file(input_file, output_file, to=to)
 
-    payload = {
-        "model": "deepseek-chat",
-        "messages": [
-            {"role": "system", "content": "You are a professional translator. Translate the following text to Simplified Chinese (zh-CN). Provide only the translated text without any explanations."},
-            {"role": "user", "content": text}
-        ],
-        "temperature": 1.1 # DeepSeek recommended for translation
-    }
 
-    response = requests.post(endpoint, headers=headers, json=payload)
-    response.raise_for_status()
-    resp_json = response.json()
+def translate_website(url: str, to: Optional[str] = None) -> dict:
+    return _translate_website(url, to=to)
 
-    # Update quota
-    usage = resp_json.get('usage', {})
-    total_tokens = usage.get('total_tokens', 0)
-    if total_tokens > 0:
-        quota_manager.update_usage(total_tokens)
 
-    translated_text = resp_json['choices'][0]['message']['content'].strip()
+# 旧名兼容
+def translate_website_bilingual(url: str, to: Optional[str] = None) -> dict:
+    return _translate_website(url, to=to)
 
-    return translated_text
 
-def translate_bilingual(text, context=None):
-    if not quota_manager.check_quota():
-        return [{"source": "Error", "target": "API 额度已用尽。"}]
+def translators() -> None:
+    """交互式翻译入口（保留旧 CLI）。"""
+    print("Butler 翻译系统")
+    print("已启用 Provider:")
+    system = get_default_system()
+    for p in system.config.providers:
+        flag = "✓" if p.id in system.config.fallback_chain else " "
+        print(f"  [{flag}] {p.name} ({p.type})")
+    print(f"目标语言: {system.config.target_lang}")
+    print(f"缓存条目: {system.cache.size} | 术语: {system.glossary.size} | 历史: {system.history.size}")
+    print()
 
-    api_key = load_api_key()
-    endpoint = config_loader.get("api.deepseek.endpoint", "https://api.deepseek.com/v1") + "/chat/completions"
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-
-    prompt = "Translate the following text to Simplified Chinese. Return a JSON list of objects with 'source' and 'target' keys.\n"
-    if context:
-        prompt += f"Context/Metadata: {context}\n"
-    prompt += f"Text:\n{text}"
-
-    payload = {
-        "model": "deepseek-chat",
-        "messages": [
-            {"role": "system", "content": "You are a professional translator. You must respond with a valid JSON array of objects containing 'source' and 'target' fields. No other text."},
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 1.0
-    }
-
-    try:
-        response = requests.post(endpoint, headers=headers, json=payload)
-        response.raise_for_status()
-        resp_json = response.json()
-
-        usage = resp_json.get('usage', {})
-        quota_manager.update_usage(usage.get('total_tokens', 0))
-
-        content = resp_json['choices'][0]['message']['content'].strip()
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.endswith("```"):
-            content = content[:-3]
-
-        result = json.loads(content.strip())
-        if isinstance(result, dict) and "translation" in result: # Handle common LLM wrapping
-             result = result["translation"]
-        return result
-    except Exception as e:
-        print(f"Error in translate_bilingual: {e}")
-        return [{"source": text, "target": translate_text(text)}]
-
-def translate_file(input_file, output_file):
-    with open(input_file, 'r', encoding='utf-8') as file:
-        text = file.read()
-
-    translated_text = translate_text(text)
-
-    with open(output_file, 'w', encoding='utf-8') as file:
-        file.write(translated_text)
-
-    print(f"文件翻译成功，已保存到 {output_file}")
-
-def translate_website_bilingual(url):
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'html.parser')
-
-        # Remove scripts and styles
-        for script in soup(["script", "style"]):
-            script.extract()
-
-        title = soup.title.string if soup.title else url
-
-        # Simple heuristic for main content
-        # In a real scenario, we might use a library like 'readability'
-        paragraphs = soup.find_all(['p', 'h1', 'h2', 'h3', 'li'])
-        content_text = "\n\n".join([p.get_text().strip() for p in paragraphs if len(p.get_text().strip()) > 20])
-
-        # Limit content for API efficiency
-        if len(content_text) > 2000:
-            content_text = content_text[:2000] + "..."
-
-        # Translate title for context
-        translated_title = translate_text(title)
-        if translated_title.startswith("[{") and '"target"' in translated_title:
-            try:
-                # In case translate_text was accidentally mocked or behaved like translate_bilingual
-                parsed = json.loads(translated_title)
-                if isinstance(parsed, list) and len(parsed) > 0:
-                    translated_title = parsed[0].get("target", title)
-            except: pass
-
-        # Translate content bilingually
-        bilingual_data = translate_bilingual(content_text, context=f"Source URL: {url}, Title: {title}")
-
-        return {
-            "title_source": title,
-            "title_target": translated_title,
-            "url": url,
-            "segments": bilingual_data
-        }
-    except Exception as e:
-        print(f"Error in translate_website_bilingual: {e}")
-        return {
-            "title_source": "Error",
-            "title_target": f"无法访问或解析网页: {e}",
-            "url": url,
-            "segments": []
-        }
-
-def translate_website(url):
-    # Keep legacy for compatibility but print it nicely
-    print(f"Translating website: {url}")
-    data = translate_website_bilingual(url)
-    print(json.dumps(data, indent=2, ensure_ascii=False))
-
-def translators():
-    choice = input("请选择翻译类型: 1. 文件 2. 网页\n")
-
-    if choice == '1':
+    choice = input("请选择翻译类型: 1. 文本  2. 文件  3. 网页  4. 查看术语表  5. 查看历史\n")
+    if choice == "1":
+        text = input("请输入要翻译的文本:\n")
+        if text.strip():
+            print("翻译结果:", translate_text(text))
+    elif choice == "2":
         file_path = input("请输入文件路径:\n")
-        output_file = input("请输入输出文件路径:\n")
-        translate_file(file_path, output_file)
-    elif choice == '2':
-        url = input("请输入网页URL:\n")
-        translate_website(url)
+        output = translate_file(file_path)
+        print(f"文件翻译成功，已保存到 {output}")
+    elif choice == "3":
+        url = input("请输入网页 URL:\n")
+        import json
+        print(json.dumps(translate_website(url), ensure_ascii=False, indent=2))
+    elif choice == "4":
+        for src, tgt in system.glossary.all().items():
+            print(f"  {src} → {tgt}")
+    elif choice == "5":
+        for e in system.get_history(limit=20):
+            print(f"  [{e.provider}] {e.original[:40]} => {e.translated[:40]}")
     else:
         print("无效选择")
+
 
 if __name__ == "__main__":
     translators()

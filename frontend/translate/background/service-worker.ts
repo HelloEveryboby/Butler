@@ -4,7 +4,7 @@
    ============================================================ */
 
 import { loadConfig, saveConfig } from '../utils/storage';
-import { TranslateConfig, MsgType, MsgResponse, TranslationResult, ProviderConfig } from '../utils/types';
+import { TranslateConfig, MsgType, MsgResponse, TranslationResult, ProviderConfig, HistoryEntry } from '../utils/types';
 import { TranslationCache } from './cache';
 import { createProvider, createProviderWithFallback } from './providers/registry';
 import { TranslationProvider } from '../utils/types';
@@ -13,6 +13,53 @@ import { withTimeout, retryWithSplit } from '../utils/retry';
 // ---------- 全局状态 ----------
 let config: TranslateConfig | null = null;
 const cache = new TranslationCache();
+const HISTORY_KEY = 'butler_translate_history';
+
+// ---------- 术语表工具 ----------
+function applyGlossary(text: string, glossary: { source: string; target: string }[]): string {
+  if (!glossary.length) return text;
+  let result = text;
+  for (const { source, target } of glossary) {
+    if (source) result = result.split(source).join(target);
+  }
+  return result;
+}
+
+// ---------- 历史 ----------
+async function loadHistory(): Promise<HistoryEntry[]> {
+  try {
+    const r = await chrome.storage.local.get(HISTORY_KEY);
+    return (r[HISTORY_KEY] as HistoryEntry[]) || [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveHistory(entries: HistoryEntry[]): Promise<void> {
+  try {
+    const max = config?.historyMaxSize ?? 500;
+    const trimmed = entries.slice(-max);
+    await chrome.storage.local.set({ [HISTORY_KEY]: trimmed });
+  } catch (e) {
+    console.warn('[ButlerTranslate] History save failed:', e);
+  }
+}
+
+async function recordHistory(results: TranslationResult[], to: string): Promise<void> {
+  if (!config?.historyEnabled) return;
+  const entries = await loadHistory();
+  const ts = Date.now();
+  for (const r of results) {
+    entries.push({
+      original: r.original,
+      translated: r.translated,
+      to,
+      provider: r.provider,
+      ts,
+    });
+  }
+  await saveHistory(entries);
+}
 
 // ---------- 初始化 ----------
 async function init() {
@@ -65,8 +112,9 @@ async function handleTranslate(
       return { type: 'TRANSLATE_RESULT', results };
     }
 
-    // 翻译未命中的
-    const missTexts = Array.from(misses.values());
+    // 翻译未命中的（应用术语表替换）
+    const glossary = config!.glossary || [];
+    const missTexts = Array.from(misses.values()).map(t => applyGlossary(t, glossary));
     const translated = await withTimeout(
       retryWithSplit(missTexts, async (batch) => {
         if (provider.translateBatch) {
@@ -80,8 +128,9 @@ async function handleTranslate(
 
     // 写入缓存
     const missKeys = Array.from(misses.keys());
+    const originalMissTexts = Array.from(misses.values());
     translated.forEach((t, i) => {
-      cache.set(missTexts[i], to, t, provider.name);
+      cache.set(originalMissTexts[i], to, t, provider.name);
     });
 
     // 合并结果
@@ -96,6 +145,10 @@ async function handleTranslate(
         provider: provider.name,
       };
     });
+
+    // 记录历史（忽略缓存命中的，避免重复）
+    const newResults = results.filter(r => r.provider !== 'cache');
+    if (newResults.length) recordHistory(newResults, to);
 
     return { type: 'TRANSLATE_RESULT', results };
   } catch (err) {
@@ -231,6 +284,35 @@ chrome.runtime.onMessage.addListener((msg: MsgType, sender, sendResponse) => {
       }
       case 'TEST_PROVIDER':
         response = await handleTestProvider(msg.provider);
+        break;
+      case 'GET_GLOSSARY':
+        response = { type: 'GLOSSARY', entries: config!.glossary || [] };
+        break;
+      case 'ADD_GLOSSARY': {
+        const list = config!.glossary || [];
+        const idx = list.findIndex(g => g.source === msg.source);
+        if (idx >= 0) list[idx] = { source: msg.source, target: msg.target };
+        else list.push({ source: msg.source, target: msg.target });
+        await saveConfig({ glossary: list });
+        config = await loadConfig();
+        response = { type: 'OK' };
+        break;
+      }
+      case 'REMOVE_GLOSSARY': {
+        const list = (config!.glossary || []).filter(g => g.source !== msg.source);
+        await saveConfig({ glossary: list });
+        config = await loadConfig();
+        response = { type: 'OK' };
+        break;
+      }
+      case 'GET_HISTORY': {
+        const entries = await loadHistory();
+        response = { type: 'HISTORY', entries: entries.slice(-(msg.limit ?? 50)).reverse() };
+        break;
+      }
+      case 'CLEAR_HISTORY':
+        await chrome.storage.local.remove(HISTORY_KEY);
+        response = { type: 'OK' };
         break;
       default:
         response = { type: 'TRANSLATE_ERROR', error: 'Unknown message type' };
