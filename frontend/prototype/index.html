@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Butler — Adaptive Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-0: #08080A;
+    --bg-1: #0E0E12;
+    --bg-2: #15151B;
+    --surface: #18181F;
+    --surface-2: #1F1F28;
+    --border: #2A2A35;
+    --border-soft: #22222B;
+    --text: #ECECF0;
+    --text-dim: #9A9AA6;
+    --text-mute: #5E5E6A;
+    --amber: #E8A04F;
+    --amber-glow: rgba(232,160,79,0.35);
+    --teal: #5EEAD4;
+    --coral: #FB7185;
+    --green: #6EE7B7;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --font: 'Sora', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    font-family: var(--font);
+    background: var(--bg-0);
+    color: var(--text);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    font-size: 13px;
+  }
+
+  /* Engineering grid background */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(232,160,79,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,160,79,0.025) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(232,160,79,0.06), transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-rows: 44px 1fr 28px;
+    grid-template-columns: 56px 1fr;
+    grid-template-areas:
+      "top top"
+      "rail main"
+      "status status";
+    height: 100vh;
+  }
+
+  /* ─── Top Command Bar ─── */
+  .topbar {
+    grid-area: top;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px;
+    background: rgba(14,14,18,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-soft);
+    z-index: 10;
+  }
+  .traffic { display: flex; gap: 7px; }
+  .traffic i {
+    width: 11px; height: 11px; border-radius: 50%;
+    display: block; cursor: pointer;
+  }
+  .traffic i:nth-child(1){ background:#FF5F57; }
+  .traffic i:nth-child(2){ background:#FEBC2E; }
+  .traffic i:nth-child(3){ background:#28C840; }
+
+  .brand {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 600; letter-spacing: 0.02em;
+    padding-left: 6px;
+  }
+  .brand-mark {
+    width: 18px; height: 18px; border-radius: 5px;
+    background: linear-gradient(135deg, var(--amber), #C97A2A);
+    box-shadow: 0 0 12px var(--amber-glow);
+    position: relative;
+  }
+  .brand-mark::after {
+    content:''; position:absolute; inset:3px;
+    border:1.5px solid rgba(8,8,10,0.7); border-radius:3px;
+  }
+
+  .cmd-bar {
+    flex: 1;
+    max-width: 620px;
+    margin: 0 auto;
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .cmd-bar:hover, .cmd-bar.active {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 3px rgba(232,160,79,0.12);
+  }
+  .cmd-bar svg { flex-shrink: 0; color: var(--text-mute); }
+  .cmd-bar .placeholder { color: var(--text-mute); flex: 1; font-size: 12.5px; }
+  .kbd {
+    font-family: var(--mono); font-size: 10px;
+    background: var(--bg-2); border: 1px solid var(--border);
+    border-radius: 4px; padding: 2px 6px; color: var(--text-dim);
+  }
+
+  .top-actions { display: flex; align-items: center; gap: 6px; }
+  .icon-btn {
+    width: 30px; height: 30px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: 1px solid transparent;
+    color: var(--text-dim); cursor: pointer;
+    transition: all .15s;
+  }
+  .icon-btn:hover { background: var(--surface); color: var(--text); border-color: var(--border); }
+  .model-pill {
+    display: flex; align-items: center; gap: 7px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 7px; padding: 5px 10px; font-size: 11.5px;
+    color: var(--text-dim);
+  }
+  .model-pill .dot { width:7px; height:7px; border-radius:50%; background: var(--green); box-shadow:0 0 6px var(--green); }
+
+  /* ─── Left Rail ─── */
+  .rail {
+    grid-area: rail;
+    background: rgba(14,14,18,0.6);
+    border-right: 1px solid var(--border-soft);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 12px 0; gap: 4px;
+  }
+  .rail-item {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-mute); cursor: pointer;
+    position: relative;
+    transition: all .2s;
+  }
+  .rail-item:hover { color: var(--text-dim); background: var(--surface); }
+  .rail-item.active {
+    color: var(--amber);
+    background: rgba(232,160,79,0.1);
+  }
+  .rail-item.active::before {
+    content:''; position:absolute; left:-12px; top:50%;
+    transform: translateY(-50%);
+    width:3px; height:20px; background: var(--amber);
+    border-radius: 0 3px 3px 0;
+    box-shadow: 0 0 8px var(--amber-glow);
+  }
+  .rail-spacer { flex: 1; }
+  .rail-divider { width: 24px; height: 1px; background: var(--border); margin: 6px 0; }
+  .rail-tip {
+    position:absolute; left:48px; top:50%; transform:translateY(-50%);
+    background: var(--surface-2); border:1px solid var(--border);
+    padding: 4px 8px; border-radius: 6px; font-size: 11px;
+    white-space: nowrap; opacity:0; pointer-events:none;
+    transition: opacity .15s; z-index: 100;
+  }
+  .rail-item:hover .rail-tip { opacity: 1; }
+
+  /* ─── Main Canvas ─── */
+  .main {
+    grid-area: main;
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    overflow: hidden;
+    position: relative;
+  }
+  .main.inspector-collapsed { grid-template-columns: 1fr 0px; }
+
+  .canvas {
+    position: relative;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .view {
+    position: absolute; inset: 0;
+    display: none;
+    flex-direction: column;
+    opacity: 0;
+    transition: opacity .25s;
+  }
+  .view.active { display: flex; opacity: 1; }
+
+  /* ─── Chat View ─── */
+  .chat-view { padding: 24px 32px; }
+  .chat-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .chat-header h1 {
+    font-size: 20px; font-weight: 600; letter-spacing: -0.01em;
+  }
+  .chat-header h1 .sub { color: var(--text-mute); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .chat-tools { display:flex; gap:6px; }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 8px;
+    display: flex; flex-direction: column; gap: 22px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .messages::-webkit-scrollbar { width: 6px; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .msg { display: flex; gap: 12px; max-width: 820px; }
+  .msg.user { flex-direction: row-reverse; align-self: flex-end; }
+  .avatar {
+    width: 30px; height: 30px; border-radius: 8px;
+    flex-shrink: 0; display:flex; align-items:center; justify-content:center;
+    font-size: 13px; font-weight: 600;
+  }
+  .msg.ai .avatar {
+    background: linear-gradient(135deg, var(--amber), #C97A2A);
+    color: #1a1208;
+  }
+  .msg.user .avatar { background: var(--surface-2); color: var(--text-dim); border:1px solid var(--border); }
+  .bubble {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    line-height: 1.65;
+    font-size: 13.5px;
+  }
+  .msg.user .bubble {
+    background: rgba(232,160,79,0.08);
+    border-color: rgba(232,160,79,0.25);
+  }
+  .bubble code {
+    font-family: var(--mono); font-size: 12px;
+    background: var(--bg-0); padding: 2px 6px; border-radius: 4px;
+    color: var(--teal);
+  }
+  .bubble pre {
+    background: var(--bg-0); border:1px solid var(--border);
+    border-radius: 8px; padding: 12px; margin: 10px 0;
+    overflow-x: auto; font-family: var(--mono); font-size: 12px;
+    color: var(--text-dim);
+  }
+  .bubble pre .kw { color: var(--amber); }
+  .bubble pre .str { color: var(--green); }
+  .bubble pre .cm { color: var(--text-mute); font-style: italic; }
+  .typing { display:inline-flex; gap:3px; }
+  .typing span {
+    width:6px; height:6px; border-radius:50%; background: var(--text-mute);
+    animation: blink 1.2s infinite;
+  }
+  .typing span:nth-child(2){ animation-delay:.2s; }
+  .typing span:nth-child(3){ animation-delay:.4s; }
+  @keyframes blink { 0%,60%,100%{opacity:.2;transform:translateY(0)} 30%{opacity:1;transform:translateY(-2px)} }
+
+  .quick-grid {
+    display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px; margin-top: 6px;
+  }
+  .quick-card {
+    background: var(--surface); border:1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; cursor: pointer;
+    transition: all .2s;
+  }
+  .quick-card:hover {
+    border-color: var(--amber);
+    background: rgba(232,160,79,0.05);
+    transform: translateY(-1px);
+  }
+  .quick-card .qc-icon { font-size: 16px; margin-bottom: 6px; }
+  .quick-card .qc-title { font-size: 12.5px; font-weight: 600; margin-bottom: 2px; }
+  .quick-card .qc-desc { font-size: 11px; color: var(--text-mute); line-height: 1.4; }
+
+  .composer {
+    margin-top: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 8px 12px;
+    transition: border-color .2s;
+  }
+  .composer:focus-within { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(232,160,79,0.1); }
+  .composer textarea {
+    width: 100%; resize: none; border: none; outline: none;
+    background: transparent; color: var(--text);
+    font-family: var(--font); font-size: 14px; line-height: 1.5;
+    padding: 8px 4px; min-height: 24px; max-height: 160px;
+  }
+  .composer-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 6px;
+  }
+  .composer-tools { display:flex; gap:4px; }
+  .send-btn {
+    background: var(--amber); color: #1a1208; border: none;
+    width: 32px; height: 32px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-weight: 600;
+    transition: all .15s;
+  }
+  .send-btn:hover { background: #F2B263; box-shadow: 0 0 12px var(--amber-glow); }
+
+  /* ─── DAG View ─── */
+  .dag-view { background: var(--bg-1); }
+  .dag-toolbar {
+    display:flex; align-items:center; gap:8px;
+    padding: 10px 16px; border-bottom:1px solid var(--border-soft);
+    background: rgba(14,14,18,0.5);
+  }
+  .dag-toolbar .title { font-weight: 600; margin-right: 12px; }
+  .dag-btn {
+    display:inline-flex; align-items:center; gap:6px;
+    background: var(--surface); border:1px solid var(--border);
+    color: var(--text-dim); border-radius: 7px; padding: 5px 11px;
+    font-size: 12px; cursor: pointer; transition: all .15s;
+  }
+  .dag-btn:hover { color: var(--text); border-color: var(--amber); }
+  .dag-btn.run { color: var(--green); }
+  .dag-btn.run:hover { border-color: var(--green); }
+  .dag-canvas {
+    flex:1; position: relative; overflow: auto;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .dag-node {
+    position: absolute;
+    background: var(--surface); border:1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; min-width: 160px;
+    cursor: grab; user-select: none;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .dag-node:hover { border-color: var(--amber); }
+  .dag-node.dragging { cursor: grabbing; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+  .dag-node .node-head { display:flex; align-items:center; gap:8px; font-weight:600; font-size:12.5px; }
+  .dag-node .node-icon {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: rgba(232,160,79,0.15); color: var(--amber);
+    display:flex; align-items:center; justify-content:center; font-size:11px;
+  }
+  .dag-node .node-meta { font-size: 10.5px; color: var(--text-mute); margin-top: 4px; font-family: var(--mono); }
+  .dag-node .port {
+    position:absolute; width:10px; height:10px; border-radius:50%;
+    background: var(--bg-1); border:2px solid var(--text-mute);
+    top: 50%; transform: translateY(-50%);
+  }
+  .dag-node .port.in { left: -6px; }
+  .dag-node .port.out { right: -6px; }
+  .dag-node.running { border-color: var(--teal); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(94,234,212,0.3)} 50%{box-shadow:0 0 0 6px rgba(94,234,212,0)} }
+  #dag-svg { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+
+  /* ─── History View ─── */
+  .history-view { padding: 24px 32px; }
+  .history-header { margin-bottom: 20px; }
+  .history-header h1 { font-size: 20px; font-weight: 600; }
+  .timeline { position: relative; padding-left: 24px; }
+  .timeline::before {
+    content:''; position:absolute; left: 6px; top: 8px; bottom: 8px;
+    width: 2px; background: linear-gradient(var(--amber), transparent);
+    border-radius: 2px;
+  }
+  .tl-item { position: relative; padding-bottom: 22px; }
+  .tl-item::before {
+    content:''; position:absolute; left:-22px; top: 4px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--surface-2); border: 2px solid var(--border);
+  }
+  .tl-item.success::before { border-color: var(--green); background: var(--green); box-shadow: 0 0 8px rgba(110,231,183,0.4); }
+  .tl-item.error::before { border-color: var(--coral); background: var(--coral); }
+  .tl-item .tl-time { font-family: var(--mono); font-size: 11px; color: var(--text-mute); }
+  .tl-item .tl-title { font-weight: 600; font-size: 13px; margin: 3px 0; }
+  .tl-item .tl-desc { color: var(--text-dim); font-size: 12px; line-height: 1.5; }
+  .tl-item .tl-tag {
+    display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 4px;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-dim);
+    margin-top: 6px; font-family: var(--mono);
+  }
+
+  /* ─── Skills View ─── */
+  .skills-view { padding: 24px 32px; overflow-y: auto; }
+  .skills-header { display:flex; align-items:center; justify-content:space-between; margin-bottom: 20px; }
+  .skills-header h1 { font-size: 20px; font-weight: 600; }
+  .search-box {
+    display:flex; align-items:center; gap:8px;
+    background: var(--surface); border:1px solid var(--border);
+    border-radius: 8px; padding: 6px 12px; width: 260px;
+  }
+  .search-box input {
+    background: transparent; border:none; outline:none; color: var(--text);
+    font-family: var(--font); font-size: 12.5px; flex:1;
+  }
+  .skills-grid {
+    display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px;
+  }
+  .skill-card {
+    background: var(--surface); border:1px solid var(--border);
+    border-radius: 12px; padding: 16px; cursor: pointer;
+    transition: all .2s;
+  }
+  .skill-card:hover {
+    border-color: var(--amber);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .skill-card .sc-head { display:flex; align-items:center; gap:10px; margin-bottom: 10px; }
+  .skill-card .sc-icon {
+    width: 36px; height: 36px; border-radius: 9px;
+    display:flex; align-items:center; justify-content:center;
+    font-size: 16px;
+  }
+  .skill-card .sc-name { font-weight: 600; font-size: 13.5px; }
+  .skill-card .sc-ver { font-family: var(--mono); font-size: 10px; color: var(--text-mute); }
+  .skill-card .sc-desc { font-size: 12px; color: var(--text-dim); line-height: 1.5; min-height: 36px; }
+  .skill-card .sc-foot {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-soft);
+  }
+  .sc-badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    font-family: var(--mono);
+  }
+  .sc-badge.on { background: rgba(110,231,183,0.12); color: var(--green); }
+  .sc-badge.off { background: var(--bg-2); color: var(--text-mute); }
+
+  /* ─── Inspector Panel ─── */
+  .inspector {
+    background: rgba(14,14,18,0.5);
+    border-left: 1px solid var(--border-soft);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    transition: width .25s;
+  }
+  .insp-head {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 12px 14px; border-bottom: 1px solid var(--border-soft);
+  }
+  .insp-head .label { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+  .insp-body { flex:1; overflow-y: auto; padding: 14px; }
+  .insp-section { margin-bottom: 20px; }
+  .insp-section-title {
+    font-size: 10.5px; color: var(--text-mute); text-transform: uppercase;
+    letter-spacing: 0.05em; margin-bottom: 8px; font-weight: 600;
+  }
+  .insp-skill {
+    display:flex; align-items:center; gap:10px;
+    padding: 8px 10px; border-radius: 8px; cursor: pointer;
+    transition: background .15s;
+  }
+  .insp-skill:hover { background: var(--surface); }
+  .insp-skill .dot { width:7px; height:7px; border-radius:50%; background: var(--text-mute); }
+  .insp-skill .dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .insp-skill .name { font-size: 12px; flex:1; }
+  .insp-skill .cnt { font-family: var(--mono); font-size: 10px; color: var(--text-mute); }
+
+  .stat-row {
+    display:flex; justify-content:space-between; align-items:center;
+    padding: 6px 0; font-size: 12px;
+  }
+  .stat-row .k { color: var(--text-mute); }
+  .stat-row .v { font-family: var(--mono); }
+  .meter {
+    height: 4px; background: var(--bg-2); border-radius: 2px;
+    margin-top: 4px; overflow: hidden;
+  }
+  .meter > div { height:100%; border-radius: 2px; transition: width .4s; }
+
+  /* ─── Status Bar ─── */
+  .statusbar {
+    grid-area: status;
+    background: rgba(14,14,18,0.9);
+    border-top: 1px solid var(--border-soft);
+    display: flex; align-items: center;
+    padding: 0 14px; gap: 18px;
+    font-size: 11px; color: var(--text-mute);
+    font-family: var(--mono);
+  }
+  .sb-item { display:flex; align-items:center; gap:5px; }
+  .sb-item .led { width:6px; height:6px; border-radius:50%; }
+  .sb-spacer { flex:1; }
+  .sb-git { display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .sb-git:hover { color: var(--text-dim); }
+
+  /* ─── Command Palette ─── */
+  .palette-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
+    display: none; align-items: flex-start; justify-content: center;
+    padding-top: 12vh;
+    opacity: 0; transition: opacity .15s;
+  }
+  .palette-overlay.show { display: flex; opacity: 1; }
+  .palette {
+    width: 100%; max-width: 600px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(232,160,79,0.1);
+    transform: translateY(-8px); transition: transform .2s;
+  }
+  .palette-overlay.show .palette { transform: translateY(0); }
+  .palette-input {
+    display:flex; align-items:center; gap:12px;
+    padding: 14px 16px; border-bottom: 1px solid var(--border-soft);
+  }
+  .palette-input svg { color: var(--amber); }
+  .palette-input input {
+    flex:1; background: transparent; border:none; outline:none;
+    color: var(--text); font-family: var(--font); font-size: 15px;
+  }
+  .palette-list { max-height: 380px; overflow-y: auto; padding: 6px; }
+  .palette-group-title {
+    font-size: 10px; color: var(--text-mute); text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 10px 10px 6px; font-weight: 600;
+  }
+  .palette-item {
+    display:flex; align-items:center; gap:11px;
+    padding: 9px 11px; border-radius: 8px; cursor: pointer;
+    transition: background .1s;
+  }
+  .palette-item:hover, .palette-item.sel { background: rgba(232,160,79,0.1); }
+  .palette-item .pi-icon {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: var(--bg-2); display:flex; align-items:center; justify-content:center;
+    font-size: 13px;
+  }
+  .palette-item .pi-text { flex:1; }
+  .palette-item .pi-name { font-size: 13px; }
+  .palette-item .pi-sub { font-size: 11px; color: var(--text-mute); }
+  .palette-item .pi-short {
+    font-family: var(--mono); font-size: 10px;
+    background: var(--bg-2); border:1px solid var(--border);
+    border-radius: 4px; padding: 2px 5px; color: var(--text-mute);
+  }
+
+  /* utility */
+  .hidden { display: none !important; }
+  .scroll-area { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .scroll-area::-webkit-scrollbar { width: 6px; }
+  .scroll-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ─── Top Bar ─── -->
+  <header class="topbar">
+    <div class="traffic"><i></i><i></i><i></i></div>
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <span>Butler</span>
+    </div>
+
+    <div class="cmd-bar" id="cmdBar" onclick="openPalette()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <span class="placeholder">搜索技能、运行命令、导航…</span>
+      <span class="kbd">⌘K</span>
+    </div>
+
+    <div class="top-actions">
+      <div class="model-pill">
+        <span class="dot"></span>
+        <span>deepseek-chat</span>
+      </div>
+      <button class="icon-btn" title="通知">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      </button>
+      <button class="icon-btn" title="设置">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ─── Left Rail ─── -->
+  <nav class="rail">
+    <div class="rail-item active" data-view="chat">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span class="rail-tip">对话</span>
+    </div>
+    <div class="rail-item" data-view="dag">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/><line x1="12" y1="22" x2="12" y2="15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/></svg>
+      <span class="rail-tip">任务画布</span>
+    </div>
+    <div class="rail-item" data-view="history">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span class="rail-tip">时光机</span>
+    </div>
+    <div class="rail-item" data-view="skills">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
+      <span class="rail-tip">技能仓储</span>
+    </div>
+
+    <div class="rail-spacer"></div>
+    <div class="rail-divider"></div>
+
+    <div class="rail-item" id="toggleInspector" title="检视器">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+      <span class="rail-tip">切换检视器</span>
+    </div>
+    <div class="rail-item" title="终端">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      <span class="rail-tip">终端</span>
+    </div>
+  </nav>
+
+  <!-- ─── Main Canvas ─── -->
+  <main class="main" id="main">
+    <section class="canvas">
+
+      <!-- Chat -->
+      <div class="view chat-view active" id="view-chat">
+        <div class="chat-header">
+          <h1>对话 <span class="sub">/ 智能助手</span></h1>
+          <div class="chat-tools">
+            <button class="dag-btn" onclick="runQuick('系统自检与安全审计')">🛡 自检</button>
+            <button class="dag-btn" onclick="runQuick('一键清理系统垃圾')">🧹 清理</button>
+          </div>
+        </div>
+
+        <div class="messages" id="messages">
+          <div class="msg ai">
+            <div class="avatar">B</div>
+            <div class="bubble">
+              你好，我是 Butler。随时拖入报错截图，我会即刻诊断并修复。<br><br>
+              以下是你可以立刻尝试的操作：
+            </div>
+          </div>
+
+          <div class="quick-grid">
+            <div class="quick-card" onclick="runQuick('系统自检与安全审计')">
+              <div class="qc-icon">🛡</div>
+              <div class="qc-title">系统自检与审计</div>
+              <div class="qc-desc">扫描安全配置、开放端口与环境沙箱</div>
+            </div>
+            <div class="quick-card" onclick="runQuick('一键清理系统垃圾')">
+              <div class="qc-icon">🧹</div>
+              <div class="qc-title">一键清理垃圾</div>
+              <div class="qc-desc">清除冗余缓存，恢复磁盘空间</div>
+            </div>
+            <div class="quick-card" onclick="runQuick('开启局域网同步')">
+              <div class="qc-icon">🛰</div>
+              <div class="qc-title">局域网同步</div>
+              <div class="qc-desc">同步代码与资产到局域网节点</div>
+            </div>
+            <div class="quick-card" onclick="runQuick('本地 FFT 音频降噪')">
+              <div class="qc-icon">🎙</div>
+              <div class="qc-title">FFT 音频降噪</div>
+              <div class="qc-desc">C++ 音频算法离线提取</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="composer">
+          <textarea id="composerInput" placeholder="发送消息或拖入截图…  (Shift+Enter 换行)" rows="1"></textarea>
+          <div class="composer-row">
+            <div class="composer-tools">
+              <button class="icon-btn" title="附件">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </button>
+              <button class="icon-btn" title="语音">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+              </button>
+            </div>
+            <button class="send-btn" onclick="sendMessage()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DAG -->
+      <div class="view dag-view" id="view-dag">
+        <div class="dag-toolbar">
+          <span class="title">任务画布</span>
+          <button class="dag-btn run" onclick="toggleRunDag()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            运行流水线
+          </button>
+          <button class="dag-btn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            节点库
+          </button>
+          <div style="flex:1"></div>
+          <button class="dag-btn" onclick="clearDag()">清空</button>
+        </div>
+        <div class="dag-canvas" id="dagCanvas">
+          <svg id="dagSvg"></svg>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div class="view history-view" id="view-history">
+        <div class="history-header">
+          <h1>时光机</h1>
+          <p style="color:var(--text-mute);font-size:12px;margin-top:4px;">全局活动回溯 · 拖动滑块可回放历史状态</p>
+        </div>
+        <div class="timeline">
+          <div class="tl-item success">
+            <div class="tl-time">10:42:18</div>
+            <div class="tl-title">系统自检完成</div>
+            <div class="tl-desc">扫描 247 项配置，发现 3 个可优化项，全部已自动修复。</div>
+            <span class="tl-tag">security_audit</span>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">10:38:02</div>
+            <div class="tl-title">DAG 流水线执行: docx→markdown→translate</div>
+            <div class="tl-desc">3 个节点串行执行，耗时 8.2s，输出 12 个文件。</div>
+            <span class="tl-tag">pipeline</span>
+          </div>
+          <div class="tl-item error">
+            <div class="tl-time">10:21:55</div>
+            <div class="tl-title">端口 8080 被占用</div>
+            <div class="tl-desc">检测到 process pid=3421 占用端口，已提示用户处理。</div>
+            <span class="tl-tag">error</span>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">09:55:30</div>
+            <div class="tl-title">记忆库写入 42 条向量</div>
+            <div class="tl-desc">Zvec 本地向量库索引更新，当前总量 1,284。</div>
+            <span class="tl-tag">memory</span>
+          </div>
+          <div class="tl-item success">
+            <div class="tl-time">09:30:00</div>
+            <div class="tl-title">Butler 启动</div>
+            <div class="tl-desc">所有子系统就绪：NLU / 记忆 / 技能仓 / 语音 / 桥接。</div>
+            <span class="tl-tag">lifecycle</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Skills -->
+      <div class="view skills-view scroll-area" id="view-skills">
+        <div class="skills-header">
+          <h1>技能仓储</h1>
+          <div class="search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input placeholder="搜索技能…">
+          </div>
+        </div>
+        <div class="skills-grid" id="skillsGrid"></div>
+      </div>
+
+    </section>
+
+    <!-- Inspector -->
+    <aside class="inspector" id="inspector">
+      <div class="insp-head">
+        <span class="label">上下文检视器</span>
+        <button class="icon-btn" style="width:24px;height:24px" onclick="toggleInspector()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+      <div class="insp-body">
+        <div class="insp-section">
+          <div class="insp-section-title">活跃技能</div>
+          <div class="insp-skill"><span class="dot on"></span><span class="name">markitdown</span><span class="cnt">v2.1</span></div>
+          <div class="insp-skill"><span class="dot on"></span><span class="name">archive_manager</span><span class="cnt">v1.4</span></div>
+          <div class="insp-skill"><span class="dot on"></span><span class="name">sec_scan</span><span class="cnt">v3.0</span></div>
+          <div class="insp-skill"><span class="dot"></span><span class="name">media_manager</span><span class="cnt">v1.0</span></div>
+          <div class="insp-skill"><span class="dot"></span><span class="name">storage_hub</span><span class="cnt">v2.2</span></div>
+        </div>
+
+        <div class="insp-section">
+          <div class="insp-section-title">系统指标</div>
+          <div class="stat-row"><span class="k">CPU</span><span class="v">12%</span></div>
+          <div class="meter"><div style="width:12%;background:var(--green)"></div></div>
+          <div class="stat-row" style="margin-top:8px"><span class="k">内存</span><span class="v">684 MB</span></div>
+          <div class="meter"><div style="width:34%;background:var(--amber)"></div></div>
+          <div class="stat-row" style="margin-top:8px"><span class="k">向量库</span><span class="v">1,284</span></div>
+          <div class="meter"><div style="width:64%;background:var(--teal)"></div></div>
+        </div>
+
+        <div class="insp-section">
+          <div class="insp-section-title">当前任务</div>
+          <div class="stat-row"><span class="k">状态</span><span class="v" style="color:var(--green)">空闲</span></div>
+          <div class="stat-row"><span class="k">队列</span><span class="v">0 / 4</span></div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ─── Status Bar ─── -->
+  <footer class="statusbar">
+    <div class="sb-item"><span class="led" style="background:var(--green);box-shadow:0 0 6px var(--green)"></span> 已连接</div>
+    <div class="sb-item">模型: deepseek-chat</div>
+    <div class="sb-item">延迟: 42ms</div>
+    <div class="sb-spacer"></div>
+    <div class="sb-git" title="Git 状态">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M18 9V6a3 3 0 0 0-3-3H9"/></svg>
+      feature/adaptive-canvas
+    </div>
+    <div class="sb-item">⌘K 命令面板</div>
+  </footer>
+
+</div>
+
+<!-- ─── Command Palette ─── -->
+<div class="palette-overlay" id="palette" onclick="if(event.target===this)closePalette()">
+  <div class="palette">
+    <div class="palette-input">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="paletteInput" placeholder="输入命令或搜索…" oninput="filterPalette(this.value)">
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="palette-list" id="paletteList"></div>
+  </div>
+</div>
+
+<script>
+// ─── Navigation ───
+const railItems = document.querySelectorAll('.rail-item[data-view]');
+const views = document.querySelectorAll('.view');
+railItems.forEach(item => {
+  item.addEventListener('click', () => {
+    const v = item.dataset.view;
+    railItems.forEach(i => i.classList.toggle('active', i === item));
+    views.forEach(view => view.classList.toggle('active', view.id === 'view-' + v));
+  });
+});
+
+// ─── Inspector toggle ───
+function toggleInspector() {
+  document.getElementById('main').classList.toggle('inspector-collapsed');
+}
+document.getElementById('toggleInspector').addEventListener('click', toggleInspector);
+
+// ─── Command Palette ───
+const palette = document.getElementById('palette');
+const paletteInput = document.getElementById('paletteInput');
+const paletteList = document.getElementById('paletteList');
+
+const commands = [
+  { g: '导航', n: '对话', s: '智能助手', k: '⌘1', a: () => switchView('chat') },
+  { g: '导航', n: '任务画布', s: 'DAG 流水线', k: '⌘2', a: () => switchView('dag') },
+  { g: '导航', n: '时光机', s: '历史回溯', k: '⌘3', a: () => switchView('history') },
+  { g: '导航', n: '技能仓储', s: '管理技能', k: '⌘4', a: () => switchView('skills') },
+  { g: '操作', n: '系统自检与安全审计', s: '扫描安全配置与开放端口', k: '↵', a: () => runQuick('系统自检与安全审计') },
+  { g: '操作', n: '一键清理系统垃圾', s: '清除冗余缓存', k: '↵', a: () => runQuick('一键清理系统垃圾') },
+  { g: '操作', n: '开启局域网同步', s: '同步到局域网节点', k: '↵', a: () => runQuick('开启局域网同步') },
+  { g: '操作', n: '本地 FFT 音频降噪', s: 'C++ 音频算法', k: '↵', a: () => runQuick('本地 FFT 音频降噪') },
+  { g: '操作', n: '切换深色/浅色主题', s: '主题切换', k: '⌘T', a: () => {} },
+  { g: '操作', n: '打开设置', s: '系统配置中心', k: '⌘,', a: () => {} },
+];
+
+function renderPalette(filter = '') {
+  const f = filter.toLowerCase();
+  const groups = {};
+  commands.forEach(c => {
+    if (!f || c.n.toLowerCase().includes(f) || c.s.toLowerCase().includes(f)) {
+      (groups[c.g] = groups[c.g] || []).push(c);
+    }
+  });
+  paletteList.innerHTML = Object.entries(groups).map(([g, items]) => `
+    <div class="palette-group-title">${g}</div>
+    ${items.map((c, i) => `
+      <div class="palette-item ${i===0?'sel':''}" onclick="(function(){closePalette();(${c.a.toString()})();})()">
+        <div class="pi-icon">${g==='导航'?'▸':'⚡'}</div>
+        <div class="pi-text">
+          <div class="pi-name">${c.n}</div>
+          <div class="pi-sub">${c.s}</div>
+        </div>
+        <span class="pi-short">${c.k}</span>
+      </div>
+    `).join('')}
+  `).join('');
+}
+function openPalette() {
+  palette.classList.add('show');
+  paletteInput.value = '';
+  renderPalette();
+  setTimeout(() => paletteInput.focus(), 50);
+}
+function closePalette() { palette.classList.remove('show'); }
+function filterPalette(v) { renderPalette(v); }
+document.getElementById('cmdBar').addEventListener('click', openPalette);
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); }
+  if (e.key === 'Escape') closePalette();
+});
+
+function switchView(v) {
+  railItems.forEach(i => i.classList.toggle('active', i.dataset.view === v));
+  views.forEach(view => view.classList.toggle('active', view.id === 'view-' + v));
+}
+
+// ─── Chat ───
+function sendMessage() {
+  const input = document.getElementById('composerInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const msgs = document.getElementById('messages');
+  msgs.insertAdjacentHTML('beforeend', `
+    <div class="msg user">
+      <div class="avatar">我</div>
+      <div class="bubble">${text}</div>
+    </div>`);
+  input.value = '';
+  // typing + reply
+  const id = 'r' + Date.now();
+  msgs.insertAdjacentHTML('beforeend', `
+    <div class="msg ai" id="${id}">
+      <div class="avatar">B</div>
+      <div class="bubble"><span class="typing"><span></span><span></span><span></span></span></div>
+    </div>`);
+  msgs.scrollTop = msgs.scrollHeight;
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (el) el.querySelector('.bubble').innerHTML = `已收到：<code>${text}</code><br>正在调用 <code>butler.handle_command</code> 处理…`;
+    msgs.scrollTop = msgs.scrollHeight;
+  }, 900);
+}
+document.getElementById('composerInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+function runQuick(cmd) {
+  switchView('chat');
+  document.getElementById('composerInput').value = cmd;
+  sendMessage();
+}
+
+// ─── DAG ───
+const dagCanvas = document.getElementById('dagCanvas');
+const dagSvg = document.getElementById('dagSvg');
+let dagNodes = [
+  { id: 1, x: 60, y: 60, icon: '📄', name: 'DOCX 读取', meta: 'docx_read' },
+  { id: 2, x: 300, y: 60, icon: '🔄', name: '转 Markdown', meta: 'markitdown' },
+  { id: 3, x: 540, y: 60, icon: '🌐', name: '翻译', meta: 'translate -> EN' },
+  { id: 4, x: 300, y: 220, icon: '💾', name: '归档输出', meta: 'archive_compress' },
+];
+let dagEdges = [[1,2],[2,3],[2,4]];
+
+function renderDag() {
+  dagCanvas.querySelectorAll('.dag-node').forEach(n => n.remove());
+  dagNodes.forEach(nd => {
+    const el = document.createElement('div');
+    el.className = 'dag-node';
+    el.style.left = nd.x + 'px';
+    el.style.top = nd.y + 'px';
+    el.dataset.id = nd.id;
+    el.innerHTML = `
+      <span class="port in"></span>
+      <div class="node-head"><div class="node-icon">${nd.icon}</div>${nd.name}</div>
+      <div class="node-meta">${nd.meta}</div>
+      <span class="port out"></span>`;
+    makeDraggable(el, nd);
+    dagCanvas.appendChild(el);
+  });
+  drawEdges();
+}
+
+function drawEdges() {
+  const ns = 'http://www.w3.org/2000/svg';
+  dagSvg.innerHTML = '';
+  // size svg to canvas
+  dagSvg.setAttribute('width', dagCanvas.scrollWidth);
+  dagSvg.setAttribute('height', dagCanvas.scrollHeight);
+  dagEdges.forEach(([a,b]) => {
+    const na = dagNodes.find(n => n.id === a);
+    const nb = dagNodes.find(n => n.id === b);
+    if (!na || !nb) return;
+    const x1 = na.x + 170, y1 = na.y + 24;
+    const x2 = nb.x, y2 = nb.y + 24;
+    const mx = (x1 + x2) / 2;
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+    path.setAttribute('stroke', 'var(--amber)');
+    path.setAttribute('stroke-opacity', '0.5');
+    path.setAttribute('stroke-width', '1.5');
+    path.setAttribute('fill', 'none');
+    dagSvg.appendChild(path);
+  });
+}
+
+function makeDraggable(el, nd) {
+  let sx, sy, ox, oy, dragging = false;
+  el.addEventListener('mousedown', (e) => {
+    dragging = true; el.classList.add('dragging');
+    sx = e.clientX; sy = e.clientY; ox = nd.x; oy = nd.y;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    nd.x = ox + (e.clientX - sx);
+    nd.y = oy + (e.clientY - sy);
+    el.style.left = nd.x + 'px';
+    el.style.top = nd.y + 'px';
+    drawEdges();
+  });
+  document.addEventListener('mouseup', () => {
+    if (dragging) { dragging = false; el.classList.remove('dragging'); }
+  });
+}
+
+function toggleRunDag() {
+  dagCanvas.querySelectorAll('.dag-node').forEach(n => n.classList.add('running'));
+  setTimeout(() => dagCanvas.querySelectorAll('.dag-node').forEach(n => n.classList.remove('running')), 2500);
+}
+function clearDag() { dagEdges = []; drawEdges(); }
+
+// render DAG when view shown
+const dagObserver = new MutationObserver(() => {
+  if (document.getElementById('view-dag').classList.contains('active')) renderDag();
+});
+dagObserver.observe(document.getElementById('view-dag'), { attributes: true, attributeFilter: ['class'] });
+
+// ─── Skills Grid ───
+const skills = [
+  { icon:'📄', name:'markitdown', ver:'v2.1', desc:'PDF/DOCX/PPTX 转 Markdown', on:true, color:'#E8A04F' },
+  { icon:'📦', name:'archive_manager', ver:'v1.4', desc:'压缩/解压/加密打包', on:true, color:'#5EEAD4' },
+  { icon:'🛡', name:'sec_scan', ver:'v3.0', desc:'端口扫描与安全审计', on:true, color:'#FB7185' },
+  { icon:'☁', name:'storage_hub', ver:'v2.2', desc:'OneDrive/WebDAV/百度云', on:false, color:'#007AFF' },
+  { icon:'🎵', name:'media_manager', ver:'v1.0', desc:'媒体库扫描与管理', on:false, color:'#AF52DE' },
+  { icon:'🔄', name:'format_convert', ver:'v1.2', desc:'文档格式互转', on:true, color:'#34C759' },
+  { icon:'🧹', name:'sys_cleaner', ver:'v2.0', desc:'系统垃圾清理', on:true, color:'#FF9500' },
+  { icon:'🔐', name:'crypto_tools', ver:'v1.5', desc:'加密/解密/哈希', on:false, color:'#5856D6' },
+];
+const skillsGrid = document.getElementById('skillsGrid');
+skillsGrid.innerHTML = skills.map(s => `
+  <div class="skill-card">
+    <div class="sc-head">
+      <div class="sc-icon" style="background:${s.color}22;color:${s.color}">${s.icon}</div>
+      <div>
+        <div class="sc-name">${s.name}</div>
+        <div class="sc-ver">${s.ver}</div>
+      </div>
+    </div>
+    <div class="sc-desc">${s.desc}</div>
+    <div class="sc-foot">
+      <span class="sc-badge ${s.on?'on':'off'}">${s.on?'已启用':'已禁用'}</span>
+      <span style="font-size:11px;color:var(--text-mute)">→</span>
+    </div>
+  </div>
+`).join('');
+
+// initial render if skills view somehow active
+</script>
+</body>
+</html>
