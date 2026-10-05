@@ -6,6 +6,7 @@
 import { sendMessage } from '../../utils/messaging';
 import { TranslateConfig } from '../../utils/types';
 import { injectStyles } from '../styles/styles';
+import { loadPdfJs } from '../../utils/vendor';
 
 // ---------- 状态 ----------
 let isEnabled = false;
@@ -45,17 +46,19 @@ export async function startPDFTranslate(config: TranslateConfig): Promise<void> 
   // 等待 PDF 渲染完成
   await waitForPDFReady();
 
-  // 方案 A：Chrome 内置 PDF viewer（最常见）
+  // 方案 A：Chrome 内置 PDF viewer —— 注意：内置 viewer 是独立扩展沙箱，
+  // content script 不一定能读到它的文本层。先探测，取不到字就降级到方案 C。
   if (document.querySelector('#viewer.pdfViewer')) {
-    await translateChromePDF(config);
-    return;
+    const ok = await translateChromePDF(config);
+    if (ok) return;
+    console.warn('[ButlerTranslate] Chrome 内置 PDF viewer 无可用文本层，降级为自行渲染');
   }
 
   // 方案 B：embed/object 标签
-  const embed = document.querySelector('embed[type="application/pdf"]') as HTMLEmbedElement;
-  const obj = document.querySelector('object[type="application/pdf"]') as HTMLObjectElement;
+  const embed = document.querySelector('embed[type="application/pdf"]') as HTMLEmbedElement | null;
+  const obj = document.querySelector('object[type="application/pdf"]') as HTMLObjectElement | null;
   if (embed || obj) {
-    await translateEmbeddedPDF(config, embed || obj);
+    await translateEmbeddedPDF(config, (embed as HTMLElement) || (obj as HTMLElement));
     return;
   }
 
@@ -77,9 +80,20 @@ export function isPDFTranslateEnabled(): boolean {
 }
 
 // ---------- Chrome 内置 PDF viewer ----------
-async function translateChromePDF(config: TranslateConfig): Promise<void> {
+/**
+ * 尝试直接读内置 viewer 的文本层。
+ * @returns true 表示已提取到文本并开始翻译；false 表示取不到字，需要降级
+ */
+async function translateChromePDF(config: TranslateConfig): Promise<boolean> {
   const viewer = document.querySelector('#viewer.pdfViewer');
-  if (!viewer) return;
+  if (!viewer) return false;
+
+  // 预检：内置 viewer 是独立扩展沙箱，如果整页连一个文本 span 都没有，
+  // 说明根本读不到，不要在这里空等。
+  const probeText = (viewer.textContent || '').replace(/\s+/g, '');
+  if (probeText.length === 0 && viewer.querySelectorAll('.textLayer span').length === 0) {
+    return false;
+  }
 
   // 监听页面渲染（PDF 页面懒加载）
   const observer = new MutationObserver(async (mutations) => {
@@ -108,6 +122,7 @@ async function translateChromePDF(config: TranslateConfig): Promise<void> {
       await translatePage(page as HTMLElement, pageNum, config);
     }
   }
+  return true;
 }
 
 // ---------- 翻译单页 ----------
@@ -204,32 +219,55 @@ async function translateEmbeddedPDF(config: TranslateConfig, el: HTMLElement): P
   await translatePDFUrl(config, pdfUrl);
 }
 
-// ---------- 通用 PDF URL（通过 pdf.js）----------
+// ---------- 通用 PDF URL（扩展自行拿二进制 + pdf.js 渲染） ----------
 async function translatePDFUrl(config: TranslateConfig, url: string): Promise<void> {
-  // 动态加载 pdf.js
-  if (!window.pdfjsLib) {
-    await loadPdfJs();
-  }
-
-  if (!window.pdfjsLib) {
-    console.error('[ButlerTranslate] Failed to load pdf.js');
-    return;
-  }
+  const pdfjsLib = await loadPdfJs().catch((e) => {
+    console.error('[ButlerTranslate] 加载本地 pdf.js 失败:', e);
+    return null;
+  });
+  if (!pdfjsLib) return;
 
   try {
-    const pdf = await window.pdfjsLib.getDocument(url).promise;
-    console.log(`[ButlerTranslate] PDF loaded: ${pdf.numPages} pages`);
+    // 优先 fetch 成 arrayBuffer：比 getDocument(url) 可控，失败时能给出明确原因
+    let doc: any;
+    try {
+      const resp = await fetch(url, { credentials: 'include' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const buf = await resp.arrayBuffer();
+      doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    } catch (fetchErr) {
+      console.warn('[ButlerTranslate] 直接 fetch PDF 失败，尝试让 pdf.js 自行加载:', fetchErr);
+      doc = await pdfjsLib.getDocument(url).promise;
+    }
+
+    console.log(`[ButlerTranslate] PDF loaded: ${doc.numPages} pages`);
 
     // 创建翻译覆盖容器
     createPDFContainer();
 
-    for (let i = 1; i <= pdf.numPages; i++) {
+    for (let i = 1; i <= doc.numPages; i++) {
       if (!isEnabled) break;
-      await translatePdfJsPage(pdf, i, config);
+      await translatePdfJsPage(doc, i, config);
     }
   } catch (err) {
     console.error('[ButlerTranslate] PDF load failed:', err);
+    showPDFError('无法读取该 PDF。若需要登录才能访问，请先下载后用「文档翻译」上传。');
   }
+}
+
+/** 在页面上给出明确的失败原因，而不是静默失败 */
+function showPDFError(message: string): void {
+  const el = document.createElement('div');
+  el.className = 'bt-pdf-error';
+  el.style.cssText = `
+    position: fixed; top: 16px; right: 16px; z-index: 2147483647;
+    background: #2b2b2b; color: #fff; padding: 12px 16px; border-radius: 10px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px; max-width: 320px; line-height: 1.6; box-shadow: 0 8px 30px rgba(0,0,0,.3);
+  `;
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 10000);
 }
 
 async function translatePdfJsPage(pdf: any, pageNum: number, config: TranslateConfig): Promise<void> {
@@ -325,23 +363,6 @@ function createPDFContainer(): void {
     background: rgba(255, 255, 255, 0.02);
   `;
   document.body.appendChild(pdfContainer);
-}
-
-async function loadPdfJs(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.mjs';
-    script.type = 'module';
-    script.onload = () => {
-      // 设置 worker
-      if (window.pdfjsLib) {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.worker.min.mjs';
-      }
-      resolve();
-    };
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
 }
 
 function injectPDFStyles(): void {

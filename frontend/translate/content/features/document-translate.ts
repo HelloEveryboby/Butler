@@ -8,6 +8,16 @@ import { sendMessage } from '../../utils/messaging';
 import { TranslateConfig } from '../../utils/types';
 import { injectStyles } from '../styles/styles';
 import { ocrImage, translateDocumentImages } from './image-translate';
+import { loadPdfJs } from '../../utils/vendor';
+import {
+  exportBilingualTxtFromText,
+  exportBilingualMarkdownFromText,
+  buildBilingualEpub,
+  exportBilingualSubtitle,
+  bilingualizeHtmlString,
+} from './export-translate';
+import { parseSubtitle } from '../../utils/subtitle-io';
+import { saveSubtitleSession } from '../../utils/subtitle-history';
 
 /** 支持的文件格式 */
 const SUPPORTED_FORMATS: Record<string, { name: string; handler: string }> = {
@@ -228,7 +238,7 @@ async function handleFile(file: File, config: TranslateConfig): Promise<void> {
 
     const downloadBtn = panelEl?.querySelector('#bt-doc-download') as HTMLButtonElement;
     downloadBtn?.addEventListener('click', () => {
-      const outputName = file.name.replace(ext, `_translated${ext}`);
+      const outputName = file.name.replace(ext, `_双语${ext}`);
       downloadFile(translatedContent, outputName);
     });
 
@@ -238,41 +248,22 @@ async function handleFile(file: File, config: TranslateConfig): Promise<void> {
   }
 }
 
-// ---------- 纯文本翻译 ----------
+// ---------- 纯文本翻译（双语交错：原文 + 译文，段落交错） ----------
 async function translateTextFile(
   file: File, targetLang: string, config: TranslateConfig,
   progressEl: HTMLElement | null, statusEl: HTMLElement | null
 ): Promise<string> {
   const text = await file.text();
-  const lines = text.split('\n');
-
-  // 按段落分组（每 20 行一批）
-  const BATCH = 20;
-  const translatedLines: string[] = [];
-
-  for (let i = 0; i < lines.length; i += BATCH) {
-    const batch = lines.slice(i, i + BATCH);
-    const progress = Math.min(90, 10 + (i / lines.length) * 80);
-    if (progressEl) progressEl.style.width = `${progress}%`;
-    if (statusEl) statusEl.textContent = `翻译中... ${i}/${lines.length} 行`;
-
-    const resp = await sendMessage({
-      type: 'TRANSLATE',
-      texts: batch,
-      to: targetLang,
-    });
-
-    if (resp.type === 'TRANSLATE_RESULT') {
-      translatedLines.push(...resp.results.map(r => r.translated));
-    } else {
-      translatedLines.push(...batch); // 失败保留原文
-    }
-  }
-
-  return translatedLines.join('\n');
+  const cfg = { ...config, targetLang };
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  if (statusEl) statusEl.textContent = '生成双语文本...';
+  // 段落交错：原文 + 译文（代码块不翻译）
+  return ext === 'md'
+    ? exportBilingualMarkdownFromText(text, cfg)
+    : exportBilingualTxtFromText(text, cfg);
 }
 
-// ---------- 字幕翻译（SRT/VTT/ASS）----------
+// ---------- 字幕翻译（SRT/VTT/ASS）：双语输出，时间轴不动 ----------
 async function translateSubtitleFile(
   file: File, targetLang: string, config: TranslateConfig,
   progressEl: HTMLElement | null, statusEl: HTMLElement | null
@@ -280,70 +271,30 @@ async function translateSubtitleFile(
   const text = await file.text();
   const ext = file.name.split('.').pop()?.toLowerCase();
 
-  if (ext === 'srt') return translateSrt(text, targetLang, config, progressEl, statusEl);
-  if (ext === 'vtt') return translateVtt(text, targetLang, config, progressEl, statusEl);
   if (ext === 'ass') return translateAss(text, targetLang, config, progressEl, statusEl);
-  return text;
-}
 
-async function translateSrt(
-  srt: string, targetLang: string, config: TranslateConfig,
-  progressEl: HTMLElement | null, statusEl: HTMLElement | null
-): Promise<string> {
-  // SRT 格式：序号 → 时间 → 文本 → 空行
-  const blocks = srt.split(/\n\n+/);
-  const textBlocks: { index: number; text: string }[] = [];
-
-  blocks.forEach((block, idx) => {
-    const lines = block.trim().split('\n');
-    if (lines.length >= 3) {
-      const text = lines.slice(2).join('\n');
-      if (text.trim()) textBlocks.push({ index: idx, text });
-    }
+  // SRT / VTT：每条 cue 两行（原文 + 译文），时间行原样保留，VTT 保留 WEBVTT 头
+  const isVtt = ext === 'vtt' || /^WEBVTT/.test(text.trim());
+  const doc = parseSubtitle(text, isVtt ? 'vtt' : 'srt');
+  if (doc.cues.length === 0) {
+    throw new Error('未解析出任何字幕条目（请检查 SRT/VTT 格式）');
+  }
+  const result = await exportBilingualSubtitle(doc, isVtt ? 'vtt' : 'srt', { ...config, targetLang }, (s) => {
+    if (statusEl) statusEl.textContent = s;
+    if (progressEl) progressEl.style.width = '60%';
   });
 
-  // 批量翻译
-  const BATCH = 30;
-  const translated = new Map<number, string>();
+  // 记入字幕翻译历史（支持后续双语 SRT/VTT 导出，2.5）
+  await saveSubtitleSession({
+    id: `file-${Date.now()}`,
+    ts: Date.now(),
+    title: file.name.replace(/\.(srt|vtt|ass)$/i, ''),
+    targetLang,
+    preciseTiming: true,
+    pairs: result.pairs,
+  });
 
-  for (let i = 0; i < textBlocks.length; i += BATCH) {
-    const batch = textBlocks.slice(i, i + BATCH);
-    const progress = Math.min(90, 10 + (i / textBlocks.length) * 80);
-    if (progressEl) progressEl.style.width = `${progress}%`;
-    if (statusEl) statusEl.textContent = `翻译字幕... ${i}/${textBlocks.length} 条`;
-
-    const resp = await sendMessage({
-      type: 'TRANSLATE',
-      texts: batch.map(b => b.text),
-      to: targetLang,
-    });
-
-    if (resp.type === 'TRANSLATE_RESULT') {
-      batch.forEach((b, j) => {
-        translated.set(b.index, resp.results[j]?.translated || b.text);
-      });
-    }
-  }
-
-  // 重组 SRT
-  return blocks.map((block, idx) => {
-    const lines = block.trim().split('\n');
-    if (lines.length >= 3 && translated.has(idx)) {
-      return [lines[0], lines[1], translated.get(idx)].join('\n');
-    }
-    return block;
-  }).join('\n\n');
-}
-
-async function translateVtt(
-  vtt: string, targetLang: string, config: TranslateConfig,
-  progressEl: HTMLElement | null, statusEl: HTMLElement | null
-): Promise<string> {
-  // VTT 格式类似 SRT，但有 WEBVTT 头
-  const header = 'WEBVTT\n\n';
-  const content = vtt.replace(/^WEBVTT\n*/, '');
-  const translated = await translateSrt(content, targetLang, config, progressEl, statusEl);
-  return header + translated;
+  return result.content;
 }
 
 async function translateAss(
@@ -351,6 +302,7 @@ async function translateAss(
   progressEl: HTMLElement | null, statusEl: HTMLElement | null
 ): Promise<string> {
   // ASS 格式：Dialogue: 0,0:00:00.00,0:00:05.00,Default,,0,0,0,,文本
+  // 双语输出：文本字段写「原文\N译文」（ASS 换行符 \N），时间轴不动
   const lines = ass.split('\n');
   const dialogueLines: { index: number; text: string }[] = [];
 
@@ -384,146 +336,41 @@ async function translateAss(
     }
   }
 
-  // 重组 ASS
+  // 重组 ASS（双语：原文\N译文，时间轴不动）
   return lines.map((line, idx) => {
     if (translated.has(idx)) {
       const parts = line.split(',');
-      parts[9] = translated.get(idx)!;
+      const original = parts.slice(9).join(',');
+      parts.length = 9;
+      parts.push(`${original.trim()}\N${translated.get(idx)!}`);
       return parts.join(',');
     }
     return line;
   }).join('\n');
 }
 
-// ---------- HTML 翻译 ----------
+// ---------- HTML 翻译（双语交错：原文段落 + 译文块） ----------
 async function translateHtmlFile(
   file: File, targetLang: string, config: TranslateConfig,
   progressEl: HTMLElement | null, statusEl: HTMLElement | null
 ): Promise<string> {
   const html = await file.text();
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-
-  // 提取可见文本
-  const textNodes: { node: Text; text: string }[] = [];
-  const walker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      const parent = node.parentElement;
-      if (!parent) return NodeFilter.FILTER_REJECT;
-      if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) return NodeFilter.FILTER_REJECT;
-      if (!node.textContent?.trim()) return NodeFilter.FILTER_REJECT;
-      return NodeFilter.FILTER_ACCEPT;
-    }
+  return bilingualizeHtmlString(html, { ...config, targetLang }, false, (done, total) => {
+    if (progressEl) progressEl.style.width = `${Math.min(90, 10 + (done / Math.max(total, 1)) * 80)}%`;
+    if (statusEl) statusEl.textContent = `翻译 HTML... ${done}/${total} 段`;
   });
-
-  let node: Text | null;
-  while ((node = walker.nextNode() as Text | null)) {
-    const text = node.textContent?.trim();
-    if (text && text.length >= 2) {
-      textNodes.push({ node, text });
-    }
-  }
-
-  // 批量翻译
-  const BATCH = 20;
-  for (let i = 0; i < textNodes.length; i += BATCH) {
-    const batch = textNodes.slice(i, i + BATCH);
-    if (progressEl) progressEl.style.width = `${Math.min(90, 10 + (i / textNodes.length) * 80)}%`;
-    if (statusEl) statusEl.textContent = `翻译 HTML... ${i}/${textNodes.length} 段`;
-
-    const resp = await sendMessage({
-      type: 'TRANSLATE',
-      texts: batch.map(b => b.text),
-      to: targetLang,
-    });
-
-    if (resp.type === 'TRANSLATE_RESULT') {
-      batch.forEach((b, j) => {
-        const translated = resp.results[j]?.translated;
-        if (translated) b.node.textContent = translated;
-      });
-    }
-  }
-
-  return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
 }
 
-// ---------- Epub 翻译 ----------
+// ---------- Epub 翻译（双语交错，保留原 EPUB 结构） ----------
 async function translateEpubFile(
   file: File, targetLang: string, config: TranslateConfig,
   progressEl: HTMLElement | null, statusEl: HTMLElement | null
 ): Promise<Blob> {
-  // Epub 是 ZIP 包含 HTML 文件
-  // 需要 JSZip 库（动态加载）
-  if (!(window as any).JSZip) {
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
-  }
-
-  const JSZip = (window as any).JSZip;
-  const zip = await JSZip.loadAsync(file);
-  const newZip = new JSZip();
-
-  const htmlFiles: string[] = [];
-  zip.forEach((path: string) => {
-    if (path.endsWith('.html') || path.endsWith('.xhtml') || path.endsWith('.htm')) {
-      htmlFiles.push(path);
-    }
+  // 产品定位：双语对照导出（不是覆盖原文），结构保持不变
+  return buildBilingualEpub(file, { ...config, targetLang }, (msg, pct) => {
+    if (progressEl) progressEl.style.width = `${pct}%`;
+    if (statusEl) statusEl.textContent = msg;
   });
-
-  let processed = 0;
-  for (const path of htmlFiles) {
-    if (progressEl) progressEl.style.width = `${Math.min(90, 10 + (processed / htmlFiles.length) * 80)}%`;
-    if (statusEl) statusEl.textContent = `翻译 Epub... ${processed + 1}/${htmlFiles.length} 页`;
-
-    const content = await zip.file(path)?.async('string');
-    if (content) {
-      const translated = await translateHtmlString(content, targetLang, config);
-      newZip.file(path, translated);
-    }
-    processed++;
-  }
-
-  // 复制非 HTML 文件
-  zip.forEach((path: string) => {
-    if (!newZip.file(path)) {
-      newZip.file(path, zip.file(path)!);
-    }
-  });
-
-  return newZip.generateAsync({ type: 'blob' });
-}
-
-async function translateHtmlString(html: string, targetLang: string, config: TranslateConfig): Promise<string> {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const textNodes: { node: Text; text: string }[] = [];
-
-  const walker = document.createTreeWalker(doc.body || doc.documentElement, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      const parent = node.parentElement;
-      if (!parent || ['SCRIPT', 'STYLE'].includes(parent.tagName)) return NodeFilter.FILTER_REJECT;
-      if (!node.textContent?.trim() || node.textContent.trim().length < 2) return NodeFilter.FILTER_REJECT;
-      return NodeFilter.FILTER_ACCEPT;
-    }
-  });
-
-  let node: Text | null;
-  while ((node = walker.nextNode() as Text | null)) {
-    textNodes.push({ node, text: node.textContent!.trim() });
-  }
-
-  const texts = textNodes.map(n => n.text);
-  if (texts.length === 0) return html;
-
-  const resp = await sendMessage({ type: 'TRANSLATE', texts, to: targetLang });
-  if (resp.type === 'TRANSLATE_RESULT') {
-    textNodes.forEach((n, i) => {
-      const t = resp.results[i]?.translated;
-      if (t) n.node.textContent = t;
-    });
-  }
-
-  return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
 }
 
 // ---------- PDF 文件翻译 ----------
@@ -531,16 +378,13 @@ async function translatePdfFile(
   file: File, targetLang: string, config: TranslateConfig,
   progressEl: HTMLElement | null, statusEl: HTMLElement | null
 ): Promise<string> {
-  // 加载 pdf.js
-  if (!window.pdfjsLib) {
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.js');
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.worker.min.js';
-  }
+  // 加载 pdf.js（本地 vendor chunk，worker 指向本地）
+  const pdfjsLib = await loadPdfJs();
 
   const translateImages = (panelEl?.querySelector('#bt-doc-translate-images') as HTMLInputElement)?.checked ?? false;
 
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const translatedPages: string[] = [];
 
   for (let i = 1; i <= pdf.numPages; i++) {
@@ -618,7 +462,7 @@ function loadScript(src: string): Promise<void> {
     script.src = src;
     script.onload = () => resolve();
     script.onerror = reject;
-    document.head.appendChild(script);
+    (document.head || document.documentElement).appendChild(script);
   });
 }
 

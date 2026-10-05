@@ -4,6 +4,7 @@
    ============================================================ */
 
 import { TranslateConfig, ProviderConfig } from './types';
+import { BUILTIN_PRESETS } from './presets';
 
 /** Butler 默认翻译源：DeepSeek（与主系统一致） */
 export const DEFAULT_PROVIDERS: ProviderConfig[] = [
@@ -53,4 +54,22 @@ export const DEFAULT_CONFIG: TranslateConfig = {
   historyMaxSize: 500,
   butlerBackendUrl: 'ws://127.0.0.1:8765',
   fallbackChain: ['deepseek-default', 'google-free', 'bing-free'],
+
+  // 悬停翻译：按住 Alt 才显示整段译文，松开即消失
+  hoverTriggerKey: 'Alt',
+
+  // AI 上下文翻译（页面摘要 + 术语一致性）
+  ctxEnabled: true,
+
+  // AI 专家 / 行业身份预设
+  presets: BUILTIN_PRESETS,
+  activePresetId: 'general',
+  sitePresetBindings: [],
+
+  // 输入框翻译
+  inputTripleSpace: true,
+  inputDirection: 'auto',
+
+  // 用户自定义站点规则
+  customSiteRules: [],
 };

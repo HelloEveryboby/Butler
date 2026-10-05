@@ -12,6 +12,7 @@ from typing import List, Optional
 PROVIDER_TYPES = (
     "deepseek",
     "openai-compat",
+    "local-llm",
     "google-free",
     "bing-free",
     "deepl",
@@ -78,6 +79,15 @@ def _default_providers() -> List[ProviderConfig]:
             type="bing-free",
             name="微软免费翻译",
         ),
+        # 本地 LLM（Ollama / llama.cpp），离线模式下唯一可用源；默认不在降级链中
+        ProviderConfig(
+            id="local-llm",
+            type="local-llm",
+            name="本地 LLM（Ollama / llama.cpp）",
+            endpoint="http://127.0.0.1:11430/v1",
+            model="qwen2.5:7b",
+            enabled=True,
+        ),
     ]
     return providers
 
@@ -102,6 +112,9 @@ class TranslateSystemConfig:
     # 降级链最大重试
     fallback_max_retries: int = 2
 
+    # 离线模式：开启后只允许本地源（local-llm），禁用所有远程 provider
+    offline_mode: bool = False
+
     @property
     def active_provider_id(self) -> str:
         return self.fallback_chain[0] if self.fallback_chain else ""
@@ -121,6 +134,7 @@ class TranslateSystemConfig:
             "cache_max_size": self.cache_max_size,
             "data_dir": self.data_dir,
             "fallback_max_retries": self.fallback_max_retries,
+            "offline_mode": self.offline_mode,
         }
 
     @classmethod
@@ -134,4 +148,5 @@ class TranslateSystemConfig:
             cache_max_size=data.get("cache_max_size", 2000),
             data_dir=data.get("data_dir", str(Path.home() / ".butler" / "translate")),
             fallback_max_retries=data.get("fallback_max_retries", 2),
+            offline_mode=data.get("offline_mode", False),
         )

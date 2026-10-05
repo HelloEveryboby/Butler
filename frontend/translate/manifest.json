@@ -9,10 +9,17 @@
     "scripting",
     "contextMenus",
     "sidePanel",
-    "clipboardRead"
+    "clipboardRead",
+    "downloads"
   ],
   "host_permissions": [
     "<all_urls>"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["vendor/*", "vendor/tesseract-core/*", "vendor/lang/*", "chunks/*"],
+      "matches": ["<all_urls>"]
+    }
   ],
   "background": {
     "service_worker": "background/service-worker.js",

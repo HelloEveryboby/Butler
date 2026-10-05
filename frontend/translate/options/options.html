@@ -265,6 +265,99 @@
         <span class="form-label">截图翻译快捷键</span>
         <div class="form-control"><input type="text" id="screenshot-key" placeholder="Alt+S"></div>
       </div>
+      <div class="form-row">
+        <span class="form-label">悬停翻译触发键</span>
+        <div class="form-control">
+          <input type="text" id="hover-trigger-key" placeholder="Alt">
+          <div class="form-hint">按住该键并悬停在段落上才显示整段译文，松开即消失</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">输入框三连空格触发</span>
+        <div class="form-control">
+          <input type="checkbox" id="input-triple-space" checked>
+          <div class="form-hint">连续敲 3 个空格翻译输入框内容（对标沉浸式翻译）；contentEditable 仅支持快捷键触发</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">输入翻译方向</span>
+        <div class="form-control">
+          <select id="input-direction">
+            <option value="auto">自动（中→外 / 外→中双向）</option>
+            <option value="zh-to-foreign">强制中→外</option>
+            <option value="foreign-to-zh">强制外→中</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">AI 上下文翻译</span>
+        <div class="form-control">
+          <input type="checkbox" id="ctx-enabled" checked>
+          <div class="form-hint">先让 AI 概括页面 + 提取术语（24h 缓存），再翻译各段落，同页术语一致率更高；仅对 LLM 翻译源生效</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI 专家 / 行业身份预设 -->
+    <h2>AI 专家 / 行业身份预设</h2>
+    <div class="card">
+      <div class="form-row">
+        <span class="form-label">当前预设</span>
+        <div class="form-control"><select id="preset-select"></select></div>
+      </div>
+      <div id="preset-list"></div>
+      <div style="margin-top: 10px; display: flex; gap: 8px;">
+        <button class="btn btn-outline btn-sm" id="preset-new">+ 新建预设</button>
+      </div>
+
+      <!-- 预设编辑器 -->
+      <div class="add-form" id="preset-editor" style="display:none; margin-top:12px;">
+        <input type="hidden" id="preset-edit-id">
+        <div class="form-row">
+          <span class="form-label">名称</span>
+          <div class="form-control"><input type="text" id="preset-edit-name"></div>
+        </div>
+        <div class="form-row">
+          <span class="form-label">身份设定</span>
+          <div class="form-control"><input type="text" id="preset-edit-identity"></div>
+        </div>
+        <div class="form-row">
+          <span class="form-label">语气</span>
+          <div class="form-control"><input type="text" id="preset-edit-tone"></div>
+        </div>
+        <div class="form-row">
+          <span class="form-label">术语倾向</span>
+          <div class="form-control"><input type="text" id="preset-edit-termstyle"></div>
+        </div>
+        <div class="form-row">
+          <span class="form-label">数字规则</span>
+          <div class="form-control"><input type="text" id="preset-edit-numbers"></div>
+        </div>
+        <div class="form-row">
+          <span class="form-label">单位规则</span>
+          <div class="form-control"><input type="text" id="preset-edit-units"></div>
+        </div>
+        <div class="form-row">
+          <span class="form-label">代码规则</span>
+          <div class="form-control"><input type="text" id="preset-edit-code"></div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button class="btn btn-primary btn-sm" id="preset-save">保存预设</button>
+          <button class="btn btn-danger btn-sm" id="preset-delete">删除预设</button>
+          <button class="btn btn-outline btn-sm" id="preset-cancel">取消</button>
+        </div>
+      </div>
+
+      <!-- 按站点绑定默认预设 -->
+      <div style="margin-top: 16px;">
+        <div class="form-hint" style="margin-bottom:6px;">按站点绑定默认预设（域名片段或 /正则/）</div>
+        <div id="preset-bindings"></div>
+        <div style="display:flex; gap:6px; margin-top:8px;">
+          <input type="text" id="binding-pattern" placeholder="github.com 或 /^arxiv\.org$/" style="flex:1; padding:6px 10px; border:1px solid #ddd; border-radius:6px;">
+          <select id="binding-preset" style="padding:6px 10px; border:1px solid #ddd; border-radius:6px;"></select>
+          <button class="btn btn-outline btn-sm" id="binding-add">绑定</button>
+        </div>
+      </div>
     </div>
 
     <!-- 样式 -->
@@ -309,6 +402,22 @@
       </div>
     </div>
 
+    <!-- 自定义站点规则 -->
+    <h2>自定义站点规则</h2>
+    <div class="card">
+      <div class="form-hint" style="margin-bottom: 8px;">
+        自定义规则优先于内置规则生效，格式：{"domain": "example.com", "selectors": ["article"], "exclude": ["pre"]}
+      </div>
+      <textarea id="custom-rules-json" rows="6" style="width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:6px; font-family:monospace; font-size:12px;" placeholder='[{"domain":"example.com","selectors":["article"],"exclude":["pre","code"]}]'></textarea>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="btn btn-primary btn-sm" id="rules-save">保存规则</button>
+        <button class="btn btn-outline btn-sm" id="rules-export">导出 JSON</button>
+        <button class="btn btn-outline btn-sm" id="rules-import">导入 JSON</button>
+        <input type="file" id="rules-file" accept=".json,application/json" style="display:none;">
+      </div>
+      <div id="rules-status" class="form-hint" style="margin-top:8px;"></div>
+    </div>
+
     <!-- Butler 后端 -->
     <h2>Butler 后端</h2>
     <div class="card">
@@ -317,6 +426,29 @@
         <div class="form-control">
           <input type="text" id="butler-url" placeholder="ws://127.0.0.1:8765">
           <div class="form-hint">用于截图翻译和本地模型翻译</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">术语表同步</span>
+        <div class="form-control">
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-outline btn-sm" id="glossary-push">推送术语到后端</button>
+            <button class="btn btn-outline btn-sm" id="glossary-pull">从后端拉取术语</button>
+          </div>
+          <div class="form-hint" id="glossary-sync-status">前后端术语表双向同步（glossary.add / glossary.list）</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">双语 PDF 导出</span>
+        <div class="form-control">
+          <div class="form-hint">需要 Butler 后端提供 export.pdf 接口；后端未启动时导出会明确报错，请改用文档翻译导出 TXT/EPUB</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <span class="form-label">双语导出面板</span>
+        <div class="form-control">
+          <button class="btn btn-outline btn-sm" id="open-export-panel">在当前标签页打开导出面板</button>
+          <div class="form-hint">支持双语 EPUB / PDF / SRT / VTT / TXT / Markdown / 网页快照</div>
         </div>
       </div>
     </div>

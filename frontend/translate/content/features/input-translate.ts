@@ -1,28 +1,36 @@
 /* ============================================================
-   输入框翻译 — 在任意输入框内打中文，翻译成目标语言
+   输入框翻译 — 在任意输入框内打字，一键/三连空格翻译
+   ------------------------------------------------------------
+   触发方式：
+   1. 快捷键（默认 Ctrl+Enter，可配置 inputTranslateKey）
+   2. 三连空格（对标沉浸式翻译，可配置 inputTripleSpace）：
+      光标前「非空格 + 3 个连续空格」触发，3 个空格被吞掉
+   方向：中→外 / 外→中双向（inputDirection: auto / zh-to-foreign / foreign-to-zh）
    ============================================================ */
 
 import { sendMessage } from '../../utils/messaging';
 import { TranslateConfig } from '../../utils/types';
 import { detectLanguageQuick } from '../../utils/languages';
+import {
+  checkTripleSpace,
+  matchHotkey,
+  resolveInputTargetLang,
+} from '../../utils/typing-trigger';
 
 let isEnabled = true;
 
 /** 初始化输入框翻译 */
 export function initInputTranslate(config: TranslateConfig): void {
+  // 快捷键触发（input / textarea / contentEditable 通用）
   document.addEventListener('keydown', (e) => {
     if (!isEnabled) return;
 
-    // 检查快捷键（默认 Ctrl+Enter）
-    const keys = config.inputTranslateKey.split('+').map(k => k.trim().toLowerCase());
-    const match = keys.every(k => {
-      if (k === 'ctrl') return e.ctrlKey || e.metaKey;
-      if (k === 'alt') return e.altKey;
-      if (k === 'shift') return e.shiftKey;
-      if (k === 'enter') return e.key === 'Enter';
-      return e.key.toLowerCase() === k;
+    const match = matchHotkey(config.inputTranslateKey, e.key, {
+      ctrl: e.ctrlKey,
+      alt: e.altKey,
+      shift: e.shiftKey,
+      meta: e.metaKey,
     });
-
     if (!match) return;
 
     const target = e.target as HTMLElement;
@@ -35,6 +43,37 @@ export function initInputTranslate(config: TranslateConfig): void {
     e.stopPropagation();
 
     translateInputElement(target, text, config);
+  });
+
+  // 三连空格触发（input / textarea；contentEditable 的光标文本节点定位不稳定，
+  // 仅支持快捷键触发 —— 不静默失败，见设置页说明）
+  document.addEventListener('keyup', (e) => {
+    if (!isEnabled || !config.inputTripleSpace) return;
+    if (e.key !== ' ') return;
+
+    const target = e.target as HTMLElement;
+    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') return;
+    if (!isEditableElement(target)) return;
+
+    const field = target as HTMLInputElement | HTMLTextAreaElement;
+    const caret = field.selectionStart ?? field.value.length;
+    const check = checkTripleSpace(field.value, caret);
+    if (!check.triggered) return;
+
+    // 吞掉 3 个空格并翻译
+    field.value = check.restText;
+    const newCaret = Math.max(0, caret - 3);
+    try {
+      field.setSelectionRange(newCaret, newCaret);
+    } catch {
+      /* number 等 input 不支持 setSelectionRange，忽略 */
+    }
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+
+    const text = check.restText.trim();
+    if (text.length >= 2) {
+      translateInputElement(target, text, config);
+    }
   });
 }
 
@@ -72,12 +111,9 @@ async function translateInputElement(
   text: string,
   config: TranslateConfig
 ): Promise<void> {
-  // 检测语言
+  // 双向：中→外 / 外→中（auto 自动判断，可强制方向）
   const detected = detectLanguageQuick(text);
-
-  // 如果已经是目标语言，翻译成英文（反向）
-  const from = detected;
-  const to = detected === config.targetLang ? 'en' : config.targetLang;
+  const to = resolveInputTargetLang(detected, config.targetLang, config.inputDirection || 'auto');
 
   // 显示翻译中状态
   const originalBg = el.style.backgroundColor;

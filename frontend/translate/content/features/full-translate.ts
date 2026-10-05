@@ -22,8 +22,8 @@ export async function startFullTranslate(config: TranslateConfig): Promise<void>
 
   isTranslating = true;
   const hostname = window.location.hostname;
-  const siteSelectors = getSiteSelectors(hostname);
-  const siteExcludes = getSiteExcludes(hostname);
+  const siteSelectors = getSiteSelectors(hostname, config.customSiteRules);
+  const siteExcludes = getSiteExcludes(hostname, config.customSiteRules);
   const allExclude = [...config.excludeSelectors, ...siteExcludes];
 
   try {
@@ -41,6 +41,12 @@ export async function startFullTranslate(config: TranslateConfig): Promise<void>
       return;
     }
 
+    // 页面上下文（前 3000 字）：供 AI 摘要 + 术语一致性（1.2）
+    const pageContext = {
+      url: location.href,
+      text: (document.body.innerText || '').slice(0, 3000),
+    };
+
     // 3. 分批翻译（每批 15 段）
     const BATCH_SIZE = 15;
     for (let i = 0; i < segments.length; i += BATCH_SIZE) {
@@ -55,6 +61,7 @@ export async function startFullTranslate(config: TranslateConfig): Promise<void>
           type: 'TRANSLATE',
           texts,
           to: config.targetLang,
+          context: pageContext,
         });
 
         if (resp.type === 'TRANSLATE_RESULT') {
