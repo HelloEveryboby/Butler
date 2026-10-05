@@ -58,3 +58,7 @@ zvec
 websockets
 reportlab
 PyYAML
+
+# ---- Butler 翻译系统双语导出（package/document/translate_system/doc_export.py） ----
+# 双语 EPUB 导出：ebooklib（见上文）；HTML/EPUB 解析：beautifulsoup4（见上文）
+pymupdf  # 双语 PDF 导出（可选依赖，未安装时仅 PDF 导出不可用，模块导入不受影响）

@@ -19,11 +19,17 @@ __all__ = [
     "ProviderConfig",
     "Glossary",
     "TranslationHistory",
+    "TranslationMemory",
+    "Preset",
+    "PresetStore",
     "get_default_system",
     "translate_text",
     "translate_bilingual",
     "translate_file",
     "translate_website",
+    "export_bilingual",
+    "export_bilingual_html",
+    "build_context",
 ]
 
 
@@ -56,3 +62,22 @@ def translate_file(input_file: str, output_file: Optional[str] = None,
 
 def translate_website(url: str, to: Optional[str] = None) -> dict:
     return get_default_system().translate_website(url, to=to)
+
+
+# ---------- 双语导出 / AI 上下文 / 翻译记忆 / 预设（惰性导入） ----------
+
+def __getattr__(name: str):
+    """惰性导出重依赖模块的 API，避免无谓的 import 成本。"""
+    if name in ("export_bilingual", "export_bilingual_html"):
+        from . import doc_export
+        return getattr(doc_export, name)
+    if name == "build_context":
+        from .context import build_context
+        return build_context
+    if name == "TranslationMemory":
+        from .tm import TranslationMemory
+        return TranslationMemory
+    if name in ("Preset", "PresetStore"):
+        from . import presets
+        return getattr(presets, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

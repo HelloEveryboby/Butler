@@ -115,12 +115,111 @@ export function injectReplace(segment: TextSegment, translated: string): void {
 }
 
 /**
- * 悬停模式：给原文添加 tooltip
+ * 悬停模式：不常驻 tooltip，只记录译文。
+ * 「悬停 + 按住触发键（默认 Alt）」才显示整段译文，松开即消失（见 initHoverTranslate）。
  */
 export function injectHover(segment: TextSegment, translated: string): void {
-  segment.parentElement.setAttribute('title', translated);
+  segment.parentElement.setAttribute('data-bt-hover-text', translated);
   segment.parentElement.classList.add('bt-hover-enabled');
 }
+
+/* ---------- 悬停翻译：按住快捷键才显示 ---------- */
+
+let hoverTriggerKey = 'alt';
+let hoverKeyHeld = false;
+let hoverTooltipEl: HTMLDivElement | null = null;
+let hoverCurrentEl: Element | null = null;
+let hoverInitialized = false;
+
+function triggerKeyMatches(e: KeyboardEvent): boolean {
+  const key = hoverTriggerKey.toLowerCase();
+  if (key === 'alt') return e.key === 'Alt';
+  if (key === 'control' || key === 'ctrl') return e.key === 'Control';
+  if (key === 'shift') return e.key === 'Shift';
+  if (key === 'meta' || key === 'cmd') return e.key === 'Meta';
+  return e.key.toLowerCase() === key;
+}
+
+function ensureTooltip(): HTMLDivElement {
+  if (hoverTooltipEl) return hoverTooltipEl;
+  hoverTooltipEl = document.createElement('div');
+  hoverTooltipEl.className = 'bt-hover-tooltip';
+  document.body.appendChild(hoverTooltipEl);
+  return hoverTooltipEl;
+}
+
+function showHoverTooltip(x: number, y: number): void {
+  if (!hoverCurrentEl) return;
+  const text = hoverCurrentEl.getAttribute('data-bt-hover-text');
+  if (!text) return;
+  const tip = ensureTooltip();
+  tip.textContent = text;
+  tip.style.display = 'block';
+  // 避免超出视口
+  const maxX = window.scrollX + window.innerWidth - tip.offsetWidth - 12;
+  const maxY = window.scrollY + window.innerHeight - tip.offsetHeight - 12;
+  tip.style.left = `${Math.min(x + 14, maxX)}px`;
+  tip.style.top = `${Math.min(y + 16, maxY)}px`;
+}
+
+function hideHoverTooltip(): void {
+  if (hoverTooltipEl) hoverTooltipEl.style.display = 'none';
+}
+
+/**
+ * 初始化悬停翻译（按住触发键才显示整段译文）。
+ * @param triggerKey 触发键名（'Alt' / 'Control' / 'Shift' / 任意键名）
+ */
+export function initHoverTranslate(triggerKey: string): void {
+  hoverTriggerKey = triggerKey || 'Alt';
+  if (hoverInitialized) return;
+  hoverInitialized = true;
+
+  document.addEventListener('keydown', (e) => {
+    if (triggerKeyMatches(e)) {
+      hoverKeyHeld = true;
+      if (hoverCurrentEl) {
+        showHoverTooltip(hoverLastX, hoverLastY);
+      }
+    }
+  });
+
+  document.addEventListener('keyup', (e) => {
+    if (triggerKeyMatches(e)) {
+      hoverKeyHeld = false;
+      hideHoverTooltip();
+    }
+  });
+
+  // 窗口失焦时松开状态复位，防止 tooltip 卡住
+  window.addEventListener('blur', () => {
+    hoverKeyHeld = false;
+    hideHoverTooltip();
+  });
+
+  document.addEventListener('mouseover', (e) => {
+    const el = (e.target as Element | null)?.closest?.('[data-bt-hover-text]') || null;
+    hoverCurrentEl = el;
+    if (el && hoverKeyHeld) showHoverTooltip(hoverLastX, hoverLastY);
+    else hideHoverTooltip();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    hoverLastX = e.clientX;
+    hoverLastY = e.clientY;
+    if (hoverKeyHeld && hoverCurrentEl) showHoverTooltip(e.clientX, e.clientY);
+  });
+
+  document.addEventListener('mouseout', (e) => {
+    if (hoverCurrentEl && !hoverCurrentEl.contains(e.relatedTarget as Node)) {
+      hoverCurrentEl = null;
+      hideHoverTooltip();
+    }
+  });
+}
+
+let hoverLastX = 0;
+let hoverLastY = 0;
 
 /**
  * 显示 loading 状态
@@ -173,9 +272,10 @@ export function restoreAll(): void {
   });
   // 移除 hover 效果
   document.querySelectorAll('.bt-hover-enabled').forEach(el => {
-    el.removeAttribute('title');
+    el.removeAttribute('data-bt-hover-text');
     el.classList.remove('bt-hover-enabled');
   });
+  hideHoverTooltip();
 }
 
 /**

@@ -57,16 +57,55 @@ export interface TranslationResult {
   to?: LangCode;
 }
 
+// ---------- AI 页面上下文（摘要 + 术语候选） ----------
+export interface PageContext {
+  summary: string;           // 页面内容摘要
+  terms: GlossaryEntry[];    // 本页术语候选（原文 → 建议译法）
+}
+
+// ---------- AI 专家 / 行业身份预设 ----------
+export interface PresetRules {
+  numbers: string;   // 数字处理规则
+  units: string;     // 单位处理规则
+  code: string;      // 代码 / 专有名词处理规则
+}
+
+export interface PresetTemplate {
+  id: string;
+  name: string;
+  identity: string;      // 身份设定
+  tone: string;          // 语气
+  termStyle: string;     // 术语倾向
+  rules: PresetRules;
+  builtin?: boolean;     // 内置预设（可编辑副本，不可删除）
+}
+
+/** 按站点绑定默认预设 */
+export interface SitePresetBinding {
+  pattern: string;   // 域名片段（hostname.includes）或 /regex/ 字符串
+  presetId: string;
+}
+
+// ---------- 翻译选项（LLM 类 Provider 使用） ----------
+export interface TranslateOptions {
+  /** 术语强制约束（进 prompt，事后仍由 applyGlossary 兜底） */
+  glossary?: GlossaryEntry[];
+  /** 页面上下文（摘要 + 术语） */
+  context?: PageContext;
+  /** 行业身份预设 */
+  preset?: PresetTemplate;
+}
+
 // ---------- 翻译 Provider 接口 ----------
 export interface TranslationProvider {
   readonly id: ProviderId;
   readonly name: string;
 
   /** 翻译单段文本 */
-  translate(text: string, from: LangCode, to: LangCode): Promise<string>;
+  translate(text: string, from: LangCode, to: LangCode, opts?: TranslateOptions): Promise<string>;
 
   /** 批量翻译（默认逐条，子类可覆写为批量 API） */
-  translateBatch?(texts: string[], from: LangCode, to: LangCode): Promise<string[]>;
+  translateBatch?(texts: string[], from: LangCode, to: LangCode, opts?: TranslateOptions): Promise<string[]>;
 }
 
 // ---------- 配置 ----------
@@ -113,6 +152,24 @@ export interface TranslateConfig {
 
   // 降级链
   fallbackChain: string[];  // provider id 列表，按优先级排列
+
+  // 悬停翻译触发键（按住才显示整段译文，松开即消失）
+  hoverTriggerKey: string;
+
+  // AI 上下文翻译（页面摘要 + 术语一致性）
+  ctxEnabled: boolean;
+
+  // AI 专家 / 行业身份预设
+  presets: PresetTemplate[];
+  activePresetId: string;
+  sitePresetBindings: SitePresetBinding[];
+
+  // 输入框翻译
+  inputTripleSpace: boolean;                 // 三连空格触发翻译
+  inputDirection: 'auto' | 'zh-to-foreign' | 'foreign-to-zh';  // 双向切换
+
+  // 用户自定义站点规则
+  customSiteRules: SiteRule[];
 }
 
 // ---------- DOM 分段 ----------
@@ -126,9 +183,10 @@ export interface TextSegment {
 
 // ---------- 消息协议 ----------
 export type MsgType =
-  | { type: 'TRANSLATE'; texts: string[]; from?: LangCode; to: LangCode; providerId?: string }
+  | { type: 'TRANSLATE'; texts: string[]; from?: LangCode; to: LangCode; providerId?: string; context?: { url: string; text: string } }
   | { type: 'TRANSLATE_SELECTION'; text: string }
   | { type: 'TRANSLATE_IMAGE'; base64: string }
+  | { type: 'CAPTURE_VISIBLE_TAB' }
   | { type: 'GET_CONFIG' }
   | { type: 'SET_CONFIG'; config: Partial<TranslateConfig> }
   | { type: 'GET_PROVIDERS' }
@@ -140,7 +198,11 @@ export type MsgType =
   | { type: 'ADD_GLOSSARY'; source: string; target: string }
   | { type: 'REMOVE_GLOSSARY'; source: string }
   | { type: 'GET_HISTORY'; limit?: number }
-  | { type: 'CLEAR_HISTORY' };
+  | { type: 'CLEAR_HISTORY' }
+  | { type: 'GET_PAGE_CONTEXT'; url: string; text: string }
+  | { type: 'EXPORT_PDF'; pdfBase64: string; filename: string; to: LangCode }
+  | { type: 'SYNC_GLOSSARY_PUSH' }
+  | { type: 'SYNC_GLOSSARY_PULL' };
 
 export type MsgResponse =
   | { type: 'TRANSLATE_RESULT'; results: TranslationResult[] }
@@ -149,8 +211,12 @@ export type MsgResponse =
   | { type: 'PROVIDERS'; providers: ProviderConfig[] }
   | { type: 'TEST_RESULT'; success: boolean; message: string }
   | { type: 'IMAGE_TRANSLATE_RESULT'; original: string; translated: string }
+  | { type: 'CAPTURE_RESULT'; dataUrl: string }
   | { type: 'GLOSSARY'; entries: GlossaryEntry[] }
   | { type: 'HISTORY'; entries: HistoryEntry[] }
+  | { type: 'PAGE_CONTEXT'; context: PageContext | null }
+  | { type: 'EXPORT_RESULT'; success: boolean; message: string; dataUrl?: string; filename?: string }
+  | { type: 'ACTION_RESULT'; success: boolean; message: string }
   | { type: 'OK' };
 
 // ---------- 站点规则 ----------

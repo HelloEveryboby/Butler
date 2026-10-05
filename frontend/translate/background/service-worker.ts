@@ -4,26 +4,20 @@
    ============================================================ */
 
 import { loadConfig, saveConfig } from '../utils/storage';
-import { TranslateConfig, MsgType, MsgResponse, TranslationResult, ProviderConfig, HistoryEntry } from '../utils/types';
+import { TranslateConfig, MsgType, MsgResponse, TranslationResult, ProviderConfig, HistoryEntry, TranslateOptions, PageContext } from '../utils/types';
 import { TranslationCache } from './cache';
 import { createProvider, createProviderWithFallback } from './providers/registry';
 import { TranslationProvider } from '../utils/types';
 import { withTimeout, retryWithSplit } from '../utils/retry';
+import { applyGlossary } from './glossary';
+import { ButlerBhlClient } from './bhl';
+import { getPageContext, LlmCaller } from './ctx';
+import { resolvePresetForSite } from '../utils/presets';
 
 // ---------- 全局状态 ----------
 let config: TranslateConfig | null = null;
 const cache = new TranslationCache();
 const HISTORY_KEY = 'butler_translate_history';
-
-// ---------- 术语表工具 ----------
-function applyGlossary(text: string, glossary: { source: string; target: string }[]): string {
-  if (!glossary.length) return text;
-  let result = text;
-  for (const { source, target } of glossary) {
-    if (source) result = result.split(source).join(target);
-  }
-  return result;
-}
 
 // ---------- 历史 ----------
 async function loadHistory(): Promise<HistoryEntry[]> {
@@ -88,11 +82,50 @@ function getFallbackProvider(): TranslationProvider {
   return createProviderWithFallback(providers);
 }
 
+// ---------- AI 上下文 / LLM 调用者 ----------
+/** 找一个可用的 LLM 调用者（活跃 Provider 优先，其次任一已启用的 OpenAI 兼容 Provider） */
+function findLlmCaller(): LlmCaller | null {
+  const cfg = config;
+  if (!cfg) return null;
+  const active = cfg.providers.find(p => p.id === cfg.activeProviderId);
+  const candidates = [active, ...cfg.providers.filter(p => p.enabled && p.id !== active?.id)];
+  for (const p of candidates) {
+    if (!p || !p.enabled) continue;
+    if (p.type === 'openai-compat' || p.type === 'deepseek') {
+      return createProvider(p) as unknown as LlmCaller;
+    }
+  }
+  return null;
+}
+
+/** 从 URL 取 hostname（预设站点绑定用） */
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
+
+/** 翻译链是否包含 LLM 型 Provider（非 LLM 无需生成上下文，省一次调用） */
+function chainUsesLlm(providerId?: string): boolean {
+  const isLlm = (t?: string) => t === 'openai-compat' || t === 'deepseek';
+  const cfg = config!;
+  if (providerId) {
+    return isLlm(cfg.providers.find(p => p.id === providerId)?.type);
+  }
+  return cfg.fallbackChain.some(id => {
+    const p = cfg.providers.find(pp => pp.id === id);
+    return !!p && p.enabled && isLlm(p.type);
+  });
+}
+
 // ---------- 翻译处理 ----------
 async function handleTranslate(
   texts: string[],
   to: string,
-  providerId?: string
+  providerId?: string,
+  context?: { url: string; text: string }
 ): Promise<MsgResponse> {
   try {
     const provider = providerId
@@ -112,24 +145,40 @@ async function handleTranslate(
       return { type: 'TRANSLATE_RESULT', results };
     }
 
-    // 翻译未命中的（应用术语表替换）
+    // 术语表 + 页面上下文 + 行业预设（进 prompt；事后 applyGlossary 兜底）
     const glossary = config!.glossary || [];
-    const missTexts = Array.from(misses.values()).map(t => applyGlossary(t, glossary));
+    const preset = resolvePresetForSite(
+      hostnameOf(context?.url || ''),
+      config!.presets || [],
+      config!.sitePresetBindings || [],
+      config!.activePresetId
+    );
+    let pageContext: PageContext | null = null;
+    if (config!.ctxEnabled && context?.text && chainUsesLlm(providerId)) {
+      pageContext = await getPageContext(context.url, context.text, findLlmCaller());
+    }
+    const opts: TranslateOptions = { glossary, context: pageContext ?? undefined, preset };
+
+    // 翻译未命中的（原文直译，术语约束在 prompt 里）
+    const missTexts = Array.from(misses.values());
     const translated = await withTimeout(
       retryWithSplit(missTexts, async (batch) => {
         if (provider.translateBatch) {
-          return await provider.translateBatch(batch, 'auto', to);
+          return await provider.translateBatch(batch, 'auto', to, opts);
         }
-        return Promise.all(batch.map(t => provider.translate(t, 'auto', to)));
+        return Promise.all(batch.map(t => provider.translate(t, 'auto', to, opts)));
       }),
       60000,
       'Translation'
     );
 
+    // 事后校验：译文兜底套术语表（进 prompt + 事后替换双保险）
+    const finalTranslated = translated.map(t => applyGlossary(t, glossary));
+
     // 写入缓存
     const missKeys = Array.from(misses.keys());
     const originalMissTexts = Array.from(misses.values());
-    translated.forEach((t, i) => {
+    finalTranslated.forEach((t, i) => {
       cache.set(originalMissTexts[i], to, t, provider.name);
     });
 
@@ -141,7 +190,7 @@ async function handleTranslate(
       const missIdx = missKeys.indexOf(idx);
       return {
         original: text,
-        translated: missIdx >= 0 ? translated[missIdx] : text,
+        translated: missIdx >= 0 ? finalTranslated[missIdx] : text,
         provider: provider.name,
       };
     });
@@ -179,20 +228,128 @@ async function handleTestProvider(providerConfig: ProviderConfig): Promise<MsgRe
   }
 }
 
-// ---------- 截图翻译（转发到 Butler 后端） ----------
+// ---------- 截图翻译（转发到 Butler 后端 BHL） ----------
+let bhlClient: ButlerBhlClient | null = null;
+
+function getBhlClient(): ButlerBhlClient {
+  const url = config?.butlerBackendUrl || 'ws://127.0.0.1:8765';
+  if (!bhlClient) bhlClient = new ButlerBhlClient(url);
+  return bhlClient;
+}
+
 async function handleImageTranslate(base64: string): Promise<MsgResponse> {
-  // 通过 Butler BHL WebSocket 发送图片翻译请求
-  // 这里简化为直接返回错误，实际需要连接 Butler 后端
   try {
-    const butlerUrl = config?.butlerBackendUrl || 'ws://127.0.0.1:8765';
-    // TODO: 实现 Butler WebSocket 图片翻译
+    const client = getBhlClient();
+    const result = await client.translateImage(base64, 'auto', config?.targetLang || 'zh-CN');
     return {
       type: 'IMAGE_TRANSLATE_RESULT',
-      original: '[截图翻译需要连接 Butler 后端]',
-      translated: '请确保 Butler 后端正在运行',
+      original: result.text,
+      translated: result.translated,
     };
   } catch (err) {
-    return { type: 'TRANSLATE_ERROR', error: String(err) };
+    return {
+      type: 'TRANSLATE_ERROR',
+      error: `图片翻译需要 Butler 后端（${config?.butlerBackendUrl || 'ws://127.0.0.1:8765'}）：${err}`,
+    };
+  }
+}
+
+// ---------- 可见区域截图（content script 无权调 captureVisibleTab，由这里中转） ----------
+async function handleCaptureVisibleTab(): Promise<MsgResponse> {
+  try {
+    const dataUrl = await chrome.tabs.captureVisibleTab({ format: 'png' });
+    return { type: 'CAPTURE_RESULT', dataUrl };
+  } catch (err) {
+    return { type: 'TRANSLATE_ERROR', error: `截图失败: ${err}` };
+  }
+}
+
+// ---------- 双语 PDF 导出（转发给 Butler 后端 CLI，不支持时如实报错） ----------
+async function handleExportPdf(pdfBase64: string, filename: string, to: string): Promise<MsgResponse> {
+  const backendUrl = config?.butlerBackendUrl || 'ws://127.0.0.1:8765';
+  const client = getBhlClient();
+  const available = await client.isAvailable();
+  if (!available) {
+    return {
+      type: 'EXPORT_RESULT',
+      success: false,
+      message: `Butler 后端未连接（${backendUrl}）：请启动 Butler 后端或使用文档翻译导出 TXT/EPUB`,
+    };
+  }
+  try {
+    const result = await client.exportPdf(pdfBase64, filename, to);
+    return {
+      type: 'EXPORT_RESULT',
+      success: true,
+      message: '双语 PDF 导出完成',
+      dataUrl: result.dataUrl,
+      filename: result.filename,
+    };
+  } catch (err) {
+    return {
+      type: 'EXPORT_RESULT',
+      success: false,
+      message: `双语 PDF 导出失败：${err}。请启动支持 export.pdf 的 Butler 后端，或使用文档翻译导出 TXT/EPUB`,
+    };
+  }
+}
+
+// ---------- 术语表与 Butler 后端双向同步（发送侧） ----------
+async function handleGlossaryPush(): Promise<MsgResponse> {
+  const backendUrl = config?.butlerBackendUrl || 'ws://127.0.0.1:8765';
+  const client = getBhlClient();
+  if (!(await client.isAvailable())) {
+    return {
+      type: 'ACTION_RESULT',
+      success: false,
+      message: `Butler 后端未连接（${backendUrl}）：无法推送术语表`,
+    };
+  }
+  try {
+    const list = config!.glossary || [];
+    let pushed = 0;
+    for (const g of list) {
+      await client.glossaryAdd(g.source, g.target);
+      pushed++;
+    }
+    return { type: 'ACTION_RESULT', success: true, message: `已推送 ${pushed} 条术语到 Butler 后端` };
+  } catch (err) {
+    return { type: 'ACTION_RESULT', success: false, message: `术语推送失败：${err}` };
+  }
+}
+
+async function handleGlossaryPull(): Promise<MsgResponse> {
+  const backendUrl = config?.butlerBackendUrl || 'ws://127.0.0.1:8765';
+  const client = getBhlClient();
+  if (!(await client.isAvailable())) {
+    return {
+      type: 'ACTION_RESULT',
+      success: false,
+      message: `Butler 后端未连接（${backendUrl}）：无法拉取术语表`,
+    };
+  }
+  try {
+    const remote = await client.glossaryList();
+    const list = config!.glossary ? [...config!.glossary] : [];
+    let added = 0;
+    for (const t of remote) {
+      const idx = list.findIndex(g => g.source.toLowerCase() === t.source.toLowerCase());
+      if (idx >= 0) {
+        list[idx] = { source: t.source, target: t.target };
+      } else {
+        list.push({ source: t.source, target: t.target });
+        added++;
+      }
+    }
+    await saveConfig({ glossary: list });
+    config = await loadConfig();
+    return {
+      type: 'ACTION_RESULT',
+      success: true,
+      message: `已从 Butler 后端拉取 ${remote.length} 条术语（新增 ${added} 条）`,
+    };
+  } catch (err) {
+    return { type: 'ACTION_RESULT', success: false, message: `术语拉取失败：${err}` };
   }
 }
 
@@ -244,13 +401,16 @@ chrome.runtime.onMessage.addListener((msg: MsgType, sender, sendResponse) => {
 
     switch (msg.type) {
       case 'TRANSLATE':
-        response = await handleTranslate(msg.texts, msg.to, msg.providerId);
+        response = await handleTranslate(msg.texts, msg.to, msg.providerId, msg.context);
         break;
       case 'TRANSLATE_SELECTION':
         response = await handleTranslate([msg.text], config.targetLang);
         break;
       case 'TRANSLATE_IMAGE':
         response = await handleImageTranslate(msg.base64);
+        break;
+      case 'CAPTURE_VISIBLE_TAB':
+        response = await handleCaptureVisibleTab();
         break;
       case 'GET_CONFIG':
         response = { type: 'CONFIG', config };
@@ -295,6 +455,10 @@ chrome.runtime.onMessage.addListener((msg: MsgType, sender, sendResponse) => {
         else list.push({ source: msg.source, target: msg.target });
         await saveConfig({ glossary: list });
         config = await loadConfig();
+        // 尽力同步到 Butler 后端（后端未启动时静默失败，不影响本地保存）
+        getBhlClient().isAvailable().then(ok => {
+          if (ok) getBhlClient().glossaryAdd(msg.source, msg.target).catch(() => {});
+        }).catch(() => {});
         response = { type: 'OK' };
         break;
       }
@@ -313,6 +477,20 @@ chrome.runtime.onMessage.addListener((msg: MsgType, sender, sendResponse) => {
       case 'CLEAR_HISTORY':
         await chrome.storage.local.remove(HISTORY_KEY);
         response = { type: 'OK' };
+        break;
+      case 'GET_PAGE_CONTEXT': {
+        const ctx = await getPageContext(msg.url, msg.text, findLlmCaller());
+        response = { type: 'PAGE_CONTEXT', context: ctx };
+        break;
+      }
+      case 'EXPORT_PDF':
+        response = await handleExportPdf(msg.pdfBase64, msg.filename, msg.to);
+        break;
+      case 'SYNC_GLOSSARY_PUSH':
+        response = await handleGlossaryPush();
+        break;
+      case 'SYNC_GLOSSARY_PULL':
+        response = await handleGlossaryPull();
         break;
       default:
         response = { type: 'TRANSLATE_ERROR', error: 'Unknown message type' };

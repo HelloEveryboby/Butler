@@ -4,10 +4,12 @@
    ============================================================ */
 
 import { BaseProvider } from './base';
-import { LangCode, ProviderId, ProviderConfig } from '../../utils/types';
+import { LangCode, ProviderId, ProviderConfig, TranslateOptions } from '../../utils/types';
 import { langName } from '../../utils/languages';
+import { buildSystemPrompt } from '../prompt';
+import { LlmCaller } from '../ctx';
 
-export class OpenAICompatProvider extends BaseProvider {
+export class OpenAICompatProvider extends BaseProvider implements LlmCaller {
   readonly id: ProviderId = 'openai-compat';
   readonly name: string;
 
@@ -25,15 +27,25 @@ export class OpenAICompatProvider extends BaseProvider {
     this.prompt = config.prompt || '请将以下{from}文本翻译为{to}，只输出译文，不要解释、不要加引号、不要附加任何其他内容。';
   }
 
-  private buildPrompt(from: LangCode, to: LangCode): string {
-    return this.prompt
-      .replace('{from}', langName(from))
-      .replace('{to}', langName(to));
+  private buildPrompt(from: LangCode, to: LangCode, opts?: TranslateOptions): string {
+    // 术语进 prompt + 页内上下文 + 行业预设（事后仍由 applyGlossary 兜底）
+    return buildSystemPrompt(this.prompt, langName(from), langName(to), opts);
   }
 
-  async translate(text: string, from: LangCode, to: LangCode): Promise<string> {
-    const systemPrompt = this.buildPrompt(from, to);
+  /** 通用 LLM 调用（供 AI 上下文摘要等非翻译任务使用） */
+  async complete(system: string, user: string): Promise<string> {
+    const content = await this.chat([
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ], 2048);
+    return content;
+  }
 
+  /** 底层 chat/completions 调用 */
+  private async chat(
+    messages: Array<{ role: string; content: string }>,
+    maxTokens: number
+  ): Promise<string> {
     const resp = await fetch(`${this.endpoint}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -42,12 +54,9 @@ export class OpenAICompatProvider extends BaseProvider {
       },
       body: JSON.stringify({
         model: this.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: text },
-        ],
+        messages,
         temperature: 0.1,
-        max_tokens: 4096,
+        max_tokens: maxTokens,
       }),
     });
 
@@ -57,7 +66,16 @@ export class OpenAICompatProvider extends BaseProvider {
     }
 
     const data = await resp.json();
-    let result = data?.choices?.[0]?.message?.content?.trim() ?? '';
+    return data?.choices?.[0]?.message?.content ?? '';
+  }
+
+  async translate(text: string, from: LangCode, to: LangCode, opts?: TranslateOptions): Promise<string> {
+    const systemPrompt = this.buildPrompt(from, to, opts);
+
+    let result = (await this.chat([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: text },
+    ], 4096)).trim();
     // 去除大模型可能加的引号
     if ((result.startsWith('"') && result.endsWith('"')) ||
         (result.startsWith('「') && result.endsWith('」'))) {
@@ -66,32 +84,16 @@ export class OpenAICompatProvider extends BaseProvider {
     return result;
   }
 
-  async translateBatch(texts: string[], from: LangCode, to: LangCode): Promise<string[]> {
-    const systemPrompt = this.buildPrompt(from, to);
+  async translateBatch(texts: string[], from: LangCode, to: LangCode, opts?: TranslateOptions): Promise<string[]> {
+    const systemPrompt = this.buildPrompt(from, to, opts);
     // 用编号批量翻译，减少 API 调用
     const numbered = texts.map((t, i) => `[${i}] ${t}`).join('\n\n');
     const userMsg = `请逐条翻译以下文本，保持编号格式不变，每条翻译后空一行：\n\n${numbered}`;
 
-    const resp = await fetch(`${this.endpoint}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMsg },
-        ],
-        temperature: 0.1,
-        max_tokens: 8192,
-      }),
-    });
-
-    if (!resp.ok) throw new Error(`OpenAI-compat batch HTTP ${resp.status}`);
-    const data = await resp.json();
-    const content = data?.choices?.[0]?.message?.content ?? '';
+    const content = await this.chat([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userMsg },
+    ], 8192);
 
     // 解析编号格式 [0] xxx [1] xxx
     const results: string[] = new Array(texts.length).fill('');

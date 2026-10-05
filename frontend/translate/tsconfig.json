@@ -13,6 +13,7 @@
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "types": ["chrome", "node"],
     "declaration": false,
     "baseUrl": ".",
     "paths": {
