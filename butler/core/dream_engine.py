@@ -47,7 +47,8 @@ class DreamEngine:
             # 1. 搜集信号
             signals = self._gather_signals()
             if not signals:
-                logger.info("没有发现新信号，结束做梦。")
+                logger.info("没有发现新信号，跳过记忆整合。")
+                self._self_improve()
                 return
 
             # 2. 整合记忆
@@ -63,8 +64,45 @@ class DreamEngine:
             else:
                 logger.warning("NLUService 不可用，无法整合记忆。")
 
+            # 4. Dream：在发现历史的回放模拟器上做梦（探索策略自改进）
+            self._self_improve()
+
         except Exception as e:
             logger.error(f"做梦过程中发生错误: {e}")
+
+    def _self_improve(self):
+        """Dream 阶段：离线回放评估/修订探索策略（论文 §3 做梦）。
+
+        与记忆整合互不依赖：历史非空即可从回放中改进策略；
+        由 dream.enabled 配置开关控制。
+        """
+        try:
+            from butler.core.dream import (AdaptivePolicy,
+                                               DreamOrchestrator)
+            from butler.core.dream import butler_adapter
+
+            settings = butler_adapter.load_settings()
+            if not settings.get("enabled", True):
+                return
+            forest = butler_adapter.load_forest(settings)
+            if len(forest) == 0:
+                return
+
+            cfg = butler_adapter.config_from_settings(settings)
+            nlu = getattr(self.jarvis, "nlu_service", None) if self.jarvis else None
+            orch = DreamOrchestrator(
+                attempt_fn=lambda ws: butler_adapter.AttemptResult(ws, 0.0),
+                policy=AdaptivePolicy(seed=cfg.seed),
+                config=cfg,
+                forest=forest,
+                developer=butler_adapter.make_developer(nlu, seed=cfg.seed),
+            )
+            report = orch.dream_phase()
+            if report is not None:
+                butler_adapter.save_forest(forest, settings)
+                logger.info(f"[Dream] 策略自改进完成: {report.summary()}")
+        except Exception as e:
+            logger.warning(f"[Dream] 做梦阶段失败: {e}")
 
     def _gather_signals(self):
         """搜集最近 3 天的日志"""

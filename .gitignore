@@ -66,3 +66,6 @@ frontend/translate/vendor/lang/*.traineddata.gz
 
 # OpenClaw 临时工作区（含验证脚本、测试产物、以及临时下载的浏览器二进制）
 .openclaw/
+
+# Dream-RSI 运行时数据（发现历史森林）
+data/dream/

@@ -74,6 +74,20 @@ interpreter:
   safety_mode: true
   max_iterations: 10
 
+dream:
+  # Dream: 递归自我改进（发现历史回放模拟器 + 做梦策略优化）
+  # 只修订探索策略；discovery agent / evaluator 保持固定（论文 §3）
+  enabled: true
+  data_dir: "data/dream"
+  K1: 10          # 单次在线 rollout 最大决策轮数
+  W: 4            # 并行 worker 数（决策批次上限）
+  K2: 10          # 回放最大决策轮数
+  M: 3            # 每次做梦评估的策略版本数（含当前策略，保证不退化）
+  beta1: 0.1      # 执行代价惩罚系数
+  beta2: 0.1      # 并行度奖励系数
+  dream_every: 1  # 每隔多少个在线轮次触发一次做梦
+  seed: 0
+
 runner_server:
   host: "127.0.0.1"
   port: 8000
