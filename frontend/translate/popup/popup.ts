@@ -104,6 +104,30 @@ async function init() {
     });
   });
 
+  // 双语导出（EPUB / PDF / SRT / VTT / TXT / Markdown / 网页快照）
+  document.getElementById('export-bilingual')?.addEventListener('click', () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.id) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'SHOW_EXPORT_PANEL' });
+        window.close();
+      }
+    });
+  });
+
+  // 邮件翻译（Gmail / Outlook Web）
+  document.getElementById('email-translate')?.addEventListener('click', () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.id) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'SHOW_EMAIL_PANEL' }, (resp) => {
+          if (chrome.runtime.lastError) {
+            alert('无法在当前页面打开邮件翻译（请在 Gmail / Outlook Web 页面使用）');
+          }
+          window.close();
+        });
+      }
+    });
+  });
+
   // 视频字幕翻译
   const subtitleBtn = document.getElementById('translate-subtitle') as HTMLButtonElement;
   subtitleBtn?.addEventListener('click', () => {

@@ -324,10 +324,41 @@ const STYLES: Record<string, string> = {
     background: #3a8eef;
   `,
 
-  // ---------- Hover 模式 ----------
+  // ---------- Hover 模式（按住触发键才显示译文 tooltip） ----------
   'bt-hover-enabled': `
     border-bottom: 1px dashed #4a9eff;
     cursor: help;
+  `,
+
+  'bt-hover-tooltip': `
+    position: absolute;
+    z-index: 2147483647;
+    display: none;
+    max-width: 420px;
+    background: rgba(28, 32, 40, 0.95);
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+    white-space: pre-wrap;
+    word-break: break-word;
+  `,
+
+  // ---------- 会议字幕（逐条译文插入字幕面板） ----------
+  'bt-meeting-translation': `
+    display: block;
+    margin-top: 2px;
+    padding: 2px 6px;
+    border-left: 3px solid #4a9eff;
+    background: rgba(74, 158, 255, 0.1);
+    color: inherit;
+    font-size: 0.92em;
+    line-height: 1.45;
+    border-radius: 0 4px 4px 0;
   `,
 
   // ---------- 视频字幕 ----------

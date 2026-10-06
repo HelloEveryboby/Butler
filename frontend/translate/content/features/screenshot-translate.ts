@@ -5,6 +5,7 @@
 
 import { sendMessage } from '../../utils/messaging';
 import { TranslateConfig } from '../../utils/types';
+import { ocrImage } from './image-translate';
 
 let overlayEl: HTMLDivElement | null = null;
 let resultEl: HTMLDivElement | null = null;
@@ -72,26 +73,50 @@ export function startScreenshotTranslate(config: TranslateConfig): void {
     cleanup();
 
     try {
-      // 使用 html2canvas 或 Canvas API 截取区域
+      // 真实截图：content script 无权调 captureVisibleTab，由 background 中转后按 DPR 裁剪
+      showResultWindow('截图中...', '', config);
       const canvas = await captureRegion(x, y, w, h);
-      const base64 = canvas.toDataURL('image/png').split(',')[1];
 
-      // 显示结果窗口
-      showResultWindow('翻译中...', '', config);
+      // 优先本地 OCR（tesseract 已随扩展打包，离线可用）
+      showResultWindow('识别中...', '', config);
+      let original = '';
+      try {
+        const ocr = await ocrImage(canvas);
+        original = ocr.text.trim();
+      } catch (ocrErr) {
+        console.warn('[ButlerTranslate] 本地 OCR 失败，尝试 Butler 后端:', ocrErr);
+      }
 
-      // 发送到翻译服务
-      const resp = await sendMessage({
-        type: 'TRANSLATE_IMAGE',
-        base64,
+      if (!original) {
+        // 本地 OCR 不可用时才走 Butler 后端（需 python 后端 + OCR 组件）
+        const base64 = canvas.toDataURL('image/png').split(',')[1];
+        const resp = await sendMessage({ type: 'TRANSLATE_IMAGE', base64 });
+        if (resp.type === 'IMAGE_TRANSLATE_RESULT') {
+          updateResultWindow(resp.original, resp.translated);
+          return;
+        }
+        throw new Error(
+          resp.type === 'TRANSLATE_ERROR'
+            ? `本地 OCR 不可用，后端也不可用：${resp.error}`
+            : 'OCR 未识别到文字'
+        );
+      }
+
+      // 翻译识别出的文本（走常规翻译链，含缓存/降级）
+      showResultWindow(original, '翻译中...', config);
+      const transResp = await sendMessage({
+        type: 'TRANSLATE',
+        texts: [original],
+        to: config.targetLang,
       });
 
-      if (resp.type === 'IMAGE_TRANSLATE_RESULT') {
-        updateResultWindow(resp.original, resp.translated);
-      } else if (resp.type === 'TRANSLATE_ERROR') {
-        updateResultWindow('', `翻译失败: ${resp.error}`);
+      if (transResp.type === 'TRANSLATE_RESULT') {
+        updateResultWindow(original, transResp.results[0]?.translated || '');
+      } else {
+        updateResultWindow(original, `翻译失败: ${(transResp as any).error || '未知错误'}`);
       }
     } catch (err) {
-      showResultWindow('', `截图失败: ${err}`, config);
+      updateResultWindow('', `截图翻译失败: ${err}`);
     }
   });
 
@@ -111,25 +136,37 @@ export function startScreenshotTranslate(config: TranslateConfig): void {
   }
 }
 
-/** 截取页面区域（使用 Canvas + 视口捕获） */
+/** 截取页面区域（chrome.tabs.captureVisibleTab 中转 + DPR 裁剪） */
 async function captureRegion(x: number, y: number, w: number, h: number): Promise<HTMLCanvasElement> {
-  // 注意：这里简化实现，实际需要 html2canvas 或 chrome.tabs.captureVisibleTab
-  // 由于 content script 无法直接调用 captureVisibleTab，需要通过 background 中转
+  const resp = await sendMessage({ type: 'CAPTURE_VISIBLE_TAB' });
+  if (resp.type !== 'CAPTURE_RESULT') {
+    throw new Error(
+      resp.type === 'TRANSLATE_ERROR' ? resp.error : '无法截取当前标签页'
+    );
+  }
+
+  const img = await loadImage(resp.dataUrl);
+  const dpr = window.devicePixelRatio || 1;
+
   const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
+  canvas.width = Math.max(1, Math.round(w * dpr));
+  canvas.height = Math.max(1, Math.round(h * dpr));
   const ctx = canvas.getContext('2d')!;
-
-  // 创建一个临时的截图（简化方案：使用 window.getComputedStyle 无法截屏）
-  // 实际生产中需要引入 html2canvas 库或通过 background 调用 chrome API
-  ctx.fillStyle = '#f0f0f0';
-  ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = '#333';
-  ctx.font = '14px sans-serif';
-  ctx.fillText('截图翻译需要 Butler 后端支持', 10, 30);
-  ctx.fillText('或引入 html2canvas 库', 10, 50);
-
+  ctx.drawImage(
+    img,
+    Math.round(x * dpr), Math.round(y * dpr), canvas.width, canvas.height,
+    0, 0, canvas.width, canvas.height
+  );
   return canvas;
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('截图解码失败'));
+    img.src = src;
+  });
 }
 
 function showResultWindow(original: string, translated: string, config: TranslateConfig): void {

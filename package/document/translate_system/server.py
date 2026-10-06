@@ -53,6 +53,8 @@ class TranslationBHPServer:
 
             if action == "translate.text":
                 await self._handle_translate(websocket, payload)
+            elif action == "translate.image":
+                await self._handle_translate_image(websocket, payload)
             elif action == "glossary.list":
                 await websocket.send(json.dumps({
                     "action": "glossary.data",
@@ -85,6 +87,37 @@ class TranslationBHPServer:
             }, ensure_ascii=False))
         except Exception as e:  # noqa: BLE001
             logger.exception("translate.text failed")
+            await websocket.send(json.dumps({
+                "action": "translate.error",
+                "payload": {"id": req_id, "error": str(e)},
+            }, ensure_ascii=False))
+
+    async def _handle_translate_image(self, websocket, payload):
+        """图片翻译：本地 OCR + 翻译，供扩展的截图翻译调用。
+
+        请求:  {"action":"translate.image", "payload":{"id","base64","from","to"}}
+        响应:  {"action":"translate.image.result", "payload":{"id","text","translated"}}
+        """
+        req_id = payload.get("id")
+        from_lang = payload.get("from", "auto")
+        to_lang = payload.get("to", "zh-CN")
+        try:
+            from .ocr import OCRUnavailable, ocr_engine
+
+            result = await asyncio.to_thread(ocr_engine.recognize_base64, payload.get("base64", ""))
+            text = (result.text or "").strip()
+            if not text:
+                raise RuntimeError("OCR 未识别到文字")
+
+            translated = await asyncio.to_thread(
+                self.system.translate, text, to_lang, from_lang
+            )
+            await websocket.send(json.dumps({
+                "action": "translate.image.result",
+                "payload": {"id": req_id, "text": text, "translated": translated},
+            }, ensure_ascii=False))
+        except Exception as e:  # noqa: BLE001
+            logger.exception("translate.image failed")
             await websocket.send(json.dumps({
                 "action": "translate.error",
                 "payload": {"id": req_id, "error": str(e)},

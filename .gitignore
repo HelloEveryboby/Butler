@@ -58,3 +58,11 @@ dist/
 build/
 *.egg-info/
 Butler.egg-info/
+
+# Node / 前端构建（frontend/translate 等）
+node_modules/
+# OCR 语言包（体积大，由 npm run fetch:ocr-lang 下载，可选组件）
+frontend/translate/vendor/lang/*.traineddata.gz
+
+# OpenClaw 临时工作区（含验证脚本、测试产物、以及临时下载的浏览器二进制）
+.openclaw/

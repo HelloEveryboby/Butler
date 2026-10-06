@@ -17,10 +17,16 @@ import { initScreenshotTranslate } from './features/screenshot-translate';
 import { initSubtitleTranslate, toggleSubtitleTranslate, isSubtitleTranslateEnabled, stopSubtitleTranslate } from './features/subtitle-translate';
 import { initPDFTranslate, startPDFTranslate, stopPDFTranslate, isPDFPage } from './features/pdf-translate';
 import { showDocumentTranslator, removeDocumentTranslator } from './features/document-translate';
-import { translateImage, translateDocumentImages } from './features/image-translate';
+import { translateDocumentImages } from './features/image-translate';
+import { showExportPanel } from './features/export-translate';
+import { initEmailTranslate, showEmailPanel } from './features/email-translate';
+import { translateComicImage } from './features/comic-translate';
 
 // UI
 import { initFloatingBall, updateBallState } from './ui/floating-ball';
+
+// DOM
+import { initHoverTranslate } from './dom/injector';
 
 // Observers
 import { startObserving, stopObserving } from './observers/mutation';
@@ -54,6 +60,10 @@ async function init() {
   initScreenshotTranslate(config);
   initSubtitleTranslate(config);
   initPDFTranslate(config);
+  initEmailTranslate(config);
+
+  // 悬停翻译：按住触发键（默认 Alt）才显示整段译文，松开即消失
+  initHoverTranslate(config.hoverTriggerKey || 'Alt');
 
   initFloatingBall(config, () => {
     if (config) toggleTranslate(config);
@@ -74,51 +84,75 @@ async function init() {
     updateBallState(true);
   }
 
-  // 监听来自 Background 的消息
+  // 监听来自 Background 的消息。
+  // 注意：onMessage 监听器本身必须是同步的，异步逻辑走 handleMessage()，
+  // 否则返回 Promise 会让 `return true` 失效，sendResponse 通道提前关闭。
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'TOGGLE_TRANSLATE') {
+    handleMessage(msg)
+      .then(sendResponse)
+      .catch((err) => {
+        console.error('[ButlerTranslate] Message handling failed:', err);
+        sendResponse({ type: 'TRANSLATE_ERROR', error: String(err) });
+      });
+    return true; // 保持 sendResponse 通道打开
+  });
+}
+
+/** 异步消息处理（与 listener 分离，见上方注释） */
+async function handleMessage(msg: any): Promise<any> {
+  switch (msg?.type) {
+    case 'TOGGLE_TRANSLATE':
       if (config) toggleTranslate(config);
       updateBallState(isTranslated());
-      sendResponse({ type: 'OK' });
-    }
-    if (msg.type === 'TOGGLE_SUBTITLE') {
-      if (config) {
-        const enabled = toggleSubtitleTranslate(config);
-        sendResponse({ type: 'OK', enabled });
-      }
-    }
-    if (msg.type === 'TOGGLE_PDF') {
+      return { type: 'OK' };
+
+    case 'TOGGLE_SUBTITLE':
+      if (config) return { type: 'OK', enabled: toggleSubtitleTranslate(config) };
+      return { type: 'OK', enabled: false };
+
+    case 'TOGGLE_PDF':
       if (config && isPDFPage()) {
         await startPDFTranslate(config);
-        sendResponse({ type: 'OK', enabled: true });
-      } else {
-        sendResponse({ type: 'OK', enabled: false, message: '当前页面不是 PDF' });
+        return { type: 'OK', enabled: true };
       }
-    }
-    if (msg.type === 'SHOW_DOC_TRANSLATOR') {
+      return { type: 'OK', enabled: false, message: '当前页面不是 PDF' };
+
+    case 'SHOW_DOC_TRANSLATOR':
       if (config) showDocumentTranslator(config);
-      sendResponse({ type: 'OK' });
-    }
-    if (msg.type === 'TRANSLATE_IMAGE_CONTEXT' && msg.imageUrl && config) {
-      const img = document.querySelector(`img[src="${msg.imageUrl}"]`) as HTMLImageElement;
-      if (img) {
-        try {
-          const result = await translateImage(img, config, 'side');
-          img.parentNode?.insertBefore(result, img);
-          img.style.display = 'none';
-        } catch (err) {
-          console.error('[ButlerTranslate] Image context translate failed:', err);
+      return { type: 'OK' };
+
+    case 'SHOW_EXPORT_PANEL':
+      if (config) showExportPanel(config);
+      return { type: 'OK' };
+
+    case 'SHOW_EMAIL_PANEL':
+      if (config) showEmailPanel(config);
+      return { type: 'OK' };
+
+    case 'TRANSLATE_IMAGE_CONTEXT':
+      if (msg.imageUrl && config) {
+        const img = document.querySelector(`img[src="${msg.imageUrl}"]`) as HTMLImageElement | null;
+        if (img) {
+          try {
+            // 漫画翻译（气泡检测 + 文字回填），检测失败自动退化为整图翻译
+            await translateComicImage(img, config);
+          } catch (err) {
+            console.error('[ButlerTranslate] Image context translate failed:', err);
+          }
+        } else {
+          console.warn('[ButlerTranslate] 未找到右键的图片元素:', msg.imageUrl);
         }
       }
-      sendResponse({ type: 'OK' });
-    }
-    if (msg.type === 'TRANSLATE_SELECTION' && msg.text) {
+      return { type: 'OK' };
+
+    case 'TRANSLATE_SELECTION':
       // 从右键菜单触发的划词翻译
-      showQuickTranslation(msg.text, config!);
-      sendResponse({ type: 'OK' });
-    }
-    return true;
-  });
+      if (msg.text && config) showQuickTranslation(msg.text, config);
+      return { type: 'OK' };
+
+    default:
+      return { type: 'OK' };
+  }
 }
 
 function isExcludedSite(): boolean {

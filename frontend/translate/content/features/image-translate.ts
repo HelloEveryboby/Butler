@@ -6,19 +6,20 @@
 import { sendMessage } from '../../utils/messaging';
 import { TranslateConfig } from '../../utils/types';
 import { injectStyles } from '../styles/styles';
+import { loadVendorScript, ocrRuntimeOptions } from '../../utils/vendor';
 
-// ---------- Tesseract.js 动态加载 ----------
+// ---------- Tesseract.js 动态加载（本地 vendor，不走公网 CDN） ----------
 let tesseractReady = false;
 let tesseractWorker: any = null;
 
 async function loadTesseract(): Promise<boolean> {
   if (tesseractReady) return true;
   try {
-    await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
+    await loadVendorScript('tesseract.min.js');
     tesseractReady = true;
     return true;
-  } catch {
-    console.warn('[ButlerTranslate] Failed to load Tesseract.js');
+  } catch (e) {
+    console.warn('[ButlerTranslate] Failed to load local Tesseract.js:', e);
     return false;
   }
 }
@@ -28,14 +29,27 @@ async function getTesseractWorker(): Promise<any> {
   const Tesseract = (window as any).Tesseract;
   if (!Tesseract) return null;
 
-  tesseractWorker = await Tesseract.createWorker('chi_sim+eng', 1, {
-    logger: (m: any) => {
-      if (m.status === 'recognizing text') {
-        updateOCRProgress(Math.round(m.progress * 100));
-      }
-    },
-  });
-  return tesseractWorker;
+  const ocr = ocrRuntimeOptions();
+  try {
+    tesseractWorker = await Tesseract.createWorker('chi_sim+eng', 1, {
+      // 全部指向本地 vendor，离线可用（语言包由 npm run fetch:ocr-lang 提供）
+      workerPath: ocr.workerPath,
+      corePath: ocr.corePath,
+      langPath: ocr.langPath,
+      logger: (m: any) => {
+        if (m.status === 'recognizing text') {
+          updateOCRProgress(Math.round(m.progress * 100));
+        }
+      },
+    });
+    return tesseractWorker;
+  } catch (e) {
+    console.error(
+      '[ButlerTranslate] OCR 初始化失败。若缺少语言包，请运行 `npm run fetch:ocr-lang`：',
+      e
+    );
+    return null;
+  }
 }
 
 // ---------- OCR 进度提示 ----------
@@ -448,6 +462,6 @@ function loadScript(src: string): Promise<void> {
     script.src = src;
     script.onload = () => resolve();
     script.onerror = reject;
-    document.head.appendChild(script);
+    (document.head || document.documentElement).appendChild(script);
   });
 }

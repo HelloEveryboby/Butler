@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Butler 翻译">
+  <!-- maskable 版本：内容收进安全区（中间 80%），四周留纯色底 -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#g)"/>
+  <text x="256" y="268" font-family="'PingFang SC','Noto Sans CJK SC','Microsoft YaHei',sans-serif"
+        font-size="216" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">译</text>
+  <rect x="176" y="352" width="160" height="20" rx="10" fill="#ffffff" opacity="0.55"/>
+</svg>

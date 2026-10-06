@@ -2,7 +2,7 @@
    Provider 注册表 — 根据配置创建 Provider 实例
    ============================================================ */
 
-import { TranslationProvider, ProviderConfig, ProviderId } from '../../utils/types';
+import { TranslationProvider, ProviderConfig, ProviderId, TranslateOptions } from '../../utils/types';
 import { GoogleFreeProvider } from './google-free';
 import { BingFreeProvider } from './bing-free';
 import { OpenAICompatProvider, DeepSeekProvider } from './openai-compat';
@@ -39,11 +39,11 @@ export function createProviderWithFallback(
     id: providers[0].id,
     name: `${providers[0].name}（含降级）`,
 
-    async translate(text, from, to) {
+    async translate(text, from, to, opts?: TranslateOptions) {
       let lastError: Error | null = null;
       for (const provider of providers) {
         try {
-          return await provider.translate(text, from, to);
+          return await provider.translate(text, from, to, opts);
         } catch (err) {
           lastError = err as Error;
           console.warn(`[ButlerTranslate] Provider ${provider.name} failed, trying next...`);
@@ -52,17 +52,17 @@ export function createProviderWithFallback(
       throw lastError || new Error('All providers failed');
     },
 
-    async translateBatch(texts, from, to) {
+    async translateBatch(texts, from, to, opts?: TranslateOptions) {
       let lastError: Error | null = null;
       for (const provider of providers) {
         try {
           if (provider.translateBatch) {
-            return await provider.translateBatch(texts, from, to);
+            return await provider.translateBatch(texts, from, to, opts);
           }
           // 逐条回退
           const results: string[] = [];
           for (const t of texts) {
-            results.push(await provider.translate(t, from, to));
+            results.push(await provider.translate(t, from, to, opts));
           }
           return results;
         } catch (err) {

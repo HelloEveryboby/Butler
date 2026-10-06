@@ -92,7 +92,7 @@ async function showBubble(rect: DOMRect, text: string, config: TranslateConfig):
     if (resp.type === 'TRANSLATE_RESULT' && bubbleEl) {
       const translated = resp.results[0]?.translated || '翻译失败';
       bubbleEl.querySelector('.bt-bubble-content')!.innerHTML = translated;
-      bubbleEl.querySelector('.bt-bubble-actions')!.style.display = 'flex';
+      (bubbleEl.querySelector('.bt-bubble-actions') as HTMLElement).style.display = 'flex';
     }
   } catch (err) {
     if (bubbleEl) {

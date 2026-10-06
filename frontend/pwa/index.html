@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f1f5f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Butler 翻译 PWA：手机上粘贴文本 / 拍照 OCR / 文件导出，段落交错双语对照">
+<title>Butler 翻译</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ===== 顶部栏 ===== -->
+<header class="app-header">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">译</span>
+    <div>
+      <h1>Butler 翻译</h1>
+      <p class="sub">粘贴 / 拍照 / 文件 → 双语对照</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <span id="netBadge" class="badge badge-unknown">检测中…</span>
+    <button id="btnSettings" class="icon-btn" aria-label="设置">⚙</button>
+  </div>
+</header>
+
+<!-- 离线 / 后端不可达横幅 -->
+<div id="offlineBanner" class="banner hidden" role="alert">
+  <strong>后端服务不可达。</strong>
+  <span id="offlineDetail">请在电脑上运行 <code>python3 frontend/pwa/server.py --port 8766</code>，
+  然后用 <code>http://&lt;电脑IP&gt;:8766/</code> 访问本页；也可以点右上角 ⚙ 设置后端地址。</span>
+</div>
+
+<main id="main">
+
+  <!-- ===== Tab 1：文本翻译 ===== -->
+  <section id="tab-translate" class="tab active" aria-label="文本翻译">
+    <div class="card">
+      <label class="label" for="srcText">原文（粘贴或输入）</label>
+      <textarea id="srcText" rows="6" placeholder="把要翻译的文本粘贴到这里…&#10;&#10;空行分段，结果按段落交错显示原文与译文。"></textarea>
+      <div class="row">
+        <button id="btnTranslate" class="btn primary big">翻 译</button>
+        <button id="btnClearText" class="btn ghost">清空</button>
+      </div>
+      <p class="hint">目标语言：<span id="toLangLabel">中文（简体）</span> ·
+        翻译源：<span id="providerLabel">默认</span>
+        <button id="btnQuickSettings" class="link-btn">更改</button></p>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <h2>双语对照</h2>
+        <div class="row">
+          <button id="btnCopyBilingual" class="btn small">复制双语</button>
+          <button id="btnCopyTarget" class="btn small">复制译文</button>
+        </div>
+      </div>
+      <div id="resultBox" class="result">
+        <p class="placeholder">翻译结果会显示在这里（原文在上、译文在下，段落交错）。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Tab 2：拍照 / 图片 OCR ===== -->
+  <section id="tab-camera" class="tab" aria-label="拍照识别">
+    <div class="card">
+      <h2>拍照 / 选图 → OCR</h2>
+      <p class="hint">拍下书页、截图、菜单…先识别文字，再一键翻译。</p>
+      <input type="file" id="ocrFile" accept="image/*" capture="environment" class="file-input">
+      <label for="ocrFile" class="btn big outline block">📷 拍照 / 从相册选图</label>
+      <img id="ocrPreview" class="preview hidden" alt="所选图片预览">
+      <div class="row">
+        <button id="btnOcr" class="btn primary big">识别文字</button>
+        <button id="btnOcrClear" class="btn ghost">清除</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="label" for="ocrText">识别结果（可手动修改）</label>
+      <textarea id="ocrText" rows="5" placeholder="识别出的文字会显示在这里"></textarea>
+      <button id="btnOcrTranslate" class="btn primary big block">翻译识别结果</button>
+    </div>
+
+    <div class="card">
+      <h2>双语对照</h2>
+      <div id="ocrResult" class="result">
+        <p class="placeholder">识别文本的翻译结果会显示在这里。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Tab 3：文件双语导出 ===== -->
+  <section id="tab-file" class="tab" aria-label="文件导出">
+    <div class="card">
+      <h2>上传文件 → 双语导出</h2>
+      <p class="hint">支持 TXT / SRT / MD / VTT（内置兜底）；PDF / EPUB 需要后端 doc_export 模块就绪。</p>
+      <input type="file" id="expFile" accept=".txt,.md,.srt,.vtt,.pdf,.epub" class="file-input">
+      <label for="expFile" class="btn big outline block">📄 选择文件</label>
+      <p id="expFileName" class="hint">未选择文件</p>
+
+      <label class="label" for="expFormat">导出格式</label>
+      <select id="expFormat" class="select">
+        <option value="auto">跟随源文件格式</option>
+        <option value="txt">TXT（段落交错）</option>
+        <option value="srt">SRT（字幕双语）</option>
+        <option value="md">Markdown</option>
+        <option value="pdf">PDF</option>
+        <option value="epub">EPUB</option>
+      </select>
+
+      <button id="btnExport" class="btn primary big block">生成双语文件</button>
+      <p id="expStatus" class="hint"></p>
+      <a id="expDownload" class="btn success big block hidden" download>⬇ 下载双语文件</a>
+    </div>
+  </section>
+
+  <!-- ===== Tab 4：术语表 ===== -->
+  <section id="tab-glossary" class="tab" aria-label="术语表">
+    <div class="card">
+      <h2>术语表</h2>
+      <p class="hint">专有名词固定译法，翻译时强制套用（如 Butler → 巴特勒）。</p>
+      <input id="termSrc" class="input" type="text" placeholder="原文术语，如 Butler">
+      <input id="termTgt" class="input" type="text" placeholder="固定译法，如 巴特勒">
+      <div class="row">
+        <button id="btnTermAdd" class="btn primary big">添加术语</button>
+        <button id="btnTermEditCancel" class="btn ghost hidden">取消修改</button>
+      </div>
+      <p id="termEditTip" class="hint hidden">正在修改术语：保存时会覆盖旧条目。</p>
+    </div>
+    <div class="card">
+      <div class="row between">
+        <h2>已收录 <span id="termCount" class="count">0</span></h2>
+        <button id="btnTermReload" class="btn small">刷新</button>
+      </div>
+      <div id="termList" class="result">
+        <p class="placeholder">还没有术语。在上面添加第一条吧。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Tab 5：历史 ===== -->
+  <section id="tab-history" class="tab" aria-label="历史记录">
+    <div class="card">
+      <div class="row between">
+        <h2>翻译历史</h2>
+        <button id="btnHistoryClear" class="btn small danger">清空历史</button>
+      </div>
+      <p class="hint">保存在本机浏览器（localStorage），不上传。</p>
+      <div id="historyList" class="result">
+        <p class="placeholder">暂无历史记录。</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== 底部 Tab 导航 ===== -->
+<nav class="tabbar" aria-label="主导航">
+  <button class="tab-btn active" data-tab="translate"><span class="ico">译</span>翻译</button>
+  <button class="tab-btn" data-tab="camera"><span class="ico">📷</span>拍照</button>
+  <button class="tab-btn" data-tab="file"><span class="ico">📄</span>文件</button>
+  <button class="tab-btn" data-tab="glossary"><span class="ico">📖</span>术语</button>
+  <button class="tab-btn" data-tab="history"><span class="ico">🕘</span>历史</button>
+</nav>
+
+<!-- ===== 设置面板 ===== -->
+<div id="settingsMask" class="mask hidden"></div>
+<div id="settingsSheet" class="sheet hidden" role="dialog" aria-label="设置">
+  <div class="sheet-head">
+    <h2>设置</h2>
+    <button id="btnSettingsClose" class="icon-btn" aria-label="关闭">✕</button>
+  </div>
+
+  <label class="label" for="setToLang">目标语言</label>
+  <select id="setToLang" class="select"></select>
+
+  <label class="label" for="setProvider">翻译源（默认）</label>
+  <select id="setProvider" class="select"></select>
+  <button id="btnSetProvider" class="btn outline block">设为默认翻译源</button>
+
+  <label class="label" for="setApiKey">API Key（给当前选中的翻译源）</label>
+  <input id="setApiKey" class="input" type="password" placeholder="sk-…（免费翻译源无需填写）">
+  <button id="btnSaveKey" class="btn outline block">保存 Key 到后端</button>
+  <p class="hint">Key 仅保存在后端进程内，重启后需重新填写；也可以用环境变量
+    <code>DEEPSEEK_API_KEY</code> / <code>DEEPL_API_KEY</code> 等注入。</p>
+
+  <label class="label" for="setApiBase">后端地址</label>
+  <input id="setApiBase" class="input" type="text" placeholder="留空 = 当前站点同源（推荐）">
+  <button id="btnSaveApiBase" class="btn outline block">保存后端地址</button>
+
+  <div class="divider"></div>
+  <p class="hint">界面颜色跟随系统深色 / 浅色模式；安装到主屏幕后可离线打开 UI
+    （翻译功能仍需要后端在线）。</p>
+  <p class="hint">版本：PWA v1.0 · <a href="index.html">重新加载</a></p>
+</div>
+
+<div id="toast" class="toast hidden" role="status"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
