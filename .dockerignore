@@ -17,5 +17,4 @@ temp_android_repo/
 release/
 *.exe
 server.log
-sync_hub.log
 .sync_cache.json

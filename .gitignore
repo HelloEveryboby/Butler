@@ -40,7 +40,6 @@ butler-memory/
 
 # Log files
 *.log
-sync_hub.log
 server.log
 sync_cache.json
 .sync_cache.json
