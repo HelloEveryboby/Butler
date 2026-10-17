@@ -93,26 +93,26 @@ interface OnboardingStep {
 
 const onboardingSteps: OnboardingStep[] = [
   {
-    title: '🪐 核心对话中枢 (0,0)',
-    text: '这是 Butler 的 AI 大脑。在此发送消息、拖放截图激光诊断报错，或点击下方<b>快捷指令卡片</b>一键触发自检、清理、音频降噪等自研底层核心能力。',
+    title: '对话',
+    text: '在这里发送消息、拖入报错截图开始诊断，或点击快捷卡片触发自检、清理、音频降噪等功能。',
     quadrant: [0, 0],
     highlight: 'cell-0-0',
   },
   {
-    title: '🕰️ 全局状态时光机 (1,0)',
-    text: '全局可观测时光机。拖动底部时间轴滑块，可以重现系统历史快照和环境传感器遥测曲线，报错状态还会全局高亮提示！',
+    title: '状态回放',
+    text: '拖动底部时间轴可以回看系统历史快照与传感器遥测；异常状态会被高亮标记。',
     quadrant: [1, 0],
     highlight: 'cell-1-0',
   },
   {
-    title: '📊 任务画布 DAG Canvas (0,1)',
-    text: '发光实体连接线任务编排。拖拽技能到此处可以组装复杂的 DAG 流水线。右上角更拥有<b>全新启动控制台</b>，点击即刻产生高对比度连线跑马灯流动！',
+    title: '任务画布',
+    text: '把技能拖进来即可编排 DAG 流水线；右上角的启动控制台可以运行、暂停或清空画布。',
     quadrant: [0, 1],
     highlight: 'cell-0-1',
   },
   {
-    title: '📦 技能仓储与底层硬件 (1,1)',
-    text: '模块化抽屉式技能。One Folder = One Skill。在此浏览各种定制技能与文件仓。右上角可展开终端，监控底层 HAL 硬件传感器与多端 Go 运行器生命周期。',
+    title: '技能仓储',
+    text: '技能按文件夹组织，One Folder = One Skill。右上角可打开终端，查看 HAL 硬件传感器与 Go 运行器状态。',
     quadrant: [1, 1],
     highlight: 'cell-1-1',
   },
@@ -877,12 +877,12 @@ window.launchPixelPet = async (): Promise<void> => {
     if (PyWebViewBridge.isAvailable()) {
       const res = await PyWebViewBridge.callSkill('pixel_pet', 'launch');
       if (res && res.status === 'success') {
-        window.showToast?.('电子宠物', '桌面电子小狗已成功启动！🐾', 'success');
+        window.showToast?.('电子宠物', '桌面电子小狗已成功启动！', 'success');
       } else {
         window.showToast?.('电子宠物', '启动电子宠物失败：' + (res ? res.message : '未知错误'), 'error');
       }
     } else {
-      window.showToast?.('电子宠物', '当前处于浏览器预览模式。请在 Butler 桌面客户端中启动 🐾', 'warning');
+      window.showToast?.('电子宠物', '当前处于浏览器预览模式。请在 Butler 桌面客户端中启动。', 'warning');
     }
   } catch (e: any) {
     window.showToast?.('电子宠物', '启动失败：' + e.message, 'error');
@@ -1026,7 +1026,7 @@ interface ConfigSectionDef {
 
 const CONFIG_SCHEMA: ConfigSectionDef[] = [
   {
-    id: 'api', title: '🧠 AI 模型与 API', icon: 'fa-brain',
+    id: 'api', title: 'AI 模型与 API', icon: 'fa-brain',
     fields: [
       { key: 'api.provider', label: '模型提供商', type: 'select', options: [
         { value: 'deepseek', label: 'DeepSeek' },
@@ -1058,7 +1058,7 @@ const CONFIG_SCHEMA: ConfigSectionDef[] = [
     ],
   },
   {
-    id: 'voice', title: '🎙️ 语音输入输出', icon: 'fa-microphone',
+    id: 'voice', title: '语音输入输出', icon: 'fa-microphone',
     fields: [
       { key: 'voice.mode', label: '语音引擎', type: 'select', options: [
         { value: 'auto', label: '自动选择' },
@@ -1077,13 +1077,13 @@ const CONFIG_SCHEMA: ConfigSectionDef[] = [
     ],
   },
   {
-    id: 'persona', title: '🎭 管家人格', icon: 'fa-user-astronaut',
+    id: 'persona', title: '管家人格', icon: 'fa-user-astronaut',
     fields: [
       { key: 'persona.emotional_mode', label: '情感模式', type: 'boolean' },
     ],
   },
   {
-    id: 'display', title: '🖥️ 显示与界面', icon: 'fa-desktop',
+    id: 'display', title: '显示与界面', icon: 'fa-desktop',
     fields: [
       { key: 'display.default_mode', label: '默认显示模式', type: 'select', options: [
         { value: 'host', label: '主机模式' },
@@ -1098,7 +1098,7 @@ const CONFIG_SCHEMA: ConfigSectionDef[] = [
     ],
   },
   {
-    id: 'performance', title: '⚡ 性能模式', icon: 'fa-tachometer-alt',
+    id: 'performance', title: '性能模式', icon: 'fa-tachometer-alt',
     fields: [
       { key: 'performance.mode', label: '性能模式', type: 'select', options: [
         { value: 'NORMAL', label: 'NORMAL 均衡' },
@@ -1108,14 +1108,14 @@ const CONFIG_SCHEMA: ConfigSectionDef[] = [
     ],
   },
   {
-    id: 'interpreter', title: '🔧 代码解释器', icon: 'fa-code',
+    id: 'interpreter', title: '代码解释器', icon: 'fa-code',
     fields: [
       { key: 'interpreter.safety_mode', label: '安全模式', type: 'boolean' },
       { key: 'interpreter.max_iterations', label: '最大迭代次数', type: 'number' },
     ],
   },
   {
-    id: 'runner_server', title: '🌐 Runner 服务', icon: 'fa-server',
+    id: 'runner_server', title: 'Runner 服务', icon: 'fa-server',
     fields: [
       { key: 'runner_server.host', label: '监听地址', type: 'string' },
       { key: 'runner_server.port', label: '端口', type: 'number' },
@@ -1123,7 +1123,7 @@ const CONFIG_SCHEMA: ConfigSectionDef[] = [
     ],
   },
   {
-    id: 'update_source', title: '📦 资源与更新', icon: 'fa-cloud-download-alt',
+    id: 'update_source', title: '资源与更新', icon: 'fa-cloud-download-alt',
     fields: [
       { key: 'update_source.assets_base_url', label: '资源下载基址', type: 'string' },
       { key: 'update_source.api_latest_release', label: '最新 Release API', type: 'string' },

@@ -598,7 +598,7 @@ class FeaturesHub {
         ? 'computer_type'
         : 'computer_test_gui';
     if (typeof window.triggerQuickAction === 'function') {
-      window.triggerQuickAction(script, '🖥️');
+      window.triggerQuickAction(script);
     }
   }
 
@@ -662,13 +662,13 @@ class FeaturesHub {
     window.showToast?.('语音', '正在录音... 请开始说话', 'info');
 
     if (typeof window.triggerQuickAction === 'function') {
-      window.triggerQuickAction('voice_start', '🎙️');
+      window.triggerQuickAction('voice_start');
     }
 
     setTimeout(() => {
       const transcript = prompt('录音结束，请编辑转录文本（模拟）：', '帮我检查一下今天的邮件');
       if (transcript && typeof window.triggerQuickAction === 'function') {
-        window.triggerQuickAction(transcript, '💬');
+        window.triggerQuickAction(transcript);
       }
     }, 2000);
   }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Butler AI - Next Gen Matrix</title>
+    <title>Butler</title>
     <link rel="stylesheet" href="src/style.css">
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -60,7 +60,7 @@
                 <!-- (0,0) Quadrant: Smart Chat & Debugger -->
                 <section class="matrix-cell" id="cell-0-0">
                     <div class="view-header">
-                        <div class="view-title" id="chat-view-title">智能助手 (Smart Chat)</div>
+                        <div class="view-title" id="chat-view-title">智能助手</div>
                         <div class="status-indicators">
                             <span id="connection-status" class="status-dot green active"></span>
                             <span id="thinking-status" class="status-dot blue"></span>
@@ -68,26 +68,26 @@
                     </div>
                     <div id="interaction-flow">
                         <div class="welcome-message">
-                            <h1>你好，Butler</h1>
-                            <p>随时拖入报错截图，我将为你即刻修复。</p>
+                            <h1>今天要处理什么？</h1>
+                            <p>拖入报错截图、输入指令，或从下方功能开始。</p>
                             <div class="quick-actions-container">
-                                <div class="quick-action-card" onclick="triggerQuickAction('🔍 系统自检与安全审计', '🔍')">
-                                    <i class="fas fa-shield-halved" style="color: #007AFF;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('系统自检与安全审计')">
+                                    <i class="fas fa-shield-halved"></i>
                                     <span class="quick-action-title">系统自检与审计</span>
                                     <span class="quick-action-desc">扫描安全配置、开放端口与环境沙箱</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('🧹 一键清理系统垃圾', '🧹')">
-                                    <i class="fas fa-broom" style="color: #FF9500;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('一键清理系统垃圾')">
+                                    <i class="fas fa-broom"></i>
                                     <span class="quick-action-title">一键清理垃圾</span>
                                     <span class="quick-action-desc">扫描并清除冗余缓存，恢复磁盘空间</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('🎙️ 运行本地 FFT 音频降噪', '🎙️')">
-                                    <i class="fas fa-wave-square" style="color: #34C759;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('运行本地 FFT 音频降噪')">
+                                    <i class="fas fa-wave-square"></i>
                                     <span class="quick-action-title">本地 FFT 降噪</span>
                                     <span class="quick-action-desc"> C++ 音频算法降阶滤波与离线提取</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('🛡️ 开启局域网同步', '🛡️')">
-                                    <i class="fas fa-network-wired" style="color: #AF52DE;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('开启局域网同步')">
+                                    <i class="fas fa-network-wired"></i>
                                     <span class="quick-action-title">局域网同步</span>
                                     <span class="quick-action-desc">一键同步代码与资产到局域网节点</span>
                                 </div>
@@ -95,46 +95,46 @@
 
                             <!-- Butler 应用功能 -->
                             <div class="skill-section-divider">
-                                <span>🚀 Butler 应用功能</span>
+                                <span>应用功能</span>
                             </div>
                             <div class="quick-actions-container">
                                 <div class="quick-action-card" onclick="FeaturesHub.openSessionModeModal()" style="cursor: pointer;">
-                                    <i class="fas fa-code-branch" style="color: #34C759;"></i>
+                                    <i class="fas fa-code-branch"></i>
                                     <span class="quick-action-title">会话模式</span>
                                     <span class="quick-action-desc">本地 / Worktree / 云端模式切换</span>
                                 </div>
                                 <div class="quick-action-card" onclick="FeaturesHub.openGitPanel()" style="cursor: pointer;">
-                                    <i class="fas fa-code-compare" style="color: #FF9500;"></i>
+                                    <i class="fas fa-code-compare"></i>
                                     <span class="quick-action-title">Git 工具</span>
                                     <span class="quick-action-desc">Diff / Commit / Push / PR 管理</span>
                                 </div>
                                 <div class="quick-action-card" onclick="FeaturesHub.openProjectManager()" style="cursor: pointer;">
-                                    <i class="fas fa-folder-tree" style="color: #007AFF;"></i>
+                                    <i class="fas fa-folder-tree"></i>
                                     <span class="quick-action-title">多项目</span>
                                     <span class="quick-action-desc">跨项目多任务并行管理</span>
                                 </div>
                                 <div class="quick-action-card" onclick="FeaturesHub.launchBrowser()" style="cursor: pointer;">
-                                    <i class="fas fa-globe" style="color: #5856D6;"></i>
+                                    <i class="fas fa-globe"></i>
                                     <span class="quick-action-title">应用内浏览器</span>
                                     <span class="quick-action-desc">预览 Web 应用并评论</span>
                                 </div>
                                 <div class="quick-action-card" onclick="FeaturesHub.createPopup()" style="cursor: pointer;">
-                                    <i class="fas fa-window-restore" style="color: #FF2D55;"></i>
+                                    <i class="fas fa-window-restore"></i>
                                     <span class="quick-action-title">浮动窗口</span>
                                     <span class="quick-action-desc">弹出独立对话线程</span>
                                 </div>
                                 <div class="quick-action-card" onclick="FeaturesHub.launchComputerUse()" style="cursor: pointer;">
-                                    <i class="fas fa-desktop" style="color: #AF52DE;"></i>
+                                    <i class="fas fa-desktop"></i>
                                     <span class="quick-action-title">计算机使用</span>
                                     <span class="quick-action-desc">操作桌面应用、测试 GUI</span>
                                 </div>
                                 <div class="quick-action-card" onclick="FeaturesHub.launchVoiceDictation()" style="cursor: pointer;">
-                                    <i class="fas fa-microphone-lines" style="color: #30B0C7;"></i>
+                                    <i class="fas fa-microphone-lines"></i>
                                     <span class="quick-action-title">语音听写</span>
                                     <span class="quick-action-desc">按住录音发送指令</span>
                                 </div>
                                 <div class="quick-action-card" onclick="FeaturesHub.showWorktreeInfo()" style="cursor: pointer;">
-                                    <i class="fas fa-code-fork" style="color: #FF3B30;"></i>
+                                    <i class="fas fa-code-fork"></i>
                                     <span class="quick-action-title">Worktree 管理</span>
                                     <span class="quick-action-desc">隔离的 Git 工作树</span>
                                 </div>
@@ -142,66 +142,66 @@
 
                             <!-- 无 AI 可用技能面板 -->
                             <div class="skill-section-divider">
-                                <span>🧰 本地技能 (Linux 风格, 无需 AI)</span>
+                                <span>本地技能</span>
                             </div>
                             <div class="quick-actions-container">
-                                <div class="quick-action-card" onclick="triggerQuickAction('markitdown -i ', '📄')">
-                                    <i class="fas fa-file-lines" style="color: #007AFF;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('markitdown -i')">
+                                    <i class="fas fa-file-lines"></i>
                                     <span class="quick-action-title">转 Markdown</span>
                                     <span class="quick-action-desc">-i &lt;文件&gt; PDF/DOCX 转为 Markdown</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('docx_read -i ', '📝')">
-                                    <i class="fas fa-file-word" style="color: #2B579A;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('docx_read -i')">
+                                    <i class="fas fa-file-word"></i>
                                     <span class="quick-action-title">读取 Word</span>
                                     <span class="quick-action-desc">-i &lt;文件&gt; 提取 .docx 文本</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('pdf_extract -i ', '📑')">
-                                    <i class="fas fa-file-pdf" style="color: #FF3B30;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('pdf_extract -i')">
+                                    <i class="fas fa-file-pdf"></i>
                                     <span class="quick-action-title">提取 PDF</span>
                                     <span class="quick-action-desc">-i &lt;文件&gt; 提取 PDF 文本</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('archive_compress -o ', '📦')">
-                                    <i class="fas fa-file-zipper" style="color: #FF9500;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('archive_compress -o')">
+                                    <i class="fas fa-file-zipper"></i>
                                     <span class="quick-action-title">压缩打包</span>
                                     <span class="quick-action-desc">-o &lt;输出&gt; -t &lt;目标&gt; [-p 密码]</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('archive_extract -i ', '📤')">
-                                    <i class="fas fa-box-open" style="color: #34C759;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('archive_extract -i')">
+                                    <i class="fas fa-box-open"></i>
                                     <span class="quick-action-title">解压文件</span>
                                     <span class="quick-action-desc">-i &lt;压缩包&gt; [-d 目录] [-p 密码]</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('archive_list -i ', '📋')">
-                                    <i class="fas fa-list" style="color: #5856D6;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('archive_list -i')">
+                                    <i class="fas fa-list"></i>
                                     <span class="quick-action-title">查看压缩包</span>
                                     <span class="quick-action-desc">-i &lt;压缩包&gt; 列出内容</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('uninstaller', '🗑️')">
-                                    <i class="fas fa-trash-can" style="color: #FF3B30;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('uninstaller')">
+                                    <i class="fas fa-trash-can"></i>
                                     <span class="quick-action-title">软件卸载</span>
                                     <span class="quick-action-desc">列出/卸载已安装软件</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('media_scan', '🎵')">
-                                    <i class="fas fa-music" style="color: #FF2D55;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('media_scan')">
+                                    <i class="fas fa-music"></i>
                                     <span class="quick-action-title">媒体扫描</span>
                                     <span class="quick-action-desc">全盘扫描 MP3/WAV/JPG</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('storage_hub --action list', '☁️')">
-                                    <i class="fas fa-cloud" style="color: #007AFF;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('storage_hub --action list')">
+                                    <i class="fas fa-cloud"></i>
                                     <span class="quick-action-title">云盘管理</span>
                                     <span class="quick-action-desc">OneDrive/WebDAV/百度</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('sec_scan -t ', '🔍')">
-                                    <i class="fas fa-radar" style="color: #FF9500;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('sec_scan -t')">
+                                    <i class="fas fa-radar"></i>
                                     <span class="quick-action-title">端口扫描</span>
                                     <span class="quick-action-desc">-t &lt;IP&gt; [-p 端口范围]</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('web_sec_test -t ', '🛡️')">
-                                    <i class="fas fa-shield-halved" style="color: #AF52DE;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('web_sec_test -t')">
+                                    <i class="fas fa-shield-halved"></i>
                                     <span class="quick-action-title">Web 安全测试</span>
                                     <span class="quick-action-desc">-t &lt;URL&gt; [-m recon|scan|full]</span>
                                 </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('format_convert -i ', '🔄')">
-                                    <i class="fas fa-arrows-rotate" style="color: #34C759;"></i>
+                                <div class="quick-action-card" onclick="triggerQuickAction('format_convert -i')">
+                                    <i class="fas fa-arrows-rotate"></i>
                                     <span class="quick-action-title">格式转换</span>
                                     <span class="quick-action-desc">-i &lt;输入&gt; -f &lt;docx|epub|png&gt;</span>
                                 </div>
@@ -225,7 +225,7 @@
                 <!-- (1,0) Quadrant: Time Machine -->
                 <section class="matrix-cell" id="cell-1-0">
                     <div class="view-header">
-                        <div class="view-title" id="tm-view-title">时光监控 (Time Machine)</div>
+                        <div class="view-title" id="tm-view-title">时光监控</div>
                     </div>
                     <div class="timemachine-container">
                         <div class="metrics-visualizer" id="tm-metrics">
@@ -242,7 +242,7 @@
                 <!-- (0,1) Quadrant: DAG Pipeline -->
                 <section class="matrix-cell" id="cell-0-1">
                     <div class="view-header">
-                        <div class="view-title" id="dag-view-title">任务画布 (DAG Canvas)</div>
+                        <div class="view-title" id="dag-view-title">任务画布</div>
                         <div class="dag-toolbar glass-surface" style="display: flex; gap: 8px; padding: 6px 12px; border-radius: 8px; border: var(--subpixel-border);">
                             <button class="icon-btn-small" onclick="runDagPipeline()" title="启动流水线" style="color: #34C759; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 600;"><i class="fas fa-play"></i> 启动</button>
                             <button class="icon-btn-small" onclick="pauseDagPipeline()" title="暂停流水线" style="color: #FF9500; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 600;"><i class="fas fa-pause"></i> 暂停</button>
@@ -261,7 +261,7 @@
                 <!-- (1,1) Quadrant: Skills & Files -->
                 <section class="matrix-cell" id="cell-1-1">
                     <div class="view-header">
-                        <div class="view-title" id="skills-view-title">技能仓储 (Skills & Files)</div>
+                        <div class="view-title" id="skills-view-title">技能仓储</div>
                         <div class="header-actions">
                             <button class="icon-btn-small" onclick="toggleTerminal()" title="打开终端"><i class="fas fa-terminal"></i></button>
                             <button class="icon-btn-small" onclick="toggleMemos()" title="备忘录"><i class="fas fa-sticky-note"></i></button>
@@ -368,7 +368,7 @@
 
                     <!-- AI Suggestion Confirmation Bar -->
                     <div id="ai-tag-suggestion-bar" class="ai-suggestion-bar hidden">
-                        <span style="font-size: 12px; color: var(--text-secondary);"><i class="fas fa-robot" style="color: #5856D6;"></i> AI 建议标签：</span>
+                        <span style="font-size: 12px; color: var(--text-secondary);"><i class="fas fa-robot"></i> AI 建议标签：</span>
                         <div id="ai-suggested-tags-container" style="display: inline-flex; gap: 6px; flex-wrap: wrap;"></div>
                     </div>
 
@@ -502,8 +502,8 @@
                 <!-- Tab 0: All Config (Unified) -->
                 <div id="settings-tab-all-config" class="settings-panel active">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <div class="settings-title" style="margin-bottom: 0;">⚙️ 全部配置中心</div>
-                        <button class="apple-btn-primary" onclick="saveAllConfig()">💾 保存全部配置</button>
+                        <div class="settings-title" style="margin-bottom: 0;"> 全部配置中心</div>
+                        <button class="apple-btn-primary" onclick="saveAllConfig()"> 保存全部配置</button>
                     </div>
                     <div id="all-config-status" style="font-size: 13px; margin-bottom: 12px; color: var(--text-secondary);">加载中...</div>
                     <div id="all-config-container" style="display: flex; flex-direction: column; gap: 14px;"></div>
@@ -618,7 +618,7 @@
 
                     <!-- 语音引擎设置 -->
                     <div class="settings-group-card" style="margin-top: 16px;">
-                        <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">🎙️ 语音输入/输出引擎</div>
+                        <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);"> 语音输入/输出引擎</div>
                         <div class="settings-row">
                             <span class="row-label">语音引擎</span>
                             <select class="apple-select" id="setting-voice-engine" onchange="onVoiceEngineChange()" style="width: 220px;">
@@ -742,7 +742,7 @@
                         </div>
                         <div class="settings-row">
                             <span class="row-label">桌面电子小狗 (Pixel Pet)</span>
-                            <button class="apple-btn-primary" onclick="launchPixelPet()" style="padding: 6px 14px; font-size: 12px; border-radius: 6px; width: 200px;">启动电子宠物 🐾</button>
+                            <button class="apple-btn-primary" onclick="launchPixelPet()" style="padding: 6px 14px; font-size: 12px; border-radius: 6px; width: 200px;">启动电子宠物 </button>
                         </div>
                         <div class="settings-row">
                             <span class="row-label">子界面呼吸灯 (Breathing Lights)</span>
@@ -808,7 +808,7 @@
                 <button class="icon-btn-small" onclick="skipOnboarding()" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer;"><i class="fas fa-times"></i></button>
             </div>
             <div class="onboarding-body" id="onboarding-body-text">
-                欢迎来到 Butler，开启极致本地优先的 AI 空间。
+                欢迎使用 Butler。花一分钟了解四个工作区。
             </div>
             <div class="onboarding-footer">
                 <span class="onboarding-step-indicator" id="onboarding-step-indicator">1 / 4</span>

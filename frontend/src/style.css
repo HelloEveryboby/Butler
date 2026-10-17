@@ -1,47 +1,79 @@
+/* ==============================================================
+   Butler 视觉体系 —「安静的管家」
+   原则：暖中性底色 + 墨色文字 + 单一强调色
+         颜色只表意（状态/强调），不作装饰；无发光、无渐变、无粒子
+         阴影只表达层级；圆角与间距走固定档位；动效短促克制
+   ============================================================== */
 :root {
     --sidebar-width: 260px;
     --mobile-breakpoint: 768px;
     --island-width: 160px;
     --island-height: 40px;
-    --accent-color: #007AFF;
-    --bg-glass: rgba(255, 255, 255, 0.1);
-    --sidebar-glass: rgba(246, 246, 246, 0.85);
-    --border-color: rgba(0, 0, 0, 0.1);
-    --text-primary: #1d1d1f;
-    --text-secondary: #86868b;
-    --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", "Inter", sans-serif;
-    --font-size: 15px;
-    --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
-    /* Butler UI 2.0 Design Tokens */
-    --glass-blur: 30px;
-    --glass-saturation: 180%;
-    --apple-easing: cubic-bezier(0.16, 1, 0.3, 1);
-    --subpixel-border: 0.5px solid rgba(255, 255, 255, 0.15);
-    --glass-bg-white: rgba(255, 255, 255, 0.08);
-    --glass-bg-dark: rgba(28, 28, 30, 0.7);
+    /* 色彩 */
+    --canvas: #ECE9E2;
+    --surface: #FFFFFF;
+    --surface-2: #F7F5F0;
+    --accent-color: #2F6B54;
+    --accent-strong: #255743;
+    --accent-soft: rgba(47, 107, 84, 0.10);
+    --success: #35785A;
+    --warning: #B07A22;
+    --danger: #BB4A40;
+
+    --bg-glass: var(--surface);
+    --sidebar-glass: var(--surface);
+    --border-color: #E0DBD1;
+    --border-strong: #CAC4B6;
+    --text-primary: #22201B;
+    --text-secondary: #6B6558;
+
+    /* 排版：中文优先，系统字体栈 */
+    --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    --font-size: 15px;
+
+    /* 几何 */
+    --radius-sm: 8px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --shadow-sm: 0 1px 2px rgba(36, 34, 29, 0.05);
+    --shadow-md: 0 4px 16px rgba(36, 34, 29, 0.08);
+    --shadow-lg: 0 16px 48px rgba(36, 34, 29, 0.16);
+
+    /* 动效 */
+    --apple-easing: cubic-bezier(0.2, 0, 0, 1);
+    --transition: 0.2s var(--apple-easing);
+    --glass-blur: 20px;
+    --glass-saturation: 120%;
+    --subpixel-border: 1px solid var(--border-color);
+    --glass-bg-white: var(--surface);
+    --glass-bg-dark: #201E1A;
 }
 
 .theme-apple {
-    --bg-glass: rgba(255, 255, 255, 0.65);
-    --sidebar-glass: rgba(246, 246, 246, 0.85);
-    --border-color: rgba(0, 0, 0, 0.08);
-    --text-primary: #1d1d1f;
-    --text-secondary: #86868b;
-    --subpixel-border: 0.5px solid rgba(0, 0, 0, 0.08);
-    --accent-color: #007AFF;
+    --bg-glass: var(--surface);
+    --sidebar-glass: var(--surface);
+    --border-color: #E0DBD1;
+    --text-primary: #22201B;
+    --text-secondary: #6B6558;
+    --subpixel-border: 1px solid var(--border-color);
+    --accent-color: #2F6B54;
 }
 
-/* UI 2.0 Utility Classes */
+/* 实体表面：默认不用毛玻璃；仅在自定义壁纸下启用轻微取色模糊 */
 .glass-surface {
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
     background: var(--bg-glass);
     border: var(--subpixel-border);
 }
 
+body.has-custom-bg .glass-surface,
+body.has-custom-bg .matrix-cell {
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+}
+
 .damping-transition {
-    transition: all 0.6s var(--apple-easing);
+    transition: all 0.25s var(--apple-easing);
 }
 
 * {
@@ -58,8 +90,11 @@ body {
     overflow: hidden;
     background-size: cover;
     background-position: center;
-    background-color: #000;
+    background-color: var(--canvas);
+    color: var(--text-primary);
     position: relative;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
 }
 
 body::before {
@@ -128,12 +163,12 @@ body.has-custom-bg::before {
     bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
-    height: 72px;
-    padding: 0 12px;
+    height: 64px;
+    padding: 0 10px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    border-radius: 20px;
+    gap: 4px;
+    border-radius: var(--radius-lg);
     z-index: 1000;
 }
 
@@ -156,13 +191,13 @@ body.has-custom-bg::before {
 }
 
 .dock-item:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--surface-2);
     color: var(--text-primary);
-    transform: translateY(-4px);
 }
 
 .dock-item.active {
     color: var(--accent-color);
+    background: var(--accent-soft);
 }
 
 .dock-dot {
@@ -220,8 +255,7 @@ body.has-custom-bg::before {
     padding: 24px;
     padding-bottom: 110px; /* Space for Dock */
     box-sizing: border-box;
-    background: var(--bg-glass);
-    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    background: var(--canvas);
     backface-visibility: hidden;
     transition: opacity 0.8s var(--apple-easing), transform 0.8s var(--apple-easing);
 }
@@ -235,8 +269,9 @@ body.has-custom-bg::before {
 }
 
 .view-title {
-    font-size: 20px;
+    font-size: 17px;
     font-weight: 600;
+    letter-spacing: -0.01em;
     color: var(--text-primary);
     transition: opacity 0.5s var(--apple-easing), transform 0.5s var(--apple-easing), visibility 0.5s ease;
 }
@@ -260,9 +295,9 @@ body.onboarding-completed .view-title {
     border-radius: 50%;
     display: inline-block;
 }
-.status-dot.green.active { background: #34C759; box-shadow: 0 0 10px #34C759; }
-.status-dot.blue.active { background: #007AFF; animation: pulse 1.5s infinite; }
-.status-dot.red.active { background: #FF3B30; }
+.status-dot.green.active { background: var(--success); }
+.status-dot.blue.active { background: var(--accent-color); animation: pulse 1.5s infinite; }
+.status-dot.red.active { background: var(--danger); }
 
 @keyframes pulse {
     0% { transform: scale(1); opacity: 1; }
@@ -301,18 +336,17 @@ body.onboarding-completed .view-title {
 }
 
 .workspace-cell {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 20px;
-    border: 0.5px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(20px);
+    background: var(--surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
     overflow: hidden;
     position: relative;
-    transition: transform 0.3s ease, border-color 0.3s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .workspace-cell:hover {
-    border-color: rgba(0, 122, 255, 0.5);
-    transform: translateY(-2px);
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-sm);
 }
 
 /* Debugger Laser Scan Effect */
@@ -323,16 +357,9 @@ body.onboarding-completed .view-title {
     margin-top: 12px;
 }
 
+/* 装饰性扫描线已移除 */
 .laser-line {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    background: linear-gradient(to bottom, transparent, #34C759, transparent);
-    box-shadow: 0 0 15px #34C759;
-    z-index: 10;
-    animation: laser-move 2s linear infinite;
+    display: none;
 }
 
 @keyframes laser-move {
@@ -376,9 +403,9 @@ body.onboarding-completed .view-title {
     align-items: center;
     gap: 8px;
     padding: 6px 12px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    border: 0.5px solid rgba(255, 255, 255, 0.2);
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
     font-size: 13px;
     transition: all 0.2s ease;
 }
@@ -415,20 +442,26 @@ body.onboarding-completed .view-title {
 
 .welcome-message {
     text-align: center;
-    margin-top: 10vh;
+    margin-top: 5vh;
     color: var(--text-primary);
 }
 
-.welcome-message h1 { font-size: 3rem; font-weight: 700; margin-bottom: 12px; }
-.welcome-message p { color: var(--text-secondary); font-size: 1.2rem; }
+.welcome-message h1 {
+    font-size: 2.25rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin-bottom: 10px;
+    color: var(--text-primary);
+}
+.welcome-message p { color: var(--text-secondary); font-size: 1rem; }
 
 /* Chat Bubbles */
 .interaction-line {
-    padding: 14px 20px;
-    border-radius: 18px;
-    max-width: 85%;
-    font-size: 16px;
-    line-height: 1.5;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    max-width: 72%;
+    font-size: 15px;
+    line-height: 1.7;
 }
 
 .user-input-line {
@@ -440,7 +473,7 @@ body.onboarding-completed .view-title {
 
 .ai-output-line {
     align-self: flex-start;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--surface);
     color: var(--text-primary);
     border-bottom-left-radius: 4px;
     border: 1px solid var(--border-color);
@@ -448,19 +481,25 @@ body.onboarding-completed .view-title {
 
 /* Chat Input Area */
 .chat-input-container {
-    padding: 20px 15%;
+    padding: 16px 15%;
     display: flex;
     align-items: center;
-    gap: 12px;
-    background: linear-gradient(to top, var(--bg-glass) 80%, transparent);
+    gap: 10px;
+    background: none;
 }
 
 .input-wrapper {
     flex: 1;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--surface);
     border: 1px solid var(--border-color);
-    border-radius: 24px;
-    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    padding: 10px 16px;
+    transition: border-color 0.2s var(--apple-easing), box-shadow 0.2s var(--apple-easing);
+}
+
+.input-wrapper:focus-within {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 #chat-input {
@@ -480,7 +519,7 @@ body.onboarding-completed .view-title {
 .send-btn {
     width: 36px;
     height: 36px;
-    border-radius: 50%;
+    border-radius: var(--radius-sm);
     background: var(--accent-color);
     border: none;
     color: #fff;
@@ -488,10 +527,10 @@ body.onboarding-completed .view-title {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: 0.2s;
+    transition: background 0.2s var(--apple-easing);
 }
 
-.send-btn:hover { transform: scale(1.1); }
+.send-btn:hover { background: var(--accent-strong); }
 
 /* Terminal View Styling */
 .terminal-wrapper {
@@ -621,18 +660,25 @@ body.onboarding-completed .view-title {
 
 .storage-item {
     padding: 10px 14px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     margin-bottom: 4px;
     cursor: pointer;
     color: var(--text-secondary);
     display: flex;
     align-items: center;
     gap: 10px;
+    transition: background 0.2s var(--apple-easing), color 0.2s var(--apple-easing);
+}
+
+.storage-item:hover {
+    background: var(--surface-2);
+    color: var(--text-primary);
 }
 
 .storage-item.active {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-primary);
+    background: var(--accent-soft);
+    color: var(--accent-color);
+    font-weight: 600;
 }
 
 .files-main-inner {
@@ -1133,29 +1179,32 @@ body.onboarding-completed .view-title {
 }
 
 .settings-nav-item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-2);
 }
 
 .settings-nav-item.active {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--accent-soft);
+    color: var(--accent-color);
+    font-weight: 600;
 }
 
 .settings-icon {
     width: 28px;
     height: 28px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
+    color: var(--text-secondary);
+    background: var(--surface-2);
     font-size: 14px;
 }
 
-.icon-blue { background: #007AFF; }
-.icon-orange { background: #FF9500; }
-.icon-green { background: #34C759; }
-.icon-red { background: #FF3B30; }
-.icon-purple { background: #5856D6; }
+.icon-blue { background: var(--accent-soft); color: var(--accent-color); }
+.icon-orange { background: var(--accent-soft); color: var(--accent-color); }
+.icon-green { background: var(--accent-soft); color: var(--accent-color); }
+.icon-red { background: var(--accent-soft); color: var(--accent-color); }
+.icon-purple { background: var(--accent-soft); color: var(--accent-color); }
 
 .settings-content {
     flex: 1;
@@ -1179,8 +1228,8 @@ body.onboarding-completed .view-title {
 }
 
 .settings-title {
-    font-size: 24px;
-    font-weight: 700;
+    font-size: 20px;
+    font-weight: 600;
     margin-bottom: 24px;
     color: var(--text-primary);
 }
@@ -1254,8 +1303,8 @@ body.onboarding-completed .view-title {
 }
 
 .apple-btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: var(--accent-color);
+    background: var(--surface-2);
+    border-color: var(--border-strong);
 }
 
 .preset-pill-btn {
@@ -1420,15 +1469,9 @@ input:checked + .slider:before {
     line-height: 1.4;
 }
 
-/* Breathing Effect */
+/* 装饰性呼吸光晕已移除：只保留表意的状态指示 */
 .breathing-glow {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    border-radius: 14px;
-    box-shadow: inset 0 0 15px var(--accent-color);
-    opacity: 0.3;
-    animation: breathe 3s infinite ease-in-out;
-    pointer-events: none;
+    display: none;
 }
 
 @keyframes breathe {
@@ -2289,11 +2332,11 @@ body.tm-active #cell-0-1 {
     100% { opacity: 0; transform: translateX(-50%) translateY(-100vh); }
 }
 
-/* Glassmorphism Polish */
+/* 浮层表面：阴影只表达层级，不做发光 */
 .glass-surface {
-    background: rgba(255, 255, 255, 0.05);
-    border: 0.5px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    background: var(--bg-glass);
+    border: var(--subpixel-border);
+    box-shadow: var(--shadow-md);
 }
 
 /* Scrollbar Styling for Apple Look */
@@ -2305,11 +2348,11 @@ body.tm-active #cell-0-1 {
     background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--border-strong);
     border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--text-secondary);
 }
 
 /* Animations */
@@ -2319,10 +2362,9 @@ body.tm-active #cell-0-1 {
 }
 
 .welcome-message h1 {
-    background: linear-gradient(to right, #fff, var(--accent-color));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: fadeIn 1s ease;
+    background: none;
+    -webkit-text-fill-color: var(--text-primary);
+    animation: none;
 }
 
 .skills-drawer {
@@ -2431,39 +2473,14 @@ body.tm-active #cell-0-1 {
     overflow-y: auto;
 }
 
+/* 粒子背景已移除：背景保持安静的纯色纸面 */
 #substrate-heatmap {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: -1;
-    pointer-events: none;
-    filter: blur(40px);
-    opacity: 0.8;
+    display: none;
 }
 
+/* 四角光门（装饰性科幻元素）已移除 */
 .wormhole-gate {
-    position: fixed;
-    width: 150px;
-    height: 150px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(0, 150, 255, 0.2) 0%, rgba(0, 50, 255, 0) 70%);
-    box-shadow: 0 0 30px rgba(0, 150, 255, 0.1);
-    z-index: 1000;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.3s, transform 0.3s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.wormhole-gate.active {
-    opacity: 1;
-    animation: wormhole-pulse 2s infinite ease-in-out;
+    display: none !important;
 }
 
 @keyframes wormhole-pulse {
@@ -2726,18 +2743,30 @@ body.tm-active #cell-0-1 {
 
 /* 2. macOS / iOS Native Dark Mode Overrides (Refined from cyberpunk) */
 .theme-dark {
-    --bg-glass: rgba(28, 28, 30, 0.75);
-    --sidebar-glass: rgba(18, 18, 20, 0.9);
-    --border-color: rgba(255, 255, 255, 0.1);
-    --text-primary: #f5f5f7;
-    --text-secondary: #8e8e93;
-    --subpixel-border: 0.5px solid rgba(255, 255, 255, 0.1);
-    --accent-color: #0A84FF;
+    --canvas: #171613;
+    --surface: #211F1B;
+    --surface-2: #282520;
+    --bg-glass: #211F1B;
+    --sidebar-glass: #211F1B;
+    --border-color: #34302A;
+    --border-strong: #464037;
+    --text-primary: #EAE6DD;
+    --text-secondary: #98917F;
+    --subpixel-border: 1px solid var(--border-color);
+    --accent-color: #5FA98A;
+    --accent-strong: #7CC0A2;
+    --accent-soft: rgba(95, 169, 138, 0.14);
+    --success: #6FBF95;
+    --warning: #D9A94E;
+    --danger: #E0796E;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
 .theme-dark .glass-surface {
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 1px rgba(255, 255, 255, 0.1);
-    border: 0.5px solid rgba(255, 255, 255, 0.1);
+    box-shadow: var(--shadow-md);
+    border: var(--subpixel-border);
 }
 
 .theme-dark .settings-sidebar {
@@ -2874,48 +2903,49 @@ body.tm-active #cell-0-1 {
 .quick-actions-container {
     display: flex;
     gap: 12px;
-    margin-top: 24px;
+    margin-top: 20px;
     width: 100%;
     overflow-x: auto;
-    padding: 4px;
+    padding: 2px;
     scrollbar-width: none;
 }
 .quick-actions-container::-webkit-scrollbar {
     display: none;
 }
 .skill-section-divider {
-    margin-top: 20px;
-    margin-bottom: 4px;
-    padding: 6px 12px;
-    font-size: 13px;
+    margin-top: 28px;
+    margin-bottom: 2px;
+    padding: 0 2px;
+    font-size: 12px;
     font-weight: 600;
+    letter-spacing: 0.06em;
     color: var(--text-secondary);
-    border-left: 3px solid var(--accent-color, #007AFF);
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 0 6px 6px 0;
+    border: none;
+    background: none;
 }
 .quick-action-card {
     flex: 1;
     min-width: 150px;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--surface);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
+    border-radius: var(--radius-md);
     padding: 14px;
     cursor: pointer;
-    transition: all 0.25s var(--apple-easing);
+    box-shadow: 0 1px 2px rgba(36, 34, 29, 0.04);
+    transition: border-color 0.2s var(--apple-easing), box-shadow 0.2s var(--apple-easing);
     display: flex;
     flex-direction: column;
     gap: 8px;
     text-align: left;
 }
 .quick-action-card:hover {
-    background: rgba(255, 255, 255, 0.08);
-    transform: translateY(-3px);
     border-color: var(--accent-color);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    box-shadow: var(--shadow-sm);
 }
 .quick-action-card i {
-    font-size: 20px;
+    font-size: 18px;
+    color: var(--text-primary);
+    opacity: 0.72;
 }
 .quick-action-title {
     font-weight: 600;
@@ -2923,9 +2953,9 @@ body.tm-active #cell-0-1 {
     color: var(--text-primary);
 }
 .quick-action-desc {
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--text-secondary);
-    line-height: 1.4;
+    line-height: 1.5;
 }
 
 /* 5. Flow Animation on SVG connections */
@@ -3802,8 +3832,7 @@ body.interface-mobile .terminal-output,
     position: absolute;
     inset: 0;
     border-radius: 50%;
-    background: var(--accent-color, #5856D6);
-    box-shadow: 0 0 8px 1px var(--accent-color, #5856D6);
+    background: var(--accent-color);
     transform-origin: center;
     will-change: opacity, transform;
 }
@@ -3813,14 +3842,12 @@ body.interface-mobile .terminal-output,
 }
 
 .breath-dot.state-running .breath-dot-core {
-    background: #FF9500;
-    box-shadow: 0 0 10px 2px rgba(255, 149, 0, 0.8);
+    background: var(--warning);
     animation: breath-flash 0.5s ease-in-out infinite;
 }
 
 .breath-dot.state-error .breath-dot-core {
-    background: #FF3B30;
-    box-shadow: 0 0 10px 2px rgba(255, 59, 48, 0.8);
+    background: var(--danger);
     animation: breath-alert 1s ease-in-out infinite;
 }
 
@@ -3874,4 +3901,37 @@ body.interface-mobile .terminal-output,
 #breath-lights.breath-lights-hud {
     top: 14px;
     left: 14px;
+}
+
+/* ============================================================
+   全局收尾：统一交互态与动效降级
+   ============================================================ */
+button:focus-visible,
+[contenteditable]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+.icon-btn-small {
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    transition: background 0.2s var(--apple-easing), color 0.2s var(--apple-easing);
+}
+
+.icon-btn-small:hover {
+    background: var(--surface-2);
+    color: var(--text-primary);
+}
+
+/* 系统开启「减弱动态效果」时，全部装饰性动画降级 */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }

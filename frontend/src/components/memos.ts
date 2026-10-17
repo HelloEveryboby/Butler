@@ -388,7 +388,7 @@ class MemosManager {
         title = contentLines[0].replace(/^[#\s\-*]+/g, '');
       }
       if (title.length === 0) {
-        title = `📝 备忘记录 #${memo.id}`;
+        title = `备忘记录 #${memo.id}`;
       } else if (title.length > 30) {
         title = title.substring(0, 30) + '...';
       }
@@ -552,7 +552,7 @@ class MemosManager {
 
   public async editTag(el: HTMLElement, noteId: number): Promise<void> {
     const current = el.textContent?.trim() || '';
-    const newVal = prompt('✏️ 修改标签：', current);
+    const newVal = prompt('修改标签：', current);
     if (newVal === null) return;
     const trimmed = newVal.trim();
     if (!trimmed) {
@@ -574,7 +574,7 @@ class MemosManager {
 
   public async editDetail(el: HTMLElement, noteId: number, label: string): Promise<void> {
     const current = el.textContent?.trim() || '';
-    const newVal = prompt(`✏️ 修改「${label}」：`, current);
+    const newVal = prompt(`修改「${label}」：`, current);
     if (newVal === null) return;
     const trimmed = newVal.trim();
     if (!trimmed) {
