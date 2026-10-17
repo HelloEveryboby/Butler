@@ -2900,14 +2900,14 @@ body.tm-active #cell-0-1 {
 }
 
 /* 4. Quick Action Cards in Chat Quadrant */
+/* 快捷功能：纵向网格排布，一屏可见，不用横向滚动 */
 .quick-actions-container {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 12px;
-    margin-top: 20px;
+    margin-top: 16px;
     width: 100%;
-    overflow-x: auto;
     padding: 2px;
-    scrollbar-width: none;
 }
 .quick-actions-container::-webkit-scrollbar {
     display: none;
@@ -2915,17 +2915,16 @@ body.tm-active #cell-0-1 {
 .skill-section-divider {
     margin-top: 28px;
     margin-bottom: 2px;
-    padding: 0 2px;
+    padding: 0 2px 8px;
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.06em;
     color: var(--text-secondary);
     border: none;
+    border-bottom: 1px solid var(--border-color);
     background: none;
 }
 .quick-action-card {
-    flex: 1;
-    min-width: 150px;
     background: var(--surface);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
