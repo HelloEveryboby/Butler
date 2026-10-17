@@ -113,7 +113,7 @@ declare global {
     loadAllConfig?: () => Promise<void>;
     saveMemorySettings?: () => void;
     testHalConnection?: () => void;
-    toggleThemeMode?: () => void;
+    updateThemeStyle?: (style: string) => void;
     updateBlurValue?: (val: string | number) => void;
     updateFontFamily?: (val: string) => void;
     updateFontSize?: (val: string) => void;

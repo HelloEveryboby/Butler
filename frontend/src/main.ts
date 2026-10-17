@@ -842,17 +842,12 @@ window.testHalConnection = (): void => {
   }, 1500);
 };
 
-window.toggleThemeMode = (): void => {
-  const toggleInput = document.getElementById('setting-theme-toggle') as HTMLInputElement;
-  if (toggleInput) {
-    if (toggleInput.checked) {
-      styleManager.applyTheme('dark');
-      window.showToast?.('深浅主题', '已切换至暗黑磨砂玻璃主题。', 'success');
-    } else {
-      styleManager.applyTheme('apple');
-      window.showToast?.('深浅主题', '已切换至 Apple 白磨砂极简主题。', 'success');
-    }
-  }
+window.updateThemeStyle = (style: string): void => {
+  const theme = (['apple', 'dark', 'google'].includes(style) ? style : 'apple') as 'apple' | 'dark' | 'google';
+  styleManager.applyTheme(theme);
+  appConfig.set('theme', theme);
+  const names = { apple: '苹果浅色', dark: '苹果深色', google: '谷歌 Material' } as const;
+  window.showToast?.('主题风格', `已切换至${names[theme]}风格。`, 'success');
 };
 
 window.updateBlurValue = (val: string | number): void => {

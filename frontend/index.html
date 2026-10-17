@@ -8,7 +8,7 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Xterm.js -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">
@@ -696,15 +696,12 @@
                     <div class="settings-title">界面与主题设置</div>
                     <div class="settings-group-card">
                         <div class="settings-row">
-                            <span class="row-label">深浅色模式切换</span>
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <span style="font-size: 14px; opacity: 0.8;">Light</span>
-                                <label class="switch">
-                                    <input type="checkbox" id="setting-theme-toggle" onchange="toggleThemeMode()">
-                                    <span class="slider round"></span>
-                                </label>
-                                <span style="font-size: 14px; opacity: 0.8;">Dark (Midnight Cyberpunk)</span>
-                            </div>
+                            <span class="row-label">主题风格</span>
+                            <select class="apple-select" id="setting-theme-style" onchange="updateThemeStyle(this.value)" style="width: 200px;">
+                                <option value="apple">苹果浅色 (Apple HIG)</option>
+                                <option value="dark">苹果深色 (Apple Dark)</option>
+                                <option value="google">谷歌 Material</option>
+                            </select>
                         </div>
                         <div class="settings-row">
                             <span class="row-label">全局高斯模糊度</span>

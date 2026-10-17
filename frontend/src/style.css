@@ -1,8 +1,10 @@
 /* ==============================================================
-   Butler 视觉体系 —「安静的管家」
-   原则：暖中性底色 + 墨色文字 + 单一强调色
-         颜色只表意（状态/强调），不作装饰；无发光、无渐变、无粒子
-         阴影只表达层级；圆角与间距走固定档位；动效短促克制
+   Butler 视觉体系 —— 原生风格（Apple HIG / Google Material）
+   三套主题共用组件，仅换 token：
+     :root / .theme-apple  苹果浅色（默认）
+     .theme-dark           苹果深色
+     .theme-google         谷歌 Material
+   颜色只表意不装饰；无发光、无粒子；阴影只表达层级
    ============================================================== */
 :root {
     --sidebar-width: 260px;
@@ -10,35 +12,35 @@
     --island-width: 160px;
     --island-height: 40px;
 
-    /* 色彩 */
-    --canvas: #ECE9E2;
+    /* 色彩 —— Apple 系统色 */
+    --canvas: #F5F5F7;
     --surface: #FFFFFF;
-    --surface-2: #F7F5F0;
-    --accent-color: #2F6B54;
-    --accent-strong: #255743;
-    --accent-soft: rgba(47, 107, 84, 0.10);
-    --success: #35785A;
-    --warning: #B07A22;
-    --danger: #BB4A40;
+    --surface-2: #ECECEE;
+    --accent-color: #007AFF;
+    --accent-strong: #0071E3;
+    --accent-soft: rgba(0, 122, 255, 0.10);
+    --success: #248A3D;
+    --warning: #C7791F;
+    --danger: #D70015;
 
     --bg-glass: var(--surface);
     --sidebar-glass: var(--surface);
-    --border-color: #E0DBD1;
-    --border-strong: #CAC4B6;
-    --text-primary: #22201B;
-    --text-secondary: #6B6558;
+    --border-color: rgba(60, 60, 67, 0.14);
+    --border-strong: rgba(60, 60, 67, 0.29);
+    --text-primary: #1D1D1F;
+    --text-secondary: #6E6E73;
 
-    /* 排版：中文优先，系统字体栈 */
-    --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    /* 排版：SF Pro / 苹方 */
+    --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
     --font-size: 15px;
 
     /* 几何 */
-    --radius-sm: 8px;
+    --radius-sm: 6px;
     --radius-md: 10px;
     --radius-lg: 14px;
-    --shadow-sm: 0 1px 2px rgba(36, 34, 29, 0.05);
-    --shadow-md: 0 4px 16px rgba(36, 34, 29, 0.08);
-    --shadow-lg: 0 16px 48px rgba(36, 34, 29, 0.16);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.10);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.16);
 
     /* 动效 */
     --apple-easing: cubic-bezier(0.2, 0, 0, 1);
@@ -47,17 +49,44 @@
     --glass-saturation: 120%;
     --subpixel-border: 1px solid var(--border-color);
     --glass-bg-white: var(--surface);
-    --glass-bg-dark: #201E1A;
+    --glass-bg-dark: #1C1C1E;
 }
 
 .theme-apple {
     --bg-glass: var(--surface);
     --sidebar-glass: var(--surface);
-    --border-color: #E0DBD1;
-    --text-primary: #22201B;
-    --text-secondary: #6B6558;
+    --border-color: rgba(60, 60, 67, 0.14);
+    --text-primary: #1D1D1F;
+    --text-secondary: #6E6E73;
     --subpixel-border: 1px solid var(--border-color);
-    --accent-color: #2F6B54;
+    --accent-color: #007AFF;
+}
+
+/* Google Material —— Roboto + Google 蓝 */
+.theme-google {
+    --canvas: #F8F9FA;
+    --surface: #FFFFFF;
+    --surface-2: #F1F3F4;
+    --bg-glass: var(--surface);
+    --sidebar-glass: var(--surface);
+    --border-color: #DADCE0;
+    --border-strong: #BDC1C6;
+    --text-primary: #202124;
+    --text-secondary: #5F6368;
+    --subpixel-border: 1px solid var(--border-color);
+    --accent-color: #1A73E8;
+    --accent-strong: #1557B0;
+    --accent-soft: rgba(26, 115, 232, 0.10);
+    --success: #188038;
+    --warning: #E37400;
+    --danger: #D93025;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --shadow-sm: 0 1px 2px rgba(60, 64, 67, 0.10);
+    --shadow-md: 0 2px 6px rgba(60, 64, 67, 0.12);
+    --shadow-lg: 0 12px 32px rgba(60, 64, 67, 0.18);
+    --font-family: "Roboto", "Google Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 /* 实体表面：默认不用毛玻璃；仅在自定义壁纸下启用轻微取色模糊 */
@@ -2743,25 +2772,25 @@ body.tm-active #cell-0-1 {
 
 /* 2. macOS / iOS Native Dark Mode Overrides (Refined from cyberpunk) */
 .theme-dark {
-    --canvas: #171613;
-    --surface: #211F1B;
-    --surface-2: #282520;
-    --bg-glass: #211F1B;
-    --sidebar-glass: #211F1B;
-    --border-color: #34302A;
-    --border-strong: #464037;
-    --text-primary: #EAE6DD;
-    --text-secondary: #98917F;
+    --canvas: #1C1C1E;
+    --surface: #2C2C2E;
+    --surface-2: #3A3A3C;
+    --bg-glass: #2C2C2E;
+    --sidebar-glass: #2C2C2E;
+    --border-color: rgba(255, 255, 255, 0.12);
+    --border-strong: rgba(255, 255, 255, 0.24);
+    --text-primary: #F5F5F7;
+    --text-secondary: #98989D;
     --subpixel-border: 1px solid var(--border-color);
-    --accent-color: #5FA98A;
-    --accent-strong: #7CC0A2;
-    --accent-soft: rgba(95, 169, 138, 0.14);
-    --success: #6FBF95;
-    --warning: #D9A94E;
-    --danger: #E0796E;
+    --accent-color: #0A84FF;
+    --accent-strong: #409CFF;
+    --accent-soft: rgba(10, 132, 255, 0.16);
+    --success: #30D158;
+    --warning: #FF9F0A;
+    --danger: #FF453A;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
-    --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
 .theme-dark .glass-surface {
