@@ -128,7 +128,11 @@ def main():
     tool_parser = subparsers.add_parser("tool", help="辅助工具 (read/write/edit/bash 等)")
     tool_parser.add_argument("tool_args", nargs=argparse.REMAINDER, help="工具子命令 (list/run)")
 
-    # 18. 下载器 (Download / 下载) - Linux 风格
+    # 18. 插件包管理 (Plugin) - 兼容 dsh / Claude Code 声明式资产
+    plugin_parser = subparsers.add_parser("plugin", help="插件包管理 (兼容 dsh / Claude Code 技能插件)")
+    plugin_parser.add_argument("plugin_args", nargs=argparse.REMAINDER, help="插件子命令 (add/list/info/remove)")
+
+    # 19. 下载器 (Download / 下载) - Linux 风格
     dl_parser = subparsers.add_parser("download", help="Linux 风格 CLI / TUI 资源下载器")
     dl_parser.add_argument("url", help="要下载的资源 URL 链接")
     dl_parser.add_argument("pos_output", nargs="?", default=None, help="目标保存目录 (可选，默认为 ./download/)")
@@ -292,6 +296,18 @@ def main():
                 sys.exit(func(skill_ns))
             else:
                 skill_parser.print_help()
+                sys.exit(0)
+
+        elif args.command == "plugin":
+            from butler.cli.plugin_cmd import build_parser
+            plugin_parser = build_parser()
+            plugin_args_list = getattr(args, 'plugin_args', []) or []
+            plugin_ns = plugin_parser.parse_args(plugin_args_list)
+            func = getattr(plugin_ns, 'func', None)
+            if func:
+                sys.exit(func(plugin_ns))
+            else:
+                plugin_parser.print_help()
                 sys.exit(0)
 
         elif args.command == "tool":

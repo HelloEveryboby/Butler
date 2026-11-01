@@ -11,11 +11,19 @@ import time
 import yaml
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Callable
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+try:
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler
+except ImportError:  # 精简安装环境下降级为不监控
+    Observer = None
+    FileSystemEventHandler = object
 from butler.core.task_manager import task_manager
 from butler.core.algorithms import LDSTResolver
 from butler.core.blackboard import blackboard
+from butler.core.skill_registry import (
+    iter_root_entries,
+    parse_invocation_policy,
+)
 
 logger = logging.getLogger("SkillManager")
 
@@ -62,32 +70,32 @@ class SkillEventHandler(FileSystemEventHandler):
     def _handle_change(self, event):
         src_path = Path(event.src_path)
 
-        # 确定技能根目录
-        if event.is_directory:
-            skill_dir = src_path
-        else:
-            skill_dir = src_path.parent
-
-        if skill_dir == self.manager.skills_dir:
-            return # 忽略根目录自身的变动
-
-        if any(x in str(skill_dir) for x in ["__pycache__", ".git", ".lib"]):
+        if any(x in str(src_path) for x in ["__pycache__", ".git", ".lib"]):
             return
 
-        # 只对关键文件变动或目录创建触发加载
-        if not event.is_directory:
+        if event.is_directory:
+            if str(src_path) in self.manager.root_paths:
+                return # 忽略根目录自身的变动
+            skill_path = src_path
+        else:
             filename = src_path.name
-            if filename not in ["SKILL.md", "manifest.json", "config.yaml", "requirements.txt", "main.py"] and not filename.endswith(".zip"):
+            if filename not in ["SKILL.md", "manifest.json", "config.yaml", "requirements.txt", "main.py"] \
+                    and not filename.endswith((".zip", ".md")):
                 return
+            # 扁平 .md 技能（如 commands/agents）直接监控文件本身
+            if src_path.suffix.lower() == ".md" and str(src_path.parent) in self.manager.root_paths:
+                skill_path = src_path
+            else:
+                skill_path = src_path.parent
 
-        self._trigger_load(skill_dir)
+        self._trigger_load(skill_path)
 
-    def _trigger_load(self, skill_dir):
-        skill_path_str = str(skill_dir)
+    def _trigger_load(self, skill_path):
+        skill_path_str = str(skill_path)
         if skill_path_str in self._timers:
             self._timers[skill_path_str].cancel()
 
-        timer = threading.Timer(0.8, self.manager.load_and_register_skill, args=[skill_dir])
+        timer = threading.Timer(0.8, self.manager.load_and_register_skill, args=[skill_path])
         self._timers[skill_path_str] = timer
         timer.start()
 
@@ -96,10 +104,17 @@ class SkillManager:
     Butler 技能管理器 (Cloud Code / Claude Code 风格增强版)
     支持即插即用、三阶段加载模式、SKILL.md 规范与自动依赖安装。
     """
-    def __init__(self, skills_dir="skills", lock_file="skills-lock.json"):
+    def __init__(self, skills_dir="skills", lock_file="skills-lock.json", include_external_roots=None):
         self.project_root = Path(__file__).resolve().parent.parent.parent
         self.skills_dir = self.project_root / skills_dir
         self.lock_file = self.project_root / lock_file
+
+        # 显式传入非默认技能目录时（如单测），默认只扫描该目录
+        if include_external_roots is None:
+            include_external_roots = skills_dir == "skills"
+        self.include_external_roots = include_external_roots
+        self._roots: List[Dict[str, Any]] = []
+        self.root_paths: set = set()
 
         # 内存状态
         self.loaded_skills: Dict[str, Callable] = {}  # skill_id -> handle_request (Stage 3)
@@ -116,16 +131,34 @@ class SkillManager:
         if str(self.project_root) not in sys.path:
             sys.path.insert(0, str(self.project_root))
 
+    def resolve_roots(self) -> List[Dict[str, Any]]:
+        """解析当前应扫描的技能根目录（原生 + 外部/插件）。"""
+        if not self.include_external_roots:
+            roots = [{"path": self.skills_dir, "rank": 0, "source": "butler",
+                      "kind": "skills", "recursive": True, "prefix": None}]
+        else:
+            from butler.core.skill_registry import resolve_skill_roots
+            roots = resolve_skill_roots(self.project_root)
+        self._roots = roots
+        self.root_paths = {str(Path(r["path"])) for r in roots}
+        return roots
+
     def start_monitoring(self):
         """开启异步监控逻辑"""
-        if self._observer:
+        if self._observer or Observer is None:
             return
+
+        if not self._roots:
+            self.resolve_roots()
 
         event_handler = SkillEventHandler(self)
         self._observer = Observer()
-        self._observer.schedule(event_handler, str(self.skills_dir), recursive=True)
+        for root in self._roots:
+            path = Path(root["path"])
+            if path.is_dir():
+                self._observer.schedule(event_handler, str(path), recursive=True)
         self._observer.start()
-        logger.info("Skill directory monitoring started.")
+        logger.info(f"Skill directory monitoring started ({len(self._roots)} roots).")
 
     def stop_monitoring(self):
         """停止监控"""
@@ -143,6 +176,11 @@ class SkillManager:
         extension += "你当前拥有以下可调用的扩展技能。如果用户请求相关任务，请优先使用对应技能。\n"
 
         for s_id, meta in self.manifests.items():
+            if self.skill_status.get(s_id) == "DISABLED":
+                continue
+            if not meta.get('model_invocable', True):
+                continue # dsh: disable-model-invocation
+
             name = meta.get('name', s_id)
             desc = meta.get('description', '暂无描述')
 
@@ -210,8 +248,20 @@ class SkillManager:
             time.sleep(delay)
         return False
 
+    def _skill_id_for_path(self, skill_path: Path):
+        """根据路径定位技能 id（含插件命令/代理前缀）。"""
+        skill_path = Path(skill_path)
+        name = skill_path.stem if skill_path.is_file() else skill_path.name
+        roots = self._roots or self.resolve_roots()
+        for root in roots:
+            root_path = Path(root["path"])
+            if skill_path == root_path or root_path in skill_path.parents:
+                prefix = root.get("prefix")
+                return (f"{prefix}{name}" if prefix else name), root
+        return name, None
+
     def load_and_register_skill(self, skill_dir_path):
-        """增量加载并注册单个技能，支持运行时热插拔 (支持文件夹与 ZIP)"""
+        """增量加载并注册单个技能，支持运行时热插拔 (支持文件夹、扁平 .md 与 ZIP)"""
         skill_path = Path(skill_dir_path)
 
         # 处理 ZIP 文件
@@ -225,11 +275,11 @@ class SkillManager:
                 return
 
         skill_dir = skill_path
-        skill_id = skill_dir.name
+        skill_id, root_info = self._skill_id_for_path(skill_dir)
 
         if not skill_dir.exists():
             # 处理删除逻辑
-            logger.info(f"🗑️ 检测到技能目录删除: {skill_id}")
+            logger.info(f"🗑️ 检测到技能删除: {skill_id}")
             self.unload_skill(skill_id)
             return
 
@@ -238,7 +288,7 @@ class SkillManager:
             self.unload_skill(skill_id)
 
         # 稳定性保障：如果是新拖入的，检查核心元数据文件是否就绪
-        skill_md = skill_dir / "SKILL.md"
+        skill_md = skill_dir if skill_dir.is_file() else skill_dir / "SKILL.md"
         if skill_md.exists():
             if not self._wait_for_file_ready(str(skill_md)):
                 logger.warning(f"Skill {skill_id} SKILL.md is not ready, skipping.")
@@ -247,7 +297,9 @@ class SkillManager:
         logger.info(f"✨ 正在热加载技能: {skill_id}")
 
         # 发现并加载
-        success = self._discover_skill(skill_id, self.manifests, self.configs, self.skill_contents)
+        success = self._discover_skill(skill_id, self.manifests, self.configs,
+                                       self.skill_contents, skill_path=skill_dir,
+                                       root_info=root_info)
 
         if success:
             self.skill_status[skill_id] = "ENABLED"
@@ -314,6 +366,8 @@ class SkillManager:
         for s_id, meta in self.manifests.items():
             if self.skill_status.get(s_id) == "DISABLED":
                 continue
+            if not meta.get('model_invocable', True):
+                continue # dsh: disable-model-invocation
 
             name = meta.get('id', s_id)
             desc = meta.get('description', f"Execute skill {s_id}")
@@ -353,8 +407,8 @@ class SkillManager:
 
     def load_skills(self):
         """
-        Stage 1: 扫描 skills 目录，发现所有技能并加载元数据。
-        支持递归探测 (深度=2)，以便支持分类文件夹。
+        Stage 1: 扫描所有技能根目录，发现技能并加载元数据。
+        原生 skills/ 支持递归分类；外部/插件根按 dsh 规则只发现一层，同名 first-wins。
         """
         if not self.skills_dir.exists():
             self.skills_dir.mkdir(parents=True, exist_ok=True)
@@ -362,26 +416,35 @@ class SkillManager:
         # 自动处理压缩包
         self._handle_zip_skills()
 
+        roots = self.resolve_roots()
+
         # 使用局部临时变量进行加载
         new_manifests = {}
         new_configs = {}
         new_skill_contents = {}
+        seen = set()
 
-        # 扫描目录 (深度优先递归探测)
-        def _scan_recursive(current_dir: Path, depth=0):
-            if depth > 2: return
+        for root in roots:
             try:
-                for item in current_dir.iterdir():
-                    if item.is_dir() and not item.name.startswith('.') and item.name != "__pycache__":
-                        # 检查是否是技能目录
-                        if (item / "SKILL.md").exists() or (item / "config.yaml").exists() or (item / "manifest.json").exists():
-                            self._discover_skill(item.name, new_manifests, new_configs, new_skill_contents, skill_path=item)
-                        else:
-                            _scan_recursive(item, depth + 1)
-            except Exception:
-                pass
+                for skill_id, skill_path in iter_root_entries(root):
+                    if skill_id in seen:
+                        logger.debug(f"Skill '{skill_id}' shadowed by earlier root at {root['path']}")
+                        continue
+                    seen.add(skill_id)
+                    self._discover_skill(skill_id, new_manifests, new_configs,
+                                         new_skill_contents, skill_path=skill_path,
+                                         root_info=root)
+            except Exception as e:
+                logger.debug(f"Failed to scan skill root {root['path']}: {e}")
 
-        _scan_recursive(self.skills_dir)
+        # 调用策略非法（如 camelCase 拼写）的技能整体失效
+        for skill_id in [sid for sid, meta in new_manifests.items()
+                         if meta.get('invocation_valid', True) is False]:
+            logger.warning(f"Skill '{skill_id}' has an invalid invocation policy; skipped.")
+            new_manifests.pop(skill_id, None)
+            new_configs.pop(skill_id, None)
+            new_skill_contents.pop(skill_id, None)
+            seen.discard(skill_id)
 
         # 原子交换（在 Python 中，字典赋值是原子的）
         self.manifests = new_manifests
@@ -401,48 +464,59 @@ class SkillManager:
                 logger.info(f"Forcibly auto-loading core plugin: {s_id}")
                 self._load_python_runtime(s_id)
 
-    def _discover_skill(self, skill_id: str, manifests: dict, configs: dict, contents: dict, skill_path: Path = None):
+    def _discover_skill(self, skill_id: str, manifests: dict, configs: dict, contents: dict,
+                        skill_path: Path = None, root_info: Dict[str, Any] = None):
         """
         Stage 1 & 2 预加载：检测技能格式并提取元数据。
+        支持目录 bundle 与外部根中的扁平 <name>.md 文件。
         """
         if skill_path is None:
             skill_path = self.skills_dir / skill_id
+        skill_path = Path(skill_path)
+        is_flat = skill_path.is_file()
 
-        # 1. 优先尝试 SKILL.md (AI 友好规范)
-        skill_md_path = skill_path / "SKILL.md"
+        # 1. 优先尝试 SKILL.md / 扁平 .md (AI 友好规范)
+        skill_md_path = skill_path if is_flat else skill_path / "SKILL.md"
         if skill_md_path.exists():
             self._load_from_skill_md(skill_id, skill_md_path, manifests, contents)
 
-        # 2. 尝试 config.yaml (系统/硬件友好规范)
-        config_yaml_path = skill_path / "config.yaml"
-        if config_yaml_path.exists():
-            self._load_from_config_yaml(skill_id, config_yaml_path, manifests, configs)
+        if not is_flat:
+            # 2. 尝试 config.yaml (系统/硬件友好规范)
+            config_yaml_path = skill_path / "config.yaml"
+            if config_yaml_path.exists():
+                self._load_from_config_yaml(skill_id, config_yaml_path, manifests, configs)
 
-        # 3. Fallback 到 manifest.json (旧版规范)
-        manifest_path = skill_path / "manifest.json"
-        if manifest_path.exists() and skill_id not in manifests:
-            self._load_from_manifest(skill_id, manifest_path, manifests, configs, skill_path=skill_path)
+            # 3. Fallback 到 manifest.json (旧版规范)
+            manifest_path = skill_path / "manifest.json"
+            if manifest_path.exists() and skill_id not in manifests:
+                self._load_from_manifest(skill_id, manifest_path, manifests, configs, skill_path=skill_path)
 
         # 如果至少加载了其中一个
         if skill_id in manifests:
             manifests[skill_id]['path'] = str(skill_path)
             # Detect core plugin status
-            if "core_plugins" in str(skill_path.resolve()):
+            if not is_flat and "core_plugins" in str(skill_path.resolve()):
                 manifests[skill_id]['is_core'] = True
             else:
                 manifests[skill_id]['is_core'] = False
+            # 记录来源（原生 / 外部根 / 插件包）
+            if root_info:
+                manifests[skill_id]['source'] = root_info.get('source', 'butler')
+                manifests[skill_id]['kind'] = root_info.get('kind', 'skills')
+                manifests[skill_id]['rank'] = root_info.get('rank', 0)
             # 确保关键字段存在 (LDST & Risk)
             manifests[skill_id].setdefault('provides', [])
             manifests[skill_id].setdefault('requires', {})
             manifests[skill_id].setdefault('risk', 'low')
 
-            # 探测执行优先级：Binary > Python
-            self._try_load_binary_entry(skill_id, manifests, skill_path=skill_path)
-            if not manifests[skill_id].get('has_binary'):
-                self._try_load_python_entry(skill_id, manifests, skill_path=skill_path)
+            if not is_flat:
+                # 探测执行优先级：Binary > Python
+                self._try_load_binary_entry(skill_id, manifests, skill_path=skill_path)
+                if not manifests[skill_id].get('has_binary'):
+                    self._try_load_python_entry(skill_id, manifests, skill_path=skill_path)
 
-            # 探测前端入口
-            self._try_load_frontend_entry(skill_id, manifests, skill_path=skill_path)
+                # 探测前端入口
+                self._try_load_frontend_entry(skill_id, manifests, skill_path=skill_path)
             return True
 
         return False
@@ -486,6 +560,9 @@ class SkillManager:
                 else:
                     manifests[skill_id].update(config_data)
 
+                manifests[skill_id].setdefault('model_invocable', True)
+                manifests[skill_id].setdefault('user_invocable', True)
+                manifests[skill_id].setdefault('invocation_valid', True)
                 configs[skill_id] = config_data
                 return True
         except Exception as e:
@@ -515,7 +592,7 @@ class SkillManager:
             if skill_id not in manifests:
                 manifests[skill_id] = metadata
                 manifests[skill_id]['id'] = skill_id
-                manifests[skill_id]['format'] = 'SKILL.md'
+                manifests[skill_id]['format'] = 'flat-md' if file_path.is_file() else 'SKILL.md'
             else:
                 manifests[skill_id].update(metadata)
 
@@ -523,6 +600,12 @@ class SkillManager:
             manifests[skill_id].setdefault('provides', metadata.get('provides', []))
             manifests[skill_id].setdefault('requires', metadata.get('requires', {}))
             manifests[skill_id].setdefault('risk', metadata.get('risk', 'low'))
+
+            # dsh 调用策略 (disable-model-invocation / user-invocable)
+            model_invocable, user_invocable, policy_valid = parse_invocation_policy(metadata)
+            manifests[skill_id]['model_invocable'] = model_invocable
+            manifests[skill_id]['user_invocable'] = user_invocable
+            manifests[skill_id]['invocation_valid'] = policy_valid
 
             contents[skill_id] = body
             return True
@@ -939,6 +1022,11 @@ class SkillManager:
         根据描述、名称或关键字匹配技能。
         """
         for skill_id, manifest in self.manifests.items():
+            if self.skill_status.get(skill_id) == "DISABLED":
+                continue
+            if not manifest.get("model_invocable", True):
+                continue
+
             name = manifest.get("name", skill_id).lower()
             keywords = [k.lower() for k in manifest.get("keywords", [])]
             desc = manifest.get("description", "").lower()
