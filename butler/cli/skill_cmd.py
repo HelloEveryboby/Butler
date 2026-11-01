@@ -77,6 +77,9 @@ def cmd_list(args) -> int:
                 'version': meta.get('version', ''),
                 'description': meta.get('description', ''),
                 'access_level': meta.get('access_level', 'agent'),
+                'source': meta.get('source', 'butler'),
+                'model_invocable': meta.get('model_invocable', True),
+                'user_invocable': meta.get('user_invocable', True),
                 'path': str(path),
             })
         print(json.dumps(output, ensure_ascii=False, indent=2))
@@ -166,6 +169,7 @@ def _list_long(user_skills, agent_skills) -> int:
         ("描述", m.get('description', '')),
         ("动作", ", ".join(m.get('actions', []))),
         ("入口", m.get('entry_file', '')),
+        ("来源", m.get('source', 'butler')),
         ("路径", m.get('path', '')),
     ])
 
@@ -174,6 +178,7 @@ def _list_long(user_skills, agent_skills) -> int:
         ("描述", m.get('description', '')),
         ("关键词", ", ".join(m.get('keywords', []))),
         ("格式", m.get('format', '')),
+        ("来源", m.get('source', 'butler')),
         ("路径", m.get('path', '')),
     ])
 
@@ -199,6 +204,10 @@ def cmd_run(args) -> int:
     meta = load_skill_metadata(skill_id, skill_path)
     access_level = meta.get('access_level', 'agent')
     action = getattr(args, 'skill_action', 'run') or 'run'
+
+    if not meta.get('user_invocable', True):
+        print(_c(f"❌ 技能 '{skill_id}' 声明了 user-invocable: false，禁止用户直接调用", C.RED), file=sys.stderr)
+        return 2
 
     if access_level == 'agent':
         info = ACCESS_LEVEL_INFO['agent']
@@ -300,6 +309,9 @@ def cmd_info(args) -> int:
             'author': meta.get('author', 'N/A'),
             'access_level': access_level,
             'description': meta.get('description', '无描述'),
+            'source': meta.get('source', 'butler'),
+            'model_invocable': meta.get('model_invocable', True),
+            'user_invocable': meta.get('user_invocable', True),
             'path': str(skill_path),
             'entry_file': meta.get('entry_file'),
             'actions': meta.get('actions', []),
@@ -323,8 +335,11 @@ def cmd_info(args) -> int:
         ("版本", meta.get('version', 'N/A')),
         ("作者", meta.get('author', 'N/A')),
         ("格式", meta.get('format', 'unknown')),
+        ("来源", meta.get('source', 'butler')),
         ("描述", meta.get('description', '无描述')),
         ("路径", str(skill_path)),
+        ("模型可见", "是" if meta.get('model_invocable', True) else "否 (disable-model-invocation)"),
+        ("用户可调用", "是" if meta.get('user_invocable', True) else "否 (user-invocable: false)"),
     ]
     if meta.get('entry_file'):
         rows.append(("入口", meta['entry_file']))
@@ -382,6 +397,57 @@ def cmd_run_shell(args) -> int:
         _print_man_page()
         return 0
     return cmd_run(args)
+
+
+def cmd_uninstall(args) -> int:
+    """移除安装到 Butler 原生 skills/ 目录的技能。"""
+    skills = discover_skills()
+    skill_id = args.skill_id
+    if skill_id not in skills:
+        print(_c(f"❌ 技能 '{skill_id}' 未找到", C.RED), file=sys.stderr)
+        return 1
+
+    skill_path = skills[skill_id]
+    meta = load_skill_metadata(skill_id, skill_path)
+    if meta.get('source', 'butler') != 'butler':
+        print(_c(f"❌ 技能 '{skill_id}' 来自外部/插件源 ({meta.get('source')})，不能在此卸载。", C.RED), file=sys.stderr)
+        print(f"  外部目录技能请直接删除来源文件；插件技能请使用: python butler_cli.py plugin remove <plugin>", file=sys.stderr)
+        return 1
+
+    if not skill_path.is_dir():
+        print(_c(f"❌ 仅支持卸载目录形式的原生技能: {skill_path}", C.RED), file=sys.stderr)
+        return 1
+
+    import shutil
+    shutil.rmtree(skill_path)
+    print(_c(f"✅ 已卸载技能: {skill_id}", C.GREEN))
+    print(f"  路径: {skill_path}")
+    return 0
+
+
+def cmd_roots(args) -> int:
+    """列出技能发现根目录与优先级。"""
+    from butler.core.skill_registry import resolve_skill_roots
+
+    roots = resolve_skill_roots()
+    if getattr(args, 'format', False):
+        print(json.dumps([{
+            'rank': r['rank'],
+            'source': r['source'],
+            'kind': r['kind'],
+            'path': str(r['path']),
+            'exists': Path(r['path']).is_dir(),
+        } for r in roots], ensure_ascii=False, indent=2))
+        return 0
+
+    print(_c("技能发现根目录 (按优先级 first-wins)", C.BOLD, C.CYAN))
+    print(f"  {'RANK':<5} {'来源':<18} {'类型':<9} 路径")
+    print(f"  {'─' * (TERM_WIDTH - 4)}")
+    for r in roots:
+        exists = Path(r['path']).is_dir()
+        mark = _c("✓", C.GREEN) if exists else _c("-", C.DIM)
+        print(f"  {r['rank']:<5} {r['source']:<18} {r['kind']:<9} {mark} {r['path']}")
+    return 0
 
 
 def cmd_install(args) -> int:
@@ -709,6 +775,12 @@ def _print_man_page():
         _c("     install", C.CYAN, C.BOLD) + " -p|--path <本地目录> [-f|--force]",
         "           从本地目录安装技能",
         "",
+        _c("     uninstall", C.CYAN, C.BOLD) + " <skill-id>",
+        "           卸载 skills/ 中的原生技能 (外部/插件技能请用 plugin remove)",
+        "",
+        _c("     roots", C.CYAN, C.BOLD) + " [-j|--json]",
+        "           列出技能发现根目录及优先级 (原生 / .dsh / .agents / .claude / 插件)",
+        "",
         _c("OPTIONS", C.BOLD),
         _c("     -t, --type <type>", C.CYAN) + "    过滤技能类型: user 或 agent",
         _c("     -l, --long", C.CYAN) + "          详细列表模式 (显示全部元数据)",
@@ -936,6 +1008,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_info.add_argument("-p", "--preview", type=int, default=600)
     p_info.add_argument("-h", "--help", action="store_true")
     p_info.set_defaults(func=cmd_info)
+
+    # ── uninstall ──
+    p_rm = sub.add_parser("uninstall", add_help=False, aliases=["remove", "rm"])
+    p_rm.add_argument("skill_id")
+    p_rm.add_argument("-h", "--help", action="store_true")
+    p_rm.set_defaults(func=cmd_uninstall)
+
+    # ── roots ──
+    p_roots = sub.add_parser("roots", add_help=False)
+    p_roots.add_argument("-j", "--json", action="store_true", dest="format")
+    p_roots.add_argument("-h", "--help", action="store_true")
+    p_roots.set_defaults(func=cmd_roots)
 
     # ── install ──
     p_install = sub.add_parser("install", add_help=False)
