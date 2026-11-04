@@ -2,7 +2,7 @@
 
 Butler 3.0 采用了一套革命性的**空间矩阵 (Spatial Matrix)** 设计界面。该界面基于 HTML/CSS/JS 与 3D 变换技术，将功能模块分布在 $2 \times 2$ 的多维空间中，实现极致的极客质感。
 
-![Butler Matrix UI](../assets/ui_2_0/matrix_chat.png)
+![Butler Matrix UI](../assets/ui_screenshots/ui_chat.png)
 
 ## 核心设计理念
 
@@ -22,19 +22,19 @@ Butler 3.0 采用了一套革命性的**空间矩阵 (Spatial Matrix)** 设计�
 *   **流式交互**：气泡式对话流，集成翻译、代码块与富媒体。
 
 ### 2. (1,0) DAG 可视化任务流水线
-![Butler DAG View](../assets/ui_2_0/matrix_dag.png)
+![Butler DAG View](../assets/ui_screenshots/ui_workspace.png)
 *   **拖拽构建**：从技能仓拖入卡片，自由布局。
 *   **发光连接线**：动态贝塞尔曲线连接任务输入/输出点，具备发光呼吸特效。
 *   **弹簧吸附**：卡片接近锚点时产生物理吸附感。
 
 ### 3. (0,1) 全局可观测时光机
-![Butler Time Machine](../assets/ui_2_0/matrix_timemachine.png)
+![Butler Time Machine](../assets/ui_screenshots/ui_timemachine.png)
 *   **状态回溯**：拖动底部时光滑块，全局 UI 进入“历史回放”模式。
 *   **异常高亮**：回溯到故障发生点时，全屏呈现红色预警阴影，并自动定位报错日志。
 *   **性能指标**：实时同步历史 CPU/内存 使用率视图。
 
 ### 4. (1,1) 模块化技能与文件仓
-![Butler Skills View](../assets/ui_2_0/matrix_terminal.png)
+![Butler Skills View](../assets/ui_screenshots/ui_terminal.png)
 *   **技能抽屉**：One Folder = One Skill 的卡片化管理。
 *   **透明 Overlay**：
     *   **终端 (Terminal)**：高性能 `xterm.js` 叠加层，支持 PTY 交互。
