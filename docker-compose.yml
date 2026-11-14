@@ -1,6 +1,7 @@
 services:
   butler:
     build: .
+    image: butler:latest
     container_name: butler-assistant
     restart: always
     ports:
@@ -15,5 +16,26 @@ services:
       - .env
     environment:
       - DISPLAY=${DISPLAY}
+      # 第 1 条：LLM 提供商切换。推荐在 .env 中配置：
+      #   AI_PROVIDER=ollama  +  API_BASE_URL=http://host.docker.internal:11434/v1  (本地离线)
+      #   AI_PROVIDER=deepseek + DEEPSEEK_API_KEY=...                              (云端默认)
     devices:
-      - "/dev/snd:/dev/snd" # 如果需要音频支持
+      - "/dev/snd:/dev/snd" # 如需音频支持
+    # 使用本地 Ollama 时取消注释，让容器能访问宿主机 11434 端口：
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
+
+  # 可选：本地 Ollama 离线模型（配合 AI_PROVIDER=ollama 使用）
+  # 启动方式：docker compose --profile ollama up -d
+  ollama:
+    image: ollama/ollama:latest
+    container_name: butler-ollama
+    profiles: ["ollama"]
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  ollama_data:
