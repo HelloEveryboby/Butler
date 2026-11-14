@@ -1,0 +1,19 @@
+{
+  "north": {
+    "addr": "integration/connector.sock"
+  },
+  "south": {
+    "nodeCommand": "node",
+    "nodeArgs": ["dsh-host/dist/bin/server.js", "--config", "integration/host.json"],
+    "defaultTimeoutMs": 30000
+  },
+  "approval": {
+    "askTimeoutMs": 10000,
+    "auditLog": "integration/logs/audit.jsonl",
+    "auditMaxBytes": 1048576
+  },
+  "log": {
+    "level": "info",
+    "format": "text"
+  }
+}

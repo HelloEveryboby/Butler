@@ -1,0 +1,1 @@
+{"v":1,"id":"call-42","type":"tool.invoke","payload":{"tool":"greet","args":{"name":"张三"},"risk":"read_only","timeoutMs":5000},"ts":1763124960000}
