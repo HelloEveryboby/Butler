@@ -34,6 +34,7 @@ from .permission import PermissionMode, PermissionSystem
 from .subagent_manager import SubagentDefinition, SubagentManager
 from .tool_registry import ToolRegistry
 from .types import Event, EventType, Message, PermissionLevel, StopReason
+from butler.core.llm_providers import chat_completions, resolve_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -183,58 +184,26 @@ class JarvisAgentBridge:
         jarvis = self.jarvis
 
         def handler(messages: list[dict], tools: list[dict], **kwargs) -> dict[str, Any]:
-            """调用 DeepSeek/OpenAI API with tool calling。"""
+            """调用统一的 LLM 提供商（DeepSeek/OpenAI/智谱/Ollama 等）。"""
             try:
-                import requests
+                cfg = resolve_llm_config(jarvis.config.get)
 
-                api_key = (
-                    os.getenv("DEEPSEEK_API_KEY")
-                    or jarvis.config.get("api", {}).get("deepseek", {}).get("key", "")
-                )
-
-                if not api_key or "YOUR_" in str(api_key):
-                    logger.warning("No API key configured")
+                if not cfg.is_usable:
+                    logger.warning("No usable LLM provider configured")
                     return {
                         "content": "AI service unavailable: API key not configured.",
                         "tool_calls": [],
                         "stop_reason": "end_turn",
                     }
 
-                endpoint = (
-                    jarvis.config.get("api", {})
-                    .get("deepseek", {})
-                    .get("endpoint", "https://api.deepseek.com/v1")
+                content, tool_calls, stop_reason, total_tokens = chat_completions(
+                    cfg,
+                    messages,
+                    tools=tools,
+                    max_tokens=self._resolve_max_tokens(),
+                    temperature=self._resolve_temperature(),
                 )
-                url = f"{endpoint}/chat/completions"
 
-                headers = {
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                }
-
-                payload = {
-                    "model": "deepseek-chat",
-                    "messages": messages,
-                    "tools": tools if tools else None,
-                    "tool_choice": "auto" if tools else None,
-                    "max_tokens": self._resolve_max_tokens(),
-                    "temperature": self._resolve_temperature(),
-                }
-
-                # 移除 None 值
-                payload = {k: v for k, v in payload.items() if v is not None}
-
-                resp = requests.post(url, json=payload, headers=headers, timeout=60)
-                resp.raise_for_status()
-                data = resp.json()
-
-                choice = data.get("choices", [{}])[0]
-                message = choice.get("message", {})
-                stop_reason = choice.get("finish_reason", "end_turn")
-
-                # 更新额度
-                usage = data.get("usage", {})
-                total_tokens = usage.get("total_tokens", 0)
                 if total_tokens > 0 and hasattr(jarvis, "nlu_service"):
                     try:
                         from package.core_utils.quota_manager import quota_manager
@@ -243,8 +212,8 @@ class JarvisAgentBridge:
                         pass
 
                 return {
-                    "content": message.get("content", ""),
-                    "tool_calls": message.get("tool_calls", []),
+                    "content": content,
+                    "tool_calls": tool_calls,
                     "stop_reason": stop_reason,
                 }
 
@@ -255,8 +224,6 @@ class JarvisAgentBridge:
                     "tool_calls": [],
                     "stop_reason": "end_turn",
                 }
-
-        return handler
 
     def _resolve_temperature(self) -> float:
         """从配置读取用户设置的 temperature，默认 0.7。"""
