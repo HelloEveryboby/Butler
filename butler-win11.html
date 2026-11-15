@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Butler — Win11 UI Preview</title>
+<style>
+:root {
+  --canvas:#f3f3f3; --surface:#fbfbfb; --surface-2:#f0f0f0; --surface-3:#e7e7e7;
+  --accent:#0078d4; --accent-strong:#0067c0; --accent-soft:rgba(0,120,212,.10);
+  --success:#0f7b0f; --warning:#9d5d00; --danger:#c42b1c;
+  --border:#e2e2e2; --border-strong:#d0d0d0;
+  --text:#1b1b1b; --text-2:#5f5f5f;
+  --mica:rgba(255,255,255,.74); --nav-bg:rgba(255,255,255,.56);
+  --hover:rgba(0,0,0,.045); --pressed:rgba(0,0,0,.08); --cap-hover:rgba(0,0,0,.06);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.05);
+  --shadow-md:0 4px 12px rgba(0,0,0,.10);
+  --shadow-lg:0 24px 64px rgba(0,0,0,.26);
+  --radius:4px; --radius-md:6px; --radius-lg:8px;
+  --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;
+  --ease:cubic-bezier(.2,0,0,1);
+}
+html[data-theme="dark"] {
+  --canvas:#202020; --surface:#272727; --surface-2:#2d2d2d; --surface-3:#333;
+  --accent:#60cdff; --accent-strong:#4cc2ff; --accent-soft:rgba(96,205,255,.14);
+  --success:#6ccb5f; --warning:#fce100; --danger:#ff99a4;
+  --border:#3a3a3a; --border-strong:#4a4a4a;
+  --text:#fff; --text-2:#c7c7c7;
+  --mica:rgba(32,32,32,.80); --nav-bg:rgba(28,28,28,.66);
+  --hover:rgba(255,255,255,.06); --pressed:rgba(255,255,255,.09); --cap-hover:rgba(255,255,255,.08);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+  --shadow-md:0 4px 12px rgba(0,0,0,.45);
+  --shadow-lg:0 24px 64px rgba(0,0,0,.6);
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+html, body { height:100%; }
+body {
+  font-family:var(--font); font-size:14px; color:var(--text); overflow:hidden;
+  background:
+    radial-gradient(1100px 520px at 12% -8%, rgba(0,120,212,.10), transparent 62%),
+    radial-gradient(900px 480px at 108% 6%, rgba(120,90,200,.08), transparent 60%),
+    var(--canvas);
+  transition:background-color .2s var(--ease), color .2s var(--ease);
+}
+button, input, select { font:inherit; color:inherit; }
+button { cursor:pointer; }
+::-webkit-scrollbar { width:10px; height:10px; }
+::-webkit-scrollbar-thumb {
+  background:var(--border-strong); border:3px solid transparent;
+  border-radius:8px; background-clip:content-box;
+}
+.ic {
+  width:16px; height:16px; display:block; flex:none;
+  fill:none; stroke:currentColor; stroke-width:1.2; stroke-linecap:round; stroke-linejoin:round;
+}
+
+/* ---------- 标题栏 ---------- */
+.shell { display:flex; flex-direction:column; height:100vh; }
+.titlebar {
+  flex:none; height:44px; display:flex; align-items:center; gap:14px;
+  padding-left:12px; background:var(--mica);
+  backdrop-filter:blur(24px) saturate(160%); -webkit-backdrop-filter:blur(24px) saturate(160%);
+  border-bottom:1px solid var(--border); user-select:none; z-index:20;
+}
+.brand { display:flex; align-items:center; gap:10px; min-width:0; }
+.logo {
+  width:24px; height:24px; border-radius:6px; display:grid; place-items:center;
+  background:linear-gradient(145deg,#2b88d8,#0067c0); color:#fff;
+  font-size:13px; font-weight:700; box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);
+}
+.app-name { display:flex; align-items:baseline; gap:8px; font-size:13px; font-weight:600; white-space:nowrap; }
+.app-sub { font-size:11px; font-weight:400; color:var(--text-2); }
+.searchbox {
+  display:flex; align-items:center; gap:8px; flex:1; max-width:520px; height:30px;
+  margin:0 auto; padding:0 10px; background:var(--surface);
+  border:1px solid var(--border-strong); border-radius:4px;
+  transition:border-color .15s var(--ease), box-shadow .15s var(--ease);
+}
+.searchbox:focus-within { border-color:var(--accent); box-shadow:inset 0 -2px 0 var(--accent); }
+.searchbox .ic { color:var(--text-2); }
+.searchbox input { flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--text); font-size:13px; }
+.searchbox input::placeholder { color:var(--text-2); }
+.searchbox kbd {
+  font-size:10px; color:var(--text-2); background:var(--surface-2);
+  border:1px solid var(--border); border-radius:3px; padding:1px 5px;
+}
+.tools { margin-left:auto; display:flex; align-items:center; gap:2px; height:100%; }
+.icon-btn {
+  width:36px; height:32px; border:0; border-radius:4px; background:transparent;
+  color:var(--text-2); display:grid; place-items:center; transition:background .15s var(--ease), color .15s var(--ease);
+}
+.icon-btn:hover { background:var(--hover); color:var(--text); }
+.captions { display:flex; height:100%; margin-left:6px; }
+.cap {
+  width:46px; height:100%; border:0; background:transparent; color:var(--text);
+  display:grid; place-items:center; transition:background .15s var(--ease), color .15s var(--ease);
+}
+.cap svg { width:10px; height:10px; fill:none; stroke:currentColor; stroke-width:1; }
+.cap:hover { background:var(--cap-hover); }
+.cap.close:hover { background:#c42b1c; color:#fff; }
+
+/* ---------- 主体 ---------- */
+.body { flex:1; display:flex; min-height:0; }
+.nav {
+  flex:none; width:260px; display:flex; flex-direction:column; gap:2px; padding:10px 8px;
+  background:var(--nav-bg); backdrop-filter:blur(20px) saturate(150%);
+  -webkit-backdrop-filter:blur(20px) saturate(150%);
+  border-right:1px solid var(--border); overflow-y:auto;
+}
+.nav-label { padding:8px 12px 4px; font-size:11px; font-weight:600; letter-spacing:.04em; color:var(--text-2); }
+.nav-item {
+  position:relative; display:flex; align-items:center; gap:12px; height:38px; padding:0 12px;
+  border:0; border-radius:4px; background:transparent; color:var(--text);
+  font-size:13.5px; text-align:left; transition:background .15s var(--ease);
+}
+.nav-item:hover { background:var(--hover); }
+.nav-item:active { background:var(--pressed); }
+.nav-item.active { background:var(--surface); box-shadow:var(--shadow-sm); }
+.nav-item .bar {
+  position:absolute; left:0; top:50%; width:3px; height:14px; border-radius:2px;
+  background:transparent; transform:translateY(-50%) scaleY(.3);
+  transition:transform .15s var(--ease), background .15s var(--ease);
+}
+.nav-item.active .bar { background:var(--accent); transform:translateY(-50%) scaleY(1); }
+.nav-item .ic { color:var(--text-2); }
+.nav-item.active .ic { color:var(--accent); }
+.spacer { flex:1; min-height:12px; }
+.nav-foot {
+  display:flex; align-items:center; gap:8px; margin-top:8px; padding:10px 12px 4px;
+  border-top:1px solid var(--border); font-size:11.5px; color:var(--text-2);
+}
+.dot-live { width:7px; height:7px; border-radius:50%; background:var(--success); }
+
+.content { position:relative; flex:1; min-width:0; min-height:0; overflow:hidden; }
+.page {
+  position:absolute; inset:0; display:none; flex-direction:column;
+  padding:22px 26px 24px; overflow:hidden;
+}
+.page.active { display:flex; animation:pageIn .18s var(--ease); }
+@keyframes pageIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+.page-head { flex:none; display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:16px; }
+.eyebrow { font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--text-2); }
+.page-title { font-size:24px; line-height:1.2; font-weight:600; letter-spacing:-.01em; }
+.page-meta { font-size:12px; color:var(--text-2); }
+.head-actions { display:flex; align-items:center; gap:8px; }
+.chip {
+  display:flex; align-items:center; gap:8px; padding:6px 12px; font-size:12px; color:var(--text-2);
+  background:var(--surface); border:1px solid var(--border); border-radius:20px;
+}
+.status-dot { width:8px; height:8px; border-radius:50%; }
+.status-dot.green { background:var(--success); }
+.status-dot.blue { background:var(--accent); animation:pulse 1.6s infinite; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+.small-btn {
+  width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--border); border-radius:4px; background:var(--surface); color:var(--text-2);
+  transition:background .15s var(--ease), color .15s var(--ease), border-color .15s var(--ease);
+}
+.small-btn:hover { background:var(--surface-2); color:var(--text); border-color:var(--border-strong); }
+.page-body { flex:1; min-height:0; display:flex; flex-direction:column; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow-sm); }
+
+/* ---------- 对话页 ---------- */
+.chat-card { flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+.chat-scroll {
+  flex:1; min-height:0; overflow-y:auto; padding:26px 30px 10px;
+  display:flex; flex-direction:column; gap:10px;
+}
+.welcome { width:100%; max-width:1080px; margin:0 auto; }
+.welcome h1 { font-size:26px; font-weight:600; letter-spacing:-.01em; margin-bottom:6px; }
+.welcome > p { font-size:13.5px; color:var(--text-2); margin-bottom:6px; }
+.group-title {
+  display:flex; align-items:center; gap:10px; margin:22px 0 10px;
+  font-size:12px; font-weight:600; color:var(--text-2);
+}
+.cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(228px,1fr)); gap:10px; }
+.action {
+  display:grid; grid-template-columns:38px 1fr; grid-template-rows:auto auto;
+  grid-template-areas:"icon title" "icon desc"; gap:2px 12px; align-items:center;
+  padding:12px 14px; text-align:left; border:1px solid var(--border); border-radius:6px;
+  background:var(--surface); transition:background .15s var(--ease), border-color .15s var(--ease), box-shadow .15s var(--ease);
+}
+.action:hover { background:var(--surface-2); border-color:var(--border-strong); box-shadow:var(--shadow-sm); }
+.action:active { background:var(--surface-3); }
+.action .ico {
+  grid-area:icon; width:38px; height:38px; display:grid; place-items:center;
+  border-radius:6px; background:var(--accent-soft); color:var(--accent);
+}
+.action b { grid-area:title; font-size:13px; font-weight:600; }
+.action span { grid-area:desc; font-size:11.5px; line-height:1.45; color:var(--text-2); }
+.composer { flex:none; padding:10px 18px 16px; border-top:1px solid var(--border); background:var(--surface); }
+.inputbar {
+  display:flex; align-items:center; gap:8px; max-width:1080px; margin:0 auto; padding:8px;
+  background:var(--surface-2); border:1px solid var(--border); border-radius:6px;
+}
+.inputbar:focus-within { border-color:var(--accent); box-shadow:inset 0 -2px 0 var(--accent); }
+.inputbar .icon-btn { width:32px; height:32px; }
+.inputbar input { flex:1; min-width:0; border:0; outline:0; background:transparent; padding:6px; font-size:14px; }
+.send {
+  width:32px; height:32px; border:0; border-radius:4px; background:var(--accent);
+  color:#fff; display:grid; place-items:center; transition:background .15s var(--ease);
+}
+.send:hover { background:var(--accent-strong); }
+
+/* ---------- 时光监控 ---------- */
+.tm-card { flex:1; min-height:0; display:flex; flex-direction:column; gap:14px; padding:16px; }
+.metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+.metric { padding:14px; border:1px solid var(--border); border-radius:6px; background:var(--surface-2); }
+.metric small { display:block; font-size:11.5px; color:var(--text-2); margin-bottom:6px; }
+.metric strong { font-size:22px; font-weight:600; }
+.metric .trend { font-size:11.5px; color:var(--success); margin-left:6px; }
+.log {
+  flex:1; min-height:0; overflow-y:auto; padding:14px 16px; border:1px solid var(--border);
+  border-radius:6px; background:var(--surface-2);
+  font-family:"Cascadia Mono",Consolas,monospace; font-size:12.5px; line-height:1.8;
+}
+.log .t { color:var(--accent); margin-right:8px; }
+.sliderbar {
+  display:flex; flex-direction:column; gap:8px; padding:14px 20px;
+  border:1px solid var(--border); border-radius:6px; background:var(--surface);
+}
+.sliderbar input { width:100%; accent-color:var(--accent); }
+.sliderbar label { text-align:center; font-size:12px; font-weight:600; color:var(--accent); }
+
+/* ---------- 任务画布 ---------- */
+.dag-card { flex:1; min-height:0; padding:12px; display:flex; }
+.toolbar {
+  display:flex; gap:6px; padding:4px; background:var(--surface);
+  border:1px solid var(--border); border-radius:6px;
+}
+.tool {
+  display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px;
+  border:1px solid transparent; border-radius:4px; background:transparent; font-size:12.5px; font-weight:500;
+}
+.tool:hover { background:var(--surface-2); }
+.tool.ok .ic { color:var(--success); }
+.tool.warn .ic { color:var(--warning); }
+.tool.bad .ic { color:var(--danger); }
+.canvas {
+  position:relative; flex:1; min-height:0; overflow:hidden; border:1px dashed var(--border-strong);
+  border-radius:6px; background-color:var(--surface-2);
+  background-image:radial-gradient(circle, rgba(0,0,0,.10) 1px, transparent 1px);
+  background-size:24px 24px;
+}
+html[data-theme="dark"] .canvas {
+  background-image:radial-gradient(circle, rgba(255,255,255,.10) 1px, transparent 1px);
+}
+.node {
+  position:absolute; width:180px; padding:12px 14px; background:var(--surface);
+  border:1px solid var(--border); border-radius:6px; box-shadow:var(--shadow-md);
+}
+.node b { display:block; font-size:12.5px; margin-bottom:3px; }
+.node small { font-size:11px; color:var(--text-2); }
+.node .tag {
+  display:inline-block; margin-top:8px; padding:1px 7px; border-radius:10px;
+  background:var(--accent-soft); color:var(--accent); font-size:10.5px;
+}
+.canvas svg.wires { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.wire { stroke:var(--accent); stroke-width:1.5; fill:none; stroke-dasharray:5 4; opacity:.7; }
+
+/* ---------- 技能仓储 ---------- */
+.skills-layout { flex:1; min-height:0; display:grid; grid-template-columns:320px 1fr; gap:12px; }
+.skills-card, .files-card { display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+.panel-head {
+  flex:none; display:flex; align-items:center; gap:8px; height:40px; padding:0 14px;
+  border-bottom:1px solid var(--border); font-size:12px; font-weight:600; color:var(--text-2);
+}
+.panel-head .ic { color:var(--accent); }
+.skill-list { flex:1; min-height:0; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:8px; }
+.skill {
+  display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--surface);
+  border:1px solid var(--border); border-radius:6px;
+}
+.skill .ico {
+  width:30px; height:30px; display:grid; place-items:center; border-radius:5px;
+  background:var(--accent-soft); color:var(--accent);
+}
+.skill b { display:block; font-size:12.5px; }
+.skill small { font-size:11px; color:var(--text-2); }
+.files { flex:1; min-height:0; overflow-y:auto; padding:12px; }
+.file-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
+.file {
+  display:flex; flex-direction:column; align-items:center; gap:8px; padding:16px 10px;
+  border:1px solid var(--border); border-radius:6px; background:var(--surface-2);
+  font-size:12px; color:var(--text-2); text-align:center;
+}
+.file .ic { width:26px; height:26px; color:var(--accent); }
+
+/* ---------- 设置对话框 ---------- */
+.backdrop {
+  position:fixed; inset:0; background:rgba(0,0,0,.34); z-index:40;
+  display:none; align-items:center; justify-content:center;
+  animation:fadeIn .15s var(--ease);
+}
+.backdrop.open { display:flex; }
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+.dialog {
+  width:min(920px,92vw); height:min(640px,86vh); display:flex; flex-direction:column;
+  background:var(--surface); border:1px solid var(--border-strong); border-radius:8px;
+  box-shadow:var(--shadow-lg); overflow:hidden;
+  animation:dialogIn .18s var(--ease);
+}
+@keyframes dialogIn { from { opacity:0; transform:translateY(8px) scale(.99); } to { opacity:1; transform:none; } }
+.dialog-head {
+  flex:none; height:40px; display:flex; align-items:center; gap:8px; padding-left:16px;
+  background:var(--surface-2); border-bottom:1px solid var(--border); font-size:13px; font-weight:600;
+}
+.dialog-head .captions { margin-left:auto; height:40px; }
+.dialog-body { flex:1; display:flex; min-height:0; }
+.settings-nav {
+  width:224px; padding:10px 8px; display:flex; flex-direction:column; gap:2px;
+  background:var(--surface-2); border-right:1px solid var(--border);
+}
+.settings-item {
+  position:relative; display:flex; align-items:center; gap:10px; height:36px; padding:0 10px;
+  border:0; border-radius:4px; background:transparent; font-size:13px; text-align:left;
+}
+.settings-item:hover { background:var(--hover); }
+.settings-item.active { background:var(--surface); font-weight:600; box-shadow:var(--shadow-sm); }
+.settings-item.active::before {
+  content:""; position:absolute; left:0; top:50%; width:3px; height:14px; border-radius:2px;
+  background:var(--accent); transform:translateY(-50%);
+}
+.settings-item .ic { color:var(--text-2); }
+.settings-item.active .ic { color:var(--accent); }
+.settings-main { flex:1; min-width:0; overflow-y:auto; padding:22px 28px; }
+.settings-main h2 { font-size:20px; font-weight:600; margin-bottom:18px; }
+.group { border:1px solid var(--border); border-radius:6px; background:var(--surface); margin-bottom:16px; }
+.row {
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  min-height:46px; padding:8px 14px; border-bottom:1px solid var(--border);
+}
+.row:last-child { border-bottom:0; }
+.row small { display:block; font-size:11.5px; color:var(--text-2); margin-top:2px; }
+select {
+  height:30px; padding:2px 8px; background:var(--surface); border:1px solid var(--border-strong);
+  border-radius:4px; outline:0; font-size:12.5px;
+}
+select:focus { border-color:var(--accent); box-shadow:inset 0 -2px 0 var(--accent); }
+.primary {
+  border:1px solid var(--accent); border-radius:4px; background:var(--accent);
+  color:#fff; font-size:13px; font-weight:600; padding:7px 16px;
+}
+.primary:hover { background:var(--accent-strong); }
+
+/* ---------- Toast ---------- */
+.toast {
+  position:fixed; right:18px; bottom:18px; z-index:60; min-width:240px; max-width:360px;
+  padding:12px 14px; background:var(--surface); color:var(--text);
+  border:1px solid var(--border-strong); border-left:4px solid var(--accent);
+  border-radius:6px; box-shadow:var(--shadow-md); font-size:12.5px;
+  opacity:0; transform:translateY(10px); pointer-events:none;
+  transition:opacity .2s var(--ease), transform .2s var(--ease);
+}
+.toast.show { opacity:1; transform:none; }
+.toast b { display:block; font-size:12px; margin-bottom:2px; }
+
+@media (max-width:860px) {
+  .nav { width:68px; padding:10px 6px; }
+  .nav-item { justify-content:center; padding:0; }
+  .nav-item span.txt, .nav-label, .nav-foot span:not(.dot-live) { display:none; }
+  .nav-foot { justify-content:center; }
+  .searchbox { max-width:260px; }
+  .searchbox kbd { display:none; }
+  .page { padding:16px; }
+  .skills-layout { grid-template-columns:1fr; }
+  .skills-card { max-height:220px; }
+  .metrics { grid-template-columns:repeat(2,1fr); }
+}
+@media (max-width:640px) {
+  .searchbox { display:none; }
+  .cards { grid-template-columns:1fr; }
+  .settings-nav { display:none; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-chat" viewBox="0 0 16 16"><path d="M3.2 3.4h9.6v6.4H7.1L4 12.2v-2.4H3.2z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.4"/><path d="M8 4.9V8l2.1 1.3"/></symbol>
+  <symbol id="i-flow" viewBox="0 0 16 16"><rect x="2.3" y="2.3" width="3.8" height="3.8" rx=".9"/><rect x="9.9" y="9.9" width="3.8" height="3.8" rx=".9"/><path d="M6.1 4.2h2.3a1.5 1.5 0 0 1 1.5 1.5v2.3M4.2 6.1v2.3a1.5 1.5 0 0 0 1.5 1.5h2.3"/></symbol>
+  <symbol id="i-box" viewBox="0 0 16 16"><path d="M2.6 5.2 8 2.6l5.4 2.6v5.6L8 13.4l-2.6-2.6z"/><path d="M2.8 5.3 8 7.9l5.2-2.6M8 7.9v5.5"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 16 16"><path d="M2.4 4.4h11.2M2.4 8h11.2M2.4 11.6h11.2"/><circle cx="6.1" cy="4.4" r="1.35"/><circle cx="10.2" cy="8" r="1.35"/><circle cx="5.2" cy="11.6" r="1.35"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 16 16"><path d="M12.9 9.8A5.4 5.4 0 0 1 6.2 3.1a5.4 5.4 0 1 0 6.7 6.7z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.6v1.4M8 13v1.4M1.6 8h1.4M13 8h1.4M3.5 3.5l1 1M11.5 11.5l1 1M12.5 3.5l-1 1M4.5 11.5l-1 1"/></symbol>
+  <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7.2" cy="7.2" r="4.1"/><path d="m10.3 10.3 3 3"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 16 16"><path d="M8 2.2 13 4v4.2c0 2.8-2 4.7-5 5.6-3-.9-5-2.8-5-5.6V4z"/><path d="m5.8 8 1.5 1.5 2.9-3"/></symbol>
+  <symbol id="i-broom" viewBox="0 0 16 16"><path d="M9.5 2.6 13 6.1M8.2 4l3.5 3.5M7 5.2 3.4 9l3.6 3.5L10.5 8.7z"/><path d="M3.4 9 1.8 14.2l5.2-1.6"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 16 16"><path d="M1.5 8h1.8l1.2-4 2 8 2-6 1.5 2h4.5"/></symbol>
+  <symbol id="i-net" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2"/><circle cx="8" cy="2.6" r="1.6"/><circle cx="3.1" cy="12" r="1.6"/><circle cx="12.9" cy="12" r="1.6"/><path d="M8 4.2v1.8M6.6 9.2l-2.4 1.7M9.4 9.2l2.4 1.7"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 16 16"><circle cx="4.5" cy="3.3" r="1.5"/><circle cx="4.5" cy="12.7" r="1.5"/><circle cx="11.5" cy="6.5" r="1.5"/><path d="M4.5 4.8v6.4M6 6.5h4"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 16 16"><path d="M2 4.4h4l1.2 1.4H14v6.2H2z"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11M8 2.5c3.4 3 3.4 8 0 11-3.4-3-3.4-8 0-11z"/></symbol>
+  <symbol id="i-window" viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="1"/><path d="M2.5 6h11"/></symbol>
+  <symbol id="i-desktop" viewBox="0 0 16 16"><rect x="2" y="2.8" width="12" height="8.4" rx="1"/><path d="M6 13.4h4M8 11.2v2.2"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 16 16"><rect x="5.4" y="1.8" width="5.2" height="8" rx="2.6"/><path d="M3.4 7.6a4.6 4.6 0 0 0 9.2 0M8 12.2v2M5.8 14.2h4.4"/></symbol>
+  <symbol id="i-file" viewBox="0 0 16 16"><path d="M4 2.6h6.2l2.2 2.2v8.6H4z"/><path d="M10 2.7v2.3h2.3M5.8 7.2h4.4M5.8 9.4h4.4"/></symbol>
+  <symbol id="i-zip" viewBox="0 0 16 16"><path d="M4 2.6h8v10.8H4z"/><path d="M8 2.6v2M8 5.2v2M8 7.8v2"/></symbol>
+  <symbol id="i-list" viewBox="0 0 16 16"><path d="M5 4.2h8M5 8h8M5 11.8h8M2.8 4.2h.1M2.8 8h.1M2.8 11.8h.1"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 16 16"><path d="M3.2 4.4h9.6M6 2.8h4M4.4 4.4l.6 9h6l.6-9M6.6 7v3.8M9.4 7v3.8"/></symbol>
+  <symbol id="i-music" viewBox="0 0 16 16"><path d="M6 11.6V3.2l6-1.2v8.4"/><circle cx="4.3" cy="11.8" r="1.7"/><circle cx="10.3" cy="10.6" r="1.7"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 16 16"><path d="M4.6 11.8h7a2.4 2.4 0 0 0 .2-4.8A3.6 3.6 0 0 0 5 6.7a2.6 2.6 0 0 0-.4 5.1z"/></symbol>
+  <symbol id="i-radar" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2.6"/><path d="M8 8 12 4.5"/></symbol>
+  <symbol id="i-convert" viewBox="0 0 16 16"><path d="M3 5.2h8.2l-2-2M13 10.8H4.8l2 2"/></symbol>
+  <symbol id="i-play" viewBox="0 0 16 16"><path d="M5 3.2v9.6l7-4.8z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 16 16"><path d="M5.2 3.4v9.2M10.8 3.4v9.2"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 16 16"><rect x="2.3" y="3.2" width="11.4" height="9.6" rx="1.1"/><path d="m4.7 6.6 1.8 1.6-1.8 1.6M8.4 10h2.7"/></symbol>
+  <symbol id="i-note" viewBox="0 0 16 16"><path d="M4 2.6h6.2l2.2 2.2v8.6H4z"/><path d="M10 2.7v2.3h2.3M5.8 7.2h4.4M5.8 9.4h4.4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+  <symbol id="i-up" viewBox="0 0 16 16"><path d="M8 12.5v-9M4.4 6.9 8 3.3l3.6 3.6"/></symbol>
+  <symbol id="i-close" viewBox="0 0 16 16"><path d="m3 3 10 10M13 3 3 13"/></symbol>
+  <symbol id="i-min" viewBox="0 0 16 16"><path d="M3 8h10"/></symbol>
+  <symbol id="i-max" viewBox="0 0 16 16"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx=".8"/></symbol>
+</svg>
+
+<div class="shell">
+  <header class="titlebar">
+    <div class="brand">
+      <div class="logo">B</div>
+      <div class="app-name">Butler <span class="app-sub">本地优先智能管家</span></div>
+    </div>
+    <div class="searchbox">
+      <svg class="ic"><use href="#i-search"/></svg>
+      <input id="search" type="text" placeholder="搜索页面或输入指令，回车执行" autocomplete="off">
+      <kbd>Ctrl K</kbd>
+    </div>
+    <div class="tools">
+      <button class="icon-btn" id="themeBtn" title="切换深浅色"><svg class="ic"><use href="#i-moon"/></svg></button>
+      <button class="icon-btn" id="settingsBtn" title="系统设置"><svg class="ic"><use href="#i-gear"/></svg></button>
+      <div class="captions">
+        <button class="cap" data-win="min" title="最小化"><svg><use href="#i-min"/></svg></button>
+        <button class="cap" data-win="max" title="最大化"><svg><use href="#i-max"/></svg></button>
+        <button class="cap close" data-win="close" title="关闭"><svg><use href="#i-close"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="body">
+    <nav class="nav">
+      <div class="nav-label">工作区</div>
+      <button class="nav-item active" data-route="chat"><span class="bar"></span><svg class="ic"><use href="#i-chat"/></svg><span class="txt">智能助手</span></button>
+      <button class="nav-item" data-route="timemachine"><span class="bar"></span><svg class="ic"><use href="#i-clock"/></svg><span class="txt">时光监控</span></button>
+      <button class="nav-item" data-route="dag"><span class="bar"></span><svg class="ic"><use href="#i-flow"/></svg><span class="txt">任务画布</span></button>
+      <button class="nav-item" data-route="skills"><span class="bar"></span><svg class="ic"><use href="#i-box"/></svg><span class="txt">技能仓储</span></button>
+      <div class="spacer"></div>
+      <div class="nav-label">系统</div>
+      <button class="nav-item" id="navSettings"><span class="bar"></span><svg class="ic"><use href="#i-gear"/></svg><span class="txt">系统设置</span></button>
+      <div class="nav-foot"><span class="dot-live"></span><span>本地服务</span></div>
+    </nav>
+
+    <main class="content">
+      <!-- 智能助手 -->
+      <section class="page active" id="page-chat">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Butler 工作区</div>
+            <h1 class="page-title">智能助手</h1>
+          </div>
+          <div class="head-actions">
+            <div class="chip"><span class="status-dot green"></span>本地服务已连接<span class="status-dot blue"></span></div>
+          </div>
+        </div>
+        <div class="page-body">
+          <div class="card chat-card">
+            <div class="chat-scroll">
+              <div class="welcome">
+                <h1>今天要处理什么？</h1>
+                <p>拖入报错截图、输入指令，或从下方功能开始。</p>
+
+                <div class="group-title">常用</div>
+                <div class="cards">
+                  <button class="action" data-toast="系统自检与安全审计"><span class="ico"><svg class="ic"><use href="#i-shield"/></svg></span><b>系统自检与审计</b><span>扫描安全配置、开放端口与环境沙箱</span></button>
+                  <button class="action" data-toast="一键清理系统垃圾"><span class="ico"><svg class="ic"><use href="#i-broom"/></svg></span><b>一键清理垃圾</b><span>扫描并清除冗余缓存，恢复磁盘空间</span></button>
+                  <button class="action" data-toast="运行本地 FFT 音频降噪"><span class="ico"><svg class="ic"><use href="#i-wave"/></svg></span><b>本地 FFT 降噪</b><span>C++ 音频算法降阶滤波与离线提取</span></button>
+                  <button class="action" data-toast="开启局域网同步"><span class="ico"><svg class="ic"><use href="#i-net"/></svg></span><b>局域网同步</b><span>一键同步代码与资产到局域网节点</span></button>
+                </div>
+
+                <div class="group-title">应用功能</div>
+                <div class="cards">
+                  <button class="action" data-toast="会话模式"><span class="ico"><svg class="ic"><use href="#i-branch"/></svg></span><b>会话模式</b><span>本地 / Worktree / 云端模式切换</span></button>
+                  <button class="action" data-toast="Git 工具"><span class="ico"><svg class="ic"><use href="#i-convert"/></svg></span><b>Git 工具</b><span>Diff / Commit / Push / PR 管理</span></button>
+                  <button class="action" data-toast="多项目管理"><span class="ico"><svg class="ic"><use href="#i-folder"/></svg></span><b>多项目</b><span>跨项目多任务并行管理</span></button>
+                  <button class="action" data-toast="应用内浏览器"><span class="ico"><svg class="ic"><use href="#i-globe"/></svg></span><b>应用内浏览器</b><span>预览 Web 应用并评论</span></button>
+                  <button class="action" data-toast="浮动窗口"><span class="ico"><svg class="ic"><use href="#i-window"/></svg></span><b>浮动窗口</b><span>弹出独立对话线程</span></button>
+                  <button class="action" data-toast="计算机使用"><span class="ico"><svg class="ic"><use href="#i-desktop"/></svg></span><b>计算机使用</b><span>操作桌面应用、测试 GUI</span></button>
+                  <button class="action" data-toast="语音听写"><span class="ico"><svg class="ic"><use href="#i-mic"/></svg></span><b>语音听写</b><span>按住录音发送指令</span></button>
+                  <button class="action" data-toast="Worktree 管理"><span class="ico"><svg class="ic"><use href="#i-branch"/></svg></span><b>Worktree 管理</b><span>隔离的 Git 工作树</span></button>
+                </div>
+
+                <div class="group-title">本地技能</div>
+                <div class="cards">
+                  <button class="action" data-toast="markitdown"><span class="ico"><svg class="ic"><use href="#i-file"/></svg></span><b>转 Markdown</b><span>-i &lt;文件&gt; PDF/DOCX 转为 Markdown</span></button>
+                  <button class="action" data-toast="docx_read"><span class="ico"><svg class="ic"><use href="#i-file"/></svg></span><b>读取 Word</b><span>-i &lt;文件&gt; 提取 .docx 文本</span></button>
+                  <button class="action" data-toast="pdf_extract"><span class="ico"><svg class="ic"><use href="#i-file"/></svg></span><b>提取 PDF</b><span>-i &lt;文件&gt; 提取 PDF 文本</span></button>
+                  <button class="action" data-toast="archive_compress"><span class="ico"><svg class="ic"><use href="#i-zip"/></svg></span><b>压缩打包</b><span>-o &lt;输出&gt; -t &lt;目标&gt; [-p 密码]</span></button>
+                  <button class="action" data-toast="archive_extract"><span class="ico"><svg class="ic"><use href="#i-zip"/></svg></span><b>解压文件</b><span>-i &lt;压缩包&gt; [-d 目录] [-p 密码]</span></button>
+                  <button class="action" data-toast="archive_list"><span class="ico"><svg class="ic"><use href="#i-list"/></svg></span><b>查看压缩包</b><span>-i &lt;压缩包&gt; 列出内容</span></button>
+                  <button class="action" data-toast="uninstaller"><span class="ico"><svg class="ic"><use href="#i-trash"/></svg></span><b>软件卸载</b><span>列出/卸载已安装软件</span></button>
+                  <button class="action" data-toast="media_scan"><span class="ico"><svg class="ic"><use href="#i-music"/></svg></span><b>媒体扫描</b><span>全盘扫描 MP3/WAV/JPG</span></button>
+                  <button class="action" data-toast="storage_hub"><span class="ico"><svg class="ic"><use href="#i-cloud"/></svg></span><b>云盘管理</b><span>OneDrive/WebDAV/百度</span></button>
+                  <button class="action" data-toast="sec_scan"><span class="ico"><svg class="ic"><use href="#i-radar"/></svg></span><b>端口扫描</b><span>-t &lt;IP&gt; [-p 端口范围]</span></button>
+                  <button class="action" data-toast="web_sec_test"><span class="ico"><svg class="ic"><use href="#i-shield"/></svg></span><b>Web 安全测试</b><span>-t &lt;URL&gt; [-m recon|scan|full]</span></button>
+                  <button class="action" data-toast="format_convert"><span class="ico"><svg class="ic"><use href="#i-convert"/></svg></span><b>格式转换</b><span>-i &lt;输入&gt; -f &lt;docx|epub|png&gt;</span></button>
+                </div>
+              </div>
+            </div>
+            <div class="composer">
+              <div class="inputbar">
+                <button class="icon-btn" title="语音输入"><svg class="ic"><use href="#i-mic"/></svg></button>
+                <button class="icon-btn" title="更多操作"><svg class="ic"><use href="#i-plus"/></svg></button>
+                <input id="chatInput" type="text" placeholder="发送消息或拖入截图...">
+                <button class="send" id="sendBtn" title="发送"><svg class="ic"><use href="#i-up"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 时光监控 -->
+      <section class="page" id="page-timemachine">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Butler 工作区</div>
+            <h1 class="page-title">时光监控</h1>
+          </div>
+          <span class="page-meta">系统历史快照与传感器遥测</span>
+        </div>
+        <div class="page-body">
+          <div class="card tm-card">
+            <div class="metrics">
+              <div class="metric"><small>CPU 负载</small><strong>32%<span class="trend">▼ 4%</span></strong></div>
+              <div class="metric"><small>内存占用</small><strong>58%<span class="trend">▲ 2%</span></strong></div>
+              <div class="metric"><small>磁盘读取</small><strong>124<span class="trend">MB/s</span></strong></div>
+              <div class="metric"><small>传感器温度</small><strong>46°C</strong></div>
+            </div>
+            <div class="log" id="tmLog"></div>
+            <div class="sliderbar">
+              <input type="range" min="0" max="100" value="100" aria-label="时间轴">
+              <label>现在 · 2026-11-15 19:42</label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 任务画布 -->
+      <section class="page" id="page-dag">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Butler 工作区</div>
+            <h1 class="page-title">任务画布</h1>
+          </div>
+          <div class="toolbar">
+            <button class="tool ok" data-toast="流水线已启动"><svg class="ic"><use href="#i-play"/></svg>启动</button>
+            <button class="tool warn" data-toast="流水线已暂停"><svg class="ic"><use href="#i-pause"/></svg>暂停</button>
+            <button class="tool bad" data-toast="画布已清空"><svg class="ic"><use href="#i-trash"/></svg>清空</button>
+          </div>
+        </div>
+        <div class="page-body">
+          <div class="card dag-card">
+            <div class="canvas">
+              <svg class="wires"><path class="wire" d="M 250 150 C 330 150, 330 250, 410 250"/><path class="wire" d="M 590 250 C 670 250, 670 150, 750 150"/></svg>
+              <div class="node" style="left:70px; top:110px"><b>捕获报错截图</b><small>trigger · 图像输入</small><span class="tag">已完成</span></div>
+              <div class="node" style="left:410px; top:210px"><b>解析堆栈并定位</b><small>skill · 代码分析</small><span class="tag">运行中</span></div>
+              <div class="node" style="left:750px; top:110px"><b>生成修复补丁</b><small>skill · Patch</small><span class="tag">等待</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 技能仓储 -->
+      <section class="page" id="page-skills">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Butler 工作区</div>
+            <h1 class="page-title">技能仓储</h1>
+          </div>
+          <div class="head-actions">
+            <button class="small-btn" data-toast="终端（预览）" title="打开终端"><svg class="ic"><use href="#i-terminal"/></svg></button>
+            <button class="small-btn" data-toast="备忘录（预览）" title="备忘录"><svg class="ic"><use href="#i-note"/></svg></button>
+          </div>
+        </div>
+        <div class="page-body">
+          <div class="skills-layout">
+            <div class="card skills-card">
+              <div class="panel-head"><svg class="ic"><use href="#i-box"/></svg>本地技能</div>
+              <div class="skill-list" id="skillList"></div>
+            </div>
+            <div class="card files-card">
+              <div class="panel-head"><svg class="ic"><use href="#i-folder"/></svg>文件</div>
+              <div class="files">
+                <div class="file-grid">
+                  <div class="file"><svg class="ic"><use href="#i-folder"/></svg>src</div>
+                  <div class="file"><svg class="ic"><use href="#i-folder"/></svg>docs</div>
+                  <div class="file"><svg class="ic"><use href="#i-file"/></svg>README.md</div>
+                  <div class="file"><svg class="ic"><use href="#i-file"/></svg>pyproject.toml</div>
+                  <div class="file"><svg class="ic"><use href="#i-zip"/></svg>release.zip</div>
+                  <div class="file"><svg class="ic"><use href="#i-file"/></svg>main.ts</div>
+                  <div class="file"><svg class="ic"><use href="#i-file"/></svg>win11.css</div>
+                  <div class="file"><svg class="ic"><use href="#i-file"/></svg>butler-win11.html</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- 设置对话框 -->
+<div class="backdrop" id="settingsBackdrop">
+  <div class="dialog" role="dialog" aria-modal="true" aria-label="系统设置">
+    <div class="dialog-head">
+      <span>系统设置</span>
+      <div class="captions">
+        <button class="cap" data-close-dialog title="最小化"><svg><use href="#i-min"/></svg></button>
+        <button class="cap" data-close-dialog title="最大化"><svg><use href="#i-max"/></svg></button>
+        <button class="cap close" data-close-dialog title="关闭"><svg><use href="#i-close"/></svg></button>
+      </div>
+    </div>
+    <div class="dialog-body">
+      <aside class="settings-nav">
+        <button class="settings-item active"><svg class="ic"><use href="#i-gear"/></svg>全部配置</button>
+        <button class="settings-item" data-toast="外观设置"><svg class="ic"><use href="#i-sun"/></svg>外观与主题</button>
+        <button class="settings-item" data-toast="模型与语音"><svg class="ic"><use href="#i-mic"/></svg>模型与语音</button>
+        <button class="settings-item" data-toast="快捷键"><svg class="ic"><use href="#i-terminal"/></svg>快捷键</button>
+      </aside>
+      <div class="settings-main">
+        <h2>界面与主题设置</h2>
+        <div class="group">
+          <div class="row">
+            <div>主题风格<small>Win11 Fluent Design</small></div>
+            <select id="themeSelect">
+              <option value="light">Win11 浅色 (Fluent)</option>
+              <option value="dark">Win11 深色 (Fluent Dark)</option>
+            </select>
+          </div>
+          <div class="row">
+            <div>界面字体<small>系统 Segoe UI 字族</small></div>
+            <select><option>Windows Segoe UI</option><option>苹方简约黑体</option></select>
+          </div>
+          <div class="row">
+            <div>全局模糊度<small>Mica 材质强度</small></div>
+            <input type="range" min="10" max="50" value="30" style="width:160px">
+          </div>
+        </div>
+        <h2 style="font-size:16px">关于</h2>
+        <div class="group">
+          <div class="row"><div>版本<small>Win11 UI Preview</small></div><span style="color:var(--text-2)">v1.0.0</span></div>
+          <div class="row"><div>构建<small>单文件 · 无外部依赖</small></div><span style="color:var(--text-2)">2026-11-15</span></div>
+        </div>
+        <button class="primary" data-close-dialog>完成</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><b id="toastTitle">提示</b><span id="toastBody"></span></div>
+
+<script>
+(function () {
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+  const routes = ['chat', 'timemachine', 'dag', 'skills'];
+
+  function navigate(route) {
+    if (!routes.includes(route)) return;
+    $$('.page').forEach((p) => p.classList.toggle('active', p.id === 'page-' + route));
+    $$('.nav-item[data-route]').forEach((n) => n.classList.toggle('active', n.dataset.route === route));
+    document.body.dataset.route = route;
+  }
+
+  $$('.nav-item[data-route]').forEach((item) => item.addEventListener('click', () => navigate(item.dataset.route)));
+
+  let toastTimer;
+  function toast(title, body) {
+    $('#toastTitle').textContent = title;
+    $('#toastBody').textContent = body || '该功能在单文件预览中为演示状态。';
+    $('#toast').classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => $('#toast').classList.remove('show'), 2400);
+  }
+  $$('[data-toast]').forEach((el) => el.addEventListener('click', () => toast('Butler', el.dataset.toast)));
+
+  // 主题
+  const saved = localStorage.getItem('butler_preview_theme');
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light';
+    $('#themeSelect').value = document.documentElement.dataset.theme;
+    $('#themeBtn').innerHTML = '<svg class="ic"><use href="#i-' + (theme === 'dark' ? 'sun' : 'moon') + '"/></svg>';
+    localStorage.setItem('butler_preview_theme', theme);
+  }
+  applyTheme(saved === 'dark' ? 'dark' : 'light');
+  $('#themeBtn').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+  $('#themeSelect').addEventListener('change', (e) => applyTheme(e.target.value));
+
+  // 设置
+  const openSettings = () => $('#settingsBackdrop').classList.add('open');
+  const closeSettings = () => $('#settingsBackdrop').classList.remove('open');
+  $('#settingsBtn').addEventListener('click', openSettings);
+  $('#navSettings').addEventListener('click', openSettings);
+  $('#settingsBackdrop').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeSettings(); });
+  $$('[data-close-dialog]').forEach((b) => b.addEventListener('click', closeSettings));
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeSettings();
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      $('#search').focus();
+      $('#search').select();
+    }
+    if (!e.altKey || e.ctrlKey || e.metaKey) return;
+    const i = Number(e.key) - 1;
+    if (routes[i]) { e.preventDefault(); navigate(routes[i]); }
+  });
+
+  // 搜索
+  $('#search').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const q = e.target.value.trim();
+    if (!q) return;
+    const map = { '智能助手': 'chat', '聊天': 'chat', '时光监控': 'timemachine', '监控': 'timemachine', '任务画布': 'dag', '画布': 'dag', '技能': 'skills', '仓储': 'skills' };
+    const hit = Object.keys(map).find((k) => k.includes(q) || q.includes(k));
+    if (hit) { navigate(map[hit]); toast('已跳转', hit); }
+    else { navigate('chat'); $('#chatInput').value = q; toast('指令已填入', q); }
+    e.target.value = '';
+  });
+
+  // 窗口按钮（预览）
+  $$('[data-win]').forEach((b) => b.addEventListener('click', () => {
+    const map = { min: '最小化', max: '最大化', close: '关闭窗口' };
+    toast('窗口控制', map[b.dataset.win] + '仅桌面客户端可用，当前为单文件预览。');
+  }));
+
+  // 对话发送
+  function send() {
+    const input = $('#chatInput');
+    const value = input.value.trim();
+    if (!value) return;
+    toast('消息已发送', value);
+    input.value = '';
+  }
+  $('#sendBtn').addEventListener('click', send);
+  $('#chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+
+  // 数据填充
+  const logs = [
+    ['19:42:01', 'snapshot.created', '捕获窗口布局与 14 个进程句柄'],
+    ['19:41:32', 'sensor.temperature', 'HAL 温度 46°C / OLED 缓存 32%'],
+    ['19:40:58', 'fs.index', '增量索引 128 个文件'],
+    ['19:40:11', 'memory.trim', '释放闲置页 214 MB'],
+    ['19:39:44', 'network.sync', '局域网节点同步完成'],
+    ['19:38:20', 'security.scan', '端口扫描完成，无高危项'],
+    ['19:37:02', 'snapshot.pruned', '清理 3 个历史快照'],
+  ];
+  $('#tmLog').innerHTML = logs.map(([t, k, v]) => '<div><span class="t">' + t + '</span>' + k + ' · ' + v + '</div>').join('');
+
+  const skills = [
+    ['markitdown', '文档转 Markdown', 'file'],
+    ['docx_read', '读取 Word 文档', 'file'],
+    ['pdf_extract', '提取 PDF 文本', 'file'],
+    ['archive_compress', '压缩打包', 'zip'],
+    ['archive_extract', '解压文件', 'zip'],
+    ['uninstaller', '软件卸载', 'trash'],
+    ['media_scan', '媒体扫描', 'music'],
+    ['sec_scan', '端口扫描', 'radar'],
+  ];
+  $('#skillList').innerHTML = skills.map(([name, desc, ic]) =>
+    '<div class="skill"><span class="ico"><svg class="ic"><use href="#i-' + ic + '"/></svg></span><div><b>' + name + '</b><small>' + desc + '</small></div></div>'
+  ).join('');
+
+  navigate('chat');
+})();
+</script>
+</body>
+</html>
