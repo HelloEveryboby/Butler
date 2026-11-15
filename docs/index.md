@@ -1,6 +1,12 @@
 # Butler 文档中心（索引）
 
-> 不知道从哪看起？**新手请直接走 [安装与启动指南](./start/install.md)**（5 分钟跑通）。
+> 不知道从哪看起？**新手请先读 [用户使用指南](./USAGE_GUIDE.md)**（从安装后第一次启动到熟练运用全部能力），安装部分见 [安装与启动指南](./start/install.md)。
+
+## 🎯 使用指南（必读）
+
+| 文档 | 内容 |
+| :--- | :--- |
+| **[用户使用指南](./USAGE_GUIDE.md)** | **唯一使用入口**：三种交互方式 / 快速上手 5 件事 / CLI 命令完整参考 / TUI 斜杠命令速查 / 技能按场景选型 / 自然语言交互示例 / 常见问题排查 |
 
 ## 🚀 新手入门（Start）
 
@@ -10,7 +16,7 @@
 | [安装与启动指南 (EN)](./start/install_en.md) | English version |
 | [完整环境变量参考](./start/env-reference.md) | `.env` 全部可选项：8 家 AI 服务商 / 语音 / MQTT |
 | [OOTB 工作流](./OOTB_WORKFLOW.md) | 开箱即用的标准工作流 |
-| [命令系统全攻略](./COMMAND_SYSTEM.md) | CLI 与自然语言命令速查 |
+| [命令系统全攻略](./COMMAND_SYSTEM.md) | CLI 与自然语言命令速查（注：完整命令请以 [用户使用指南](./USAGE_GUIDE.md) 为准） |
 | [错误码规范](./dev/ERROR_CODES.md) | BTL-xxxx 错误码：原因 + 一键修复 |
 
 ## 📘 用户指南（Guide）

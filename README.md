@@ -87,6 +87,22 @@ Butler UI 3.0 彻底颠覆了传统的单维网页导航，引入了 **$2 \times
 
 部署完成后，在任意新终端窗口直接运行 **`butler doctor`** 即可对系统执行体检，或者通过 **`butler start`** 拉起数字员工！
 
+> 📖 **装好之后怎么用？** 请直接阅读 **[Butler 用户使用指南](./docs/USAGE_GUIDE.md)** —— 覆盖 CLI / TUI / Web 三种交互、斜杠命令速查、40 个技能按场景选型、自然语言交互示例与常见问题排查。
+
+---
+
+## 🚀 安装后必做的 5 件事
+
+| # | 命令 | 说明 |
+| :---: | :--- | :--- |
+| 1 | `butler init` | 3 分钟首次配置向导（选服务商 + Key 校验 + 示例任务） |
+| 2 | `butler doctor` | 系统体检，任何依赖/配置问题一目了然 |
+| 3 | `butler tui` | 启动终端界面，试试 `/weather 上海` 或 `/encrypt ./secret.txt` |
+| 4 | `butler skill list` | 浏览 40 个内置技能，`butler skill info <名>` 看详情 |
+| 5 | 直接说中文 | 在对话里说"把 report.pdf 转成 Word"，意图自动识别 |
+
+更详细的命令速查与技能使用示例见 **[用户使用指南](./docs/USAGE_GUIDE.md)**。
+
 ---
 
 ### 手动快速启动（经典模式）

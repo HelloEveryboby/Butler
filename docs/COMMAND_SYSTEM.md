@@ -1,5 +1,8 @@
 # Butler 命令行与指令系统全攻略 (Command System Guide)
 
+> ⚠️ **本文档部分内容已过时**（仍使用 `python butler_cli.py` 而非统一的 `butler` 命令，且缺少 skill/tool/plugin/download/init/config 等命令）。
+> **完整、最新的命令参考请直接阅读 [用户使用指南](./USAGE_GUIDE.md)**。本文档保留供历史参考。
+
 本指南旨在帮助您快速掌握 Butler 系统提供的双重交互能力：**硬核命令行 (CLI)** 与 **智能文字命令行 (Natural Language Commands)**。
 
 ---
