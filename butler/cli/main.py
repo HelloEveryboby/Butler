@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# ⚠️ 本模块是 butler start|package|agent|doctor 的实现层（同时供 build.py 打包入口使用）。
+#    日常使用请直接用统一命令 `butler <命令>`，无需 python -m butler.cli.main。
 import sys
 import argparse
 from butler.cli import doctor_cmd, package_cmd, agent_cmd
@@ -13,7 +15,7 @@ def run_cli():
         print(f"⚠️ [警告] 自动执行数据库表迁移失败: {e}")
 
     parser = argparse.ArgumentParser(
-        description="Butler v2.0 Alpha 命令行终端 - 数字员工操作系统控制中心"
+        description="Butler v2.0 Alpha 命令行终端 - 数字员工操作系统控制中心 (建议使用统一命令 butler)"
     )
 
     subparsers = parser.add_subparsers(dest="command", help="可用的命令选项")

@@ -104,9 +104,10 @@ def main():
     file_parser.add_argument("--path", required=True, help="目标路径")
     file_parser.add_argument("--content", help="写入的内容 (仅用于 create)")
 
-    # 12. 技能管理 (Skills) - 包装 npx skills
-    skills_parser = subparsers.add_parser("skills", help="技能库管理 (集成 npx skills)")
-    skills_parser.add_argument("op", choices=["add", "remove", "list", "find"], help="操作类型")
+    # 12. 技能管理 (Skills) - catalog=本地目录; 其余包装 npx skills
+    skills_parser = subparsers.add_parser("skills", help="技能库管理 (catalog=生成/浏览本地技能目录; 其余集成 npx skills)")
+    skills_parser.add_argument("op", nargs="?", choices=["add", "remove", "list", "find", "catalog"], default=None,
+                               help="操作类型 (缺省: 浏览本地技能目录)")
     skills_parser.add_argument("extra_args", nargs=argparse.REMAINDER, help="npx skills 的原生参数")
 
     # 13. 诊断 (Doctor)
@@ -114,7 +115,11 @@ def main():
 
     # 14. 配置 AI 服务商 (config)
     config_parser = subparsers.add_parser("config", help="交互式配置 AI 服务商与密钥")
-    config_parser.add_argument("sub", nargs='?', default="", help="子命令: show (查看当前配置)")
+    config_parser.add_argument("sub", nargs='?', default="", help="子命令: show (查看) / check (健康检查)")
+
+    # 14b. 首次配置向导 (init)
+    init_parser = subparsers.add_parser("init", help="首次配置向导 (3 分钟上手: 选服务商 + Key 校验 + 示例任务)")
+    init_parser.add_argument("--skip-check", action="store_true", help="跳过 API 连通性校验")
 
     # 15. TUI 终端界面
     tui_parser = subparsers.add_parser("tui", help="启动 Butler TUI 终端用户界面")
@@ -269,10 +274,22 @@ def main():
                     print(f"❌ {items}")
 
         elif args.command == "skills":
-            import subprocess
-            cmd = ["npx", "-y", "skills", args.op] + args.extra_args
-            print(f"🚀 执行命令: {' '.join(cmd)}")
-            subprocess.run(cmd)
+            root = Path(__file__).resolve().parent
+            if args.op in (None, "catalog"):
+                import subprocess as _sp
+                gen = root / "scripts" / "gen_skill_catalog.py"
+                if args.op == "catalog":
+                    _sp.run([sys.executable, str(gen)])
+                cat = root / "skills" / "CATALOG.md"
+                if cat.exists():
+                    print(cat.read_text(encoding="utf-8")[:3000])
+                print(f"\n📖 完整目录: {cat}")
+                print("💡 butler skill info <名> 查看详情 / butler skill run <名> 运行 / butler skills catalog 重新生成")
+            else:
+                import subprocess
+                cmd = ["npx", "-y", "skills", args.op] + args.extra_args
+                print(f"🚀 执行命令: {' '.join(cmd)}")
+                subprocess.run(cmd)
 
         elif args.command == "doctor":
             from butler.core.doctor import run_doctor
@@ -281,6 +298,10 @@ def main():
         elif args.command == "config":
             from butler.cli.config_cmd import run_config
             run_config(getattr(args, "sub", ""))
+
+        elif args.command == "init":
+            from butler.cli.init_cmd import run_init
+            run_init(skip_check=getattr(args, "skip_check", False))
 
         elif args.command == "tui":
             from butler.tui.main import run_tui

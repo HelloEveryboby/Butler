@@ -1,0 +1,25 @@
+#!/bin/bash
+# ==============================================================================
+# Butler 统一命令入口 (clone 模式 / 本地开发)
+#   用法: butler <command> [args...]
+#   示例: butler doctor / butler start / butler skills list
+#   将本目录加入 PATH 即可在任意位置使用:
+#       export PATH="$PWD/bin:$PATH"
+# ==============================================================================
+
+BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+PROJECT_ROOT="$( cd "$BIN_DIR/.." && pwd )"
+
+# 优先使用便携运行时 (与 bin/run.sh 逻辑保持一致)
+if [ -f "$PROJECT_ROOT/runtime/bin/python3" ]; then
+    PYTHON_CMD="$PROJECT_ROOT/runtime/bin/python3"
+elif [ -f "$PROJECT_ROOT/runtime/python" ]; then
+    PYTHON_CMD="$PROJECT_ROOT/runtime/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_CMD="python3"
+else
+    echo "❌ 未找到 python3。请先安装 Python 3.10/3.11，或运行 ./bin/install.sh 配置便携运行时。" >&2
+    exit 1
+fi
+
+exec "$PYTHON_CMD" "$PROJECT_ROOT/butler_launcher.py" "$@"

@@ -174,7 +174,8 @@ $LauncherContent = @"
 @echo off
 setlocal
 set PATH=$venvDir\Scripts;%PATH%
-"$venvPython" "$AppDir\butler_cli.py" %*
+set PYTHONPATH=$AppDir;%PYTHONPATH%
+"$venvPython" "$AppDir\butler_launcher.py" %*
 endlocal
 "@
 
