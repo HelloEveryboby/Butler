@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """原生 Agent 循环的回归测试。
 
 覆盖：
@@ -11,14 +10,6 @@
 
 import json
 import sqlite3
-import sys
-from pathlib import Path
-
-import pytest
-
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from butler.agent.agent import Agent
 from butler.agent.executor import Executor

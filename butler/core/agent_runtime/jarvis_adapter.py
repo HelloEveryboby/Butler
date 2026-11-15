@@ -21,12 +21,14 @@ Jarvis 适配层 — 将旧版 Jarvis._autonomous_agent_loop 迁移到新 AgentR
 from __future__ import annotations
 
 import inspect
-import json
 import logging
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
+
+from butler.core.llm_providers import chat_completions, resolve_llm_config
 
 from .agent_runtime import AgentConfig, AgentRuntime
 from .builtin_tools import register_builtin_tools
@@ -34,10 +36,9 @@ from .context_manager import ContextManager
 from .event_stream import EventStream
 from .permission import PermissionMode, PermissionSystem
 from .skill_tools import register_skill_tools
-from .subagent_manager import SubagentDefinition, SubagentManager
+from .subagent_manager import SubagentManager
 from .tool_registry import ToolRegistry
-from .types import Event, EventType, Message, PermissionLevel, StopReason
-from butler.core.llm_providers import chat_completions, resolve_llm_config
+from .types import Event, EventType, Message, PermissionLevel
 
 logger = logging.getLogger(__name__)
 
@@ -357,8 +358,9 @@ class JarvisAgentBridge:
 
             # GUI 模式：通过 event_bus 弹出确认对话框
             try:
-                from butler.core.event_bus import event_bus
                 import threading
+
+                from butler.core.event_bus import event_bus
 
                 approved = {"result": None}
                 event = threading.Event()
@@ -397,7 +399,6 @@ class JarvisAgentBridge:
         """
         try:
             from butler.core.intent_dispatcher import intent_registry
-            import inspect
 
             for intent_name, entry in intent_registry._llm_handlers.items():
                 handler_fn = entry["function"]
@@ -455,9 +456,7 @@ class JarvisAgentBridge:
 
                 # 推断类型
                 annotation = param.annotation
-                if annotation is inspect.Parameter.empty:
-                    prop_type = "string"
-                elif annotation in (str, "str"):
+                if annotation is inspect.Parameter.empty or annotation in (str, "str"):
                     prop_type = "string"
                 elif annotation in (int, "int"):
                     prop_type = "integer"

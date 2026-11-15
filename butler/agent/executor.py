@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """步骤执行器 — 按工具名执行真实工具，绝不返回伪造结果。
 
 旧实现会在找不到技能包时返回「拟真周报」之类假数据，让 Agent 看起来成功、
@@ -11,7 +10,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ class Executor:
         self._registry = get_registry()
         return self._registry
 
-    def execute_step(self, step: Dict[str, Any], previous_results: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_step(self, step: dict[str, Any], previous_results: dict[str, Any]) -> dict[str, Any]:
         """执行单个步骤，返回 ``{"status", "result"|"error"}``。"""
         action = str(step.get("action") or "")
         if not action:
@@ -77,9 +76,9 @@ class Executor:
         return {"status": "success", "result": tool_result.content}
 
     @staticmethod
-    def _resolve_dependencies(step_input: Dict[str, Any], previous_results: Dict[str, Any]) -> Dict[str, Any]:
+    def _resolve_dependencies(step_input: dict[str, Any], previous_results: dict[str, Any]) -> dict[str, Any]:
         """把 ``{"source_step": "1"}`` 替换为上游步骤的真实结果。"""
-        resolved: Dict[str, Any] = {}
+        resolved: dict[str, Any] = {}
         for key, value in step_input.items():
             if isinstance(value, dict) and "source_step" in value:
                 prev = previous_results.get(str(value["source_step"]), {})

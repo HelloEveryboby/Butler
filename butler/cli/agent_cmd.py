@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 import json
 
-from butler.package_runtime.loader import PackageLoader
 from butler.agent.agent import Agent
+from butler.package_runtime.loader import PackageLoader
+
 
 def list_agents():
     """
