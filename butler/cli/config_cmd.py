@@ -69,6 +69,92 @@ def _pick_provider() -> str:
         print(f"{_YE}无效输入，请重试。{_NC}")
 
 
+def _check_config():
+    """配置健康检查：文件清单、重复键冲突、密钥缺失（butler config check）。"""
+    from butler.core.errors import format_error
+
+    root = Path(__file__).resolve().parent.parent.parent
+    cfg_dir = root / "config"
+    print(f"{_BD}─── 配置健康检查 ───{_NC}")
+
+    # ① 配置文件清单与职责
+    files = [
+        (root / ".env", "密钥与服务商选择（唯一密钥源）"),
+        (cfg_dir / "config.yaml", "行为配置（权威源）"),
+        (cfg_dir / "settings.yaml", "历史遗留配置（待合并，勿新增键）"),
+        (cfg_dir / "system_config.json", "系统内部配置"),
+        (cfg_dir / "portable_config.json", "便携模式配置"),
+    ]
+    print(f"  📁 配置文件清单:")
+    for f, role in files:
+        mark = "✅" if f.exists() else "—"
+        print(f"     {mark} {f.relative_to(root)}  {role}")
+
+    # ② 重复键检测：config.yaml vs settings.yaml（历史上同键双写）
+    conflicts = []
+    c1, c2 = cfg_dir / "config.yaml", cfg_dir / "settings.yaml"
+    if c1.exists() and c2.exists():
+        try:
+            import yaml  # PyYAML（项目依赖，缺失时降级为跳过）
+
+            def _flat(d, prefix=""):
+                out = set()
+                if isinstance(d, dict):
+                    for k, v in d.items():
+                        key = f"{prefix}.{k}" if prefix else str(k)
+                        if isinstance(v, dict):
+                            out |= _flat(v, key)
+                        else:
+                            out.add(key)
+                return out
+
+            k1 = _flat(yaml.safe_load(c1.read_text(encoding="utf-8")) or {})
+            k2 = _flat(yaml.safe_load(c2.read_text(encoding="utf-8")) or {})
+            conflicts = sorted(k1 & k2)
+        except Exception as e:
+            print(f"  {_YE}⚠️ 跳过重复键检测（YAML 解析不可用）: {e}{_NC}")
+
+    print(f"\n  🔍 重复键冲突 (config.yaml ∩ settings.yaml):")
+    if conflicts:
+        for k in conflicts:
+            print(f"     ⚠️ {k}")
+        print(f"     {_YE}处理原则：一律以 config.yaml 为准；settings.yaml 中的同名键将被忽略。{_NC}")
+    else:
+        print("     ✅ 无冲突")
+
+    # ③ 密钥状态
+    print(f"\n  🔑 AI 密钥状态:")
+    env = _env_path()
+    if not env.exists():
+        print("     ❌ 未找到 .env")
+    else:
+        load_dotenv(env, override=True)
+        provider = os.getenv("AI_PROVIDER", "deepseek") or "deepseek"
+        defaults = PROVIDER_DEFAULTS.get(provider, PROVIDER_DEFAULTS["deepseek"])
+        key_env = defaults["key_env"]
+        key_val = os.getenv(key_env, "") or ""
+        if key_val and "YOUR_" not in key_val:
+            print(f"     ✅ {key_env} 已配置（{defaults['display_name']}）")
+        else:
+            print(f"     ❌ {key_env} 未配置")
+
+    # ④ 下一步建议
+    fixes = []
+    if not (root / ".env").exists():
+        fixes.append(".env 缺失 → 运行 butler init（3 分钟配置向导）")
+    if conflicts:
+        fixes.append("配置文件重复键 → 以 config.yaml 为准，清理 settings.yaml 同名键（或删除 settings.yaml 中已废弃段落）")
+    if not (root / ".env").exists() or not key_val or "YOUR_" in key_val:
+        fixes.append("AI 密钥未配置 → 运行 butler init 或 butler config")
+
+    print(f"\n{_BD}🔧 下一步建议:{_NC}")
+    if fixes:
+        for i, f in enumerate(fixes, 1):
+            print(f"   {i}. {f}")
+    else:
+        print("   ✅ 配置健康。可随时用 butler config 重新配置、butler config show 查看。")
+
+
 def run_config(subaction: str = ""):
     """运行交互式配置向导。
 
@@ -84,6 +170,10 @@ def run_config(subaction: str = ""):
 
     if subaction == "show":
         _show_current()
+        return
+
+    if subaction == "check":
+        _check_config()
         return
 
     _show_current()

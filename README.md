@@ -105,6 +105,7 @@ Butler UI 3.0 彻底颠覆了传统的单维网页导航，引入了 **$2 \times
 3. **统一命令入口（推荐）：** 将 `bin/` 加入 PATH 后，即可像一键安装的用户一样使用 `butler` 命令：
    ```bash
    export PATH="$PWD/bin:$PATH"   # Linux/macOS（写入 ~/.bashrc 可永久生效）
+   butler init      # 3 分钟首次配置向导（选服务商 + Key 校验 + 示例任务）
    butler doctor    # 系统体检
    butler start     # 启动服务
    butler tui       # 终端交互界面

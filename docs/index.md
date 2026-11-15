@@ -11,6 +11,7 @@
 | [完整环境变量参考](./start/env-reference.md) | `.env` 全部可选项：8 家 AI 服务商 / 语音 / MQTT |
 | [OOTB 工作流](./OOTB_WORKFLOW.md) | 开箱即用的标准工作流 |
 | [命令系统全攻略](./COMMAND_SYSTEM.md) | CLI 与自然语言命令速查 |
+| [错误码规范](./dev/ERROR_CODES.md) | BTL-xxxx 错误码：原因 + 一键修复 |
 
 ## 📘 用户指南（Guide）
 
@@ -28,6 +29,7 @@
 | 文档 | 内容 |
 | :--- | :--- |
 | [技能贡献与创建指南](./SKILLS_GUIDE.md) | One Folder = One Skill 快速上手 |
+| [SKILL.md 元数据规范](./dev/SKILL_FRONTMATTER.md) | front-matter 字段 + 降级规则（让技能可被发现） |
 | [技能 CLI](./SKILL_CLI.md) / [技能管理器指南](./SKILL_MANAGER_GUIDE.md) | 技能管理与调试 |
 | [架构深度解密](./Butler_Code_Wiki.md) | 系统技术内参 |
 | [Karpathy 示例](./KARPATHY_EXAMPLES.md) | 代码风格范例 |

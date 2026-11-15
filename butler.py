@@ -35,7 +35,9 @@ def run_skill(name: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Butler 统一入口")
+    print("⚠️ [已废弃] 直接运行 butler.py 的方式将从下个大版本移除。")
+    print("   请改用统一命令入口: butler <命令>   (clone 用户: export PATH=\"$PWD/bin:$PATH\"，详见 README)\n")
+    parser = argparse.ArgumentParser(description="Butler 统一入口 (建议改用 butler 命令)")
     parser.add_argument("--run", choices=sorted(SKILL_RUNNERS), help="独立运行指定技能")
     parser.add_argument("command", nargs="?", choices=["audit"], help="audit: 系统安全审计自检与报告生成")
     args = parser.parse_args()

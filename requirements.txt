@@ -29,6 +29,7 @@ baidu-aip
 pvrecorder
 pyautogui
 pycryptodome
+pydantic  # 配置模型 (butler/core/config_model.py) 必需
 pygame
 pypinyin
 pytesseract

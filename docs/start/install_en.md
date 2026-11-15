@@ -104,9 +104,11 @@ bin\run.bat               # Windows
 
 ## 3. First-Run Flow
 
-1. **StartupWizard**: environment check + automatic dependency installation;
-2. **EnhancedConfigWizard**: API key input with live validation;
-3. Enter the main UI. Re-run configuration anytime with `butler config`.
+Recommended: run **`butler init`** (3-minute setup wizard: pick a provider → enter & validate the API key → get ready-to-use example tasks).
+
+On manual launches the system also runs an environment check + dependency installation
+(`StartupWizard`), followed by the `EnhancedConfigWizard` for API key input with live validation.
+Re-run configuration anytime with `butler config`.
 
 ---
 

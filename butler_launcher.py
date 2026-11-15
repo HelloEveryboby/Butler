@@ -23,6 +23,7 @@ MODE_COMMANDS = {
     "tui", "gui", "web", "headless",
     "start", "api",
     "agent", "package", "config", "doctor", "download",
+    "init",
     # 兼容旧写法
     "legacy", "下载",
 }

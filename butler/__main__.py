@@ -86,6 +86,8 @@ def main():
         _launch_package(rest)
     elif mode == "config":
         _launch_config(rest)
+    elif mode == "init":
+        _launch_init(rest)
     elif mode == "doctor":
         _launch_doctor()
     elif mode in ("download", "下载"):
@@ -205,9 +207,32 @@ def _launch_doctor():
 
 def _launch_config(rest: list):
     """交互式配置 AI 服务商与密钥."""
-    from butler.cli import config_cmd
+    try:
+        from butler.cli import config_cmd
+    except ImportError as e:
+        _friendly_import_error(e)
+        return
     sub = rest[0] if rest else ""
     config_cmd.run_config(sub)
+
+
+def _launch_init(rest: list):
+    """首次配置向导 (3 分钟上手)."""
+    try:
+        from butler.cli.init_cmd import run_init
+    except ImportError as e:
+        _friendly_import_error(e)
+        return
+    run_init(skip_check="--skip-check" in rest)
+
+
+def _friendly_import_error(e: ImportError):
+    """依赖缺失时输出标准错误码块，而不是裸 traceback (参见 docs/dev/ERROR_CODES.md)。"""
+    try:
+        from butler.core.errors import format_error
+        print(format_error("BTL-1002", detail=str(e)))
+    except Exception:
+        print(f"❌ [BTL-1002] 缺少 Python 依赖包: {e}\n   修复: python -m package.dependency_manager install_all")
 
 
 def _launch_download(rest: list):
@@ -251,29 +276,37 @@ def _print_help():
     """打印清晰的职责分工帮助."""
     print("""Butler AI 助手 - 统一入口 (默认启动 TUI)
 
-用法:
-  python -m butler [模式] [选项...]
+💡 常用五件事:
+  butler init          首次配置向导 (3 分钟上手)
+  butler start         启动核心服务
+  butler doctor        系统体检 (带下一步建议)
+  butler skills        浏览技能目录 (skills/CATALOG.md)
+  butler config show   查看当前 AI 配置
+
+用法 (以下均可用统一命令 butler 代替 python -m butler):
 
 界面模式 (互斥, 默认 tui):
-  python -m butler              启动 TUI 终端界面 (默认)
-  python -m butler tui          终端界面 (Textual)
-  python -m butler gui          Tkinter 经典桌面界面
-  python -m butler web          pywebview 现代桌面界面
-  python -m butler headless     无头模式 (Jarvis 后台 + API, 无前台 UI)
+  butler               启动 TUI 终端界面 (默认)
+  butler tui           终端界面 (Textual)
+  butler gui           Tkinter 经典桌面界面
+  butler web           pywebview 现代桌面界面
+  butler headless      无头模式 (Jarvis 后台 + API, 无前台 UI)
 
 服务 / 管理:
-  python -m butler api [--port 5001] [--host 0.0.0.0]
-                                启动 FastAPI REST 网关
-  python -m butler cli [...]    功能型 CLI (crawl/email/encrypt/translate...)
-  python -m butler agent list   列出数字员工
-  python -m butler agent run <角色> <任务>
+  butler api [--port 5001] [--host 0.0.0.0]
+                                启动 FastAPI REST 网关 (别名: butler start)
+  butler init [--skip-check]   首次配置向导 (服务商 + Key 校验 + 示例)
+  butler cli [...]    功能型 CLI (crawl/email/encrypt/translate...)
+  butler agent list   列出数字员工
+  butler agent run <角色> <任务>
                                 委派任务给员工
-  python -m butler package list 列出已安装包
-  python -m butler package install <路径>
+  butler package list 列出已安装包
+  butler package install <路径>
                                 安装本地包
-  python -m butler config       交互式配置 AI 服务商与密钥
-  python -m butler config show  查看当前 AI 配置
-  python -m butler doctor       系统诊断自检
+  butler config       交互式配置 AI 服务商与密钥
+  butler config show  查看当前 AI 配置
+  butler config check 配置健康检查 (重复键/缺失项)
+  butler doctor       系统诊断自检
 
 通用选项:
   --skip-setup                  跳过初始化向导 (仅 gui/legacy)
@@ -281,7 +314,7 @@ def _print_help():
   -h, --help                    显示本帮助
 
 向后兼容 (已废弃, 将移除):
-  --tui, --legacy, --headless, --cli, start, legacy
+  --tui, --legacy, --headless, --cli, legacy
 """)
 
 
