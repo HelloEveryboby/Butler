@@ -90,6 +90,8 @@ def main():
         _launch_init(rest)
     elif mode == "doctor":
         _launch_doctor()
+    elif mode == "guide":
+        _print_guide()
     elif mode in ("download", "下载"):
         _launch_download(rest)
     else:
@@ -272,6 +274,46 @@ def _warn_deprecated(old: str, new: str):
     print(f"⚠️ [已废弃] '{old}' 将在未来版本移除, 请改用 '{new}'.", file=sys.stderr)
 
 
+def _print_guide():
+    """打印快速上手指南 (butler guide) —— 让用户不读手册也能立刻上手."""
+    print("""Butler 快速上手指南  (完整文档: docs/USAGE_GUIDE.md)
+
+━━━ 安装后必做的 5 件事 ━━━
+  1. butler init              3 分钟配置向导 (选服务商 + Key 校验 + 示例)
+  2. butler doctor            系统体检 (带下一步建议)
+  3. butler tui               启动终端界面, 试试:
+                                /weather 上海
+                                /encrypt ./secret.txt
+                                /markitdown ./report.pdf
+  4. butler skill list        浏览 40 个内置技能
+  5. 直接说中文                "把 report.pdf 转成 Word" 即可
+
+━━━ 三种交互方式 ━━━
+  butler                      启动 TUI 终端界面 (默认)
+  butler tui                  终端界面
+  butler web                  现代桌面界面 (pywebview)
+  butler start                启动 REST API 网关 (--port 指定端口)
+
+━━━ 常用命令速查 ━━━
+  网络:  butler weather 北京 | butler crawl --url https://example.com
+         butler translate --text "Hello" | butler image-search --query 猫咪
+  文档:  butler convert --input a.pdf --output a.docx
+         butler file --op read --path config.yaml
+  安全:  butler encrypt --path secret.txt --algo AES
+         butler audit --security
+  技能:  butler skill list | butler skill info <名> | butler skill run <名>
+  系统:  butler monitor | butler doctor | butler dependency install_all
+
+━━━ 不知道命令名? ━━━
+  TUI 内: /commands 浏览全部 | /howto 我想加密文件 按意图推荐
+  终端:   butler skill info <技能ID> 查看技能详情
+
+━━━ 下一步 ━━━
+  完整命令与斜杠命令速查: docs/USAGE_GUIDE.md
+  环境变量配置:           docs/start/env-reference.md
+""")
+
+
 def _print_help():
     """打印清晰的职责分工帮助."""
     print("""Butler AI 助手 - 统一入口 (默认启动 TUI)
@@ -307,6 +349,16 @@ def _print_help():
   butler config show  查看当前 AI 配置
   butler config check 配置健康检查 (重复键/缺失项)
   butler doctor       系统诊断自检
+  butler guide        打印快速上手指南 (5 件事 + 常用命令速查)
+
+常用功能型命令 (完整列表见 butler guide):
+  butler weather 北京            实时天气
+  butler crawl --url <url>       爬取网页
+  butler translate --text "你好"  翻译文本
+  butler encrypt --path f.txt    AES 加密文件
+  butler convert --input a.pdf --output a.docx  文档格式转换
+  butler skill list              列出技能
+  butler skill run <技能ID>      运行技能
 
 通用选项:
   --skip-setup                  跳过初始化向导 (仅 gui/legacy)

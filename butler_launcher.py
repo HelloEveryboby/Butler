@@ -19,7 +19,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 
 # 属于 ``python -m butler`` (界面 / 服务 / 管理) 的命令
 MODE_COMMANDS = {
-    "", "help",
+    "", "help", "guide",
     "tui", "gui", "web", "headless",
     "start", "api",
     "agent", "package", "config", "doctor", "download",
