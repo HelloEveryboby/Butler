@@ -185,6 +185,20 @@ class Jarvis:
         # Build AppContainer (declarative dependency injection)
         self.container = build_container(self, config_loader, self.prompts)
 
+        # Native agent runtime: LLM-driven tool-calling loop (agent.runtime=true by default).
+        # Falls back to the legacy intent loop if construction fails.
+        try:
+            from butler.core.agent_runtime.jarvis_adapter import JarvisAgentBridge
+            self.agent_bridge = JarvisAgentBridge(
+                self,
+                enabled=bool(self.config.get("agent", {}).get("runtime", True)),
+                echo_assistant=False,
+            )
+            self.logger.info(f"[Agent] Native runtime enabled={self.agent_bridge.enabled}")
+        except Exception as e:
+            self.agent_bridge = None
+            self.logger.warning(f"[Agent] Native runtime unavailable, using legacy loop: {e}")
+
         # Print Geek Startup Banner
         self._print_startup_banner(headless)
 
@@ -675,9 +689,13 @@ class Jarvis:
             except Exception as e:
                 logging.getLogger(__name__).debug(f"动词识别快通道失败，转交常规流程: {e}")
 
-            # Check if AI (DeepSeek) is configured
-            api_key = config_loader.get("api.deepseek.key")
-            ai_available = api_key and "YOUR_" not in str(api_key)
+            # Check if any LLM provider is configured (DeepSeek / OpenAI / Ollama / ...)
+            try:
+                from butler.core.llm_providers import resolve_llm_config
+                ai_available = resolve_llm_config(config_loader.get).is_usable
+            except Exception:
+                api_key = config_loader.get("api.deepseek.key")
+                ai_available = api_key and "YOUR_" not in str(api_key)
 
             if not ai_available:
                 # 1. AI is not available: Attempt Local (AI-free) dispatch
@@ -1032,6 +1050,25 @@ class Jarvis:
 
     def _autonomous_agent_loop(self, command: str):
         """Autonomous agent loop with tool use and persistence."""
+        # Preferred path: LLM native tool calling via AgentRuntime (tools + skills).
+        bridge = getattr(self, "agent_bridge", None)
+        if bridge is not None and bridge.enabled:
+            try:
+                result = bridge.run(command)
+                response = (result.get("response") or "").strip()
+                if response:
+                    self.speak(response)
+                elif result.get("stop_reason") == "error":
+                    self.ui_print("⚠️ 模型调用失败，请检查 API Key / 网络后重试。", tag='error')
+                    return
+                else:
+                    self.ui_print("任务已结束，但没有产出文本结论。", tag='system_message')
+                self.logger.info(f"[Agent] stop_reason={result.get('stop_reason')} turns={result.get('turns')}")
+                return
+            except Exception as e:
+                self.logger.error(f"[Agent] Native runtime failed, falling back to legacy loop: {e}", exc_info=True)
+                self.ui_print(f"⚠️ 新版 Agent 运行时出错，已回退旧流程: {e}", tag='error')
+
         history = self.long_memory.get_recent_history(10)
         messages = []
 

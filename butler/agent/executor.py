@@ -1,96 +1,92 @@
 # -*- coding: utf-8 -*-
+"""步骤执行器 — 按工具名执行真实工具，绝不返回伪造结果。
+
+旧实现会在找不到技能包时返回「拟真周报」之类假数据，让 Agent 看起来成功、
+实际什么都没做。现在未知工具一律返回失败，并列出真实可用的工具名。
+
+``Agent.run_task`` 已改为直接驱动 ``AgentRuntime``，本模块用于「先规划再执行」
+的独立场景和旧调用方兼容。
+"""
+
+from __future__ import annotations
+
 import logging
-from typing import Dict, Any, Optional
-from butler.package_runtime.loader import PackageLoader
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+
 class Executor:
-    """
-    负责依次调起规划步骤。整合了 PackageLoader 用于运行具体的物理 Skill/Agent 包，
-    若包不存在，则提供逻辑自恰、高拟真的 Mock 模拟运行层，保持逻辑连贯。
-    """
-    def __init__(self, package_loader: Optional[PackageLoader] = None):
-        self.loader = package_loader or PackageLoader()
+    """执行 Planner 产出的步骤。"""
+
+    def __init__(self, registry=None, package_loader=None, skill_manager=None):
+        # package_loader 仅为旧签名兼容保留，不再使用
+        self._registry = registry
+        self._package_loader = package_loader
+        self._skill_manager = skill_manager
+
+    def _get_registry(self):
+        if self._registry is not None:
+            return self._registry
+        from butler.core.tool_bridge import get_registry
+
+        self._registry = get_registry()
+        return self._registry
 
     def execute_step(self, step: Dict[str, Any], previous_results: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        执行单个规划子步骤。
-        """
-        action = step.get("action")
-        step_input = step.get("input", {})
+        """执行单个步骤，返回 ``{"status", "result"|"error"}``。"""
+        action = str(step.get("action") or "")
+        if not action:
+            return {"status": "failed", "error": "步骤缺少 action 字段"}
 
-        # 解析上下游关联依赖
-        resolved_input = self._resolve_dependencies(step_input, previous_results)
+        if action == "agent_loop":
+            return {
+                "status": "failed",
+                "error": "agent_loop 是交给 AgentRuntime 的标记，不能直接执行；请使用 Agent.run_task()。",
+            }
 
-        logger.info(f"正在执行子步骤 [{action}]，输入参数: {resolved_input}")
+        resolved_input = self._resolve_dependencies(step.get("input") or {}, previous_results)
 
-        # 1. 检测该步骤是否匹配某个实际安装的物理技能包
-        manifest = self.loader.get_manifest(action)
-        if manifest:
+        if self._skill_manager is not None and action in getattr(self._skill_manager, "manifests", {}):
             try:
-                logger.info(f"匹配到本地物理包，正在通过动态加载器运行: {action}")
-                res = self.loader.execute(action, resolved_input)
-                return {"status": "success", "result": res}
-            except Exception as e:
-                logger.error(f"调用物理包 '{action}' 时抛出异常: {e}")
-                return {"status": "failed", "error": str(e)}
+                result = self._skill_manager.execute(
+                    action,
+                    str(resolved_input.pop("action", "run")),
+                    entities=resolved_input,
+                    **resolved_input,
+                )
+            except Exception as exc:
+                logger.error("技能 %s 执行失败: %s", action, exc, exc_info=True)
+                return {"status": "failed", "error": str(exc)}
+            return {"status": "success", "result": result}
 
-        # 2. 如果包不存在，进入智能 Mock 处理，保障闭环顺利执行
-        return self._execute_mock_action(action, resolved_input)
+        registry = self._get_registry()
+        executor = registry.get(action)
+        if executor is None:
+            available = ", ".join(sorted(registry.list_names()))
+            return {"status": "failed", "error": f"未知工具 '{action}'。可用工具: {available}"}
 
-    def _resolve_dependencies(self, step_input: Dict[str, Any], previous_results: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        将类似 {"source_step": "1"} 的逻辑标记，解析替换为上游步骤1的实际执行结果（或 result 字段）。
-        """
-        resolved = {}
-        for k, v in step_input.items():
-            if isinstance(v, dict) and "source_step" in v:
-                step_id = v["source_step"]
-                prev = previous_results.get(step_id, {})
-                resolved[k] = prev.get("result") or prev
-            elif k == "source_step":
-                step_id = str(v)
-                prev = previous_results.get(step_id, {})
-                resolved["dependent_data"] = prev.get("result") or prev
+        try:
+            tool_result = executor.execute(arguments=resolved_input)
+        except Exception as exc:
+            logger.error("工具 %s 执行失败: %s", action, exc, exc_info=True)
+            return {"status": "failed", "error": str(exc)}
+
+        if not tool_result.success:
+            return {"status": "failed", "error": tool_result.error or "工具执行失败"}
+        return {"status": "success", "result": tool_result.content}
+
+    @staticmethod
+    def _resolve_dependencies(step_input: Dict[str, Any], previous_results: Dict[str, Any]) -> Dict[str, Any]:
+        """把 ``{"source_step": "1"}`` 替换为上游步骤的真实结果。"""
+        resolved: Dict[str, Any] = {}
+        for key, value in step_input.items():
+            if isinstance(value, dict) and "source_step" in value:
+                prev = previous_results.get(str(value["source_step"]), {})
+                resolved[key] = prev.get("result") if isinstance(prev, dict) else prev
+            elif key == "source_step":
+                prev = previous_results.get(str(value), {})
+                resolved["dependent_data"] = prev.get("result") if isinstance(prev, dict) else prev
             else:
-                resolved[k] = v
+                resolved[key] = value
         return resolved
-
-    def _execute_mock_action(self, action: str, resolved_input: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        在无对应的物理技能包时，负责生成高质量的拟真业务输出。
-        """
-        if action == "summarize":
-            dep_data = resolved_input.get("dependent_data")
-            if isinstance(dep_data, dict) and "emails" in dep_data:
-                # 拟真提炼邮件列表内容
-                emails = dep_data["emails"]
-                summary = "✓ 已成功抓取并精简提炼 2 封紧急收件箱邮件:\n"
-                for e in emails:
-                    summary += f"  - 来自 {e['from']}: 【{e['subject']}】 -> 已标记为紧急关注。\n"
-                return {"status": "success", "result": summary}
-            return {"status": "success", "result": "✓ 成功提炼所有输入的活动和业务指标数据集。"}
-
-        elif action == "report_writer" or action == "generate_report":
-            dep_data = resolved_input.get("dependent_data", "无数据")
-            report = (
-                "### 📋 Butler 每日智能数字员工工作周报\n\n"
-                f"**核心数据分析背景**:\n{dep_data}\n\n"
-                "**今日已完成事项**:\n"
-                "✓ 完成 2 封核心客户邮件的自动梳理与标记\n"
-                "✓ 完成关键业务报价指标提纯与销售额同步\n"
-                "✓ 自动将销售数据更新至系统归档区\n\n"
-                "**待老板确认事项**:\n"
-                "- 来自 partner@co.com 的 紧急合同草案及付款请求 确认"
-            )
-            return {"status": "success", "result": report}
-
-        elif action == "collect_data":
-            return {"status": "success", "result": {"sales_revenue": "¥98,500", "active_clients": 42, "new_leads": 5}}
-
-        # 默认兜底 mock 返回
-        return {
-            "status": "success",
-            "result": f"模拟执行动作 '{action}' 成功。收到参数输入: {resolved_input}"
-        }

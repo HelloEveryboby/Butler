@@ -20,9 +20,11 @@ Jarvis 适配层 — 将旧版 Jarvis._autonomous_agent_loop 迁移到新 AgentR
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, Callable
 
@@ -31,12 +33,24 @@ from .builtin_tools import register_builtin_tools
 from .context_manager import ContextManager
 from .event_stream import EventStream
 from .permission import PermissionMode, PermissionSystem
+from .skill_tools import register_skill_tools
 from .subagent_manager import SubagentDefinition, SubagentManager
 from .tool_registry import ToolRegistry
 from .types import Event, EventType, Message, PermissionLevel, StopReason
 from butler.core.llm_providers import chat_completions, resolve_llm_config
 
 logger = logging.getLogger(__name__)
+
+# 即使 auto_confirm 打开也拒绝的自毁命令
+_DANGEROUS_COMMAND_PATTERNS = (
+    r"rm\s+-rf\s+/(\s|$)",
+    r"mkfs\.",
+    r"dd\s+if=",
+    r">\s*/dev/sd",
+    r"shutdown\b",
+    r"reboot\b",
+    r":\(\)\s*\{",
+)
 
 
 class JarvisAgentBridge:
@@ -54,18 +68,21 @@ class JarvisAgentBridge:
         5. Jarvis 权限确认 → auto_confirm_handler
     """
 
-    def __init__(self, jarvis: Any, enabled: bool = False):
+    def __init__(self, jarvis: Any, enabled: bool = False, echo_assistant: bool = True):
         """
         初始化适配层。
 
         参数:
             jarvis: Jarvis 实例
-            enabled: 是否启用新架构（默认 False，渐进式启用）
+            enabled: 是否启用新架构
+            echo_assistant: 是否把中间 assistant 文本打到 UI（宿主自己汇报最终答案时设 False，避免重复）
         """
         self.jarvis = jarvis
         self.enabled = enabled
+        self.echo_assistant = echo_assistant
         self._runtime: AgentRuntime | None = None
         self._subagent_manager: SubagentManager | None = None
+        self.skill_tool_map: dict[str, str] = {}
 
         # 事件订阅：将 Agent 事件桥接到 Jarvis UI
         self._event_handlers: list[Callable] = []
@@ -92,32 +109,47 @@ class JarvisAgentBridge:
             workspace_root=str(workspace_root),
         )
 
-        # 2. 将 IntentRegistry 中的意图转换为工具
-        self._register_intent_tools(registry)
+        # 2. 把 Butler 技能注册为原生工具（LLM 可自主选择）
+        skill_manager = getattr(jarvis, "skill_manager", None)
+        if skill_manager is not None:
+            try:
+                max_tools = int(self._config("agent.max_skill_tools", 40) or 40)
+                self.skill_tool_map = register_skill_tools(
+                    registry,
+                    skill_manager,
+                    jarvis_app=jarvis,
+                    max_tools=max_tools if max_tools > 0 else None,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to register skill tools: {e}")
 
-        # 3. 创建权限系统
+        # 3. 意图处理器默认不注册（技能已覆盖大部分能力），需要时用 agent.expose_intents 打开
+        if self._config("agent.expose_intents", False):
+            self._register_intent_tools(registry)
+
+        # 4. 创建权限系统
         permissions = PermissionSystem()
-        permissions.set_mode(PermissionMode.DEFAULT)
+        permissions.set_mode(self._resolve_permission_mode())
 
-        # 4. 创建上下文管理器（复用 Jarvis 的 NLUService 压缩能力）
+        # 5. 创建上下文管理器（复用 Jarvis 的 NLUService 压缩能力）
         context = ContextManager(
             token_limit=120000,
             compaction_threshold=0.8,
             llm_summarize_handler=self._create_summarize_handler(),
         )
 
-        # 5. 创建事件流
+        # 6. 创建事件流
         events = EventStream()
 
-        # 6. 订阅事件 → Jarvis UI 输出
+        # 7. 订阅事件 → Jarvis UI 输出
         self._setup_event_bridge(events)
 
-        # 7. 创建 LLM 调用回调
+        # 8. 创建 LLM 调用回调
         llm_handler = self._create_llm_handler()
 
-        # 8. 创建运行时配置
+        # 9. 创建运行时配置
         config = AgentConfig(
-            max_turns=10,
+            max_turns=int(self._config("agent.max_turns", 25) or 25),
             system_prompt=self._build_system_prompt(),
             llm_call_handler=llm_handler,
             auto_confirm_handler=self._create_confirm_handler(),
@@ -132,7 +164,7 @@ class JarvisAgentBridge:
             event_stream=events,
         )
 
-        # 9. 初始化子代理管理器
+        # 10. 初始化子代理管理器
         self._subagent_manager = SubagentManager()
         self._load_subagents()
 
@@ -225,6 +257,8 @@ class JarvisAgentBridge:
                     "stop_reason": "end_turn",
                 }
 
+        return handler
+
     def _resolve_temperature(self) -> float:
         """从配置读取用户设置的 temperature，默认 0.7。"""
         try:
@@ -232,6 +266,35 @@ class JarvisAgentBridge:
             return float(config_manager.get("api.temperature", 0.7) or 0.7)
         except Exception:
             return 0.7
+
+    def _config(self, key: str, default: Any = None) -> Any:
+        """读取配置，兼容 dict 形态和 config_loader 缺失。"""
+        config = getattr(self.jarvis, "config", None)
+        if isinstance(config, dict):
+            node: Any = config
+            for part in str(key).split("."):
+                if not isinstance(node, dict) or part not in node:
+                    node = None
+                    break
+                node = node[part]
+            if node is not None:
+                return node
+        try:
+            from package.core_utils.config_loader import config_loader
+
+            value = config_loader.get(key)
+            return default if value is None else value
+        except Exception:
+            return default
+
+    def _resolve_permission_mode(self) -> PermissionMode:
+        """从 agent.permission_mode 读取权限模式，非法值回退 default。"""
+        mode_name = str(self._config("agent.permission_mode", "default") or "default").lower()
+        try:
+            return PermissionMode(mode_name)
+        except ValueError:
+            logger.warning(f"Unknown permission mode '{mode_name}', using default")
+            return PermissionMode.DEFAULT
 
     def _resolve_max_tokens(self) -> int:
         """从配置读取用户设置的 max_tokens，默认 4096。"""
@@ -270,15 +333,20 @@ class JarvisAgentBridge:
         _READ_ONLY_TOOLS = {"read", "glob", "grep", "ls"}
 
         def handler(tool_name: str, arguments: dict) -> bool:
+            # 自毁命令永远拒绝，即使开了自动确认
+            command = str((arguments or {}).get("command") or "")
+            for pattern in _DANGEROUS_COMMAND_PATTERNS:
+                if re.search(pattern, command):
+                    logger.warning(f"Blocked dangerous command for '{tool_name}': {command[:120]}")
+                    return False
+
             # 只读工具自动允许
             if tool_name.lower() in _READ_ONLY_TOOLS:
                 return True
 
             # headless 模式：检查配置是否允许自动确认
             if not hasattr(jarvis, "root") or jarvis.root is None:
-                auto_confirm = False
-                if hasattr(jarvis, "config") and isinstance(jarvis.config, dict):
-                    auto_confirm = jarvis.config.get("auto_confirm_tools", False)
+                auto_confirm = bool(self._config("agent.auto_confirm", True))
                 if not auto_confirm:
                     logger.warning(
                         f"Permission denied for '{tool_name}' in headless mode "
@@ -434,9 +502,13 @@ class JarvisAgentBridge:
 
         # 基础提示
         parts.append(
-            "You are Butler, a powerful AI assistant. "
-            "Use the available tools to accomplish tasks. "
-            "Be concise and specific."
+            "You are Butler, an autonomous agent running locally on the user's machine.\n"
+            "Work in a loop: inspect with tools, act, verify, and only then answer.\n"
+            "- Prefer tools over guessing; never claim work you did not do.\n"
+            "- Use bash for shell work, read/write/edit for files, and the skill tools for higher-level capabilities.\n"
+            "- If a tool fails, read the error and try a different approach.\n"
+            "- Do not delete or overwrite user files without need.\n"
+            "- Final answer: what you did, where the result is, and what is still pending."
         )
 
         # 技能扩展
@@ -498,7 +570,7 @@ class JarvisAgentBridge:
             role = data.get("role", "")
             content = data.get("content", "")
 
-            if role == "assistant" and content:
+            if self.echo_assistant and role == "assistant" and content:
                 self.jarvis.ui_print(content, tag="ai_response")
 
         def on_tool_call(event: Event):

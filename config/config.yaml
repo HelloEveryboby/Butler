@@ -101,3 +101,12 @@ update_source:
     Windows: "https://www.python.org/ftp/python/3.12.3/python-3.12.3-embed-amd64.zip"
     Linux: "https://github.com/indygreg/python-build-standalone/releases/download/20240415/cpython-3.12.3+20240415-x86_64-unknown-linux-gnu-install_only.tar.gz"
     Darwin: "https://github.com/indygreg/python-build-standalone/releases/download/20240415/cpython-3.12.3+20240415-x86_64-apple-darwin-install_only.tar.gz"
+
+# 原生 Agent 运行时（LLM 原生 tool calling 循环）
+agent:
+  runtime: true            # 聊天主路径使用 AgentRuntime（失败时自动回退旧流程）
+  max_turns: 25            # 单任务最大轮次
+  max_skill_tools: 40      # 注册为工具的技能上限（0 = 不限制）
+  permission_mode: default # default | accept_edits | auto | plan | bypass_permissions
+  auto_confirm: true       # 无 UI 时自动批准非只读工具（自毁命令始终拒绝）
+  expose_intents: false    # 额外暴露意图处理器为工具

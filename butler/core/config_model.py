@@ -232,8 +232,20 @@ class ApiGatewayConfig(BaseModel):
         return token
 
 
+class AgentRuntimeConfig(BaseModel):
+    """原生 Agent 运行时（LLM tool-calling 循环）配置。"""
+
+    runtime: bool = True          # 聊天主路径是否走 AgentRuntime（False 回退旧意图循环）
+    max_turns: int = 25           # 单个任务最大工具调用轮次
+    max_skill_tools: int = 40     # 最多把多少个技能暴露为工具（0 = 不限制）
+    permission_mode: str = "default"  # default | accept_edits | auto | plan | bypass_permissions
+    auto_confirm: bool = True     # 无 UI 时是否自动批准非只读工具
+    expose_intents: bool = False  # 是否额外把 IntentRegistry 的意图注册为工具
+
+
 class ButlerConfig(BaseModel):
     api: ApiConfig = Field(default_factory=ApiConfig)
+    agent: AgentRuntimeConfig = Field(default_factory=AgentRuntimeConfig)
     voice: VoiceConfig = Field(default_factory=VoiceConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
