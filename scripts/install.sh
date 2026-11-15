@@ -252,9 +252,10 @@ log_info "正在将快速启动入口封装至: ${BLUE}$LAUNCHER_PATH${NC}"
 
 cat > "$LAUNCHER_PATH" << EOF
 #!/bin/bash
-# Butler 自动化虚拟环境调度外壳
+# Butler 统一命令入口 (由 install.sh 自动生成，内部自动分发到 butler_launcher.py)
 export PATH="$APP_DIR/.venv/bin:\$PATH"
-exec "$APP_DIR/.venv/bin/python" "$APP_DIR/butler_cli.py" "\$@"
+export PYTHONPATH="$APP_DIR\${PYTHONPATH:+:\$PYTHONPATH}"
+exec "$APP_DIR/.venv/bin/python" "$APP_DIR/butler_launcher.py" "\$@"
 EOF
 
 chmod +x "$LAUNCHER_PATH"

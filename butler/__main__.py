@@ -54,9 +54,9 @@ def main():
         _launch_old_cli(argv[1:])
         return
 
-    # ── 别名 (向后兼容) ──
+    # ── 别名 ──
     if first == "start":
-        _warn_deprecated("start", "api")
+        # start 是 api 的友好别名 (对外文档与安装器统一推荐 butler start)
         _launch_api(*_extract_host_port(argv[1:]))
         return
     if first == "legacy":

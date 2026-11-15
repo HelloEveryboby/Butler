@@ -12,6 +12,8 @@ def run_doctor():
     print("      Butler v2.0 Alpha 核心系统健康度自检预检     ")
     print("==================================================")
 
+    suggestions = []
+
     # 1. 检查 Python 环境
     print(f"[*] 当前 Python 版本: {sys.version}")
 
@@ -34,10 +36,13 @@ def run_doctor():
                 print("  - [✅] 所有 v2.0 关键数据表均已存在，数据结构完好。")
             else:
                 print(f"  - [❌] 缺失关键数据表: {', '.join(missing)}")
+                suggestions.append("数据表缺失: 运行 butler start 可自动执行数据库迁移补全")
         except Exception as e:
             print(f"  - [❌] 数据库建立或查询异常: {e}")
+            suggestions.append("数据库异常: 备份 butler/data/system_data/ 后重试，或删除受损 long_memory.db（首次启动自动重建）")
     else:
         print("  - [⚠️] 尚未生成 long_memory.db 数据库文件（将在首次执行 'start' 时自动运行迁移并生成）。")
+        suggestions.append("数据库尚未初始化: 运行 butler start 即可自动创建")
 
     # 3. 检查技能包存储层完整性
     pkg_dir = Path(__file__).resolve().parent.parent / "data" / "installed_packages"
@@ -56,6 +61,14 @@ def run_doctor():
         print("  - [✅] 全局 config.yaml 校验成功。")
     else:
         print("  - [❌] 缺失全局 config.yaml 配置文件。")
+        suggestions.append("配置缺失: 运行 butler config 重新生成配置")
 
-    print("\n[Doctor] 所有核心模块自检完成。系统健康，随时可以开启！")
+    print("\n[Doctor] 所有核心模块自检完成。")
+    print("🔧 下一步建议:")
+    if suggestions:
+        for i, s in enumerate(suggestions, 1):
+            print(f"   {i}. {s}")
+    else:
+        print("   ✅ 系统健康！运行 butler start 启动核心服务，或 butler tui 进入交互界面。")
+    print("   💡 遇到问题随时回来运行: butler doctor")
     print("==================================================")

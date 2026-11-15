@@ -67,7 +67,7 @@ Butler UI 3.0 彻底颠覆了传统的单维网页导航，引入了 **$2 \times
 为了避免“环境配置地狱”，Butler 自研了 `dependency_manager.py` 和绿色便携运行时。
 
 > **💡 完全隔离，解压即用：**
-> Butler 支持完全便携模式。只需运行 `./install.sh`，系统会自动将所有第三方重度依赖（包括 Python 环境、科学计算、音频处理库等）隔离安装至项目文件夹内的 `lib_external/` 目录，不往您的系统全局环境中拉取任何库。解压即用，删文件夹即完美卸载。
+> Butler 支持完全便携模式。只需运行 `bin/install.sh`，系统会自动将所有第三方重度依赖（包括 Python 环境、科学计算、音频处理库等）隔离安装至项目文件夹内的 `lib_external/` 目录，不往您的系统全局环境中拉取任何库。解压即用，删文件夹即完美卸载。
 
 ### 一键极速部署（推荐，支持完全静默安装与环境隔离）
 
@@ -75,15 +75,15 @@ Butler UI 3.0 彻底颠覆了传统的单维网页导航，引入了 **$2 \times
 
 * **Linux / macOS**:
   ```bash
-  curl -fsSL https://get.butler.agent/install.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/HelloEveryboby/Butler/main/scripts/install.sh | bash
   ```
   *(注：如需在部署时直接无感注入 API 密钥，可在前面追加环境变量，如：`DEEPSEEK_API_KEY="sk-xxx" curl -fsSL https://... | bash`)*
 
 * **Windows (PowerShell)**:
   ```powershell
-  irm https://get.butler.agent/install.ps1 | iex
+  irm https://raw.githubusercontent.com/HelloEveryboby/Butler/main/scripts/install.ps1 | iex
   ```
-  *(注：Windows 同样支持链式预注密钥：`$env:DEEPSEEK_API_KEY="sk-xxx"; iex (irm https://get.butler.agent/install.ps1)`)*
+  *(注：Windows 同样支持链式预注密钥：`$env:DEEPSEEK_API_KEY="sk-xxx"; iex (irm https://raw.githubusercontent.com/HelloEveryboby/Butler/main/scripts/install.ps1)`)*
 
 部署完成后，在任意新终端窗口直接运行 **`butler doctor`** 即可对系统执行体检，或者通过 **`butler start`** 拉起数字员工！
 
@@ -98,15 +98,25 @@ Butler UI 3.0 彻底颠覆了传统的单维网页导航，引入了 **$2 \times
    ```
 
 2. **一键启动：**
-   * **Windows**: 双击 `run.sh`（或 `run_modern.sh` 开启现代 Web UI）。
-   * **Linux/macOS**: 运行 `./run.sh`（或 `./run_modern.sh` 开启现代 Web UI）。
+   * **Windows**: 双击 `bin\run.bat`（或 `bin\run_modern.bat` 开启现代 Web UI）。
+   * **Linux/macOS**: 运行 `./bin/run.sh`（或 `./bin/run_modern.sh` 开启现代 Web UI）。
    * *注：系统会自动为您安装必要本地依赖并弹出配置向导。*
 
-3. **极简配置：**
-   复制 `.env.example` 并重命名为 `.env`，**您只需填入一个 `DEEPSEEK_API_KEY` 即可跑通核心 AI 流与全部本地 RAG 逻辑**：
+3. **统一命令入口（推荐）：** 将 `bin/` 加入 PATH 后，即可像一键安装的用户一样使用 `butler` 命令：
+   ```bash
+   export PATH="$PWD/bin:$PATH"   # Linux/macOS（写入 ~/.bashrc 可永久生效）
+   butler doctor    # 系统体检
+   butler start     # 启动服务
+   butler tui       # 终端交互界面
+   ```
+   *Windows 用户可将 `%CD%\bin` 加入系统 PATH，或直接运行 `bin\butler.bat`。*
+
+4. **极简配置：**
+   首次启动会自动从 `.env.example` 生成 `.env`（也可手动复制），**您只需填入一个 `DEEPSEEK_API_KEY` 即可跑通核心 AI 流与全部本地 RAG 逻辑**：
    ```env
    DEEPSEEK_API_KEY="您的_deepseek_api_密钥"
    ```
+   > 其余可选项（其他 AI 服务商 / 语音 / MQTT 等）请参考 **[完整环境变量参考](./docs/start/env-reference.md)**。
 
 ---
 

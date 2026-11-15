@@ -67,9 +67,14 @@ Butler UI 3.0 breaks the mold of conventional flat, one-dimensional web navigati
 To eliminate the traditional "dependency hell," Butler incorporates its own automatic `dependency_manager.py` and isolates libraries inside the workspace.
 
 > **💡 Complete Isolation, Zero Registry Pollution:**
-> Butler supports a fully portable mode. Simply run `./install.sh`. The system automatically builds/installs all heavy dependencies (including Python runtimes, numerical libraries, audio packages) isolated inside the local `lib_external/` directory. No global system paths are polluted. Unzip to play, delete the folder to completely uninstall.
+> Butler supports a fully portable mode. Simply run `bin/install.sh`. The system automatically builds/installs all heavy dependencies (including Python runtimes, numerical libraries, audio packages) isolated inside the local `lib_external/` directory. No global system paths are polluted. Unzip to play, delete the folder to completely uninstall.
 
 ### Quick Start
+
+> **⚡ One-Click Deploy (recommended):**
+> Linux/macOS: `curl -fsSL https://raw.githubusercontent.com/HelloEveryboby/Butler/main/scripts/install.sh | bash`
+> Windows (PowerShell): `irm https://raw.githubusercontent.com/HelloEveryboby/Butler/main/scripts/install.ps1 | iex`
+> Installs into `~/.local/share/butler`, registers the `butler` command, and prints next-step hints.
 
 1. **Clone the Repo:**
    ```bash
@@ -78,12 +83,21 @@ To eliminate the traditional "dependency hell," Butler incorporates its own auto
    ```
 
 2. **One-Click Launch:**
-   * **Windows**: Double-click `run.sh` (or `run_modern.sh` for the Glassmorphic modern web UI).
-   * **Linux/macOS**: Run `./run.sh` (or `./run_modern.sh` for the Glassmorphic modern web UI).
+   * **Windows**: Double-click `bin\run.bat` (or `bin\run_modern.bat` for the Glassmorphic modern web UI).
+   * **Linux/macOS**: Run `./bin/run.sh` (or `./bin/run_modern.sh` for the Glassmorphic modern web UI).
    * *Note: Scripts automatically set up necessary local libraries and open the configuration wizard.*
 
-3. **Minimalist Configuration:**
-   Copy `.env.example` to `.env` and fill in **just one `DEEPSEEK_API_KEY` to run all core agent workflows, local RAG, and memory pipelines**:
+3. **Unified CLI Entry (recommended):** Add `bin/` to your PATH and use the single `butler` command (same experience as one-click installs):
+   ```bash
+   export PATH="$PWD/bin:$PATH"   # Linux/macOS (persist in ~/.bashrc if desired)
+   butler doctor    # system health check
+   butler start     # start services
+   butler tui       # terminal UI
+   ```
+   *Windows: add `%CD%\bin` to your system PATH, or run `bin\butler.bat` directly.*
+
+4. **Minimalist Configuration:**
+   On first launch `.env` is auto-created from `.env.example` (or copy it manually), then fill in **just one `DEEPSEEK_API_KEY` to run all core agent workflows, local RAG, and memory pipelines**:
    ```env
    DEEPSEEK_API_KEY="your_deepseek_api_key_here"
    ```
