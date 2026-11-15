@@ -13,6 +13,22 @@ import { PyWebViewBridge } from './core/bridge';
 import { screenCaptureController } from './components/screen_capture';
 import { previewMedia, closeMediaPreview } from './components/media_preview';
 import { downloadManager } from '../download/download';
+import { mountShell } from './app/AppShell';
+
+// ---- 旧功能模块（副作用导入：注册 window.* 单例 / DOMContentLoaded 构造） ----
+import './components/StateMatrix';
+import './components/telemetry';
+import './components/dag_engine';
+import './components/time_machine_ui';
+import './components/heatmap';
+import './components/slits_editor';
+import './components/vault';
+import './components/modal';
+import './components/memos';
+import './components/browser';
+import './components/popup';
+import './components/features';
+import './components/skill_ui_loader';
 
 // Export Singletons onto Window for Global Type Safety & Compatibility
 if (typeof window !== 'undefined') {
@@ -30,6 +46,12 @@ if (typeof window !== 'undefined') {
 
 // Initialize Dynamic Styles & Themes
 styleManager.injectBaseStyles();
+
+// Mount the Win11 application shell before legacy modules' DOMContentLoaded handlers run.
+const appRoot = document.getElementById('app');
+if (appRoot) {
+  mountShell(appRoot);
+}
 
 // Global Utilities
 window.escapeHTML = (str: any): string => {
@@ -141,7 +163,7 @@ window.nextOnboardingStep = (): void => {
 window.skipOnboarding = (): void => {
   const overlay = document.getElementById('onboarding-tour-overlay');
   if (overlay) overlay.classList.remove('active');
-  document.querySelectorAll('.matrix-cell').forEach((cell) => {
+  document.querySelectorAll('.page-cell').forEach((cell) => {
     cell.classList.remove('onboarding-highlight');
   });
   if (window.matrix) {
@@ -160,7 +182,7 @@ function showOnboardingStep(index: number): void {
     window.matrix.moveTo(step.quadrant[0], step.quadrant[1]);
   }
 
-  document.querySelectorAll('.matrix-cell').forEach((cell) => {
+  document.querySelectorAll('.page-cell').forEach((cell) => {
     cell.classList.remove('onboarding-highlight');
   });
   const targetCell = document.getElementById(step.highlight);
@@ -181,8 +203,8 @@ function showOnboardingStep(index: number): void {
 
   if (bubble) {
     bubble.style.position = 'fixed';
-    bubble.style.left = '40px';
-    bubble.style.bottom = '130px';
+    bubble.style.left = '284px';
+    bubble.style.bottom = '28px';
   }
 }
 
@@ -843,10 +865,13 @@ window.testHalConnection = (): void => {
 };
 
 window.updateThemeStyle = (style: string): void => {
-  const theme = (['apple', 'dark', 'google'].includes(style) ? style : 'apple') as 'apple' | 'dark' | 'google';
+  const theme = (style === 'win11-dark' ? 'win11-dark' : 'win11') as 'win11' | 'win11-dark';
   styleManager.applyTheme(theme);
   appConfig.set('theme', theme);
-  const names = { apple: '苹果浅色', dark: '苹果深色', google: '谷歌 Material' } as const;
+  const names = {
+    win11: 'Win11 浅色',
+    'win11-dark': 'Win11 深色',
+  } as const;
   window.showToast?.('主题风格', `已切换至${names[theme]}风格。`, 'success');
 };
 

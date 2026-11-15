@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Butler</title>
     <link rel="stylesheet" href="src/style.css">
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="src/win11.css">
+    <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Xterm.js -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.min.css">
@@ -25,269 +23,12 @@
         });
     </script>
 </head>
-<body class="theme-apple matrix-mode">
+<body class="theme-win11">
     <!-- Global Background Substrate Heatmap -->
     <canvas id="substrate-heatmap"></canvas>
 
-    <div class="app-container">
-        <div id="dynamic-island">Butler</div>
-
-        <!-- Floating Dock -->
-        <nav class="floating-dock glass-surface damping-transition">
-            <div class="dock-item active" id="dock-0-0" onclick="matrix.moveTo(0,0)" title="智能助手 (0,0)">
-                <i class="fas fa-comment-dots"></i>
-                <span class="dock-dot"></span>
-            </div>
-            <div class="dock-item" id="dock-1-0" onclick="matrix.moveTo(1,0)" title="时光监控 (1,0)">
-                <i class="fas fa-history"></i>
-                <span class="dock-dot"></span>
-            </div>
-            <div class="dock-item" id="dock-0-1" onclick="matrix.moveTo(0,1)" title="任务画布 (0,1)">
-                <i class="fas fa-project-diagram"></i>
-                <span class="dock-dot"></span>
-            </div>
-            <div class="dock-item" id="dock-1-1" onclick="matrix.moveTo(1,1)" title="技能仓储 (1,1)">
-                <i class="fas fa-box-open"></i>
-                <span class="dock-dot"></span>
-            </div>
-            <div class="dock-divider"></div>
-            <div class="dock-item" id="dock-settings" onclick="toggleSettings()" title="系统设置">
-                <i class="fas fa-cog"></i>
-            </div>
-        </nav>
-        <main class="main-content">
-            <div id="workspace-matrix">
-                <!-- (0,0) Quadrant: Smart Chat & Debugger -->
-                <section class="matrix-cell" id="cell-0-0">
-                    <div class="view-header">
-                        <div class="view-title" id="chat-view-title">智能助手</div>
-                        <div class="status-indicators">
-                            <span id="connection-status" class="status-dot green active"></span>
-                            <span id="thinking-status" class="status-dot blue"></span>
-                        </div>
-                    </div>
-                    <div id="interaction-flow">
-                        <div class="welcome-message">
-                            <h1>今天要处理什么？</h1>
-                            <p>拖入报错截图、输入指令，或从下方功能开始。</p>
-                            <div class="skill-section-divider">
-                                <span>常用</span>
-                            </div>
-                            <div class="quick-actions-container">
-                                <div class="quick-action-card" onclick="triggerQuickAction('系统自检与安全审计')">
-                                    <i class="fas fa-shield-halved"></i>
-                                    <span class="quick-action-title">系统自检与审计</span>
-                                    <span class="quick-action-desc">扫描安全配置、开放端口与环境沙箱</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('一键清理系统垃圾')">
-                                    <i class="fas fa-broom"></i>
-                                    <span class="quick-action-title">一键清理垃圾</span>
-                                    <span class="quick-action-desc">扫描并清除冗余缓存，恢复磁盘空间</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('运行本地 FFT 音频降噪')">
-                                    <i class="fas fa-wave-square"></i>
-                                    <span class="quick-action-title">本地 FFT 降噪</span>
-                                    <span class="quick-action-desc"> C++ 音频算法降阶滤波与离线提取</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('开启局域网同步')">
-                                    <i class="fas fa-network-wired"></i>
-                                    <span class="quick-action-title">局域网同步</span>
-                                    <span class="quick-action-desc">一键同步代码与资产到局域网节点</span>
-                                </div>
-                            </div>
-
-                            <!-- Butler 应用功能 -->
-                            <div class="skill-section-divider">
-                                <span>应用功能</span>
-                            </div>
-                            <div class="quick-actions-container">
-                                <div class="quick-action-card" onclick="FeaturesHub.openSessionModeModal()" style="cursor: pointer;">
-                                    <i class="fas fa-code-branch"></i>
-                                    <span class="quick-action-title">会话模式</span>
-                                    <span class="quick-action-desc">本地 / Worktree / 云端模式切换</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.openGitPanel()" style="cursor: pointer;">
-                                    <i class="fas fa-code-compare"></i>
-                                    <span class="quick-action-title">Git 工具</span>
-                                    <span class="quick-action-desc">Diff / Commit / Push / PR 管理</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.openProjectManager()" style="cursor: pointer;">
-                                    <i class="fas fa-folder-tree"></i>
-                                    <span class="quick-action-title">多项目</span>
-                                    <span class="quick-action-desc">跨项目多任务并行管理</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.launchBrowser()" style="cursor: pointer;">
-                                    <i class="fas fa-globe"></i>
-                                    <span class="quick-action-title">应用内浏览器</span>
-                                    <span class="quick-action-desc">预览 Web 应用并评论</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.createPopup()" style="cursor: pointer;">
-                                    <i class="fas fa-window-restore"></i>
-                                    <span class="quick-action-title">浮动窗口</span>
-                                    <span class="quick-action-desc">弹出独立对话线程</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.launchComputerUse()" style="cursor: pointer;">
-                                    <i class="fas fa-desktop"></i>
-                                    <span class="quick-action-title">计算机使用</span>
-                                    <span class="quick-action-desc">操作桌面应用、测试 GUI</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.launchVoiceDictation()" style="cursor: pointer;">
-                                    <i class="fas fa-microphone-lines"></i>
-                                    <span class="quick-action-title">语音听写</span>
-                                    <span class="quick-action-desc">按住录音发送指令</span>
-                                </div>
-                                <div class="quick-action-card" onclick="FeaturesHub.showWorktreeInfo()" style="cursor: pointer;">
-                                    <i class="fas fa-code-fork"></i>
-                                    <span class="quick-action-title">Worktree 管理</span>
-                                    <span class="quick-action-desc">隔离的 Git 工作树</span>
-                                </div>
-                            </div>
-
-                            <!-- 无 AI 可用技能面板 -->
-                            <div class="skill-section-divider">
-                                <span>本地技能</span>
-                            </div>
-                            <div class="quick-actions-container">
-                                <div class="quick-action-card" onclick="triggerQuickAction('markitdown -i')">
-                                    <i class="fas fa-file-lines"></i>
-                                    <span class="quick-action-title">转 Markdown</span>
-                                    <span class="quick-action-desc">-i &lt;文件&gt; PDF/DOCX 转为 Markdown</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('docx_read -i')">
-                                    <i class="fas fa-file-word"></i>
-                                    <span class="quick-action-title">读取 Word</span>
-                                    <span class="quick-action-desc">-i &lt;文件&gt; 提取 .docx 文本</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('pdf_extract -i')">
-                                    <i class="fas fa-file-pdf"></i>
-                                    <span class="quick-action-title">提取 PDF</span>
-                                    <span class="quick-action-desc">-i &lt;文件&gt; 提取 PDF 文本</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('archive_compress -o')">
-                                    <i class="fas fa-file-zipper"></i>
-                                    <span class="quick-action-title">压缩打包</span>
-                                    <span class="quick-action-desc">-o &lt;输出&gt; -t &lt;目标&gt; [-p 密码]</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('archive_extract -i')">
-                                    <i class="fas fa-box-open"></i>
-                                    <span class="quick-action-title">解压文件</span>
-                                    <span class="quick-action-desc">-i &lt;压缩包&gt; [-d 目录] [-p 密码]</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('archive_list -i')">
-                                    <i class="fas fa-list"></i>
-                                    <span class="quick-action-title">查看压缩包</span>
-                                    <span class="quick-action-desc">-i &lt;压缩包&gt; 列出内容</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('uninstaller')">
-                                    <i class="fas fa-trash-can"></i>
-                                    <span class="quick-action-title">软件卸载</span>
-                                    <span class="quick-action-desc">列出/卸载已安装软件</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('media_scan')">
-                                    <i class="fas fa-music"></i>
-                                    <span class="quick-action-title">媒体扫描</span>
-                                    <span class="quick-action-desc">全盘扫描 MP3/WAV/JPG</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('storage_hub --action list')">
-                                    <i class="fas fa-cloud"></i>
-                                    <span class="quick-action-title">云盘管理</span>
-                                    <span class="quick-action-desc">OneDrive/WebDAV/百度</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('sec_scan -t')">
-                                    <i class="fas fa-radar"></i>
-                                    <span class="quick-action-title">端口扫描</span>
-                                    <span class="quick-action-desc">-t &lt;IP&gt; [-p 端口范围]</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('web_sec_test -t')">
-                                    <i class="fas fa-shield-halved"></i>
-                                    <span class="quick-action-title">Web 安全测试</span>
-                                    <span class="quick-action-desc">-t &lt;URL&gt; [-m recon|scan|full]</span>
-                                </div>
-                                <div class="quick-action-card" onclick="triggerQuickAction('format_convert -i')">
-                                    <i class="fas fa-arrows-rotate"></i>
-                                    <span class="quick-action-title">格式转换</span>
-                                    <span class="quick-action-desc">-i &lt;输入&gt; -f &lt;docx|epub|png&gt;</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="chat-input-container">
-                        <div class="input-actions-left">
-                            <button class="icon-btn-small" id="voice-toggle-btn"><i class="fas fa-microphone"></i></button>
-                            <button class="icon-btn-small"><i class="fas fa-plus"></i></button>
-                        </div>
-                        <div class="input-wrapper">
-                            <div id="chat-input" contenteditable="true" placeholder="发送消息或拖入截图..."></div>
-                        </div>
-                        <div class="input-actions-right">
-                            <button class="send-btn" id="send-command-btn"><i class="fas fa-arrow-up"></i></button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- (1,0) Quadrant: Time Machine -->
-                <section class="matrix-cell" id="cell-1-0">
-                    <div class="view-header">
-                        <div class="view-title" id="tm-view-title">时光监控</div>
-                    </div>
-                    <div class="timemachine-container">
-                        <div class="metrics-visualizer" id="tm-metrics">
-                        </div>
-                        <div class="history-log-view" id="tm-logs">
-                        </div>
-                        <div class="tm-slider-bar glass-surface">
-                            <input type="range" id="global-tm-slider" min="0" max="100" value="100">
-                            <div class="tm-time-label">现在</div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- (0,1) Quadrant: DAG Pipeline -->
-                <section class="matrix-cell" id="cell-0-1">
-                    <div class="view-header">
-                        <div class="view-title" id="dag-view-title">任务画布</div>
-                        <div class="dag-toolbar glass-surface" style="display: flex; gap: 8px; padding: 6px 12px; border-radius: 8px; border: var(--subpixel-border);">
-                            <button class="icon-btn-small" onclick="runDagPipeline()" title="启动流水线" style="color: #34C759; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 600;"><i class="fas fa-play"></i> 启动</button>
-                            <button class="icon-btn-small" onclick="pauseDagPipeline()" title="暂停流水线" style="color: #FF9500; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 600;"><i class="fas fa-pause"></i> 暂停</button>
-                            <button class="icon-btn-small" onclick="clearDagCanvas()" title="清空画布" style="color: #FF3B30; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 600;"><i class="fas fa-trash-alt"></i> 清空</button>
-                        </div>
-                    </div>
-                    <div class="dag-canvas" id="workflow-canvas">
-                        <svg id="dag-svg" style="position:absolute; width:100%; height:100%; pointer-events:none;"></svg>
-                        <div class="canvas-placeholder">
-                            <i class="fas fa-project-diagram"></i>
-                            <h3>拖动技能卡片到此处构建流水线</h3>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- (1,1) Quadrant: Skills & Files -->
-                <section class="matrix-cell" id="cell-1-1">
-                    <div class="view-header">
-                        <div class="view-title" id="skills-view-title">技能仓储</div>
-                        <div class="header-actions">
-                            <button class="icon-btn-small" onclick="toggleTerminal()" title="打开终端"><i class="fas fa-terminal"></i></button>
-                            <button class="icon-btn-small" onclick="toggleMemos()" title="备忘录"><i class="fas fa-sticky-note"></i></button>
-                        </div>
-                    </div>
-                    <div class="skills-files-layout">
-                        <div class="skills-drawer" id="skills-drawer">
-                            <!-- Skill Cards -->
-                        </div>
-                        <div class="files-explorer-mini">
-                            <div class="files-grid" id="files-list"></div>
-                        </div>
-                    </div>
-                </section>
-            </div>
-        </main>
-    </div>
-
-    <!-- Wormhole Overlays -->
-    <div id="wormhole-gate-tl" class="wormhole-gate" data-quadrant="0,0"></div>
-    <div id="wormhole-gate-tr" class="wormhole-gate" data-quadrant="1,0"></div>
-    <div id="wormhole-gate-bl" class="wormhole-gate" data-quadrant="0,1"></div>
-    <div id="wormhole-gate-br" class="wormhole-gate" data-quadrant="1,1"></div>
+    <!-- Win11 应用外壳（标题栏 / 左侧导航 / 单页内容）由 TypeScript 挂载 -->
+    <div id="app"></div>
 
     <!-- Overlay Terminal -->
     <div id="terminal-overlay" class="hidden glass-surface overlay-panel">
@@ -475,7 +216,7 @@
                 <span class="control-dot minimize"></span>
                 <span class="control-dot maximize"></span>
             </div>
-            <span style="font-size: 15px; font-weight: 600; color: var(--text-primary);"><i class="fas fa-cog" style="color: var(--accent-color); margin-right: 6px;"></i> 系统设置 (Settings)</span>
+            <span style="font-size: 15px; font-weight: 600; color: var(--text-primary);">系统设置</span>
             <div style="width: 52px;"></div>
         </div>
         <div class="settings-wrapper">
@@ -698,9 +439,8 @@
                         <div class="settings-row">
                             <span class="row-label">主题风格</span>
                             <select class="apple-select" id="setting-theme-style" onchange="updateThemeStyle(this.value)" style="width: 200px;">
-                                <option value="apple">苹果浅色 (Apple HIG)</option>
-                                <option value="dark">苹果深色 (Apple Dark)</option>
-                                <option value="google">谷歌 Material</option>
+                                <option value="win11" selected>Win11 浅色 (Fluent)</option>
+                                <option value="win11-dark">Win11 深色 (Fluent Dark)</option>
                             </select>
                         </div>
                         <div class="settings-row">
@@ -724,6 +464,7 @@
                         <div class="settings-row">
                             <span class="row-label">系统字体样式 (Font Family)</span>
                             <select class="apple-select" id="setting-font-family" onchange="updateFontFamily(this.value)" style="width: 200px;">
+                                <option value="'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif" selected>Windows Segoe UI</option>
                                 <option value="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', sans-serif">苹果原生 SF 字体</option>
                                 <option value="'Inter', -apple-system, sans-serif">Inter 极简字体</option>
                                 <option value="'SF Mono', 'PingFang SC', 'JetBrains Mono', monospace">等宽极客字体</option>
@@ -760,25 +501,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <script src="dist/core/bridge.js"></script>
-    <script src="dist/core/event_bus.js"></script>
-    <script src="dist/components/StateMatrix.js"></script>
-    <script src="dist/components/telemetry.js"></script>
-    <script src="dist/effects/physics.js"></script>
-    <script src="dist/components/matrix.js"></script>
-    <script src="dist/components/dag_engine.js"></script>
-    <script src="dist/components/time_machine_ui.js"></script>
-    <script src="dist/components/heatmap.js"></script>
-    <script src="dist/components/wormhole.js"></script>
-    <script src="dist/components/slits_editor.js"></script>
-    <script src="dist/components/vault.js"></script>
-    <script src="dist/components/modal.js"></script>
-    <script src="dist/components/memos.js"></script>
-    <script src="dist/components/browser.js"></script>
-    <script src="dist/components/popup.js"></script>
-    <script src="dist/components/features.js"></script>
+    <!-- 单一 TypeScript 入口，包含应用外壳与全部功能模块 -->
     <script src="dist/bundle.js"></script>
-    <script src="dist/components/skill_ui_loader.js"></script>
     <script src="src/components/breathing_lights.js"></script>
 
     <!-- Copilot Confirmation Modal -->

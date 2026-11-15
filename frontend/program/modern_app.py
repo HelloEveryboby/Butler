@@ -619,6 +619,23 @@ class ModernBridge:
         """Hides the flash input window."""
         event_bus.emit("flash_hide")
 
+    def window_control(self, action: str):
+        """Win11 标题栏窗口按钮：minimize / maximize / close。"""
+        try:
+            if action == "minimize" and hasattr(self.window, "minimize"):
+                self.window.minimize()
+            elif action == "maximize":
+                if hasattr(self.window, "maximize"):
+                    self.window.maximize()
+                elif hasattr(self.window, "toggle_fullscreen"):
+                    self.window.toggle_fullscreen()
+            elif action == "close" and hasattr(self.window, "destroy"):
+                self.window.destroy()
+            return {"status": "success", "action": action}
+        except Exception as e:
+            self.logger.warning(f"窗口控制失败 {action}: {e}")
+            return {"status": "error", "message": str(e)}
+
     # --- Breathing Lights (子界面呼吸灯) ---
     def breath_light_states(self):
         """前端拉取子界面状态（呼吸灯初始渲染）。"""
@@ -819,8 +836,12 @@ def main():
     except Exception as e:
         print(f"Failed to register hotkey: {e}")
 
-    # Apply initial theme from config
-    initial_theme = jarvis.config.get("display", {}).get("theme", "google")
+    # Apply initial theme from config (Win11 为默认视觉)
+    initial_theme = jarvis.config.get("display", {}).get("theme", "win11")
+    if initial_theme in ("apple", "google"):
+        initial_theme = "win11"
+    elif initial_theme == "dark":
+        initial_theme = "win11-dark"
     window.evaluate_js(f"window.setTheme({json.dumps(initial_theme)})")
 
     webview.start(debug=True)

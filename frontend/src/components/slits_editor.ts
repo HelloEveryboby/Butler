@@ -19,7 +19,7 @@ class TimeSlitEditor {
       if (match) {
         const filePath = match[1];
         const line = parseInt(match[2], 10);
-        const cardElement = target.closest('.interaction-line, .fix-card, .overlay-panel, .matrix-cell') as HTMLElement;
+        const cardElement = target.closest('.interaction-line, .fix-card, .overlay-panel, .page-cell') as HTMLElement;
         if (cardElement) {
           this.openSlit(filePath, line, cardElement);
         }

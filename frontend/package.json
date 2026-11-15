@@ -1,0 +1,9 @@
+{
+  "name": "butler-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/main.ts --outfile dist/bundle.js --target browser && bun build src/flash.ts --outfile dist/flash.js --target browser",
+    "typecheck": "tsc --noEmit"
+  }
+}

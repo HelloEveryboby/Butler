@@ -12,7 +12,7 @@ export interface AppConfig {
   audioVisualizerTheme: 'neon_cyan' | 'apple_glass' | 'liquid_purple' | 'matrix_green';
   ringRadius: number;
   wsUrl: string;
-  theme: 'apple' | 'dark' | 'google';
+  theme: 'win11' | 'win11-dark';
   interfaceMode: 'desktop' | 'mobile';
   blurAmount: number;
   fontFamily: string;
@@ -30,10 +30,10 @@ const DEFAULT_CONFIG: AppConfig = {
   audioVisualizerTheme: 'apple_glass',
   ringRadius: 80,
   wsUrl: 'ws://127.0.0.1:8765',
-  theme: 'apple',
+  theme: 'win11',
   interfaceMode: 'desktop',
   blurAmount: 20,
-  fontFamily: 'Inter, system-ui, -apple-system',
+  fontFamily: '"Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif',
   fontSize: '14px',
   commandPatterns: [
     { pattern: '^(打开|启动)(编辑器|笔记)', command: '/editor ' },
@@ -56,7 +56,13 @@ class ConfigManager {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        return { ...DEFAULT_CONFIG, ...JSON.parse(stored) };
+        const parsed = { ...DEFAULT_CONFIG, ...JSON.parse(stored) };
+        // 一次性迁移：旧版 Apple/Material 主题统一升级为 Win11 风格。
+        if (!localStorage.getItem('butler_win11_migrated')) {
+          parsed.theme = parsed.theme === 'dark' ? 'win11-dark' : 'win11';
+          localStorage.setItem('butler_win11_migrated', '1');
+        }
+        return parsed;
       }
     } catch (e) {
       console.warn('[Config] Failed to read localStorage config:', e);
