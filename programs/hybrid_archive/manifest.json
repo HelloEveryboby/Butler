@@ -1,15 +1,27 @@
 {
-  "name": "hybrid_archive",
-  "version": "1.0.0",
-  "language": "cpp",
-  "description": "High-performance C++ archive processing module",
-  "type": "binary",
-  "entry": {
-    "source": ["archive_service.cpp"],
-    "executable": "archive_service"
-  },
-  "build": {
-    "command": "g++ -O3 archive_service.cpp -o archive_service",
-    "auto_build": true
-  }
+    "name": "hybrid_archive",
+    "version": "1.0.0",
+    "language": "cpp",
+    "description": "High-performance C++ archive processing module",
+    "type": "binary",
+    "entry": {
+        "source": [
+            "archive_service.cpp"
+        ],
+        "executable": "archive_service"
+    },
+    "build": {
+        "command": "g++ -O3 archive_service.cpp -o archive_service",
+        "auto_build": true
+    },
+    "protocol": "cli",
+    "methods": {
+        "stream_replace": {
+            "argv": [
+                "{archive_path}",
+                "{target_file}",
+                "{new_content_path}"
+            ]
+        }
+    }
 }

@@ -141,11 +141,13 @@ class Agent:
     # ------------------------------------------------------------------ 运行时
     def _build_registry(self):
         from butler.core.agent_runtime.builtin_tools import register_builtin_tools
+        from butler.core.agent_runtime.native_tools import register_native_tools
         from butler.core.agent_runtime.skill_tools import register_skill_tools
         from butler.core.agent_runtime.tool_registry import ToolRegistry
 
         registry = ToolRegistry()
         register_builtin_tools(registry, workspace_root=self.workspace_root)
+        register_native_tools(registry)
 
         if self.skill_manager is not None:
             max_tools = _as_int(_config_get("agent.max_skill_tools", 40), 40)

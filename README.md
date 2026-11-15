@@ -46,9 +46,17 @@ Butler UI 3.0 彻底颠覆了传统的单维网页导航，引入了 **$2 \times
 * ❌ **痛点**：传统 AI 系统的功能扩展极其恶心，各种配置文件、注册逻辑散落在各处，牵一发而动全身。
 * 💎 **解决**：Butler 采用强健的模块化低耦合架构。**任何一个功能目录只需包含 `SKILL.md` 和代码，即可在运行时自动扫描、热加载并直接由 LLM 感知**。零污染、高便携，开发一个新功能只需新建一个文件夹。
 
-### 2. BHL (Python + C++/Go/Rust/C) 混合链路架构 `[Experimental]`
+### 2. BHL (Python + C++/Go/Rust/C) 混合链路架构 `[Runnable]`
 * ❌ **痛点**：纯 Python 构建的 Agent 往往是“花架子”，在需要高并发网络、低延迟计算或高安全性的底层硬核操作时，性能拉胯。
-* 💎 **解决**：**Butler 并非空中楼阁**。我们设计了 **BHL (Binary Hybrid Link) 混合链路**。系统底层用 C++ 编写高性能音频驱动与 FFT、用 Go 编写高并发轻量级执行器与系统审计，通过 TLV 格式的高频二进制协议与 Python 异步通信，完美兼顾了 LLM 的业务灵活性与底层的极致性能。
+* 💎 **解决**：**Butler 并非空中楼阁**。C 写的系统工具、C++ 的计算/文档/视觉、Go 的并发网络与审计、Rust 的哈希加密，全部通过统一的 **JSON-RPC 行协议**挂在同一条链路上；`HybridHub` 负责按 manifest 自动构建、方法路由、懒启动、超时重启与 Python 回退，调用结果用 `via` 标明 `native:<语言>` 还是 `fallback`。Agent 可直接用 `native_call` 工具调用任意语言模块（详见 [docs/bhl.md](./docs/bhl.md)）。
+
+  ```bash
+  butler hybrid status
+  butler hybrid build
+  butler hybrid call factorize --params '{"number": 91}'
+  butler hybrid new image_ops --lang cpp   # 新模块脚手架（C/C++/Go/Rust/Python）
+  ```
+  一次性 CLI 工具也能用 `"protocol": "cli"` 接进同一路由。
 
 ### 3. 永不丢失的多级降级记忆库（Redis ➔ Zvec ➔ SQLite） `[MVP Ready]`
 * ❌ **痛点**：市面上绝大多数 RAG 本地知识库项目脱离了重度云端向量数据库或巨型 Docker 环境就无法运行。

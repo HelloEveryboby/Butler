@@ -1,9 +1,22 @@
 {
-  "name": "word_counter",
-  "language": "c",
-  "version": "1.0",
-  "description": "A C program that counts lines, words, and bytes in a file. Usage: word_counter <file_path>",
-  "build": "make",
-  "source": ["word_counter.c", "counter.c", "counter.h", "Makefile"],
-  "executable": "word_counter_exec"
+    "name": "word_counter",
+    "language": "c",
+    "version": "1.0",
+    "description": "A C program that counts lines, words, and bytes in a file. Usage: word_counter <file_path>",
+    "build": "gcc -O2 -std=c99 word_counter.c counter.c -o {output}",
+    "source": [
+        "word_counter.c",
+        "counter.c",
+        "counter.h",
+        "Makefile"
+    ],
+    "executable": "word_counter_exec",
+    "protocol": "cli",
+    "methods": {
+        "count_words": {
+            "argv": [
+                "{path}"
+            ]
+        }
+    }
 }

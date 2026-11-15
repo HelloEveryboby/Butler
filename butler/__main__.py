@@ -82,6 +82,8 @@ def main():
         _launch_old_cli(rest)
     elif mode == "agent":
         _launch_agent(rest)
+    elif mode == "hybrid":
+        _launch_hybrid(rest)
     elif mode == "package":
         _launch_package(rest)
     elif mode == "config":
@@ -180,6 +182,13 @@ def _launch_agent(rest: list):
         agent_cmd.run_agent_task(args.role, args.task)
     else:
         agent_cmd.list_agents()
+
+
+def _launch_hybrid(rest: list):
+    """混合语言模块（BHL）的构建/状态/调用."""
+    from butler.cli.hybrid_cmd import run_hybrid
+
+    sys.exit(run_hybrid(rest))
 
 
 def _launch_package(rest: list):
@@ -300,6 +309,8 @@ def _print_help():
   butler agent list   列出数字员工
   butler agent run <角色> <任务>
                                 委派任务给员工
+  butler hybrid status|build|call
+                                混合语言模块（C/C++/Go/Rust）状态/构建/调用
   butler package list 列出已安装包
   butler package install <路径>
                                 安装本地包

@@ -110,6 +110,14 @@ class JarvisAgentBridge:
             workspace_root=str(workspace_root),
         )
 
+        # 混合语言模块（C/C++/Go/Rust）作为原生工具接入
+        try:
+            from .native_tools import register_native_tools
+
+            register_native_tools(registry)
+        except Exception as e:
+            logger.warning(f"Failed to register native tools: {e}")
+
         # 2. 把 Butler 技能注册为原生工具（LLM 可自主选择）
         skill_manager = getattr(jarvis, "skill_manager", None)
         if skill_manager is not None:
