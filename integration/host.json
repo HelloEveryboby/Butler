@@ -1,0 +1,4 @@
+{
+  "pluginPaths": ["integration/plugins/hello-market.js"],
+  "approvalTimeoutMs": 15000
+}

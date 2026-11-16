@@ -1,0 +1,21 @@
+{
+  "name": "@butler-dsh/host",
+  "version": "0.1.0",
+  "description": "DSH 宿主 shim：加载 DeepSeek Harness (dsh) 插件，并通过南向协议(帧=4B大端长度+JSON)对 butler-dsh-connector 暴露工具能力",
+  "type": "module",
+  "private": true,
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "start": "node dist/bin/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.6.0"
+  }
+}
