@@ -68,7 +68,7 @@ class ProactiveAgent:
              if self.jarvis and hasattr(self.jarvis, 'long_memory'):
                  self.jarvis.long_memory.logs.add_daily_log("[Proactive] 自动回顾：系统今日运行平稳，记忆已准备好在凌晨整合。")
              else:
-                 logger.warning("Jarvis LongMemory 尚未就绪，跳过总结。")
+                 logger.warning("Butler LongMemory 尚未就绪，跳过总结。")
 
     def _suggest_improvement(self):
         """基于历史记录建议改进（极其低频）"""

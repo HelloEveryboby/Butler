@@ -19,7 +19,7 @@
 
 1. **输入 (Input)**：通过 GUI、语音或 Web UI 输入。
 2. **路由 (Routing)**：使用 DeepSeek API 进行意图识别。
-3. **执行 (Execution)**：路由至相应模块（Jarvis、向量库、插件等）。
+3. **执行 (Execution)**：路由至相应模块（Butler、向量库、插件等）。
 4. **响应 (Response)**：结果返回给用户。
 
 ## 故障排查

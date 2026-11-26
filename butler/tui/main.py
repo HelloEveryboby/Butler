@@ -1354,9 +1354,9 @@ class ButlerTUI(App):
         elif name == "tasks":
             self._set_view("tasks")
         elif name == "team":
-            self._append_chat("团队成员列表 (需 Jarvis 运行时)", "system")
+            self._append_chat("团队成员列表 (需 Butler 运行时)", "system")
         elif name == "profile":
-            self._append_chat("用户画像 (需 Jarvis 运行时)", "system")
+            self._append_chat("用户画像 (需 Butler 运行时)", "system")
         elif name == "memory":
             self._set_view("memory")
         elif name == "doctor":
@@ -3134,8 +3134,8 @@ def run_tui():
         # Start Jarvis background
         jarvis.main()
     except Exception as e:
-        logger.warning(f"Jarvis 初始化失败 (TUI 将以演示模式运行): {e}")
-        app.status_message = "演示模式 - Jarvis 未连接"
+        logger.warning(f"Butler 初始化失败 (TUI 将以演示模式运行): {e}")
+        app.status_message = "演示模式 - Butler 未连接"
 
     try:
         app.run()

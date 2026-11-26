@@ -124,7 +124,7 @@ def main():
     # 启动经典 Tkinter 模式
     logger.info("启动经典 Tkinter 模式")
     root = tk.Tk()
-    root.title("Jarvis 助手")
+    root.title("Butler 助手")
     
     jarvis = Jarvis(root, usb_screen, headless=False)
     all_tools = {t['name']: t.get('path', t.get('module')) for t in extension_manager.get_all_tools()}

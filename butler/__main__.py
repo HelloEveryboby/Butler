@@ -5,7 +5,7 @@
   tui       终端用户界面 (Textual)        — 默认
   gui       Tkinter 经典桌面界面
   web       pywebview 现代桌面界面
-  headless  无头模式 (Jarvis 后台 + API, 无前台 UI)
+  headless  无头模式 (Butler 后台 + API, 无前台 UI)
 
 服务 / 管理子命令:
   api       启动 FastAPI REST 网关 (原 start)
@@ -135,7 +135,7 @@ def _launch_legacy(skip_setup: bool = False):
 
 
 def _launch_headless(port: int = 5001, host: str = "0.0.0.0"):
-    """无头模式: Jarvis 后台 + REST API, 无前台 UI."""
+    """无头模式: Butler 后台 + REST API, 无前台 UI."""
     import os
     import time
     os.environ.setdefault("BUTLER_API_HOST", host)
@@ -299,7 +299,7 @@ def _print_help():
   butler tui           终端界面 (Textual)
   butler gui           Tkinter 经典桌面界面
   butler web           pywebview 现代桌面界面
-  butler headless      无头模式 (Jarvis 后台 + API, 无前台 UI)
+  butler headless      无头模式 (Butler 后台 + API, 无前台 UI)
 
 服务 / 管理:
   butler api [--port 5001] [--host 0.0.0.0]

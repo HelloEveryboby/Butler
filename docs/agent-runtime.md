@@ -16,7 +16,7 @@ Butler 现在用 **LLM 原生 tool calling 循环**执行任务，而不是「�
 ```text
 用户输入
    │
-   ├─ Jarvis 聊天 ──► JarvisAgentBridge ─┐
+   ├─ Butler 聊天 ──► JarvisAgentBridge ─┐
    │                                     ├─► AgentRuntime 循环
    └─ butler agent run ──► Agent ────────┘        │
                                                   ├─ LLM（OpenAI 兼容：DeepSeek/OpenAI/Ollama…）

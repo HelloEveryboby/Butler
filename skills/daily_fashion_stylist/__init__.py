@@ -106,4 +106,4 @@ def handle_request(action, **kwargs):
             logger.error(f"LLM 调用失败: {e}")
             return "抱歉，生成穿搭建议时遇到了点问题。请稍后再试。"
     else:
-        return "Jarvis NLU 服务不可用，无法生成建议。"
+        return "Butler NLU 服务不可用，无法生成建议。"

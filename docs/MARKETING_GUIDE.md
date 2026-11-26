@@ -1,4 +1,4 @@
-# 🚀 Butler (Jarvis) 宣发与种子用户获取实操指南 (Marketing & User Growth Playbook)
+# 🚀 Butler 宣发与种子用户获取实操指南 (Marketing & User Growth Playbook)
 
 本指南旨在帮助您将 Butler 系统的杀手级卖点、工程之美和极致视觉体验完美呈献给开源社区。通过以下为 V2EX、掘金、知乎和技术自媒体量身定制的宣发文案与文章大纲，Butler 能快速捕获第一批忠实的硬核粉丝，引爆 GitHub Star。
 
@@ -18,7 +18,7 @@
 
     作为一个坚定的 **Local-First（本地优先）** 拥护者和大模型重度玩家，我一直对市面上那些“动不动就要 Docker 部署、连云端向量库、每次对话延迟几秒”的 Agent 框架感到疲惫。
 
-    所以过去几个月，我死磕了 Python 异步协程与底层高性能多语言二进制的混合调用，在本地打造了一个完全属于我自己的、带 **Glassmorphism 玻璃拟态 Web UI** 的智能数字生命：**Butler (Jarvis)**。
+    所以过去几个月，我死磕了 Python 异步协程与底层高性能多语言二进制的混合调用，在本地打造了一个完全属于我自己的、带 **Glassmorphism 玻璃拟态 Web UI** 的智能数字生命：**Butler**。
 
     🤵 **项目地址**：https://github.com/HelloEveryboby/Butler
     ⭐ 如果它击中了你的爽点，欢迎顺手点个 Star，支持一下独立开源创作者！

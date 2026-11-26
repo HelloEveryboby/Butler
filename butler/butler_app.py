@@ -988,7 +988,7 @@ class Jarvis:
             from package.core_utils.autonomous_switch import AutonomousSwitch
             AutonomousSwitch().start(background=True)
         except Exception: pass
-        self.speak("Jarvis 已启动并就绪")
+        self.speak("Butler 已启动并就绪")
         threading.Thread(target=self._update_ui_loop, daemon=True).start()
 
     def suggest_ui_activation(self):
@@ -1257,7 +1257,7 @@ def _start_tui_panel(usb_screen) -> None:
     import sys as _sys
     if not (_sys.stdin.isatty() and _sys.stdout.isatty()):
         print(
-            "[Jarvis TUI] 警告：检测到非交互式终端（无 TTY）。"
+            "[Butler TUI] 警告：检测到非交互式终端（无 TTY）。"
             "TUI 界面需要在真实交互式终端中运行。请使用支持 ANSI 的终端（如 xterm/gnome-terminal/iterm2 等）重新运行。",
             file=_sys.stderr,
         )
@@ -1302,7 +1302,7 @@ def main():
     if args.tui or not _is_tk_frame:
         if args.classic and not args.tui and not _is_tk_frame:
             print(
-                "[Jarvis] --classic/admin 模式：CommandPanel 已重构为 TUI(Textual) 版本，"
+                "[Butler] --classic/admin 模式：CommandPanel 已重构为 TUI(Textual) 版本，"
                 "不再基于 tkinter。正在以 TUI 模式启动。若需原桌面 GUI，请回退版本或使用 "
                 "frontend.program 现代入口。",
                 file=__import__("sys").stderr,
@@ -1319,7 +1319,7 @@ def main():
     if tk is None:
         print("错误: tkinter 未安装，无法启动 GUI 模式。请安装 python3-tk 或使用 tui/headless 模式。", file=sys.stderr)
         sys.exit(1)
-    root = tk.Tk(); root.title("Jarvis 助手 [管理模式]")
+    root = tk.Tk(); root.title("Butler 助手 [管理模式]")
     jarvis = Jarvis(root, usb_screen, headless=False)
     all_tools = {t['name']: t.get('path', t.get('module')) for t in extension_manager.get_all_tools()}
     panel = CommandPanel(root, program_mapping=jarvis.program_mapping, programs=all_tools, command_callback=jarvis.panel_command_handler)

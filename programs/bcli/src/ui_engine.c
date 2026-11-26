@@ -19,7 +19,7 @@
 void ui_print_banner() {
     printf("%s%s%s%s", CLR_CYN, CLR_BLD, BANNER_ART, CLR_RST);
     printf("%s Butler AI 助手 - 命令行版 (兼容 STM32)\n", CLR_DIM);
-    printf(" 界面设计参考 Claude Code | 由 Jarvis 引擎驱动%s\n\n", CLR_RST);
+    printf(" 界面设计参考 Claude Code | 由 Butler 引擎驱动%s\n\n", CLR_RST);
 }
 
 // 打印“思考中”动画

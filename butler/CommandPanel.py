@@ -745,7 +745,7 @@ class CommandPanel(App):
         ("/program <name>", "执行程序列表中的程序"),
         ("/search <keyword>", "在程序列表中过滤关键字"),
         ("/exit", "退出 TUI"),
-        ("(其他文本)", "作为对话命令发送给 Jarvis"),
+        ("(其他文本)", "作为对话命令发送给 Butler"),
     ]
 
     def _send_text_command(self, raw_text: str) -> None:

@@ -130,7 +130,7 @@ def handle_open_switchboard(jarvis_app, **kwargs):
 
 @register_intent("exit", requires_entities=False)
 def handle_exit(jarvis_app, **kwargs):
-    """退出 Jarvis 助手应用程序。"""
+    """退出 Butler 助手应用程序。"""
     jarvis_app._handle_exit()
 
 
@@ -519,7 +519,7 @@ def handle_email_op(jarvis_app, entities, **kwargs):
             assistant = EmailAssistant()
             if op == "send":
                 to = entities.get("to")
-                subject = entities.get("subject", "来自 Jarvis 的邮件")
+                subject = entities.get("subject", "来自 Butler 的邮件")
                 body = entities.get("body", "")
                 if to and body:
                     jarvis_app.ui_print(f"📧 正在发送邮件到 {to}...")

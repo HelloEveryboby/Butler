@@ -76,7 +76,7 @@ class ProgramManager:
         self.search_entry.pack(side=tk.RIGHT, padx=5)
         ttk.Label(self.control_frame, text="搜索:").pack(side=tk.RIGHT)
 
-        # Jarvis控制
+        # Butler控制
         self.jarvis_frame = ttk.Frame(self.root, padding="10")
         self.jarvis_frame.pack(fill=tk.X)
 
@@ -247,11 +247,11 @@ class ProgramManager:
         self.execute_command()
 
     def execute_command(self):
-        """执行Jarvis命令"""
+        """执行Butler命令"""
         command = self.command_entry.get()
         if command:
             result = self.jarvis.execute(command)
-            messagebox.showinfo("Jarvis执行结果", result)
+            messagebox.showinfo("Butler执行结果", result)
         else:
             messagebox.showwarning("警告", "请输入命令")
 
