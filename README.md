@@ -1,4 +1,4 @@
-# 🤵 Butler (Jarvis) — 极致的本地优先（Local-First）智能管家系统
+# 🤵 Butler — 极致的本地优先（Local-First）智能管家系统
 
 <p align="center">
   <a href="./README_EN.md"><b>🌐 English Version</b></a>
@@ -20,7 +20,7 @@
 
 ## 💡 一句话 Hook
 
-> **Butler (Jarvis)** 是一个完全基于 **Local-First（本地优先）** 哲学构建的硬核智能管家系统。它以 Python 为核心编排器，通过高性能二进制混合链路（BHL）协同 C++/Go/Rust，不仅能为您管理全套本地 Office/PDF 文档、构筑秒级降级的向量记忆库，更具备 AI 驱动的系统自愈与后台“做梦”记忆整合引擎。这是一个真正运行在您本地设备上的数字生命。
+> **Butler** 是一个完全基于 **Local-First（本地优先）** 哲学构建的硬核智能管家系统。它以 Python 为核心编排器，通过高性能二进制混合链路（BHL）协同 C++/Go/Rust，不仅能为您管理全套本地 Office/PDF 文档、构筑秒级降级的向量记忆库，更具备 AI 驱动的系统自愈与后台“做梦”记忆整合引擎。这是一个真正运行在您本地设备上的数字生命。
 
 ---
 

@@ -42,7 +42,7 @@ class HabitManager:
         try:
             os.makedirs(os.path.dirname(self._habits_md_path), exist_ok=True)
             content = "# User Habits & Coordination Profile (HABITS.md)\n\n"
-            content += "> 这是 Jarvis 自动生成的记忆与偏好文件。它记录了您的使用习惯，帮助我们配合得更默契。\n\n"
+            content += "> 这是 Butler 自动生成的记忆与偏好文件。它记录了您的使用习惯，帮助我们配合得更默契。\n\n"
 
             content += "## 👤 个人偏好 (Preferences)\n"
             if self._profile["preferences"]:

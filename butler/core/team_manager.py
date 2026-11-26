@@ -18,8 +18,8 @@ class TeamManager:
     """
     _instance = None
 
-    def __init__(self, jarvis_app=None):
-        self.jarvis_app = jarvis_app
+    def __init__(self, butler_app=None):
+        self.butler_app = butler_app
         self.team_dir = TEAM_DIR
         self.team_dir.mkdir(parents=True, exist_ok=True)
         self.config_path = self.team_dir / "config.json"
@@ -30,9 +30,9 @@ class TeamManager:
         self.idle_timeout = 300 # 5 minutes before shutdown if idle
 
     @classmethod
-    def get_instance(cls, jarvis_app=None):
+    def get_instance(cls, butler_app=None):
         if cls._instance is None:
-            cls._instance = TeamManager(jarvis_app)
+            cls._instance = TeamManager(butler_app)
         return cls._instance
 
     def _load_config(self) -> List[Dict[str, Any]]:
@@ -89,7 +89,7 @@ class TeamManager:
         from package.core_utils.config_loader import config_loader
 
         # Initialize isolated NLU for teammate if needed, or use app's
-        nlu = self.jarvis_app.nlu_service if self.jarvis_app else None
+        nlu = self.butler_app.nlu_service if self.butler_app else None
 
         self._update_member_status(name, "working")
         messages = [{"role": "user", "content": initial_prompt}]

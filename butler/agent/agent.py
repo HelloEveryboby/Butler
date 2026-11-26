@@ -211,6 +211,7 @@ class Agent:
         self._runtime = AgentRuntime(
             config=AgentConfig(
                 max_turns=self.max_turns,
+                max_parallel_tools=_as_int(_config_get("agent.max_parallel_tools", 4), 4),
                 system_prompt=_DEFAULT_SYSTEM_PROMPT,
                 llm_call_handler=handler,
                 auto_confirm_handler=self._auto_confirm,
@@ -224,7 +225,12 @@ class Agent:
         return self._runtime
 
     # ------------------------------------------------------------------ 任务
-    def run_task(self, task_input: str) -> Dict[str, Any]:
+    def run_task(
+        self,
+        task_input: str,
+        session_id: Optional[str] = None,
+        resume: bool = False,
+    ) -> Dict[str, Any]:
         """执行一个任务，返回最终报告；全过程写入 tasks 表。"""
         task_id = f"task_{uuid.uuid4().hex[:8]}"
         self._update_task_db(task_id, "running", task_input)
@@ -239,7 +245,16 @@ class Agent:
             return self._result(task_id, "failed", [], {}, report, "error", 0)
 
         try:
-            raw = runtime.run(user_input=task_input)
+            if (session_id or resume) and not runtime.config.checkpoint_dir:
+                runtime.config.checkpoint_dir = str(
+                    _config_get("agent.checkpoint_dir", "data/agent_sessions")
+                    or "data/agent_sessions"
+                )
+            raw = runtime.run(
+                user_input=task_input,
+                session_id=session_id,
+                resume=resume,
+            )
         except Exception as exc:
             logger.error("任务执行异常: %s", exc, exc_info=True)
             report = f"任务执行异常: {exc}"
@@ -254,6 +269,9 @@ class Agent:
         if stop_reason == "end_turn":
             status = "completed"
             report = response or "任务已完成（模型未返回文本总结）。"
+        elif stop_reason == "length":
+            status = "incomplete"
+            report = f"模型输出达到长度上限，任务可能未完成。\n\n最近结果:\n{response}"
         elif stop_reason == "max_turns":
             status = "incomplete"
             report = f"已达到最大轮次 {self.max_turns}，任务尚未收敛。\n\n最近结果:\n{response}"

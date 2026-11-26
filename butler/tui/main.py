@@ -166,7 +166,7 @@ class ButlerTUI(App):
 
     def __init__(self):
         super().__init__()
-        self.jarvis = None
+        self.butler = None
         self.command_callback = None
         self._msg_queue = []
         self._queue_lock = threading.Lock()
@@ -581,7 +581,7 @@ class ButlerTUI(App):
                 self._handle_slash_command(text)
             return
 
-        # Send to Jarvis if available
+        # Send to Butler if available
         if self.command_callback:
             try:
                 self.command_callback("text", text)
@@ -589,7 +589,7 @@ class ButlerTUI(App):
                 self._append_chat(f"错误: {e}", "error")
         else:
             # Demo mode: simulate response
-            self._simulate_jarvis_response(text)
+            self._simulate_butler_response(text)
 
     # ── 命令名 → tool_name 映射 ──
     _CMD_TO_TOOL = {
@@ -1354,9 +1354,9 @@ class ButlerTUI(App):
         elif name == "tasks":
             self._set_view("tasks")
         elif name == "team":
-            self._append_chat("团队成员列表 (需 Jarvis 运行时)", "system")
+            self._append_chat("团队成员列表 (需 Butler 运行时)", "system")
         elif name == "profile":
-            self._append_chat("用户画像 (需 Jarvis 运行时)", "system")
+            self._append_chat("用户画像 (需 Butler 运行时)", "system")
         elif name == "memory":
             self._set_view("memory")
         elif name == "doctor":
@@ -1369,7 +1369,7 @@ class ButlerTUI(App):
             if not tool_handled:
                 self._append_chat(f"命令 /{name} 已注册但暂未实现 TUI 快捷调用，请使用 /help {name} 查看替代方式", "system")
 
-    def _simulate_jarvis_response(self, text: str):
+    def _simulate_butler_response(self, text: str):
         self._append_chat(
             f"[演示模式] Butler 收到: '{text}'。\n"
             f"启动完整 Butler 运行时后将启用真实 AI 对话能力。",
@@ -1380,7 +1380,7 @@ class ButlerTUI(App):
         status = (
             "📊 Butler 系统状态:\n"
             f"  - UI 模式: TUI (终端)\n"
-            f"  - 运行时: {'已连接' if self.jarvis else '未连接'}\n"
+            f"  - 运行时: {'已连接' if self.butler else '未连接'}\n"
             f"  - 当前视图: {self.current_view}\n"
         )
         self._append_chat(status, "system")
@@ -3101,8 +3101,8 @@ class ButlerTUI(App):
 
     # ------------------------ Public API ------------------------ #
 
-    def set_jarvis(self, jarvis):
-        self.jarvis = jarvis
+    def set_butler(self, butler):
+        self.butler = butler
 
     def set_command_callback(self, callback):
         self.command_callback = callback
@@ -3117,13 +3117,13 @@ def run_tui():
 
     app = ButlerTUI()
 
-    # Try to initialize Jarvis in headless mode
+    # Try to initialize Butler in headless mode
     try:
-        from butler.butler_app import Jarvis, USBScreen
+        from butler.butler_app import Butler, USBScreen
         usb_screen = USBScreen(40, 8)
-        jarvis = Jarvis(root=None, usb_screen=usb_screen, headless=True)
-        app.set_jarvis(jarvis)
-        app.set_command_callback(jarvis.panel_command_handler)
+        butler = Butler(root=None, usb_screen=usb_screen, headless=True)
+        app.set_butler(butler)
+        app.set_command_callback(butler.panel_command_handler)
 
         # Subscribe to event bus for UI updates
         def ui_output_handler(message, tag, response_id):
@@ -3131,11 +3131,11 @@ def run_tui():
 
         event_bus.subscribe("ui_output", ui_output_handler)
 
-        # Start Jarvis background
-        jarvis.main()
+        # Start Butler background
+        butler.main()
     except Exception as e:
-        logger.warning(f"Jarvis 初始化失败 (TUI 将以演示模式运行): {e}")
-        app.status_message = "演示模式 - Jarvis 未连接"
+        logger.warning(f"Butler 初始化失败 (TUI 将以演示模式运行): {e}")
+        app.status_message = "演示模式 - Butler 未连接"
 
     try:
         app.run()
@@ -3145,9 +3145,9 @@ def run_tui():
         traceback.print_exc()
     finally:
         app.on_app_shutdown()
-        if app.jarvis:
+        if app.butler:
             try:
-                app.jarvis._handle_exit()
+                app.butler._handle_exit()
             except Exception:
                 pass
 

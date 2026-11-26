@@ -5,7 +5,7 @@
 - Agent.run_task 走真实 tool calling 循环并写 tasks 表
 - 工具失败后 Agent 能继续收敛
 - Planner/Executor 不再输出伪造结果
-- JarvisAgentBridge 端到端（技能工具 + 权限 + 事件流）
+- ButlerAgentBridge 端到端（技能工具 + 权限 + 事件流）
 """
 
 import json
@@ -14,7 +14,7 @@ import sqlite3
 from butler.agent.agent import Agent
 from butler.agent.executor import Executor
 from butler.agent.planner import Planner
-from butler.core.agent_runtime.jarvis_adapter import JarvisAgentBridge
+from butler.core.agent_runtime.butler_adapter import ButlerAgentBridge
 from butler.core.agent_runtime.skill_tools import register_skill_tools
 from butler.core.agent_runtime.tool_registry import ToolRegistry
 
@@ -174,8 +174,8 @@ class StubSkillManager(FakeSkillManager):
     pass
 
 
-class StubJarvis:
-    """够用的 Jarvis 替身：只实现 bridge 真正会碰到的接口。"""
+class StubButler:
+    """够用的 Butler 替身：只实现 bridge 真正会碰到的接口。"""
 
     def __init__(self, skill_manager):
         self.root = None
@@ -195,9 +195,9 @@ class StubJarvis:
         return ""
 
 
-def test_jarvis_bridge_end_to_end_with_skill_tool(monkeypatch):
+def test_butler_bridge_end_to_end_with_skill_tool(monkeypatch):
     manager = StubSkillManager()
-    jarvis = StubJarvis(manager)
+    butler = StubButler(manager)
 
     responses = [
         (_tool_call("demo_skill", {"action": "run", "text": "butler"}), "tool_calls"),
@@ -213,12 +213,12 @@ def test_jarvis_bridge_end_to_end_with_skill_tool(monkeypatch):
         is_usable = True
 
     monkeypatch.setattr(
-        "butler.core.agent_runtime.jarvis_adapter.resolve_llm_config",
+        "butler.core.agent_runtime.butler_adapter.resolve_llm_config",
         lambda *a, **k: FakeConfig(),
     )
-    monkeypatch.setattr("butler.core.agent_runtime.jarvis_adapter.chat_completions", fake_chat)
+    monkeypatch.setattr("butler.core.agent_runtime.butler_adapter.chat_completions", fake_chat)
 
-    bridge = JarvisAgentBridge(jarvis, enabled=True, echo_assistant=False)
+    bridge = ButlerAgentBridge(butler, enabled=True, echo_assistant=False)
     result = bridge.run("用 demo 技能回显 butler")
 
     assert result["stop_reason"] == "end_turn"
@@ -229,7 +229,7 @@ def test_jarvis_bridge_end_to_end_with_skill_tool(monkeypatch):
     tool_events = [e for e in result["events"] if getattr(e.type, "value", e.type) == "tool_result"]
     assert tool_events and "echo:butler" in str(tool_events[0].data)
     # echo_assistant=False，中间 assistant 文本不打到 UI（由宿主自己汇报）
-    assert all(tag != "ai_response" for tag, _ in jarvis.printed)
+    assert all(tag != "ai_response" for tag, _ in butler.printed)
 
 
 def test_bridge_blocks_dangerous_command(monkeypatch):
@@ -237,11 +237,11 @@ def test_bridge_blocks_dangerous_command(monkeypatch):
         is_usable = True
 
     monkeypatch.setattr(
-        "butler.core.agent_runtime.jarvis_adapter.resolve_llm_config",
+        "butler.core.agent_runtime.butler_adapter.resolve_llm_config",
         lambda *a, **k: FakeConfig(),
     )
-    jarvis = StubJarvis(StubSkillManager())
-    bridge = JarvisAgentBridge(jarvis, enabled=True)
+    butler = StubButler(StubSkillManager())
+    bridge = ButlerAgentBridge(butler, enabled=True)
     bridge.create_runtime()
 
     handler = bridge.runtime.config.auto_confirm_handler

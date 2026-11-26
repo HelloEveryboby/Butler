@@ -1,15 +1,15 @@
 """
-Jarvis 适配层 — 将旧版 Jarvis._autonomous_agent_loop 迁移到新 AgentRuntime 架构。
+Butler 适配层 — 将旧版 Butler._autonomous_agent_loop 迁移到新 AgentRuntime 架构。
 
 设计原则：
-    1. 渐进式迁移：不破坏现有 Jarvis 功能，提供新旧两套路径
-    2. 透明桥接：将 Jarvis 的 NLUService、SkillManager 等适配为 AgentRuntime 组件
+    1. 渐进式迁移：不破坏现有 Butler 功能，提供新旧两套路径
+    2. 透明桥接：将 Butler 的 NLUService、SkillManager 等适配为 AgentRuntime 组件
     3. 双模式运行：可在传统模式和新架构模式间切换
 
 使用方式::
 
-    # 在 Jarvis.__init__ 中启用新架构
-    self.agent_bridge = JarvisAgentBridge(self)
+    # 在 Butler.__init__ 中启用新架构
+    self.agent_bridge = ButlerAgentBridge(self)
 
     # 替代 _autonomous_agent_loop
     def _autonomous_agent_loop(self, command):
@@ -54,55 +54,55 @@ _DANGEROUS_COMMAND_PATTERNS = (
 )
 
 
-class JarvisAgentBridge:
+class ButlerAgentBridge:
     """
-    Jarvis 到 AgentRuntime 的适配层。
+    Butler 到 AgentRuntime 的适配层。
 
-    将 Jarvis 现有的服务（NLUService、SkillManager、IntentRegistry 等）
+    将 Butler 现有的服务（NLUService、SkillManager、IntentRegistry 等）
     适配为 AgentRuntime 所需的组件，实现渐进式迁移。
 
     核心适配：
         1. NLUService → llm_call_handler（带工具调用支持的 LLM 回调）
         2. IntentRegistry → ToolRegistry（将意图处理器转换为标准工具）
-        3. Jarvis._autonomous_agent_loop → AgentRuntime.run
-        4. Jarvis.ui_print → EventStream 订阅
-        5. Jarvis 权限确认 → auto_confirm_handler
+        3. Butler._autonomous_agent_loop → AgentRuntime.run
+        4. Butler.ui_print → EventStream 订阅
+        5. Butler 权限确认 → auto_confirm_handler
     """
 
-    def __init__(self, jarvis: Any, enabled: bool = False, echo_assistant: bool = True):
+    def __init__(self, butler: Any, enabled: bool = False, echo_assistant: bool = True):
         """
         初始化适配层。
 
         参数:
-            jarvis: Jarvis 实例
+            butler: Butler 实例
             enabled: 是否启用新架构
             echo_assistant: 是否把中间 assistant 文本打到 UI（宿主自己汇报最终答案时设 False，避免重复）
         """
-        self.jarvis = jarvis
+        self.butler = butler
         self.enabled = enabled
         self.echo_assistant = echo_assistant
         self._runtime: AgentRuntime | None = None
         self._subagent_manager: SubagentManager | None = None
         self.skill_tool_map: dict[str, str] = {}
 
-        # 事件订阅：将 Agent 事件桥接到 Jarvis UI
+        # 事件订阅：将 Agent 事件桥接到 Butler UI
         self._event_handlers: list[Callable] = []
 
     def create_runtime(self) -> AgentRuntime:
         """
-        从 Jarvis 实例创建 AgentRuntime。
+        从 Butler 实例创建 AgentRuntime。
 
-        将 Jarvis 的服务适配为 AgentRuntime 组件。
+        将 Butler 的服务适配为 AgentRuntime 组件。
         """
-        jarvis = self.jarvis
+        butler = self.butler
 
         # 1. 创建工具注册表
-        # 从 Jarvis 实例推断项目根目录（优先使用实际工作目录）
+        # 从 Butler 实例推断项目根目录（优先使用实际工作目录）
         workspace_root = os.getcwd()
-        if hasattr(jarvis, "config") and isinstance(jarvis.config, dict):
-            workspace_root = jarvis.config.get(
+        if hasattr(butler, "config") and isinstance(butler.config, dict):
+            workspace_root = butler.config.get(
                 "workspace_root",
-                jarvis.config.get("project_root", os.getcwd()),
+                butler.config.get("project_root", os.getcwd()),
             )
         registry = ToolRegistry()
         register_builtin_tools(
@@ -119,14 +119,14 @@ class JarvisAgentBridge:
             logger.warning(f"Failed to register native tools: {e}")
 
         # 2. 把 Butler 技能注册为原生工具（LLM 可自主选择）
-        skill_manager = getattr(jarvis, "skill_manager", None)
+        skill_manager = getattr(butler, "skill_manager", None)
         if skill_manager is not None:
             try:
                 max_tools = int(self._config("agent.max_skill_tools", 40) or 40)
                 self.skill_tool_map = register_skill_tools(
                     registry,
                     skill_manager,
-                    jarvis_app=jarvis,
+                    butler_app=butler,
                     max_tools=max_tools if max_tools > 0 else None,
                 )
             except Exception as e:
@@ -140,7 +140,7 @@ class JarvisAgentBridge:
         permissions = PermissionSystem()
         permissions.set_mode(self._resolve_permission_mode())
 
-        # 5. 创建上下文管理器（复用 Jarvis 的 NLUService 压缩能力）
+        # 5. 创建上下文管理器（复用 Butler 的 NLUService 压缩能力）
         context = ContextManager(
             token_limit=120000,
             compaction_threshold=0.8,
@@ -150,7 +150,7 @@ class JarvisAgentBridge:
         # 6. 创建事件流
         events = EventStream()
 
-        # 7. 订阅事件 → Jarvis UI 输出
+        # 7. 订阅事件 → Butler UI 输出
         self._setup_event_bridge(events)
 
         # 8. 创建 LLM 调用回调
@@ -159,6 +159,9 @@ class JarvisAgentBridge:
         # 9. 创建运行时配置
         config = AgentConfig(
             max_turns=int(self._config("agent.max_turns", 25) or 25),
+            max_parallel_tools=int(self._config("agent.max_parallel_tools", 4) or 4),
+            max_context_retries=int(self._config("agent.max_context_retries", 2) or 2),
+            checkpoint_dir=str(self._config("agent.checkpoint_dir", "") or ""),
             system_prompt=self._build_system_prompt(),
             llm_call_handler=llm_handler,
             auto_confirm_handler=self._create_confirm_handler(),
@@ -219,15 +222,15 @@ class JarvisAgentBridge:
         """
         创建 LLM 调用回调。
 
-        将 Jarvis 的 NLUService.ask_llm 适配为 AgentRuntime 所需的
+        将 Butler 的 NLUService.ask_llm 适配为 AgentRuntime 所需的
         (messages, tools, **kwargs) → dict 格式。
         """
-        jarvis = self.jarvis
+        butler = self.butler
 
         def handler(messages: list[dict], tools: list[dict], **kwargs) -> dict[str, Any]:
             """调用统一的 LLM 提供商（DeepSeek/OpenAI/智谱/Ollama 等）。"""
             try:
-                cfg = resolve_llm_config(jarvis.config.get)
+                cfg = resolve_llm_config(butler.config.get)
 
                 if not cfg.is_usable:
                     logger.warning("No usable LLM provider configured")
@@ -245,7 +248,7 @@ class JarvisAgentBridge:
                     temperature=self._resolve_temperature(),
                 )
 
-                if total_tokens > 0 and hasattr(jarvis, "nlu_service"):
+                if total_tokens > 0 and hasattr(butler, "nlu_service"):
                     try:
                         from package.core_utils.quota_manager import quota_manager
                         quota_manager.update_usage(total_tokens)
@@ -260,10 +263,13 @@ class JarvisAgentBridge:
 
             except Exception as e:
                 logger.error(f"LLM call failed: {e}", exc_info=True)
+                # 交给 AgentRuntime 决定是否属于上下文超限并触发压缩重试；
+                # 不再伪装成一条 assistant 文本，避免上层误判任务已完成。
                 return {
-                    "content": f"Error: {e}",
+                    "content": "",
                     "tool_calls": [],
-                    "stop_reason": "end_turn",
+                    "stop_reason": "error",
+                    "error": str(e),
                 }
 
         return handler
@@ -278,7 +284,7 @@ class JarvisAgentBridge:
 
     def _config(self, key: str, default: Any = None) -> Any:
         """读取配置，兼容 dict 形态和 config_loader 缺失。"""
-        config = getattr(self.jarvis, "config", None)
+        config = getattr(self.butler, "config", None)
         if isinstance(config, dict):
             node: Any = config
             for part in str(key).split("."):
@@ -315,11 +321,11 @@ class JarvisAgentBridge:
 
     def _create_summarize_handler(self) -> Callable[[str], str] | None:
         """创建上下文压缩的 LLM 摘要回调。"""
-        jarvis = self.jarvis
+        butler = self.butler
 
         def summarize(text: str) -> str:
             try:
-                return jarvis.nlu_service.ask_llm(
+                return butler.nlu_service.ask_llm(
                     f"请简要总结以下对话上下文，保留关键任务状态和重要事实：\n\n{text}",
                     use_habit=False,
                 )
@@ -336,7 +342,7 @@ class JarvisAgentBridge:
         在 GUI 模式下弹出确认对话框，在 headless 模式下根据配置决定。
         只读工具（read/glob/grep/ls）自动放行，破坏性操作需确认。
         """
-        jarvis = self.jarvis
+        butler = self.butler
 
         # 只读工具自动放行
         _READ_ONLY_TOOLS = {"read", "glob", "grep", "ls"}
@@ -354,7 +360,7 @@ class JarvisAgentBridge:
                 return True
 
             # headless 模式：检查配置是否允许自动确认
-            if not hasattr(jarvis, "root") or jarvis.root is None:
+            if not hasattr(butler, "root") or butler.root is None:
                 auto_confirm = bool(self._config("agent.auto_confirm", True))
                 if not auto_confirm:
                     logger.warning(
@@ -421,7 +427,7 @@ class JarvisAgentBridge:
                         try:
                             # 适配 IntentRegistry 的调用签名
                             result = fn(
-                                container=getattr(self.jarvis, "container", None),
+                                container=getattr(self.butler, "container", None),
                                 entities=arguments,
                                 **ctx,
                             )
@@ -504,7 +510,7 @@ class JarvisAgentBridge:
 
     def _build_system_prompt(self) -> str:
         """构建系统提示词，注入技能和运行节点信息。"""
-        jarvis = self.jarvis
+        butler = self.butler
         parts = []
 
         # 基础提示
@@ -520,7 +526,7 @@ class JarvisAgentBridge:
 
         # 技能扩展
         try:
-            skill_extension = jarvis.skill_manager.get_system_prompt_extension()
+            skill_extension = butler.skill_manager.get_system_prompt_extension()
             if skill_extension:
                 parts.append(skill_extension)
         except Exception:
@@ -528,7 +534,7 @@ class JarvisAgentBridge:
 
         # 运行节点环境
         try:
-            runner_env = jarvis._get_runner_env_prompt_extension()
+            runner_env = butler._get_runner_env_prompt_extension()
             if runner_env:
                 parts.append(runner_env)
         except Exception:
@@ -546,9 +552,9 @@ class JarvisAgentBridge:
         return "\n\n".join(parts)
 
     def _get_conversation_history(self) -> list:
-        """从 Jarvis 的长期记忆获取对话历史。"""
+        """从 Butler 的长期记忆获取对话历史。"""
         try:
-            return self.jarvis.long_memory.get_recent_history(10)
+            return self.butler.long_memory.get_recent_history(10)
         except Exception:
             return []
 
@@ -556,8 +562,8 @@ class JarvisAgentBridge:
         """保存对话到长期记忆。"""
         try:
             # 使用对话日志记录，而非污染事实记忆库
-            if hasattr(self.jarvis, "long_memory"):
-                lm = self.jarvis.long_memory
+            if hasattr(self.butler, "long_memory"):
+                lm = self.butler.long_memory
                 # 使用 logs.add_daily_log 记录对话（不污染 fact_db）
                 if hasattr(lm, "logs"):
                     lm.logs.add_daily_log(
@@ -570,7 +576,7 @@ class JarvisAgentBridge:
             logger.warning(f"Failed to save to memory: {e}")
 
     def _setup_event_bridge(self, events: EventStream) -> None:
-        """将 Agent 事件桥接到 Jarvis UI 输出。"""
+        """将 Agent 事件桥接到 Butler UI 输出。"""
 
         def on_message(event: Event):
             data = event.data
@@ -578,12 +584,12 @@ class JarvisAgentBridge:
             content = data.get("content", "")
 
             if self.echo_assistant and role == "assistant" and content:
-                self.jarvis.ui_print(content, tag="ai_response")
+                self.butler.ui_print(content, tag="ai_response")
 
         def on_tool_call(event: Event):
             data = event.data
             tool_name = data.get("tool_name", "")
-            self.jarvis.ui_print(f"执行工具: {tool_name}", tag="system_message")
+            self.butler.ui_print(f"执行工具: {tool_name}", tag="system_message")
 
         def on_tool_result(event: Event):
             data = event.data
@@ -591,11 +597,11 @@ class JarvisAgentBridge:
             success = data.get("success", True)
             if not success:
                 error = data.get("error", "")
-                self.jarvis.ui_print(f"工具 {tool_name} 失败: {error}", tag="error")
+                self.butler.ui_print(f"工具 {tool_name} 失败: {error}", tag="error")
 
         def on_error(event: Event):
             error = event.data.get("error", "")
-            self.jarvis.ui_print(f"错误: {error}", tag="error")
+            self.butler.ui_print(f"错误: {error}", tag="error")
 
         events.subscribe(EventType.MESSAGE, on_message)
         events.subscribe(EventType.TOOL_CALL, on_tool_call)
@@ -634,9 +640,9 @@ class JarvisAgentBridge:
         self.enabled = True
         if not self._runtime:
             self.create_runtime()
-        logger.info("JarvisAgentBridge enabled — using new AgentRuntime architecture")
+        logger.info("ButlerAgentBridge enabled — using new AgentRuntime architecture")
 
     def disable(self) -> None:
         """禁用新架构，回退到旧版逻辑。"""
         self.enabled = False
-        logger.info("JarvisAgentBridge disabled — falling back to legacy loop")
+        logger.info("ButlerAgentBridge disabled — falling back to legacy loop")

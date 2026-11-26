@@ -17,7 +17,7 @@ if os.path.exists(lib_path):
     import site
     site.addsitedir(lib_path)
 
-from butler.butler_app import Jarvis
+from butler.butler_app import Butler
 from package.core_utils.log_manager import LogManager
 from butler.core.asset_loader import asset_loader
 from package.file_system.guard import FileSystemGuard
@@ -29,8 +29,8 @@ from butler.core.event_bus import event_bus
 from butler.core.notifier_system import notifier
 
 class ModernBridge:
-    def __init__(self, jarvis, window):
-        self.jarvis = jarvis
+    def __init__(self, butler, window):
+        self.butler = butler
         self.window = window
         self.logger = LogManager.get_logger(__name__)
         self.terminal_process = None
@@ -78,10 +78,10 @@ class ModernBridge:
         threading.Thread(target=self._run_command, args=(command,), daemon=True).start()
 
     def toggle_voice(self):
-        if self.jarvis.voice_service.is_listening:
-            self.jarvis.voice_service.stop_listening()
+        if self.butler.voice_service.is_listening:
+            self.butler.voice_service.stop_listening()
         else:
-            self.jarvis.voice_service.start_listening()
+            self.butler.voice_service.start_listening()
 
     def _run_command(self, command):
         from butler.core.window_registry import window_registry
@@ -91,9 +91,9 @@ class ModernBridge:
         try:
             self.window.evaluate_js("window.onAIStreamStart()")
 
-            # We need to capture the output from Jarvis.
-            # Jarvis usually prints to its panel. We'll override its ui_print momentarily or pass a custom one.
-            original_ui_print = self.jarvis.ui_print
+            # We need to capture the output from Butler.
+            # Butler usually prints to its panel. We'll override its ui_print momentarily or pass a custom one.
+            original_ui_print = self.butler.ui_print
 
             def web_ui_print(message, tag='ai_response', response_id=None):
                 if tag == 'status_update':
@@ -119,13 +119,13 @@ class ModernBridge:
                 elif tag != 'ai_response_start':
                     self.window.evaluate_js(f"window.onAIStreamChunk({json.dumps(message)})")
 
-            self.jarvis.ui_print = web_ui_print
+            self.butler.ui_print = web_ui_print
 
             # Execute command
-            self.jarvis.handle_user_command(command)
+            self.butler.handle_user_command(command)
 
             # Restore
-            self.jarvis.ui_print = original_ui_print
+            self.butler.ui_print = original_ui_print
 
             self.window.evaluate_js("window.onAIStreamEnd()")
         except Exception as e:
@@ -136,11 +136,11 @@ class ModernBridge:
             window_registry.unbind_task("win:main", bl_task)
 
     def pause_output(self):
-        # Implementation to pause/stop Jarvis interpreter
+        # Implementation to pause/stop Butler interpreter
         self.logger.info("Pause requested")
         # For now, just a placeholder. Real implementation would signal the interpreter to stop.
-        if hasattr(self.jarvis, 'interpreter'):
-            self.jarvis.interpreter.stop_execution = True
+        if hasattr(self.butler, 'interpreter'):
+            self.butler.interpreter.stop_execution = True
 
     def start_terminal(self):
         if not self.terminal_process:
@@ -268,12 +268,12 @@ class ModernBridge:
 
     # --- Voice Engine APIs ---
     def set_voice_engine(self, engine_mode):
-        return self.jarvis.voice_service.set_voice_mode(engine_mode)
+        return self.butler.voice_service.set_voice_mode(engine_mode)
 
     def get_voice_status(self):
         """获取语音服务状态：当前引擎、可用引擎列表、平台。"""
         try:
-            return self.jarvis.voice_service.get_status()
+            return self.butler.voice_service.get_status()
         except Exception as e:
             return {"mode": "text", "available": False, "error": str(e)}
 
@@ -300,7 +300,7 @@ class ModernBridge:
     def get_media_library(self):
         """Fetches the media library using the media_manager skill."""
         try:
-            return self.jarvis.skill_manager.execute("media_manager", "get_library")
+            return self.butler.skill_manager.execute("media_manager", "get_library")
         except Exception as e:
             self.logger.error(f"Failed to fetch media library: {e}")
             return []
@@ -310,7 +310,7 @@ class ModernBridge:
         """Returns a formatted list of skills or raw data."""
         try:
             # We reuse the backend logic we just implemented
-            result = self.jarvis.skill_manager.execute("manage_skills", "list")
+            result = self.butler.skill_manager.execute("manage_skills", "list")
             # The list result is a markdown string. For UI, we might want to parse it or just return it.
             # Let's also provide a way to get raw status if needed, but for now, the report is fine.
             return result
@@ -321,10 +321,10 @@ class ModernBridge:
         """Generic skill caller for frontend."""
         if params is None:
             params = {}
-        # Auto-inject jarvis_app instance for full integration compatibility
-        params.setdefault("jarvis_app", self.jarvis)
+        # Auto-inject butler_app instance for full integration compatibility
+        params.setdefault("butler_app", self.butler)
         try:
-            return self.jarvis.skill_manager.execute(skill_id, action, **params)
+            return self.butler.skill_manager.execute(skill_id, action, **params)
         except Exception as e:
             self.logger.error(f"Skill call failed: {skill_id}.{action} - {e}")
             return {"error": str(e)}
@@ -332,21 +332,21 @@ class ModernBridge:
     def install_skill(self, url, name=None):
         """Installs a skill from a URL."""
         try:
-            return self.jarvis.skill_manager.execute("manage_skills", "install", url=url, skill_name=name)
+            return self.butler.skill_manager.execute("manage_skills", "install", url=url, skill_name=name)
         except Exception as e:
             return f"Error installing skill: {str(e)}"
 
     def uninstall_skill(self, name):
         """Uninstalls a skill by name."""
         try:
-            return self.jarvis.skill_manager.execute("manage_skills", "uninstall", skill_name=name)
+            return self.butler.skill_manager.execute("manage_skills", "uninstall", skill_name=name)
         except Exception as e:
             return f"Error uninstalling skill: {str(e)}"
 
     def get_ui_skills(self):
         """Returns a list of skills that have a frontend UI."""
         ui_skills = []
-        for s_id, manifest in self.jarvis.skill_manager.manifests.items():
+        for s_id, manifest in self.butler.skill_manager.manifests.items():
             if manifest.get('has_frontend'):
                 ui_skills.append({
                     "id": s_id,
@@ -359,7 +359,7 @@ class ModernBridge:
     def launch_ai_subtitles(self):
         """Launches the floating AI Subtitles overlay window."""
         try:
-            return self.jarvis.skill_manager.execute("ai_subtitles", "launch")
+            return self.butler.skill_manager.execute("ai_subtitles", "launch")
         except Exception as e:
             self.logger.error(f"Failed to launch AI Subtitles: {e}")
             return {"status": "error", "message": str(e)}
@@ -602,7 +602,7 @@ class ModernBridge:
     # --- Flash Input Support ---
     def submit_flash_command(self, command):
         """Called from flash_input.html."""
-        self.jarvis.ui_print(f"⚡ [Flash] {command}", tag='system_message')
+        self.butler.ui_print(f"⚡ [Flash] {command}", tag='system_message')
         threading.Thread(target=self._run_command, args=(command,), daemon=True).start()
         self.hide_flash()
 
@@ -693,8 +693,8 @@ class ModernBridge:
         return {"status": "ok", "applied": count}
 
 def main():
-    # Initialize Jarvis in headless mode (no Tkinter root)
-    jarvis = Jarvis(root=None)
+    # Initialize Butler in headless mode (no Tkinter root)
+    butler = Butler(root=None)
 
     # Load HTML via AssetLoader
     html_path = asset_loader.resolve_path("ui://index.html")
@@ -721,7 +721,7 @@ def main():
         background_color='#00000000' # Fully transparent
     )
 
-    bridge = ModernBridge(jarvis, window)
+    bridge = ModernBridge(butler, window)
     window.expose(bridge)
     flash_window.expose(bridge)
 
@@ -778,15 +778,15 @@ def main():
     event_bus.subscribe("breath_light_mode", on_breath_mode)
 
     # Override voice service callback to update UI
-    original_voice_callback = jarvis._on_voice_status_change
+    original_voice_callback = butler._on_voice_status_change
     def modern_voice_callback(is_listening):
         original_voice_callback(is_listening)
         window.evaluate_js(f"window.onVoiceStatusChange({str(is_listening).lower()})")
 
-    jarvis._on_voice_status_change = modern_voice_callback
+    butler._on_voice_status_change = modern_voice_callback
 
-    # Start Jarvis core
-    jarvis.main()
+    # Start Butler core
+    butler.main()
 
     # Listen for nostalgia mode event
     from butler.core.event_bus import event_bus
@@ -811,7 +811,7 @@ def main():
     def hide_flash():
         flash_window.hide()
 
-    event_bus.on("flash_hide", hide_flash)
+    event_bus.subscribe("flash_hide", hide_flash)
 
     # Global Hotkey (Alt + Space)
     try:
@@ -820,7 +820,7 @@ def main():
         print(f"Failed to register hotkey: {e}")
 
     # Apply initial theme from config
-    initial_theme = jarvis.config.get("display", {}).get("theme", "google")
+    initial_theme = butler.config.get("display", {}).get("theme", "google")
     window.evaluate_js(f"window.setTheme({json.dumps(initial_theme)})")
 
     webview.start(debug=True)

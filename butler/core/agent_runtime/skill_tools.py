@@ -12,7 +12,7 @@ tool calling 循环可以直接调用技能：
 
     registry = ToolRegistry()
     register_builtin_tools(registry)
-    register_skill_tools(registry, skill_manager, jarvis_app=jarvis)
+    register_skill_tools(registry, skill_manager, butler_app=butler)
 
 约定
 ----
@@ -114,7 +114,7 @@ def _normalize_result(skill_id: str, result: Any) -> Dict[str, Any]:
     return {"success": True, "content": text[:_MAX_RESULT_CHARS], "metadata": {"skill": skill_id}}
 
 
-def _make_handler(skill_id: str, skill_manager: Any, jarvis_app: Any):
+def _make_handler(skill_id: str, skill_manager: Any, butler_app: Any):
     """生成一个绑定到具体技能的 ToolExecutor handler。"""
 
     def handler(arguments: Dict[str, Any], **context: Any) -> Dict[str, Any]:
@@ -124,11 +124,11 @@ def _make_handler(skill_id: str, skill_manager: Any, jarvis_app: Any):
         if isinstance(nested, dict):
             # 兼容默认 schema 里的 {"action", "kwargs"} 形式
             args.update(nested)
-        args.pop("jarvis_app", None)
+        args.pop("butler_app", None)
 
         call_kwargs: Dict[str, Any] = dict(args)
         call_kwargs.setdefault("entities", dict(args))
-        call_kwargs["jarvis_app"] = jarvis_app
+        call_kwargs["butler_app"] = butler_app
 
         try:
             result = skill_manager.execute(str(skill_id), str(action), **call_kwargs)
@@ -152,7 +152,7 @@ def _make_handler(skill_id: str, skill_manager: Any, jarvis_app: Any):
 def register_skill_tools(
     registry: ToolRegistry,
     skill_manager: Any,
-    jarvis_app: Any = None,
+    butler_app: Any = None,
     permission_level: PermissionLevel = PermissionLevel.REQUIRE_CONFIRM,
     max_tools: Optional[int] = None,
 ) -> Dict[str, str]:
@@ -162,7 +162,7 @@ def register_skill_tools(
     ----
     registry: 目标工具注册表
     skill_manager: ``SkillManager`` 实例（需已 ``load_skills()``）
-    jarvis_app: 传给技能的宿主对象（可选）
+    butler_app: 传给技能的宿主对象（可选）
     permission_level: 技能工具的默认权限层级
     max_tools: 可选的注册上限（按名称排序截断），用于控制工具表规模
 
@@ -213,7 +213,7 @@ def register_skill_tools(
         }
 
         registry.register(
-            handler=_make_handler(skill_id, skill_manager, jarvis_app),
+            handler=_make_handler(skill_id, skill_manager, butler_app),
             name=tool_name,
             description=description,
             parameters=parameters,

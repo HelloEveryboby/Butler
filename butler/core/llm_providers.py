@@ -3,7 +3,7 @@
 背景
 ----
 Butler 的 ``.env`` 早已声明了多提供商配置（``AI_PROVIDER`` / ``API_BASE_URL`` /
-``MODEL_NAME`` 以及各家的 ``*_API_KEY``），但 ``agent_runtime/jarvis_adapter.py``
+``MODEL_NAME`` 以及各家的 ``*_API_KEY``），但 ``agent_runtime/butler_adapter.py``
 里的 LLM 回调仍硬编码 DeepSeek（endpoint、model、key 三处写死）。
 
 本模块把散落在环境变量里的提供商信息收敛为**一份统一的 OpenAI 兼容调用参数**，
@@ -17,7 +17,7 @@ Butler 的 ``.env`` 早已声明了多提供商配置（``AI_PROVIDER`` / ``API_
 ----
     from butler.core.llm_providers import resolve_llm_config, chat_completions
 
-    cfg = resolve_llm_config(config_get=jarvis.config.get)
+    cfg = resolve_llm_config(config_get=butler.config.get)
     if not cfg.is_usable:
         raise RuntimeError("no usable LLM provider configured")
 

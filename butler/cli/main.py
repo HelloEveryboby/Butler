@@ -39,6 +39,8 @@ def run_cli():
     run_sub = agent_sub.add_parser("run", help="委派一个具体任务给选定的数字员工角色")
     run_sub.add_argument("role", help="选定的员工名称/角色（例如: demo-agent）")
     run_sub.add_argument("task", help="委派的具体需求任务描述（例如: '读取紧急报价并整理汇报'）")
+    run_sub.add_argument("--session", default=None, help="会话 ID（checkpoint 落盘到 data/agent_sessions）")
+    run_sub.add_argument("--resume", action="store_true", help="从最近的 checkpoint 续跑")
 
     # 4. doctor
     subparsers.add_parser("doctor", help="对整个运行层、数据库和包依赖执行一键全面体检诊断自检")
@@ -69,7 +71,12 @@ def run_cli():
         if args.subaction == "list" or not args.subaction:
             agent_cmd.list_agents()
         elif args.subaction == "run":
-            agent_cmd.run_agent_task(args.role, args.task)
+            agent_cmd.run_agent_task(
+                args.role,
+                args.task,
+                session_id=args.session,
+                resume=args.resume,
+            )
 
     elif args.command == "doctor":
         doctor_cmd.run_doctor()

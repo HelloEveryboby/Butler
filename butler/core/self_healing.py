@@ -77,8 +77,8 @@ class SelfHealing:
     2. 规则未命中时，降级到 LLM 深度分析
     """
 
-    def __init__(self, jarvis_app):
-        self.jarvis = jarvis_app
+    def __init__(self, butler_app):
+        self.butler = butler_app
 
     def analyze_failure(self, error_msg: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -112,7 +112,7 @@ class SelfHealing:
         )
 
         try:
-            response = self.jarvis.nlu_service.ask_llm(prompt, use_habit=False)
+            response = self.butler.nlu_service.ask_llm(prompt, use_habit=False)
             json_match = re.search(r"(\{.*\})", response, re.DOTALL)
             if json_match:
                 result = json.loads(json_match.group(1))
@@ -133,4 +133,4 @@ class SelfHealing:
         })
         logger.info(f"新增自愈规则: pattern={pattern[:40]}, strategy={strategy}")
 
-self_healing = None # Initialized in Jarvis
+self_healing = None # Initialized in Butler

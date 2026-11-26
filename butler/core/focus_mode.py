@@ -12,8 +12,8 @@ class FocusMode:
     沉浸模式 (P2)
     负责静音、全屏通知以及状态广播。
     """
-    def __init__(self, jarvis):
-        self.jarvis = jarvis
+    def __init__(self, butler):
+        self.butler = butler
         self.active = False
         self.timer_thread = None
 
@@ -27,7 +27,7 @@ class FocusMode:
         self._mute_system()
 
         # 2. 广播状态
-        self.jarvis.runner_server.broadcast_command("status_update", "BUSY")
+        self.butler.runner_server.broadcast_command("status_update", "BUSY")
 
         # 3. 通知前端展示全屏计时器
         event_bus.emit("ui_output", f"Focus Mode: {duration_minutes}m started.", tag="focus_start")
@@ -43,7 +43,7 @@ class FocusMode:
         if not self.active: return
         self.active = False
         self._unmute_system()
-        self.jarvis.runner_server.broadcast_command("status_update", "AVAILABLE")
+        self.butler.runner_server.broadcast_command("status_update", "AVAILABLE")
         event_bus.emit("ui_output", "Focus Mode ended.", tag="focus_stop")
         return "Focus mode stopped."
 
@@ -53,7 +53,7 @@ class FocusMode:
             seconds -= 1
         if self.active:
             self.stop()
-            self.jarvis.speak("专注于此的时间已结束，休息一下吧。")
+            self.butler.speak("专注于此的时间已结束，休息一下吧。")
 
     def _mute_system(self):
         # 针对 Windows/Linux 的简单静音尝试

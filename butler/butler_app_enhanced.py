@@ -96,8 +96,8 @@ def main():
     if not args.skip_setup:
         initialize_butler_environment()
     
-    # 导入原始的 Jarvis 类
-    from butler.butler_app import Jarvis, USBScreen, CommandPanel
+    # 导入原始的 Butler 类
+    from butler.butler_app import Butler, USBScreen, CommandPanel
     from butler.core.extension_manager import extension_manager
     
     # 启动应用
@@ -105,9 +105,9 @@ def main():
     
     if args.headless:
         logger.info("以无头模式启动")
-        jarvis = Jarvis(None, usb_screen, headless=True)
-        jarvis.main()
-        while jarvis.running:
+        butler = Butler(None, usb_screen, headless=True)
+        butler.main()
+        while butler.running:
             time.sleep(1)
         return
     
@@ -124,15 +124,15 @@ def main():
     # 启动经典 Tkinter 模式
     logger.info("启动经典 Tkinter 模式")
     root = tk.Tk()
-    root.title("Jarvis 助手")
+    root.title("Butler 助手")
     
-    jarvis = Jarvis(root, usb_screen, headless=False)
+    butler = Butler(root, usb_screen, headless=False)
     all_tools = {t['name']: t.get('path', t.get('module')) for t in extension_manager.get_all_tools()}
-    panel = CommandPanel(root, program_mapping=jarvis.program_mapping, programs=all_tools,
-                        command_callback=jarvis.panel_command_handler)
+    panel = CommandPanel(root, program_mapping=butler.program_mapping, programs=all_tools,
+                        command_callback=butler.panel_command_handler)
     panel.pack(fill=tk.BOTH, expand=True)
     
-    jarvis.main()
+    butler.main()
     root.mainloop()
 
 

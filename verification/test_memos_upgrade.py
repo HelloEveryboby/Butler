@@ -81,10 +81,10 @@ class TestMemosSkillUpgrade(unittest.TestCase):
         mock_nlu = MagicMock()
         mock_nlu.ask_llm.return_value = "#生活 #日常"
 
-        mock_jarvis = MagicMock()
-        mock_jarvis.nlu_service = mock_nlu
+        mock_butler = MagicMock()
+        mock_butler.nlu_service = mock_nlu
 
-        res = handle_request("ai_tag_predict", content="今天天气好晴朗", jarvis_app=mock_jarvis)
+        res = handle_request("ai_tag_predict", content="今天天气好晴朗", butler_app=mock_butler)
 
         self.assertEqual(res, ["#生活", "#日常"])
         mock_nlu.ask_llm.assert_called_once()
@@ -93,10 +93,10 @@ class TestMemosSkillUpgrade(unittest.TestCase):
         mock_nlu = MagicMock()
         mock_nlu.ask_llm.return_value = "极简摘要：测试内容"
 
-        mock_jarvis = MagicMock()
-        mock_jarvis.nlu_service = mock_nlu
+        mock_butler = MagicMock()
+        mock_butler.nlu_service = mock_nlu
 
-        res = handle_request("ai_magic_wand", content="长文本...", mode="summary", jarvis_app=mock_jarvis)
+        res = handle_request("ai_magic_wand", content="长文本...", mode="summary", butler_app=mock_butler)
 
         self.assertEqual(res, "极简摘要：测试内容")
 

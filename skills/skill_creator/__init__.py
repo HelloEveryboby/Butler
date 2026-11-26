@@ -59,7 +59,7 @@ def handle_request(action, **kwargs):
     """
     处理技能请求的入口函数。
     :param action: 动作名称
-    :param kwargs: 包含 jarvis_app, config, manifest 等上下文
+    :param kwargs: 包含 butler_app, config, manifest 等上下文
     """
     logger.info(f"技能 {skill_id} 收到动作: {{action}}")
 

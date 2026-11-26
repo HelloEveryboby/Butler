@@ -31,7 +31,7 @@ def write_tasks(content):
         f.write(content)
 
 @register_intent("task_manage")
-def handle_task_manage(jarvis_app, entities, **kwargs):
+def handle_task_manage(butler_app, entities, **kwargs):
     """
     Handles task management based on the operation and task details.
     Operations: add, view, complete, waiting
@@ -41,12 +41,12 @@ def handle_task_manage(jarvis_app, entities, **kwargs):
 
     if operation == "view":
         content = read_tasks()
-        jarvis_app.ui_print(content, tag="system_message")
-        jarvis_app.speak("这是您当前的任务列表。")
+        butler_app.ui_print(content, tag="system_message")
+        butler_app.speak("这是您当前的任务列表。")
 
     elif operation == "add":
         if not task_details:
-            jarvis_app.speak("请提供要添加的任务详情。")
+            butler_app.speak("请提供要添加的任务详情。")
             return
 
         content = read_tasks()
@@ -67,11 +67,11 @@ def handle_task_manage(jarvis_app, entities, **kwargs):
             new_lines.append(f"- [ ] **{task_details}**")
 
         write_tasks("\n".join(new_lines))
-        jarvis_app.speak(f"已添加任务: {task_details}")
+        butler_app.speak(f"已添加任务: {task_details}")
 
     elif operation == "complete":
         if not task_details:
-            jarvis_app.speak("请提供要完成的任务名称。")
+            butler_app.speak("请提供要完成的任务名称。")
             return
 
         content = read_tasks()
@@ -106,13 +106,13 @@ def handle_task_manage(jarvis_app, entities, **kwargs):
                 new_lines.append(task_line)
 
             write_tasks("\n".join(new_lines))
-            jarvis_app.speak(f"任务已完成: {task_details}")
+            butler_app.speak(f"任务已完成: {task_details}")
         else:
-            jarvis_app.speak(f"未找到未完成的任务: {task_details}")
+            butler_app.speak(f"未找到未完成的任务: {task_details}")
 
     elif operation == "waiting":
         if not task_details:
-            jarvis_app.speak("请提供您正在等待的事项。")
+            butler_app.speak("请提供您正在等待的事项。")
             return
 
         content = read_tasks()
@@ -132,7 +132,7 @@ def handle_task_manage(jarvis_app, entities, **kwargs):
             new_lines.append(f"- [ ] **{task_details}** - since {date_str}")
 
         write_tasks("\n".join(new_lines))
-        jarvis_app.speak(f"已将等待事项加入列表: {task_details}")
+        butler_app.speak(f"已将等待事项加入列表: {task_details}")
 
     else:
-        jarvis_app.speak("未知的任务管理操作。")
+        butler_app.speak("未知的任务管理操作。")

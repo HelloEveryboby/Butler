@@ -1,4 +1,4 @@
-# 🤵 Butler (Jarvis) — The Ultimate Local-First Intelligent Personal Agent System
+# 🤵 Butler — The Ultimate Local-First Intelligent Personal Agent System
 
 <p align="center">
   <a href="./README.md"><b>🌐 中文版</b></a>
@@ -20,7 +20,7 @@
 
 ## 💡 The Hook
 
-> **Butler (Jarvis)** is a hardcore personal agent system designed entirely on a **Local-First** philosophy. Using Python as the central orchestrator and leveraging a high-performance Binary Hybrid Link (BHL) to coordinate C++/Go/Rust binaries, Butler manages your local Office/PDF documents, builds vector memories with millisecond-level graceful downgrades, and incorporates an AI-driven self-healing mechanism and background "dreaming" memory consolidation engine. It is a genuine digital life running right on your local machine.
+> **Butler** is a hardcore personal agent system designed entirely on a **Local-First** philosophy. Using Python as the central orchestrator and leveraging a high-performance Binary Hybrid Link (BHL) to coordinate C++/Go/Rust binaries, Butler manages your local Office/PDF documents, builds vector memories with millisecond-level graceful downgrades, and incorporates an AI-driven self-healing mechanism and background "dreaming" memory consolidation engine. It is a genuine digital life running right on your local machine.
 
 ---
 

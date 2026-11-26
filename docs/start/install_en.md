@@ -84,7 +84,7 @@ See the **[full environment reference](./env-reference.md)** for other providers
 
 ### 2.4 Data Files (Optional)
 
-Startup sound: place `jarvis.wav` into `butler/resources/`.
+Startup sound: place `butler.wav` into `butler/resources/`.
 
 ### 2.5 Run
 
@@ -126,7 +126,7 @@ pip install pyinstaller
 pyinstaller --name Butler --onefile --add-data "butler/resources:butler/resources" butler.butler_app.py
 ```
 
-Output lands in `dist/`. Ensure `butler/resources/jarvis.wav` exists first.
+Output lands in `dist/`. Ensure `butler/resources/butler.wav` exists first.
 
 ---
 

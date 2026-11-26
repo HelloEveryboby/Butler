@@ -86,7 +86,7 @@ pip install -e .          # 使 butler 命令在 shell 中可用
 
 ### 2.4 数据文件（可选）
 
-启动音效：将 `jarvis.wav` 放入 `butler/resources/` 目录。
+启动音效：将 `butler.wav` 放入 `butler/resources/` 目录。
 
 ### 2.5 启动
 
@@ -135,7 +135,7 @@ pip install pyinstaller
 pyinstaller --name Butler --onefile --add-data "butler/resources:butler/resources" butler.butler_app.py
 ```
 
-产物位于 `dist/`。构建前请确认 `butler/resources/jarvis.wav` 已就绪。
+产物位于 `dist/`。构建前请确认 `butler/resources/butler.wav` 已就绪。
 
 ---
 

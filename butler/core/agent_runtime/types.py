@@ -32,6 +32,7 @@ class EventType(str, Enum):
     COMPACTION = "compaction"
     SUBAGENT_SPAWN = "subagent_spawn"
     SUBAGENT_RETURN = "subagent_return"
+    TURN = "turn"
     ERROR = "error"
     STOP = "stop"
 
@@ -56,6 +57,7 @@ class StopReason(str, Enum):
 
     END_TURN = "end_turn"
     MAX_TURNS = "max_turns"
+    LENGTH = "length"
     ERROR = "error"
     USER_INTERRUPT = "user_interrupt"
     PERMISSION_DENIED = "permission_denied"
@@ -341,7 +343,13 @@ class ConversationState:
         if self._cached_tokens >= 0 and msg_count == self._cached_msg_count:
             return self._cached_tokens
 
-        total_chars = sum(len(m.content) for m in self._messages)
+        total_chars = 0
+        for m in self._messages:
+            total_chars += len(m.content)
+            # 工具调用的 JSON 参数往往比正文更大，旧实现漏算导致 token 被低估、
+            # 压缩触发偏晚（长任务后期才被动爆上下文）。
+            for tc in m.tool_calls:
+                total_chars += len(tc.name) + len(_json_dumps(tc.arguments))
         estimate = total_chars // 4
         self._cached_tokens = estimate
         self._cached_msg_count = msg_count

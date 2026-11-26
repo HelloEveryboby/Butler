@@ -917,13 +917,13 @@ class SkillManager:
         kwargs["config"] = self.configs.get(skill_id, {})
         kwargs["manifest"] = self.manifests.get(skill_id, {})
 
-        jarvis_app = kwargs.get("jarvis_app")
+        butler_app = kwargs.get("butler_app")
 
         def skill_wrapper(action, **kwargs):
             try:
                 result = self.loaded_skills[skill_id](action, **kwargs)
-                if jarvis_app and kwargs.get("_async"):
-                    jarvis_app.speak(str(result))
+                if butler_app and kwargs.get("_async"):
+                    butler_app.speak(str(result))
                 return result
             except Exception as e:
                 logger.error(f"Execution error in skill '{skill_id}': {e}", exc_info=True)
@@ -1130,7 +1130,7 @@ class SkillManager:
             "action": action,
             "config": self.configs.get(skill_id, {}),
             "manifest": manifest,
-            "kwargs": {k: v for k, v in kwargs.items() if k not in ['jarvis_app']}
+            "kwargs": {k: v for k, v in kwargs.items() if k not in ['butler_app']}
         }
 
         try:
@@ -1153,7 +1153,7 @@ class SkillManager:
 
             final_result = []
             output_buffer = []
-            jarvis_app = kwargs.get("jarvis_app")
+            butler_app = kwargs.get("butler_app")
 
             def handle_stdout():
                 for line in iter(process.stdout.readline, ''):
@@ -1168,10 +1168,10 @@ class SkillManager:
                             if isinstance(msg, dict) and "action" in msg:
                                 act = msg.get("action")
                                 pld = msg.get("payload", {})
-                                if act == "speak" and jarvis_app:
-                                    jarvis_app.speak(pld.get("text", ""))
-                                elif act == "ui_print" and jarvis_app:
-                                    jarvis_app.ui_print(pld.get("text", ""), tag=pld.get("tag", "ai_response"))
+                                if act == "speak" and butler_app:
+                                    butler_app.speak(pld.get("text", ""))
+                                elif act == "ui_print" and butler_app:
+                                    butler_app.ui_print(pld.get("text", ""), tag=pld.get("tag", "ai_response"))
                                 elif act == "blackboard_write":
                                     key = pld.get("key")
                                     val = pld.get("value")
@@ -1227,7 +1227,7 @@ class SkillManager:
             args = [bin_path]
             # 将 kwargs 转换为命令行参数
             for k, v in kwargs.items():
-                if k not in ['jarvis_app', 'config', 'manifest']:
+                if k not in ['butler_app', 'config', 'manifest']:
                     args.extend([f"--{k}", str(v)])
 
             res = subprocess.run(args, capture_output=True, text=True, check=True)
@@ -1272,7 +1272,7 @@ class SkillManager:
             args = [sys.executable, str(script_full_path)]
             # 简单地将 kwargs 转换为命令行参数（可选，取决于脚本设计）
             for k, v in kwargs.items():
-                if k not in ['jarvis_app', 'config', 'manifest']:
+                if k not in ['butler_app', 'config', 'manifest']:
                     args.extend([f"--{k}", str(v)])
 
             res = subprocess.run(args, capture_output=True, text=True, check=True)

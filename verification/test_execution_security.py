@@ -93,7 +93,7 @@ def test_skill_manager_ast_safety():
         os.unlink(unsafe_file)
 
 def test_implicit_skill_matching():
-    # Setup mock Jarvis app and skill manager
+    # Setup mock Butler app and skill manager
     mock_app = MagicMock()
     mock_skill_manager = MagicMock()
     mock_app.skill_manager = mock_skill_manager
@@ -119,7 +119,7 @@ def test_implicit_skill_matching():
     # Set up interpreter and inject mock app
     interpreter = Interpreter()
     interpreter.safety_mode = True
-    interpreter.jarvis_app = mock_app
+    interpreter.butler_app = mock_app
 
     # Test format_convert interception
     success, output = interpreter.execute_shell("pandoc input.md -o output.html")
@@ -129,7 +129,7 @@ def test_implicit_skill_matching():
     mock_skill_manager.execute.assert_any_call(
         "format_convert", "run",
         input="input.md", from_fmt="md", to_fmt="html", save_to="output.html",
-        jarvis_app=mock_app
+        butler_app=mock_app
     )
 
     # Test archive_manager interception
@@ -139,5 +139,5 @@ def test_implicit_skill_matching():
     mock_skill_manager.execute.assert_any_call(
         "archive_manager", "run",
         action="zip", zip_path="archive.zip", targets=["folder1"],
-        jarvis_app=mock_app
+        butler_app=mock_app
     )

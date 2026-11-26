@@ -72,7 +72,7 @@ def run_security_audit() -> str:
     }
 
     # Generate Report Content
-    report_content = f"""# Butler (Jarvis) 系统安全审计与成熟度评估报告
+    report_content = f"""# Butler 系统安全审计与成熟度评估报告
 
 **评估基准时间**: {audit_date} (最新更新于: {now_str})
 **审计范围**: REST API 网关、RunnerServer 通信、LLM NLU 边界、执行层沙箱、静态代码审计及凭据控制

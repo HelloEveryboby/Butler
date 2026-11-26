@@ -3,7 +3,7 @@
 
 由 butler/core/verb_engine.py 识别出规范意图后，经 intent_registry 分发到此。
 签名约定与 butler/butler_app.py 的 handler_args 兼容:
-    handler(entities=..., jarvis_app=..., programs=...)
+    handler(entities=..., butler_app=..., programs=...)
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ def _capture_screen(scope: str = "fullscreen") -> Path:
 
 @register_intent("screen.capture", requires_entities=False)
 def handle_screen_capture(entities: Optional[Dict[str, Any]] = None,
-                          jarvis_app=None, **kwargs) -> str:
+                          butler_app=None, **kwargs) -> str:
     """截取当前画面（全屏/区域/窗口）。"""
     entities = entities or {}
     scope = str(entities.get("scope", "fullscreen"))
@@ -71,7 +71,7 @@ def handle_screen_capture(entities: Optional[Dict[str, Any]] = None,
 
 @register_intent("file.move")
 def handle_file_move(entities: Optional[Dict[str, Any]] = None,
-                     jarvis_app=None, **kwargs) -> str:
+                     butler_app=None, **kwargs) -> str:
     """移动文件/文件夹到目标位置。"""
     entities = entities or {}
     src = entities.get("path") or entities.get("source")
@@ -92,7 +92,7 @@ def handle_file_move(entities: Optional[Dict[str, Any]] = None,
 
 @register_intent("file.copy")
 def handle_file_copy(entities: Optional[Dict[str, Any]] = None,
-                     jarvis_app=None, **kwargs) -> str:
+                     butler_app=None, **kwargs) -> str:
     """复制文件/文件夹到目标位置。"""
     entities = entities or {}
     src = entities.get("path") or entities.get("source")
@@ -116,7 +116,7 @@ def handle_file_copy(entities: Optional[Dict[str, Any]] = None,
 
 @register_intent("file.rename")
 def handle_file_rename(entities: Optional[Dict[str, Any]] = None,
-                       jarvis_app=None, **kwargs) -> str:
+                       butler_app=None, **kwargs) -> str:
     """重命名文件/文件夹。"""
     entities = entities or {}
     src = entities.get("path")
@@ -136,7 +136,7 @@ def handle_file_rename(entities: Optional[Dict[str, Any]] = None,
 
 @register_intent("file.delete", requires_entities=False)
 def handle_file_delete(entities: Optional[Dict[str, Any]] = None,
-                       jarvis_app=None, **kwargs) -> str:
+                       butler_app=None, **kwargs) -> str:
     """删除文件/文件夹（破坏性操作，必须显式确认）。"""
     entities = entities or {}
     src = entities.get("path")
@@ -163,7 +163,7 @@ def handle_file_delete(entities: Optional[Dict[str, Any]] = None,
 
 @register_intent("textfile.edit", requires_entities=False)
 def handle_textfile_edit(entities: Optional[Dict[str, Any]] = None,
-                         jarvis_app=None, **kwargs) -> str:
+                         butler_app=None, **kwargs) -> str:
     """编辑文本文档：写入内容（原文件先备份为 .bak）。"""
     entities = entities or {}
     src = entities.get("path")

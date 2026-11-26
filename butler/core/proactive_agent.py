@@ -11,8 +11,8 @@ class ProactiveAgent:
     Butler 主动代理 (Proactive Agent)
     在无人值守时主动检查系统状态或提供建议。
     """
-    def __init__(self, jarvis_app=None):
-        self.jarvis = jarvis_app
+    def __init__(self, butler_app=None):
+        self.butler = butler_app
         self.last_activity = time.time()
         self.is_active = True
 
@@ -64,18 +64,18 @@ class ProactiveAgent:
         now = time.localtime()
         if 18 <= now.tm_hour <= 22:
              logger.info("正在生成今日工作总结...")
-             # 确保 jarvis 和 long_memory 已初始化
-             if self.jarvis and hasattr(self.jarvis, 'long_memory'):
-                 self.jarvis.long_memory.logs.add_daily_log("[Proactive] 自动回顾：系统今日运行平稳，记忆已准备好在凌晨整合。")
+             # 确保 butler 和 long_memory 已初始化
+             if self.butler and hasattr(self.butler, 'long_memory'):
+                 self.butler.long_memory.logs.add_daily_log("[Proactive] 自动回顾：系统今日运行平稳，记忆已准备好在凌晨整合。")
              else:
-                 logger.warning("Jarvis LongMemory 尚未就绪，跳过总结。")
+                 logger.warning("Butler LongMemory 尚未就绪，跳过总结。")
 
     def _suggest_improvement(self):
         """基于历史记录建议改进（极其低频）"""
         logger.info("正在思考潜在的系统改进建议...")
-        if not self.jarvis: return
+        if not self.butler: return
 
-        habit_summary = self.jarvis.habit_manager.get_profile_summary()
+        habit_summary = self.butler.habit_manager.get_profile_summary()
         prompt = (
             f"基于以下用户的习惯画像，请主动提供一条改进建议或一个自动化的新点子：\n"
             f"{habit_summary}\n\n"
@@ -83,8 +83,8 @@ class ProactiveAgent:
         )
 
         try:
-            suggestion = self.jarvis.nlu_service.ask_llm(prompt, use_habit=False)
-            self.jarvis.ui_print(f"💡 主动建议: {suggestion}", tag='system_message')
+            suggestion = self.butler.nlu_service.ask_llm(prompt, use_habit=False)
+            self.butler.ui_print(f"💡 主动建议: {suggestion}", tag='system_message')
             event_bus.emit("proactive_suggestion", suggestion)
         except Exception as e:
             logger.error(f"Failed to generate proactive suggestion: {e}")

@@ -43,8 +43,8 @@ class WorkflowEngine:
     Butler DAG Workflow Engine.
     支持拓扑排序执行、资源感知调度、容错重试。
     """
-    def __init__(self, jarvis_app):
-        self.jarvis = jarvis_app
+    def __init__(self, butler_app):
+        self.butler = butler_app
         self.active_workflows: Dict[str, Workflow] = {}
         self.lock = threading.Lock()
 
@@ -79,7 +79,7 @@ class WorkflowEngine:
             if not ready_steps:
                 if all(s.status == "completed" for s in wf.steps.values()):
                     wf.status = "completed"
-                    self.jarvis.ui_print(f"✅ 工作流 '{wf.name}' 执行成功。", tag='system_message')
+                    self.butler.ui_print(f"✅ 工作流 '{wf.name}' 执行成功。", tag='system_message')
                 elif any(s.status == "failed" for s in wf.steps.values()):
                     wf.status = "failed"
                 return
@@ -108,16 +108,16 @@ class WorkflowEngine:
                     if s.result:
                         merged_entities[f"input_{sid}"] = s.result
 
-                result = self.jarvis.skill_manager.execute(
+                result = self.butler.skill_manager.execute(
                     step.intent,
                     merged_entities.get("action", "run"),
                     entities=merged_entities,
-                    jarvis_app=self.jarvis
+                    butler_app=self.butler
                 )
 
                 # 如果返回的是字典且包含状态挂起，则视为特殊处理（如等待确认）
                 if isinstance(result, dict) and result.get("status") == "pending_confirmation":
-                    self.jarvis.ui_print(f"⚠️ 步骤 {step.id} 需要确认...", tag='system_message')
+                    self.butler.ui_print(f"⚠️ 步骤 {step.id} 需要确认...", tag='system_message')
                     # 这里简化处理，暂不支持工作流中的交互式确认，实际应挂起整个 WF
 
                 step.result = result
@@ -134,7 +134,7 @@ class WorkflowEngine:
                 step.status = "failed"
                 step.error = str(e)
                 wf.status = "failed"
-                self.jarvis.ui_print(f"❌ 工作流 '{wf.name}' 在步骤 {step.id} 出错: {e}", tag='system_message')
+                self.butler.ui_print(f"❌ 工作流 '{wf.name}' 在步骤 {step.id} 出错: {e}", tag='system_message')
 
         self._schedule_next_steps(wf)
 
