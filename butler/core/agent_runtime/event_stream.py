@@ -98,6 +98,15 @@ class EventStream:
             except Exception as e:
                 logger.error(f"Global event subscriber error: {e}", exc_info=True)
 
+    def extend(self, events: list[Event]) -> None:
+        """
+        批量追加已存在的事件（用于断点续跑时恢复历史）。
+
+        不触发订阅者，避免恢复会话时把历史事件重新推给 UI。
+        """
+        with self._lock:
+            self._events.extend(events)
+
     def subscribe(self, event_type: EventType, callback: EventCallback) -> None:
         """订阅特定类型的事件。"""
         with self._lock:

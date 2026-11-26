@@ -159,6 +159,9 @@ class JarvisAgentBridge:
         # 9. 创建运行时配置
         config = AgentConfig(
             max_turns=int(self._config("agent.max_turns", 25) or 25),
+            max_parallel_tools=int(self._config("agent.max_parallel_tools", 4) or 4),
+            max_context_retries=int(self._config("agent.max_context_retries", 2) or 2),
+            checkpoint_dir=str(self._config("agent.checkpoint_dir", "") or ""),
             system_prompt=self._build_system_prompt(),
             llm_call_handler=llm_handler,
             auto_confirm_handler=self._create_confirm_handler(),
@@ -260,10 +263,13 @@ class JarvisAgentBridge:
 
             except Exception as e:
                 logger.error(f"LLM call failed: {e}", exc_info=True)
+                # 交给 AgentRuntime 决定是否属于上下文超限并触发压缩重试；
+                # 不再伪装成一条 assistant 文本，避免上层误判任务已完成。
                 return {
-                    "content": f"Error: {e}",
+                    "content": "",
                     "tool_calls": [],
-                    "stop_reason": "end_turn",
+                    "stop_reason": "error",
+                    "error": str(e),
                 }
 
         return handler

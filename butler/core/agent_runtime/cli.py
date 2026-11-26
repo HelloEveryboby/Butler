@@ -57,6 +57,8 @@ def create_runtime(
     max_turns: int = 50,
     llm_call_handler: Any = None,
     auto_confirm: bool = False,
+    checkpoint_dir: str = "",
+    max_parallel_tools: int = 4,
 ) -> AgentRuntime:
     """
     创建配置好的 AgentRuntime 实例。
@@ -92,6 +94,8 @@ def create_runtime(
     # 创建运行时配置
     config = AgentConfig(
         max_turns=max_turns,
+        max_parallel_tools=max_parallel_tools,
+        checkpoint_dir=checkpoint_dir,
         system_prompt=system_prompt or _DEFAULT_SYSTEM_PROMPT,
         llm_call_handler=llm_call_handler,
         auto_confirm_handler=(lambda name, args: True) if auto_confirm else None,
@@ -113,6 +117,9 @@ def run_single_command(
     auto_confirm: bool = False,
     llm_call_handler: Any = None,
     verbose: bool = False,
+    checkpoint_dir: str = "",
+    session_id: str | None = None,
+    resume: bool = False,
 ) -> dict[str, Any]:
     """
     执行单条命令。
@@ -133,6 +140,7 @@ def run_single_command(
         permission_mode=permission_mode,
         llm_call_handler=llm_call_handler,
         auto_confirm=auto_confirm,
+        checkpoint_dir=checkpoint_dir,
     )
 
     if verbose:
@@ -149,7 +157,7 @@ def run_single_command(
 
         runtime.events.subscribe_all(print_event)
 
-    result = runtime.run(command)
+    result = runtime.run(command, session_id=session_id, resume=resume)
     return result
 
 
@@ -331,8 +339,19 @@ def main():
         default=50,
         help="Maximum agent turns (default: 50)",
     )
+    parser.add_argument(
+        "--session",
+        default=None,
+        help="Session id for checkpointing (stored under data/agent_sessions)",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume from the latest checkpoint (or --session)",
+    )
 
     args = parser.parse_args()
+    checkpoint_dir = "data/agent_sessions" if (args.session or args.resume) else ""
 
     # 设置日志
     logging.basicConfig(
@@ -356,6 +375,9 @@ def main():
                     auto_confirm=args.auto_confirm,
                     llm_call_handler=llm_handler,
                     verbose=args.verbose,
+                    checkpoint_dir=checkpoint_dir,
+                    session_id=args.session,
+                    resume=args.resume,
                 )
                 print(result.get("response", ""))
                 return
@@ -375,6 +397,9 @@ def main():
             auto_confirm=args.auto_confirm,
             llm_call_handler=llm_handler,
             verbose=args.verbose,
+            checkpoint_dir=checkpoint_dir,
+            session_id=args.session,
+            resume=args.resume,
         )
         print(result.get("response", ""))
     else:

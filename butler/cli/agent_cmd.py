@@ -30,15 +30,21 @@ def list_agents():
             print(f"   - 脚本入口: {manifest.entry}")
     print("==============================================\n")
 
-def run_agent_task(agent_role: str, task_input: str):
+def run_agent_task(
+    agent_role: str,
+    task_input: str,
+    session_id: str | None = None,
+    resume: bool = False,
+):
     """
     指派并运行某个指定角色的数字员工任务。
 
     走的是 AgentRuntime 的原生工具调用循环（LLM 自主决定调用哪些工具/技能）。
+    session_id/resume 用于断点续跑（checkpoint 落盘到 data/agent_sessions）。
     """
     print(f"[*] 正在指派任务至数字员工角色 [{agent_role}]: '{task_input}'")
     agent = Agent(role=agent_role)
-    res = agent.run_task(task_input)
+    res = agent.run_task(task_input, session_id=session_id, resume=resume)
 
     print(f"\n[*] 任务 {res['task_id']} 最终状态: {res['status']}（{res['turns']} 轮，{res['stop_reason']}）")
 
