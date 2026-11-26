@@ -182,8 +182,8 @@ def install_dream_engine_hook(dream_engine,
                 return result
             cfg = config_from_settings(settings)
             developer = make_developer(
-                getattr(dream_engine, "jarvis", None) and
-                getattr(dream_engine.jarvis, "nlu_service", None),
+                getattr(dream_engine, "butler", None) and
+                getattr(dream_engine.butler, "nlu_service", None),
                 seed=cfg.seed)
             orch = DreamOrchestrator(
                 attempt_fn=(attempt_fn_factory() if attempt_fn_factory

@@ -37,7 +37,7 @@ def handle_skill_install(container, entities: dict[str, Any], **kwargs) -> Any:
     """安装一个新技能。"""
     skill_manager = container.resolve("skill_manager")
     return skill_manager.execute(
-        "manage_skills", "install", entities=entities, jarvis_app=container.resolve("app")
+        "manage_skills", "install", entities=entities, butler_app=container.resolve("app")
     )
 
 
@@ -46,7 +46,7 @@ def handle_skill_import(container, entities: dict[str, Any], **kwargs) -> Any:
     """导入一个外部技能包。"""
     skill_manager = container.resolve("skill_manager")
     return skill_manager.execute(
-        "manage_skills", "import", entities=entities, jarvis_app=container.resolve("app")
+        "manage_skills", "import", entities=entities, butler_app=container.resolve("app")
     )
 
 

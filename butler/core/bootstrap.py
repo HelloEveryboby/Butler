@@ -1,7 +1,7 @@
 """
 Butler 服务容器引导模块。
 
-将 Jarvis.__init__ 中的手动服务实例化链替换为声明式 AppContainer 注册。
+将 Butler.__init__ 中的手动服务实例化链替换为声明式 AppContainer 注册。
 所有服务通过工厂函数延迟创建，依赖关系由容器按拓扑序解析。
 """
 
@@ -15,17 +15,17 @@ from typing import TYPE_CHECKING
 from butler.core.container import AppContainer, ServiceSpec
 
 if TYPE_CHECKING:
-    from butler.butler_app import Jarvis
+    from butler.butler_app import Butler
 
 logger = logging.getLogger(__name__)
 
 
-def build_container(app: Jarvis, config_loader, prompts: dict) -> AppContainer:
+def build_container(app: Butler, config_loader, prompts: dict) -> AppContainer:
     """
     构建并返回包含所有 Butler 服务的 AppContainer。
 
     参数:
-        app: Jarvis 实例（用于回注需要 UI 回调的服务）
+        app: Butler 实例（用于回注需要 UI 回调的服务）
         config_loader: 配置加载器实例
         prompts: prompts.json 内容
     """

@@ -7,16 +7,16 @@ import time
 import threading
 
 class ScheduleManager:
-    def __init__(self, jarvis, filename='schedule.json'):
-        self.jarvis = jarvis
+    def __init__(self, butler, filename='schedule.json'):
+        self.butler = butler
         self.filename = filename
         self.load_schedule()
 
     def speak(self, message):
-        self.jarvis.speak(message)
+        self.butler.speak(message)
 
     def takecommand(self):
-        return self.jarvis.takecommand()
+        return self.butler.takecommand()
 
     def load_schedule(self):
         if os.path.exists(self.filename):

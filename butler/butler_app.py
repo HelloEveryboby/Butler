@@ -73,7 +73,7 @@ from butler.core.hybrid_link import HybridLinkClient
 from butler.core.runner_server import RunnerServer
 from package.device.standalone_manager import StandaloneManager
 
-class Jarvis:
+class Butler:
     def __init__(self, root=None, usb_screen=None, headless=False):
         self.root = root
         self.usb_screen = usb_screen
@@ -180,7 +180,7 @@ class Jarvis:
         self.dual_encryptor = DualLayerEncryptor()
 
         # Inject self into interpreter for skill interception
-        interpreter.jarvis_app = self
+        interpreter.butler_app = self
 
         # Build AppContainer (declarative dependency injection)
         self.container = build_container(self, config_loader, self.prompts)
@@ -188,8 +188,8 @@ class Jarvis:
         # Native agent runtime: LLM-driven tool-calling loop (agent.runtime=true by default).
         # Falls back to the legacy intent loop if construction fails.
         try:
-            from butler.core.agent_runtime.jarvis_adapter import JarvisAgentBridge
-            self.agent_bridge = JarvisAgentBridge(
+            from butler.core.agent_runtime.butler_adapter import ButlerAgentBridge
+            self.agent_bridge = ButlerAgentBridge(
                 self,
                 enabled=bool(self.config.get("agent", {}).get("runtime", True)),
                 echo_assistant=False,
@@ -532,7 +532,7 @@ class Jarvis:
                 self.ui_print(f"📋 技能指令:\n{skill_contents[:500]}...", tag='system_message')
 
             result = self.skill_manager.execute(
-                skill_id, action, entities=entities, jarvis_app=self
+                skill_id, action, entities=entities, butler_app=self
             )
 
             if isinstance(result, dict) and result.get("status") == "pending_confirmation":
@@ -681,7 +681,7 @@ class Jarvis:
                         entities["confirmed"] = bool(re.search(r"确认|确定", cmd))
                         self.ui_print(f"本地动词命中: {m.intent_id} (置信度 {m.confidence:.2f})", tag='system_message')
                         result = intent_registry.dispatch(
-                            m.intent_id, jarvis_app=self, entities=entities,
+                            m.intent_id, butler_app=self, entities=entities,
                             programs=extension_manager.packages)
                         if result:
                             self.speak(str(result))
@@ -703,13 +703,13 @@ class Jarvis:
 
                 if match_type == 'intent':
                     self.ui_print(f"本地命中意图: {intent_id}", tag='system_message')
-                    handler_args = {"jarvis_app": self, "entities": entities, "programs": extension_manager.packages}
+                    handler_args = {"butler_app": self, "entities": entities, "programs": extension_manager.packages}
                     result = intent_registry.dispatch(intent_id, **handler_args)
                     if result: self.speak(str(result))
                     return
                 elif match_type == 'skill':
                     self.ui_print(f"本地命中技能: {intent_id}", tag='system_message')
-                    result = self.skill_manager.execute(intent_id, entities.get("operation") or "run", entities=entities, jarvis_app=self)
+                    result = self.skill_manager.execute(intent_id, entities.get("operation") or "run", entities=entities, butler_app=self)
                     if result: self.speak(str(result))
                     return
 
@@ -774,7 +774,7 @@ class Jarvis:
         if skill_id:
             nlu_result = self.nlu_service.extract_intent(legacy_command, self.long_memory.get_recent_history(10))
             entities = nlu_result.get("entities", {})
-            result = self.skill_manager.execute(skill_id, entities.get("operation"), entities=entities, jarvis_app=self)
+            result = self.skill_manager.execute(skill_id, entities.get("operation"), entities=entities, butler_app=self)
             if isinstance(result, dict) and result.get("status") == "pending_confirmation":
                 self.speak(result["message"])
             else:
@@ -789,7 +789,7 @@ class Jarvis:
         else:
             entities = {}
 
-        handler_args = {"jarvis_app": self, "entities": entities, "programs": extension_manager.packages}
+        handler_args = {"butler_app": self, "entities": entities, "programs": extension_manager.packages}
         if matched_intent in intent_registry._intents:
             result = intent_registry.dispatch(matched_intent, **handler_args)
             if result is not None:
@@ -1037,7 +1037,7 @@ class Jarvis:
     def _cleanup_temp_files(self):
         temp_dir = tempfile.gettempdir()
         for f in os.listdir(temp_dir):
-            if f.startswith("jarvis_temp_"):
+            if f.startswith("butler_temp_"):
                 try:
                     path = os.path.join(temp_dir, f)
                     if os.path.isfile(path): os.remove(path)
@@ -1190,7 +1190,7 @@ class Jarvis:
                         skill_id,
                         entities.get("operation") or entities.get("action") or "run",
                         entities=entities,
-                        jarvis_app=self,
+                        butler_app=self,
                     )
                     if isinstance(output, dict) and output.get("status") == "pending_confirmation":
                         self.speak(output["message"])
@@ -1232,25 +1232,25 @@ class Jarvis:
                 break
 def _start_tui_panel(usb_screen) -> None:
     """启动 TUI 版本的 CommandPanel（Textual App）。"""
-    jarvis = Jarvis(None, usb_screen, headless=False)
+    butler = Butler(None, usb_screen, headless=False)
     all_tools = {t['name']: t.get('path', t.get('module')) for t in extension_manager.get_all_tools()}
     panel = CommandPanel(
-        program_mapping=jarvis.program_mapping,
+        program_mapping=butler.program_mapping,
         programs=all_tools,
-        command_callback=jarvis.panel_command_handler,
+        command_callback=butler.panel_command_handler,
     )
 
-    # 退出时清理 jarvis.running 标记，触发后续等待循环结束
+    # 退出时清理 butler.running 标记，触发后续等待循环结束
     def _on_exit():
         try:
-            jarvis.running = False
+            butler.running = False
         except Exception:
             pass
 
     panel.set_on_exit(_on_exit)
 
-    # jarvis.main() 启动语音/线程后立即返回（非阻塞）
-    jarvis.main()
+    # butler.main() 启动语音/线程后立即返回（非阻塞）
+    butler.main()
 
     # Textual App.run() 是阻塞式主循环
     # TTY 检测：非交互式 TTY 下给出明确提示（参考 Experience ID 1088872）
@@ -1284,8 +1284,8 @@ def main():
 
     usb_screen = USBScreen(40, 8)
     if args.headless:
-        jarvis = Jarvis(None, usb_screen, headless=True); jarvis.main()
-        while jarvis.running: time.sleep(1)
+        butler = Butler(None, usb_screen, headless=True); butler.main()
+        while butler.running: time.sleep(1)
         return
 
     # Show config wizard if in GUI mode and keys are missing
@@ -1320,10 +1320,10 @@ def main():
         print("错误: tkinter 未安装，无法启动 GUI 模式。请安装 python3-tk 或使用 tui/headless 模式。", file=sys.stderr)
         sys.exit(1)
     root = tk.Tk(); root.title("Butler 助手 [管理模式]")
-    jarvis = Jarvis(root, usb_screen, headless=False)
+    butler = Butler(root, usb_screen, headless=False)
     all_tools = {t['name']: t.get('path', t.get('module')) for t in extension_manager.get_all_tools()}
-    panel = CommandPanel(root, program_mapping=jarvis.program_mapping, programs=all_tools, command_callback=jarvis.panel_command_handler)
+    panel = CommandPanel(root, program_mapping=butler.program_mapping, programs=all_tools, command_callback=butler.panel_command_handler)
     panel.pack(fill=tk.BOTH, expand=True)
-    jarvis.main(); root.mainloop()
+    butler.main(); root.mainloop()
 
 if __name__ == "__main__": main()

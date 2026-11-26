@@ -77,18 +77,18 @@ class ProgramManager:
         ttk.Label(self.control_frame, text="搜索:").pack(side=tk.RIGHT)
 
         # Butler控制
-        self.jarvis_frame = ttk.Frame(self.root, padding="10")
-        self.jarvis_frame.pack(fill=tk.X)
+        self.butler_frame = ttk.Frame(self.root, padding="10")
+        self.butler_frame.pack(fill=tk.X)
 
-        self.jarvis = None
+        self.butler = None
 
-        self.voice_button = ttk.Button(self.jarvis_frame, text="语音控制", command=self.voice_control)
+        self.voice_button = ttk.Button(self.butler_frame, text="语音控制", command=self.voice_control)
         self.voice_button.pack(side=tk.LEFT, padx=5)
 
-        self.command_entry = ttk.Entry(self.jarvis_frame, width=50)
+        self.command_entry = ttk.Entry(self.butler_frame, width=50)
         self.command_entry.pack(side=tk.LEFT, padx=5)
 
-        self.execute_button = ttk.Button(self.jarvis_frame, text="执行命令", command=self.execute_command)
+        self.execute_button = ttk.Button(self.butler_frame, text="执行命令", command=self.execute_command)
         self.execute_button.pack(side=tk.LEFT, padx=5)
 
         # 加载程序数据
@@ -241,7 +241,7 @@ class ProgramManager:
 
     def voice_control(self):
         """启动语音控制"""
-        command = self.jarvis.takecommand()
+        command = self.butler.takecommand()
         self.command_entry.delete(0, tk.END)
         self.command_entry.insert(0, command)
         self.execute_command()
@@ -250,7 +250,7 @@ class ProgramManager:
         """执行Butler命令"""
         command = self.command_entry.get()
         if command:
-            result = self.jarvis.execute(command)
+            result = self.butler.execute(command)
             messagebox.showinfo("Butler执行结果", result)
         else:
             messagebox.showwarning("警告", "请输入命令")

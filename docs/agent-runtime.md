@@ -8,15 +8,15 @@ Butler 现在用 **LLM 原生 tool calling 循环**执行任务，而不是「�
 | 路径 | 旧行为 |
 | --- | --- |
 | `butler agent run` | `butler/agent/` 的 Planner 按关键词返回硬编码三步；Executor 找不到包就返回拟真假文本；第一步就 `该包被禁用` |
-| 聊天主循环 | `Jarvis._autonomous_agent_loop` 让 LLM 输出 intent + entities，再查表派发；LLM 不能自主连续调用工具 |
-| `AgentRuntime` | 实现完整（循环/权限/子代理/MCP/压缩），但 `JarvisAgentBridge` 从未被实例化，且 `_create_llm_handler()` 漏了 `return handler`，等于永远拿不到 LLM |
+| 聊天主循环 | `Butler._autonomous_agent_loop` 让 LLM 输出 intent + entities，再查表派发；LLM 不能自主连续调用工具 |
+| `AgentRuntime` | 实现完整（循环/权限/子代理/MCP/压缩），但 `ButlerAgentBridge` 从未被实例化，且 `_create_llm_handler()` 漏了 `return handler`，等于永远拿不到 LLM |
 
 ## 现在的结构
 
 ```text
 用户输入
    │
-   ├─ Butler 聊天 ──► JarvisAgentBridge ─┐
+   ├─ Butler 聊天 ──► ButlerAgentBridge ─┐
    │                                     ├─► AgentRuntime 循环
    └─ butler agent run ──► Agent ────────┘        │
                                                   ├─ LLM（OpenAI 兼容：DeepSeek/OpenAI/Ollama…）
@@ -29,9 +29,9 @@ Butler 现在用 **LLM 原生 tool calling 循环**执行任务，而不是「�
   （名字清洗、`action`/`kwargs` 参数透传、`entities` 兼容旧式技能、结果收敛）。
 * `butler/agent/agent.py`：`Agent.run_task` 直接驱动 `AgentRuntime`，任务状态写入
   SQLite `tasks` 表（表缺失时自动补建）。
-* `butler/core/agent_runtime/jarvis_adapter.py`：技能工具注入、权限模式、系统提示词、
+* `butler/core/agent_runtime/butler_adapter.py`：技能工具注入、权限模式、系统提示词、
   `echo_assistant` 开关；修复 LLM 回调未返回的 bug。
-* `butler/butler_app.py`：`Jarvis.__init__` 创建 `agent_bridge`；`_autonomous_agent_loop`
+* `butler/butler_app.py`：`Butler.__init__` 创建 `agent_bridge`；`_autonomous_agent_loop`
   优先走新运行时，异常时自动回退旧流程。
 
 ## 配置（`config/config.yaml`）

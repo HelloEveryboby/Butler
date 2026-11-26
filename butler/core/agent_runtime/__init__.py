@@ -13,7 +13,7 @@ Claude Code（LLM + 循环 + 工具极简模式）。
     - EventStream: 追加式事件日志 + 确定性重放
     - MCPClient: MCP 工具服务器集成
     - DockerSandbox: 容器级隔离执行环境
-    - JarvisAgentBridge: 旧版 Jarvis 到新架构的适配层
+    - ButlerAgentBridge: 旧版 Butler 到新架构的适配层
 """
 
 from .types import (
@@ -58,9 +58,9 @@ except ImportError:
     DockerSandbox = None  # type: ignore
 
 try:
-    from .jarvis_adapter import JarvisAgentBridge
+    from .butler_adapter import ButlerAgentBridge
 except ImportError:
-    JarvisAgentBridge = None  # type: ignore
+    ButlerAgentBridge = None  # type: ignore
 
 __all__ = [
     # Types
@@ -95,5 +95,5 @@ __all__ = [
     "MCPClient",
     "MCPServerConfig",
     "DockerSandbox",
-    "JarvisAgentBridge",
+    "ButlerAgentBridge",
 ]

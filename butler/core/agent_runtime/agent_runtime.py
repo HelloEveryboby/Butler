@@ -117,7 +117,7 @@ class AgentRuntime:
     """
     纯 Agent 运行时循环。
 
-    从 Jarvis._autonomous_agent_loop 抽取，与 UI/语音/硬件完全解耦。
+    从 Butler._autonomous_agent_loop 抽取，与 UI/语音/硬件完全解耦。
 
     生命周期：
         1. 初始化 ConversationState + EventStream + ToolRegistry

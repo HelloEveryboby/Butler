@@ -140,11 +140,11 @@ def _launch_headless(port: int = 5001, host: str = "0.0.0.0"):
     import time
     os.environ.setdefault("BUTLER_API_HOST", host)
     os.environ.setdefault("BUTLER_API_PORT", str(port))
-    from butler.butler_app import Jarvis, USBScreen
+    from butler.butler_app import Butler, USBScreen
     usb_screen = USBScreen(40, 8)
-    jarvis = Jarvis(None, usb_screen, headless=True)
-    jarvis.main()
-    while jarvis.running:
+    butler = Butler(None, usb_screen, headless=True)
+    butler.main()
+    while butler.running:
         time.sleep(1)
 
 

@@ -35,7 +35,7 @@ class CrossFolderAnalyzer:
 
 analyzer = CrossFolderAnalyzer()
 
-def run(jarvis_app, entities, **kwargs):
+def run(butler_app, entities, **kwargs):
     folders = entities.get("folders", [])
     query = entities.get("query", "")
     if not folders or not query:

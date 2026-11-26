@@ -11,7 +11,7 @@ class SkillInterceptor:
     """
 
     @classmethod
-    def intercept_command(cls, command: str, jarvis_app) -> tuple[bool, str]:
+    def intercept_command(cls, command: str, butler_app) -> tuple[bool, str]:
         """
         尝试拦截指令。
         返回 (是否拦截, 拦截执行结果信息)。
@@ -69,18 +69,18 @@ class SkillInterceptor:
                 if not to_match:
                     to_fmt = os.path.splitext(output_file)[1].lstrip(".").lower()
 
-                if "format_convert" in jarvis_app.skill_manager.manifests:
+                if "format_convert" in butler_app.skill_manager.manifests:
                     logger.info(f"SkillInterceptor: 智能重定向至 'format_convert' 原生技能 (源格式={from_fmt}, 目标格式={to_fmt}, 输入文件={input_file}, 输出目标={output_file})")
 
                     try:
-                        res = jarvis_app.skill_manager.execute(
+                        res = butler_app.skill_manager.execute(
                             "format_convert",
                             "run",
                             input=input_file,
                             from_fmt=from_fmt,
                             to_fmt=to_fmt,
                             save_to=output_file,
-                            jarvis_app=jarvis_app
+                            butler_app=butler_app
                         )
                         return True, f"✨ [智能拦截成功] 检测到底层转换命令，已为您静默重定向并调用 Butler 专属原生格式转换服务（format_convert）：\n{res}"
                     except Exception as e:
@@ -91,7 +91,7 @@ class SkillInterceptor:
         # ----------------------------------------------------
         if "zip" in cmd_lower or "unzip" in cmd_lower or "tar" in cmd_lower:
             logger.info(f"SkillInterceptor: 检测到压缩解压操作，启动智能拦截: {command}")
-            if "archive_manager" in jarvis_app.skill_manager.manifests:
+            if "archive_manager" in butler_app.skill_manager.manifests:
                 zip_path = None
                 target_paths = []
                 action = "zip" if "zip" in cmd_lower and "unzip" not in cmd_lower else "unzip"
@@ -118,13 +118,13 @@ class SkillInterceptor:
                 if zip_path:
                     try:
                         logger.info(f"SkillInterceptor: 智能重定向至 'archive_manager' 原生技能 (操作={action}, 压缩包路径={zip_path})")
-                        res = jarvis_app.skill_manager.execute(
+                        res = butler_app.skill_manager.execute(
                             "archive_manager",
                             "run",
                             action=action,
                             zip_path=zip_path,
                             targets=target_paths,
-                            jarvis_app=jarvis_app
+                            butler_app=butler_app
                         )
                         return True, f"✨ [智能拦截成功] 检测到压缩/解包命令，已为您静默重定向并调用 Butler 专属高效本地文件压缩管理服务（archive_manager）：\n{res}"
                     except Exception as e:
@@ -133,18 +133,18 @@ class SkillInterceptor:
         # ----------------------------------------------------
         # 3. 慢速通道 (Slow Path)：基于关键字/描述的隐式技能重定向
         # ----------------------------------------------------
-        if hasattr(jarvis_app, 'skill_manager') and hasattr(jarvis_app.skill_manager, 'manifests'):
-            for skill_id, manifest in jarvis_app.skill_manager.manifests.items():
+        if hasattr(butler_app, 'skill_manager') and hasattr(butler_app.skill_manager, 'manifests'):
+            for skill_id, manifest in butler_app.skill_manager.manifests.items():
                 keywords = [k.lower() for k in manifest.get("keywords", [])]
                 for kw in keywords:
                     if kw and kw in cmd_lower:
                         logger.info(f"SkillInterceptor: 指令关键字 '{kw}' 命中本地技能 '{skill_id}'。自动重定向。")
                         try:
-                            res = jarvis_app.skill_manager.execute(
+                            res = butler_app.skill_manager.execute(
                                 skill_id,
                                 "run",
                                 command=cmd_strip,
-                                jarvis_app=jarvis_app
+                                butler_app=butler_app
                             )
                             return True, f"✨ [智能拦截成功] 发现与本地原生技能高度契合的操作 (技能: {skill_id})，已自动切换至安全且高效的内部服务，避开了直接命令行执行:\n{res}"
                         except Exception as e:

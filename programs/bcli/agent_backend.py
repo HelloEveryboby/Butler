@@ -127,8 +127,8 @@ def translate(text, target="zh"):
     return translate_text(text)
 
 # 核心 Agent 逻辑
-def run_agentic_loop(query, jarvis):
-    nlu = jarvis.nlu_service
+def run_agentic_loop(query, butler):
+    nlu = butler.nlu_service
     system_prompt = (
         "你是一个名为 Butler CLI 的高级 AI 助手，界面风格模仿 Claude Code。\n"
         "你可以通过调用以下 Python 函数来操作环境：\n"
@@ -149,7 +149,7 @@ def run_agentic_loop(query, jarvis):
         "请先思考，然后在 ```python ... ``` 代码块中执行。你可以分多步完成复杂任务。"
     )
 
-    history = jarvis.long_memory.get_recent_history(10)
+    history = butler.long_memory.get_recent_history(10)
     current_prompt = f"{system_prompt}\n\n用户请求: {query}"
 
     exec_globals = {
@@ -163,25 +163,25 @@ def run_agentic_loop(query, jarvis):
         "web_search": web_search,
         "translate": translate,
         "execute_shell": execute_shell,
-        "jarvis": jarvis
+        "butler": butler
     }
 
     # 设置 UI 打印回调
-    jarvis.ui_print = bcli_ui_print
+    butler.ui_print = bcli_ui_print
 
     # Handle Special Commands
     if query == "/voice":
-        jarvis.voice_service.ui_print = bcli_ui_print
-        jarvis.voice_service.on_status_change = lambda status: send_msg("voice_status", "true" if status else "false")
-        jarvis.voice_service.start_listening()
+        butler.voice_service.ui_print = bcli_ui_print
+        butler.voice_service.on_status_change = lambda status: send_msg("voice_status", "true" if status else "false")
+        butler.voice_service.start_listening()
         # Wait for recognition to finish (async in backend but we need to keep loop alive)
-        while jarvis.voice_service.is_listening:
+        while butler.voice_service.is_listening:
             time.sleep(0.1)
         return
 
     if query.startswith("/voice-engine "):
         engine = query.split(" ")[1]
-        if jarvis.voice_service.set_voice_mode(engine):
+        if butler.voice_service.set_voice_mode(engine):
             send_msg("text", f"已切换至 {engine} 语音引擎。")
         else:
             send_msg("error", "无效的引擎名称。可用: online, local")
@@ -229,8 +229,8 @@ if __name__ == "__main__":
     query = sys.argv[2]
 
     try:
-        from butler.butler_app import Jarvis
-        jarvis = Jarvis(headless=True)
-        run_agentic_loop(query, jarvis)
+        from butler.butler_app import Butler
+        butler = Butler(headless=True)
+        run_agentic_loop(query, butler)
     except Exception as e:
         send_msg("error", f"初始化失败: {str(e)}")

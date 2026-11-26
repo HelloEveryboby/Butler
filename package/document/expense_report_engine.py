@@ -31,7 +31,7 @@ class ExpenseGenius:
 
 expense_genius = ExpenseGenius()
 
-def run(jarvis_app, entities, **kwargs):
+def run(butler_app, entities, **kwargs):
     # This would be called via intent dispatcher
     receipts_data = entities.get("receipts_data")
     if receipts_data:

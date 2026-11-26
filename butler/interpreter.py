@@ -193,10 +193,10 @@ class Interpreter:
     def execute_shell(self, command, approved=False):
         """Executes a shell command and captures output, enforcing security rules and approval gates."""
         # 1. Check for skill interception to bypass raw command execution FIRST
-        if hasattr(self, 'jarvis_app') and self.jarvis_app:
+        if hasattr(self, 'butler_app') and self.butler_app:
             try:
                 from butler.core.skill_interceptor import SkillInterceptor
-                intercepted, result = SkillInterceptor.intercept_command(command, self.jarvis_app)
+                intercepted, result = SkillInterceptor.intercept_command(command, self.butler_app)
                 if intercepted:
                     logger.info(f"Interpreter: Shell command intercepted successfully: {result}")
                     return True, result

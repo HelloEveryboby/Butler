@@ -11,7 +11,7 @@ logger = LogManager.get_logger(__name__)
 ESSENTIAL_ASSETS = [
     "assets/settings_icon.png",
     "audio/activate.wav",
-    "audio/jarvis.wav"
+    "audio/butler.wav"
 ]
 
 def download_essential_assets():

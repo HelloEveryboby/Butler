@@ -202,7 +202,7 @@ class CommandPanel(App):
     }
     """
 
-    SCREEN_ID = "jarvis_tui_panel"
+    SCREEN_ID = "butler_tui_panel"
 
     # 反应式变量
     listening = reactive(False)
@@ -234,7 +234,7 @@ class CommandPanel(App):
         # 当前归档 zip
         self._current_zip_path: str | None = None
 
-        # 外部回调（jarvis_app 传入）
+        # 外部回调（butler_app 传入）
         self._on_exit_cb: Callable[[], None] | None = None
 
         # 订阅事件总线
@@ -528,7 +528,7 @@ class CommandPanel(App):
     def _update_screenshot_ui(self, b64_data: str) -> None:
         try:
             img_bytes = base64.b64decode(b64_data)
-            fd, path = tempfile.mkstemp(prefix="jarvis_screenshot_", suffix=".png")
+            fd, path = tempfile.mkstemp(prefix="butler_screenshot_", suffix=".png")
             with os.fdopen(fd, "wb") as f:
                 f.write(img_bytes)
             self._append_history_ui(
