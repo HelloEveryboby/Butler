@@ -811,7 +811,7 @@ def main():
     def hide_flash():
         flash_window.hide()
 
-    event_bus.on("flash_hide", hide_flash)
+    event_bus.subscribe("flash_hide", hide_flash)
 
     # Global Hotkey (Alt + Space)
     try:

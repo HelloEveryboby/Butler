@@ -29,7 +29,7 @@ def test_cron_scheduler():
         print("Cron event fired!")
         test_event_fired[0] = True
 
-    event_bus.on("cron:test_task", on_test_event)
+    event_bus.subscribe("cron:test_task", on_test_event)
     cron_scheduler.add_task("test_task", interval_seconds=1, permanent=True)
 
     # Manually trigger a check (usually happens in loop)

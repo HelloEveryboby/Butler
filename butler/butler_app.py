@@ -343,21 +343,21 @@ class Butler:
         """配置 KAIROS 自动化任务"""
         # 1. 记忆整合 (每 24 小时检查一次)
         cron_scheduler.add_task("dream", interval_seconds=3600*4, permanent=True)
-        event_bus.on("cron:dream", self.dream_engine.dream)
+        event_bus.subscribe("cron:dream", self.dream_engine.dream)
 
         # 2. 主动模式 Tick (每 1 小时检查一次)
         cron_scheduler.add_task("proactive-tick", interval_seconds=3600, permanent=True)
-        event_bus.on("cron:proactive-tick", self.proactive_agent.tick)
+        event_bus.subscribe("cron:proactive-tick", self.proactive_agent.tick)
 
         # 3. 工作流监听 (支持新版 DAG 引擎)
-        event_bus.on("workflow_execute", self.workflow_engine.execute_workflow)
+        event_bus.subscribe("workflow_execute", self.workflow_engine.execute_workflow)
 
         # 4. 时光机心跳与清理：定期记录系统状态并清理过期快照
         cron_scheduler.add_task("timemachine_tick", interval_seconds=30, permanent=True)
-        event_bus.on("cron:timemachine_tick", self._record_system_snapshot)
+        event_bus.subscribe("cron:timemachine_tick", self._record_system_snapshot)
 
         cron_scheduler.add_task("timemachine_cleanup", interval_seconds=86400, permanent=True)
-        event_bus.on("cron:timemachine_cleanup", lambda: self._timemachine_cleanup(7))
+        event_bus.subscribe("cron:timemachine_cleanup", lambda: self._timemachine_cleanup(7))
 
         # 5. 集群发现：启动局域网 Agent 扫描
         from butler.core.cluster_manager import cluster_manager
