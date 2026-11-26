@@ -38,6 +38,9 @@ class OfficeAutomator:
 
             df.to_excel(output_path, index=False, sheet_name=sheet_name)
             logger.info(f"Excel report created at {output_path}")
+            from butler.core.version_hooks import snapshot_after_save
+
+            snapshot_after_save(output_path, "Office 生成 Excel")
             return True
         except Exception as e:
             logger.error(f"Failed to create Excel report: {e}")
@@ -59,6 +62,9 @@ class OfficeAutomator:
 
             doc.save(output_path)
             logger.info(f"Word document saved at {output_path}")
+            from butler.core.version_hooks import snapshot_after_save
+
+            snapshot_after_save(output_path, "Office 生成 Word")
             return True
         except Exception as e:
             logger.error(f"Failed to create Word document: {e}")
@@ -87,6 +93,9 @@ class OfficeAutomator:
 
             pdf.output(output_path)
             logger.info(f"PDF created at {output_path}")
+            from butler.core.version_hooks import snapshot_after_save
+
+            snapshot_after_save(output_path, "Office 生成 PDF")
             return True
         except Exception as e:
             logger.error(f"Failed to create PDF: {e}")

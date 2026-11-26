@@ -280,7 +280,19 @@ class ToolRegistry:
                 error=f"Parameter validation failed: {msg}",
             )
 
-        return executor.execute(arguments, **context)
+        result = executor.execute(arguments, **context)
+        try:
+            from butler.core.command_recorder import command_recorder
+
+            command_recorder.track(
+                name,
+                [f"{key}={value}" for key, value in list(arguments.items())[:6]],
+                source="ai",
+                success=bool(getattr(result, "success", False)),
+            )
+        except Exception:
+            pass
+        return result
 
     def get_read_only_tools(self) -> list[str]:
         """获取所有只读工具名称（可并行执行）。"""

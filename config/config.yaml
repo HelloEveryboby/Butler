@@ -55,6 +55,48 @@ voice:
   mode: "auto"
   # 本地 Whisper 模型大小: tiny / base / small / medium / large
   local_stt_model: "base"
+  # 朗读 TTS 后端: edge（神经音色，需联网）| native（系统 pyttsx3，离线兜底）
+  tts_backend: "edge"
+
+# 小说朗读
+reading:
+  backend: "edge"
+  female_voices:
+    - "zh-CN-XiaoxiaoNeural"
+    - "zh-CN-XiaoyiNeural"
+    - "zh-CN-XiaohanNeural"
+  male_voices:
+    - "zh-CN-YunxiNeural"
+    - "zh-CN-YunyangNeural"
+    - "zh-CN-YunjianNeural"
+  narrator_voice: "zh-CN-XiaoxiaoNeural"
+  default_rate: 1.0
+  ai_analysis: false   # true 时允许调用 LLM 推断角色/情绪（消耗 token）
+
+# 文档扫描
+scanner:
+  default_mode: "color"   # color | gray | bw | pencil | charcoal
+  keep_ink: true          # 保留彩色笔勾画
+  pdf_dpi: 200
+  ocr_backend: "auto"     # auto | paddle | tesseract
+
+# Git 式版本管理
+versioning:
+  enabled: true
+  text_backend: "auto"    # auto（在仓库内就地提交，否则影子仓）| shadow
+  max_artifact_mb: 512
+  prune_keep: 50
+
+# dsh 插件市场适配
+dsh:
+  market_index_urls: []
+  auto_register_commands: true
+  allow_hooks: false      # 安全边界：默认不执行插件 hooks
+
+# 命令记录器
+commands:
+  auto_record: true
+  promote_min_count: 5
 
 persona:
   emotional_mode: true

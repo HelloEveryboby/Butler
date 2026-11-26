@@ -1,6 +1,6 @@
 """
 技能创建脚本 (CLI 包装器)
-调用 skills/skill_creator 逻辑来创建新技能。
+调用 butler/core/skills_admin 逻辑来创建新技能。
 """
 import sys
 import os
@@ -11,7 +11,7 @@ project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from skills.skill_creator import handle_request
+from butler.core.skills_admin import handle_request
 
 def main():
     print("=== Butler 技能创建助手 ===")

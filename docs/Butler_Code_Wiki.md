@@ -38,7 +38,7 @@ Butler 是一个高度模块化的智能助手系统，旨在通过统一的界�
 
 ### 2.7 多媒体管理 (Multimedia)
 - **核心逻辑**: 扫描本地硬盘、外部连接设备（如 U 盘、移动硬盘）中的 MP3、WAV、JPG 文件，并提供播放与预览接口。
-- **典型应用**: `skills/media_manager/` 模块具备全盘扫描能力，支持 Windows 盘符识别及 Unix 挂载点（/media, /mnt）自动探测。
+- **典型应用**: `butler/core/media/media_manager.py` 模块具备全盘扫描能力，支持 Windows 盘符识别及 Unix 挂载点（/media, /mnt）自动探测。
 - **使用场景**: 跨盘符音乐随机播放、外接设备照片查看、多媒体格式百科展示。
 
 ---

@@ -156,6 +156,10 @@ class Agent:
                 self.skill_manager,
                 max_tools=max_tools if max_tools > 0 else None,
             )
+
+        from butler.core.agent_runtime.capability_tools import register_capability_tools
+
+        self.capability_tool_map = register_capability_tools(registry)
         return registry
 
     def _build_permission_system(self):

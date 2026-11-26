@@ -298,9 +298,12 @@ class ModernBridge:
         }
 
     def get_media_library(self):
-        """Fetches the media library using the media_manager skill."""
+        """Fetches the media library using the media capability."""
         try:
-            return self.butler.skill_manager.execute("media_manager", "get_library")
+            from butler.core.capabilities import capability_registry
+
+            result = capability_registry.execute("media", "scan", {"kind": "media"})
+            return result.get("library", []) if isinstance(result, dict) else []
         except Exception as e:
             self.logger.error(f"Failed to fetch media library: {e}")
             return []
@@ -327,6 +330,16 @@ class ModernBridge:
             return self.butler.skill_manager.execute(skill_id, action, **params)
         except Exception as e:
             self.logger.error(f"Skill call failed: {skill_id}.{action} - {e}")
+            return {"error": str(e)}
+
+    def call_capability(self, name, action, params=None):
+        """核心能力调用（reading/scanner/versioning/commands/dsh），不经过技能系统。"""
+        try:
+            from butler.core.capabilities import capability_registry
+
+            return capability_registry.execute(name, action, dict(params or {}))
+        except Exception as e:
+            self.logger.error(f"Capability call failed: {name}.{action} - {e}")
             return {"error": str(e)}
 
     def install_skill(self, url, name=None):
@@ -359,7 +372,9 @@ class ModernBridge:
     def launch_ai_subtitles(self):
         """Launches the floating AI Subtitles overlay window."""
         try:
-            return self.butler.skill_manager.execute("ai_subtitles", "launch")
+            from butler.core.capabilities import capability_registry
+
+            return capability_registry.execute("audio", "open", {})
         except Exception as e:
             self.logger.error(f"Failed to launch AI Subtitles: {e}")
             return {"status": "error", "message": str(e)}

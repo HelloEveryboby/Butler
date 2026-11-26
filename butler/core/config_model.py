@@ -160,6 +160,64 @@ class ApiConfig(BaseModel):
 class VoiceConfig(BaseModel):
     mode: str = "online"
     local_stt_model: str = "base"
+    # 朗读（TTS）后端：edge（edge-tts 神经音色）/ native（系统 pyttsx3）
+    tts_backend: str = "edge"
+
+
+class ReadingConfig(BaseModel):
+    """小说朗读配置。"""
+
+    backend: str = "edge"                 # edge | native
+    female_voices: list[str] = Field(
+        default_factory=lambda: [
+            "zh-CN-XiaoxiaoNeural",
+            "zh-CN-XiaoyiNeural",
+            "zh-CN-XiaohanNeural",
+        ]
+    )
+    male_voices: list[str] = Field(
+        default_factory=lambda: [
+            "zh-CN-YunxiNeural",
+            "zh-CN-YunyangNeural",
+            "zh-CN-YunjianNeural",
+        ]
+    )
+    narrator_voice: str = "zh-CN-XiaoxiaoNeural"
+    default_rate: float = 1.0
+    ai_analysis: bool = False             # 是否允许用 LLM 推断角色/情绪（消耗 token）
+
+
+class ScannerConfig(BaseModel):
+    """文档扫描配置。"""
+
+    default_mode: str = "color"           # color | gray | bw | pencil | charcoal
+    keep_ink: bool = True                 # 保留彩色笔迹
+    pdf_dpi: int = 200
+    ocr_backend: str = "auto"             # auto | paddle | tesseract
+
+
+class VersioningConfig(BaseModel):
+    """Git 式版本管理配置。"""
+
+    enabled: bool = True
+    text_backend: str = "auto"            # auto（就地/影子）| shadow
+    max_artifact_mb: int = 512
+    prune_keep: int = 50
+
+
+class DshConfig(BaseModel):
+    """dsh 插件市场适配配置。"""
+
+    market_index_urls: list[str] = Field(default_factory=list)
+    auto_register_commands: bool = True
+    allow_hooks: bool = False
+
+
+class CommandsConfig(BaseModel):
+    """命令记录器配置。"""
+
+    auto_record: bool = True
+    promote_min_count: int = 5
 
 
 class USBScreenConfig(BaseModel):
@@ -252,6 +310,11 @@ class ButlerConfig(BaseModel):
     interpreter: InterpreterConfig = Field(default_factory=InterpreterConfig)
     runner_server: RunnerServerConfig = Field(default_factory=RunnerServerConfig)
     api_gateway: ApiGatewayConfig = Field(default_factory=ApiGatewayConfig)
+    reading: ReadingConfig = Field(default_factory=ReadingConfig)
+    scanner: ScannerConfig = Field(default_factory=ScannerConfig)
+    versioning: VersioningConfig = Field(default_factory=VersioningConfig)
+    dsh: DshConfig = Field(default_factory=DshConfig)
+    commands: CommandsConfig = Field(default_factory=CommandsConfig)
 
     model_config = ConfigDict(populate_by_name=True)
 

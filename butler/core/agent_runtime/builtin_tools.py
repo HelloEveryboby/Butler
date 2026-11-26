@@ -182,6 +182,9 @@ def _register_write_tool(registry: ToolRegistry, ws_root: Path) -> None:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
+            from butler.core.version_hooks import snapshot_after_save
+
+            snapshot_after_save(path, "agent write")
             return {
                 "success": True,
                 "content": f"Successfully wrote {len(content)} characters to {path}",
@@ -252,6 +255,9 @@ def _register_edit_tool(registry: ToolRegistry, ws_root: Path) -> None:
 
         try:
             path.write_text(new_content, encoding="utf-8")
+            from butler.core.version_hooks import snapshot_after_save
+
+            snapshot_after_save(path, "agent edit")
             return {
                 "success": True,
                 "content": f"Successfully edited {path}",
@@ -327,6 +333,9 @@ def _register_multi_edit_tool(registry: ToolRegistry, ws_root: Path) -> None:
 
         try:
             path.write_text(content, encoding="utf-8")
+            from butler.core.version_hooks import snapshot_after_save
+
+            snapshot_after_save(path, "agent multi_edit")
             return {
                 "success": True,
                 "content": f"Successfully applied {applied} edits to {path}",

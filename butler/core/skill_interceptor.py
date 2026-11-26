@@ -69,66 +69,69 @@ class SkillInterceptor:
                 if not to_match:
                     to_fmt = os.path.splitext(output_file)[1].lstrip(".").lower()
 
-                if "format_convert" in butler_app.skill_manager.manifests:
-                    logger.info(f"SkillInterceptor: 智能重定向至 'format_convert' 原生技能 (源格式={from_fmt}, 目标格式={to_fmt}, 输入文件={input_file}, 输出目标={output_file})")
+                logger.info(f"SkillInterceptor: 智能重定向至 'documents' 核心能力 (源格式={from_fmt}, 目标格式={to_fmt}, 输入文件={input_file}, 输出目标={output_file})")
 
-                    try:
-                        res = butler_app.skill_manager.execute(
-                            "format_convert",
-                            "run",
-                            input=input_file,
-                            from_fmt=from_fmt,
-                            to_fmt=to_fmt,
-                            save_to=output_file,
-                            butler_app=butler_app
-                        )
-                        return True, f"✨ [智能拦截成功] 检测到底层转换命令，已为您静默重定向并调用 Butler 专属原生格式转换服务（format_convert）：\n{res}"
-                    except Exception as e:
-                        logger.error(f"SkillInterceptor: format_convert 本地技能调用失败: {e}")
+                try:
+                    from butler.core.capabilities import capability_registry
+
+                    res = capability_registry.execute(
+                        "documents",
+                        "convert",
+                        {
+                            "input": input_file,
+                            "from": from_fmt,
+                            "to": to_fmt,
+                            "save_to": output_file,
+                        },
+                    )
+                    return True, f"✨ [智能拦截成功] 检测到底层转换命令，已为您静默重定向并调用 Butler 专属原生格式转换服务（documents）：\n{res}"
+                except Exception as e:
+                    logger.error(f"SkillInterceptor: documents 核心能力调用失败: {e}")
 
         # ----------------------------------------------------
         # 2. 快速通道 (Fast Path)：压缩/打包工具拦截
         # ----------------------------------------------------
         if "zip" in cmd_lower or "unzip" in cmd_lower or "tar" in cmd_lower:
             logger.info(f"SkillInterceptor: 检测到压缩解压操作，启动智能拦截: {command}")
-            if "archive_manager" in butler_app.skill_manager.manifests:
-                zip_path = None
-                target_paths = []
-                action = "zip" if "zip" in cmd_lower and "unzip" not in cmd_lower else "unzip"
+            zip_path = None
+            target_paths = []
+            action = "zip" if "zip" in cmd_lower and "unzip" not in cmd_lower else "unzip"
 
-                if action == "zip":
-                    # e.g., zip -r archive.zip folder1 file2
-                    parts = cmd_strip.split()
-                    for p in parts[2:]:
-                        p_clean = p.strip("'\"")
-                        if not p_clean.startswith("-"):
-                            if not zip_path:
-                                zip_path = p_clean
-                            else:
-                                target_paths.append(p_clean)
-                else:
-                    # e.g., unzip archive.zip -d dest_dir
-                    parts = cmd_strip.split()
-                    for p in parts[1:]:
-                        p_clean = p.strip("'\"")
-                        if not p_clean.startswith("-") and p_clean != "-d":
+            if action == "zip":
+                # e.g., zip -r archive.zip folder1 file2
+                parts = cmd_strip.split()
+                for p in parts[2:]:
+                    p_clean = p.strip("'\"")
+                    if not p_clean.startswith("-"):
+                        if not zip_path:
                             zip_path = p_clean
-                            break
+                        else:
+                            target_paths.append(p_clean)
+            else:
+                # e.g., unzip archive.zip -d dest_dir
+                parts = cmd_strip.split()
+                for p in parts[1:]:
+                    p_clean = p.strip("'\"")
+                    if not p_clean.startswith("-") and p_clean != "-d":
+                        zip_path = p_clean
+                        break
 
-                if zip_path:
-                    try:
-                        logger.info(f"SkillInterceptor: 智能重定向至 'archive_manager' 原生技能 (操作={action}, 压缩包路径={zip_path})")
-                        res = butler_app.skill_manager.execute(
-                            "archive_manager",
-                            "run",
-                            action=action,
-                            zip_path=zip_path,
-                            targets=target_paths,
-                            butler_app=butler_app
-                        )
-                        return True, f"✨ [智能拦截成功] 检测到压缩/解包命令，已为您静默重定向并调用 Butler 专属高效本地文件压缩管理服务（archive_manager）：\n{res}"
-                    except Exception as e:
-                        logger.error(f"SkillInterceptor: archive_manager 本地技能调用失败: {e}")
+            if zip_path:
+                try:
+                    from butler.core.capabilities import capability_registry
+
+                    logger.info(
+                        f"SkillInterceptor: 智能重定向至 system 能力归档 (操作={action}, 压缩包路径={zip_path})"
+                    )
+                    cap_action = "archive" if action == "zip" else "extract"
+                    res = capability_registry.execute(
+                        "system",
+                        cap_action,
+                        {"archive_path": zip_path, "targets": target_paths},
+                    )
+                    return True, f"✨ [智能拦截成功] 检测到压缩/解包命令，已为您静默重定向并调用 Butler 专属高效本地文件压缩管理服务（system）：\n{res}"
+                except Exception as e:
+                    logger.error(f"SkillInterceptor: system 能力归档调用失败: {e}")
 
         # ----------------------------------------------------
         # 3. 慢速通道 (Slow Path)：基于关键字/描述的隐式技能重定向

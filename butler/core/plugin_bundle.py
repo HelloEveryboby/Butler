@@ -158,6 +158,8 @@ def discover_plugin_roots(plugins_dir: Path) -> List[Dict[str, Any]]:
             continue
 
         marker = _read_json(plugin_dir / MARKER_FILE)
+        if marker.get("enabled") is False:
+            continue
         name = sanitize_name(marker.get("name") or plugin_dir.name)
         assets = marker.get("assets") if isinstance(marker.get("assets"), dict) else None
         if assets is None:

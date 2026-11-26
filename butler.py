@@ -20,8 +20,8 @@ if str(project_root) not in sys.path:
 
 # 可独立运行的技能：名称 -> 入口模块（暴露 main()）
 SKILL_RUNNERS = {
-    "downloader": "skills.downloader.run",
-    "format_convert": "skills.format_convert.run",
+    "downloader": "butler.core.network.downloader",
+    "format_convert": "butler.core.documents.run",
 }
 
 

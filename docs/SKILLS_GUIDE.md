@@ -99,4 +99,4 @@ python butler_cli.py skill roots           # 查看发现根目录
 ```
 
 ## 开发者提示
-如果你想编写自己的技能，可以参考 `skills/skill_creator` 或使用对话命令：“帮我创建一个新技能框架。”
+如果你想编写自己的技能，可以参考 `butler/core/skills_admin` 或使用对话命令：“帮我创建一个新技能框架。”

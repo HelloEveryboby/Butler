@@ -220,7 +220,7 @@ export class ScreenCaptureController {
     window.showToast?.('截屏', '正在捕获全屏...', 'info');
     try {
       if ((window as any).pywebview?.api) {
-        const res = await (window as any).pywebview.api.call_skill('screen_capture', 'full_screenshot');
+        const res = await (window as any).pywebview.api.call_capability('media', 'capture', { op: 'full_screenshot' });
         if (res && res.status === 'success') {
           window.showToast?.('截屏成功', `已保存至: ${res.file_path}`, 'success');
         } else {
@@ -238,7 +238,7 @@ export class ScreenCaptureController {
     this.startRecordingUI('全屏录制');
     try {
       if ((window as any).pywebview?.api) {
-        await (window as any).pywebview.api.call_skill('screen_capture', 'start_recording', { type: 'full' });
+        await (window as any).pywebview.api.call_capability('media', 'capture', { op: 'start_recording', type: 'full' });
       }
     } catch (e: any) {
       console.warn('Backend recording signal:', e);
@@ -249,7 +249,7 @@ export class ScreenCaptureController {
     window.showToast?.('长截屏', '请滚动页面，完成后停止...', 'info');
     try {
       if ((window as any).pywebview?.api) {
-        const res = await (window as any).pywebview.api.call_skill('screen_capture', 'long_screenshot');
+        const res = await (window as any).pywebview.api.call_capability('media', 'capture', { op: 'long_screenshot' });
         if (res && res.status === 'success') {
           window.showToast?.('长截屏完成', `长图已保存: ${res.file_path}`, 'success');
         } else {
@@ -456,7 +456,7 @@ export class ScreenCaptureController {
       this.startRecordingUI(`区域录制 (${rect.width}×${rect.height})`);
       try {
         if ((window as any).pywebview?.api) {
-          await (window as any).pywebview.api.call_skill('screen_capture', 'start_recording', { type: 'area', rect });
+          await (window as any).pywebview.api.call_capability('media', 'capture', { op: 'start_recording', type: 'area', rect });
         }
       } catch (e) {}
       return;
@@ -471,7 +471,7 @@ export class ScreenCaptureController {
 
     try {
       if ((window as any).pywebview?.api) {
-        const res = await (window as any).pywebview.api.call_skill('screen_capture', 'area_screenshot', { action, rect });
+        const res = await (window as any).pywebview.api.call_capability('media', 'capture', { op: 'area_screenshot', action, rect });
         window.showToast?.('区域截屏', res?.message || `区域截图已${action === 'copy' ? '复制到剪贴板' : '保存'}`, 'success');
       } else {
         window.showToast?.('区域截屏', `区域截图 (${rect.width}×${rect.height}px) 已${action === 'copy' ? '复制到剪贴板' : '保存路径 ~/Pictures/Butler/'}`, 'success');
@@ -602,7 +602,7 @@ export class ScreenCaptureController {
 
     try {
       if ((window as any).pywebview?.api) {
-        const res = await (window as any).pywebview.api.call_skill('screen_capture', 'stop_recording');
+        const res = await (window as any).pywebview.api.call_capability('media', 'capture', { op: 'stop_recording' });
         window.showToast?.('录制结束', res?.message || `视频已保存至: ~/Pictures/Butler/`, 'success');
       } else {
         window.showToast?.('录制结束', `视频文件 record_${Date.now()}.mp4 已保存至系统图片目录`, 'success');

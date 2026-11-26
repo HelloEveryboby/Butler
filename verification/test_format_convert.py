@@ -11,8 +11,8 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from skills.format_convert.format_convert import handle_request
-from skills.format_convert.core.reverse_converters import html_to_markdown, docx_to_markdown, pdf_to_markdown
+from butler.core.documents.format_convert import handle_request
+from butler.core.documents.core.reverse_converters import html_to_markdown, docx_to_markdown, pdf_to_markdown
 
 
 class TestFormatConvertSkillLocal(unittest.TestCase):

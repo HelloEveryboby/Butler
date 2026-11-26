@@ -228,7 +228,7 @@ def convert_file(input_file_path, output_file_path, output_folder):
         target_path = (
             os.path.join(output_folder, os.path.basename(output_file_path)) if output_folder else output_file_path
         )
-        from skills.format_convert.format_convert import handle_request
+        from butler.core.documents.format_convert import handle_request
 
         kwargs = {"input": input_file_path, "from": from_fmt, "to": to_fmt, "save_to": target_path}
         res = handle_request(action="run", **kwargs)

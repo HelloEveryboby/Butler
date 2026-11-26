@@ -128,6 +128,8 @@ def _make_handler(skill_id: str, skill_manager: Any, butler_app: Any):
 
         call_kwargs: Dict[str, Any] = dict(args)
         call_kwargs.setdefault("entities", dict(args))
+        # 交互式 AI 调用不等同于后台批处理：跳过 DRAS 负载排队，避免用户请求被静默挂起
+        call_kwargs.setdefault("force_execute", True)
         call_kwargs["butler_app"] = butler_app
 
         try:

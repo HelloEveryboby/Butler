@@ -1077,6 +1077,16 @@ class Butler:
         if skill_extension:
             messages.append({"role": "system", "content": skill_extension})
 
+        # 注入核心能力名单（内置功能，与技能各司其职）
+        try:
+            from butler.core.capabilities import capability_registry
+
+            capability_section = capability_registry.prompt_section()
+            if capability_section:
+                messages.append({"role": "system", "content": capability_section})
+        except Exception:
+            pass
+
         # Inject Go-runner active environments dynamically
         runner_env_extension = self._get_runner_env_prompt_extension()
         if runner_env_extension:

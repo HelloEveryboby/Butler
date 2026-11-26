@@ -30,6 +30,7 @@ from textual.widgets.tree import TreeNode
 from textual.screen import Screen, ModalScreen
 from textual.reactive import reactive
 from textual import on, work
+from butler.tui.content_panels import ReaderPanel, ScanPanel
 from rich.markdown import Markdown as RichMarkdown
 
 from butler.core.environment import run_preflight_check
@@ -184,6 +185,8 @@ class ButlerTUI(App):
             ("🔧 辅助工具", "tools2"),
             ("📦 包管理", "packages"),
             ("🤖 员工", "agents"),
+            ("📖 朗读", "reader"),
+            ("🖨 扫描", "scan"),
             ("⏰ 时光机", "timemachine"),
             ("⚙️ 设置", "settings"),
         ]
@@ -315,6 +318,12 @@ class ButlerTUI(App):
                         yield Input(placeholder="委派任务描述", id="agent-task")
                         yield Button("▶️ 执行任务", id="btn-run-agent", variant="primary")
 
+                # Reader view
+                yield ReaderPanel(id="view-reader", classes="hidden")
+
+                # Scan view
+                yield ScanPanel(id="view-scan", classes="hidden")
+
                 # TimeMachine view
                 with Vertical(id="view-timemachine", classes="hidden"):
                     yield Label("⏰ 时光机", classes="tool-section-title")
@@ -368,6 +377,7 @@ class ButlerTUI(App):
             "view-chat", "view-dashboard", "view-tools",
             "view-memory", "view-tasks", "view-skills",
             "view-tools2", "view-packages", "view-agents",
+            "view-reader", "view-scan",
             "view-timemachine", "view-settings"
         ]:
             v = self.query_one(f"#{view_id}")
@@ -1722,7 +1732,8 @@ class ButlerTUI(App):
     @on(Button.Pressed, "#skill-btn-docx-create")
     def _on_skill_docx_create(self, _event):
         self._append_chat("创建 Word 文档，请输入: -o <路径> -t <标题> -c <内容>", "system")
-        self._pending_tool = "skill_docx_create"
+        self._pending_tool = "skill_docx"
+        self._pending_tool_params = {"action": "create"}
 
     @on(Button.Pressed, "#skill-btn-pdf-extract")
     def _on_skill_pdf_extract(self, _event):
@@ -1733,7 +1744,8 @@ class ButlerTUI(App):
     @on(Button.Pressed, "#skill-btn-pdf-merge")
     def _on_skill_pdf_merge(self, _event):
         self._append_chat("合并 PDF，请输入: -i <文件1,文件2> -o <输出路径>", "system")
-        self._pending_tool = "skill_pdf_merge"
+        self._pending_tool = "skill_pdf"
+        self._pending_tool_params = {"action": "merge"}
 
     @on(Button.Pressed, "#skill-btn-pdf-split")
     def _on_skill_pdf_split(self, _event):
@@ -1869,6 +1881,15 @@ class ButlerTUI(App):
         self._append_chat(prompt, "system")
         self._pending_tool = tool_name
         self._update_status(f"等待输入: {prompt[:30]}...")
+
+    @staticmethod
+    def _capability_result_text(result) -> str:
+        """把能力返回的 dict 转成聊天区可读文本。"""
+        if isinstance(result, dict):
+            if "error" in result:
+                return f"❌ {result['error']}"
+            return str(result.get("result", result))
+        return str(result)
 
     def _execute_tool(self, tool_name: str, params: dict):
         """执行指定工具."""
@@ -2068,55 +2089,62 @@ class ButlerTUI(App):
 
             # ── 技能执行 (无 AI 可用) ──
             elif tool_name == "skill_markitdown":
-                from skills.markitdown.markitdown_app import convert
-                path = params.get("path", "")
+                from butler.core.capabilities import capability_registry
+                path = params.get("path") or params.get("input") or params.get("file") or ""
                 if not path:
                     self._append_chat("用法: /markitdown <文件路径>", "system")
                     return
                 self._append_chat(f"📄 转换文件为 Markdown: {path}", "system")
-                result = convert(path)
-                self._append_chat(result[:5000] if len(result) > 5000 else result, "ai")
+                result = capability_registry.execute("documents", "markdown", {"path": path})
+                text = self._capability_result_text(result)
+                self._append_chat(text[:5000] if len(text) > 5000 else text, "ai")
 
             elif tool_name == "skill_docx":
-                from skills.docx.main import handle_request
+                from butler.core.capabilities import capability_registry
                 action = params.get("action", "read")
-                result = handle_request(action, **params)
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute("documents", f"docx_{action}", params)
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_pdf":
-                from skills.pdf.main import handle_request
+                from butler.core.capabilities import capability_registry
                 action = params.get("action", "extract_text")
-                result = handle_request(action, **params)
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute("documents", action, params)
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_archive":
-                from skills.archive_manager import handle_request
+                from butler.core.capabilities import capability_registry
                 action = params.get("action", "list_contents")
-                result = handle_request(action, **params)
-                self._append_chat(str(result), "ai")
+                archive_action = {
+                    "compress": "archive", "zip": "archive",
+                    "extract": "extract", "unzip": "extract",
+                }.get(action, "list_archive")
+                result = capability_registry.execute("system", archive_action, params)
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_uninstaller":
-                from skills.geek_uninstaller.main import handle_request
+                from butler.core.capabilities import capability_registry
                 action = params.get("action", "list")
-                result = handle_request(action, **params)
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute("system", action, params)
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_sys_clean":
-                from skills.sys_cleaner.main import start_track, stop_track
+                from butler.core.capabilities import capability_registry
                 action = params.get("action", "help")
                 if action == "track":
-                    result = start_track(params)
-                    self._append_chat(f"🔍 开始追踪安装变更: {result}", "system")
+                    result = capability_registry.execute("system", "track", params)
+                    self._append_chat(
+                        f"🔍 开始追踪安装变更: {self._capability_result_text(result)}", "system"
+                    )
                 elif action == "clean":
-                    result = stop_track(params)
-                    self._append_chat(f"🧹 清理结果: {result}", "ai")
+                    result = capability_registry.execute("system", "stop_track", params)
+                    self._append_chat(f"🧹 清理结果: {self._capability_result_text(result)}", "ai")
                 else:
                     self._append_chat("用法: /sys_clean [track | clean]", "system")
 
             elif tool_name == "skill_media_scan":
-                from skills.media_manager.media_manager import MediaManagerSkill
-                mm = MediaManagerSkill()
-                library = mm.get_media_library()
+                from butler.core.capabilities import capability_registry
+                result = capability_registry.execute("media", "scan", {"kind": "media"})
+                library = result.get("library", []) if isinstance(result, dict) else []
                 if library:
                     audio_files = [f for f in library if f.get("type") == "audio"]
                     image_files = [f for f in library if f.get("type") == "image"]
@@ -2129,11 +2157,11 @@ class ButlerTUI(App):
                     self._append_chat("未找到媒体文件", "system")
 
             elif tool_name == "skill_storage_hub":
-                from skills.storage_hub.hub_manager import HubManager
-                hub = HubManager()
+                from butler.core.capabilities import capability_registry
                 action = params.get("action", "list")
                 if action == "list":
-                    drives = hub.config.get("drives", [])
+                    result = capability_registry.execute("system", "storage", {})
+                    drives = result.get("drives", []) if isinstance(result, dict) else []
                     if drives:
                         lines = ["☁️ 已配置云盘:"]
                         for d in drives:
@@ -2150,33 +2178,40 @@ class ButlerTUI(App):
                 self._append_chat(f"📋 {result}", "ok")
 
             elif tool_name == "skill_sec_scan":
-                from skills.skill_sec_radar.sec_manager import handle_request
+                from butler.core.capabilities import capability_registry
                 target = params.get("target", "127.0.0.1")
                 self._append_chat(f"🔍 SYN 扫描目标: {target}", "system")
-                result = handle_request("scan", target=target)
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute("system", "sec_scan", {"target": target})
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_web_sec_test":
-                from skills.security.web_security_tester.main import handle_request
+                from butler.core.capabilities import capability_registry
                 target = params.get("target", "")
                 mode = params.get("mode", "full")
                 if not target:
                     self._append_chat("用法: /web_sec_test <目标URL>", "system")
                     return
                 self._append_chat(f"🛡️ Web 安全测试: {target} (模式: {mode})", "system")
-                result = handle_request("test", target=target, mode=mode)
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute(
+                    "system",
+                    "audit",
+                    {"module": "web", "target": target, "mode": mode, "op": "test"},
+                )
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_format_convert":
-                from skills.format_convert.format_convert import handle_request
+                from butler.core.capabilities import capability_registry
                 inp = params.get("input", "")
                 to_fmt = params.get("to_fmt", "docx")
                 if not inp:
                     self._append_chat("用法: /format_convert <输入文件> | <输出格式>", "system")
                     return
+                from_fmt = params.get("from") or inp.rsplit(".", 1)[-1] or "MD"
                 self._append_chat(f"🔄 格式转换: {inp} → {to_fmt}", "system")
-                result = handle_request("run", input=inp, to=to_fmt)
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute(
+                    "documents", "convert", {"input": inp, "from": from_fmt, "to": to_fmt}
+                )
+                self._append_chat(self._capability_result_text(result), "ai")
 
             # ── 技能控制 (停止/状态) ──
             elif tool_name == "skill_stop":
@@ -2232,17 +2267,17 @@ class ButlerTUI(App):
 
             # ── 卸载子操作 ──
             elif tool_name == "skill_uninstall_scan":
-                from skills.geek_uninstaller.main import handle_request as un_handler
+                from butler.core.capabilities import capability_registry
                 name = params.get("name", "").strip()
                 if not name:
                     self._append_chat("用法: /uninstall_scan <软件名>", "system")
                     return
                 self._append_chat(f"🔍 扫描 {name} 的残留文件...", "system")
-                result = un_handler("scan_leftovers", name=name)
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute("system", "scan_leftovers", {"name": name})
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_uninstall_do":
-                from skills.geek_uninstaller.main import handle_request as un_handler
+                from butler.core.capabilities import capability_registry
                 name = params.get("name", "").strip()
                 if not name:
                     self._append_chat("用法: /uninstall_do <软件名> [| dry_run]", "system")
@@ -2250,61 +2285,69 @@ class ButlerTUI(App):
                 dry_run = params.get("dry_run", "true")
                 dry_run = dry_run != "false"
                 self._append_chat(f"🗑️ 深度卸载 {name} (dry_run={dry_run})...", "system")
-                result = un_handler("uninstall", name=name, dry_run=dry_run)
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute(
+                    "system", "uninstall", {"name": name, "dry_run": dry_run}
+                )
+                self._append_chat(self._capability_result_text(result), "ai")
 
             # ── 垃圾清理子操作 ──
             elif tool_name == "skill_junk_scan":
-                from skills.geek_uninstaller.main import handle_request as un_handler
+                from butler.core.capabilities import capability_registry
                 self._append_chat("🧹 扫描系统垃圾文件...", "system")
-                result = un_handler("scan_junk")
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute("system", "scan_junk", {})
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_junk_clean":
-                from skills.geek_uninstaller.main import handle_request as un_handler
+                from butler.core.capabilities import capability_registry
                 dry_run = params.get("dry_run", "true")
                 dry_run = dry_run != "false"
                 self._append_chat(f"🧹 清理垃圾文件 (dry_run={dry_run})...", "system")
-                result = un_handler("clean_junk", dry_run=dry_run)
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute(
+                    "system", "clean_junk", {"dry_run": dry_run}
+                )
+                self._append_chat(self._capability_result_text(result), "ai")
 
             # ── 系统信息子操作 ──
             elif tool_name == "skill_sys_info":
-                from skills.geek_uninstaller.main import handle_request as un_handler
+                from butler.core.capabilities import capability_registry
                 self._append_chat("📊 获取系统信息...", "system")
-                result = un_handler("system_info")
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute("system", "system_info", {})
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_top_procs":
-                from skills.geek_uninstaller.main import handle_request as un_handler
+                from butler.core.capabilities import capability_registry
                 sort_by = params.get("sort_by", "cpu") or "cpu"
                 self._append_chat(f"📈 Top 进程 (按 {sort_by} 排序)...", "system")
-                result = un_handler("top_processes", sort_by=sort_by)
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute(
+                    "system", "top_processes", {"sort_by": sort_by}
+                )
+                self._append_chat(self._capability_result_text(result), "ai")
 
             # ── 云盘子操作 ──
             elif tool_name == "skill_cloud_list":
-                from skills.storage_hub.hub_manager import handle_request as cloud_handler
+                from butler.core.capabilities import capability_registry
                 drive = params.get("drive", "")
                 path = params.get("path", "/")
                 if not drive:
                     self._append_chat("用法: /cloud_list <云盘ID> [| 路径]", "system")
                     return
-                result = cloud_handler("list_files", drive=drive, path=path)
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute(
+                    "system", "list_files", {"drive": drive, "path": path}
+                )
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_cloud_search":
-                from skills.storage_hub.hub_manager import handle_request as cloud_handler
+                from butler.core.capabilities import capability_registry
                 query = params.get("query", "")
                 if not query:
                     self._append_chat("用法: /cloud_search <关键词>", "system")
                     return
                 self._append_chat(f"🔍 搜索云盘文件: {query}", "system")
-                result = cloud_handler("search_all", query=query)
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute("system", "search_files", {"query": query})
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_cloud_transfer":
-                from skills.storage_hub.hub_manager import handle_request as cloud_handler
+                from butler.core.capabilities import capability_registry
                 src = params.get("src_drive", "")
                 dst = params.get("dst_drive", "")
                 fname = params.get("file_name", "")
@@ -2312,44 +2355,54 @@ class ButlerTUI(App):
                     self._append_chat("用法: /cloud_transfer <源盘> | <目标盘> | <文件名>", "system")
                     return
                 self._append_chat(f"☁️ 传输 {fname}: {src} → {dst}", "system")
-                result = cloud_handler("transfer", src_drive=src, dst_drive=dst,
-                                       file_name=fname, source_path=params.get("source_path", "/"),
-                                       dst_path=params.get("dst_path", "/"))
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute(
+                    "system",
+                    "transfer",
+                    {
+                        "src_drive": src,
+                        "dst_drive": dst,
+                        "file_name": fname,
+                        "source_path": params.get("source_path", "/"),
+                        "dst_path": params.get("dst_path", "/"),
+                    },
+                )
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_cloud_status":
-                from skills.storage_hub.hub_manager import handle_request as cloud_handler
+                from butler.core.capabilities import capability_registry
                 task_id = params.get("task_id", "")
                 if not task_id:
                     self._append_chat("用法: /cloud_status <任务ID>", "system")
                     return
-                result = cloud_handler("check_transfer_status", task_id=task_id)
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute(
+                    "system", "transfer_status", {"task_id": task_id}
+                )
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_cloud_duplicates":
-                from skills.storage_hub.hub_manager import handle_request as cloud_handler
+                from butler.core.capabilities import capability_registry
                 self._append_chat("🔍 查找重复文件...", "system")
-                result = cloud_handler("find_duplicates")
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute("system", "duplicates", {})
+                self._append_chat(self._capability_result_text(result), "ai")
 
             # ── 安装追踪子操作 ──
             elif tool_name == "skill_track_start":
-                from skills.sys_cleaner.main import handle_request as track_handler
+                from butler.core.capabilities import capability_registry
                 self._append_chat("📸 捕获安装前快照...", "system")
-                result = track_handler("start_track")
-                self._append_chat(str(result), "system")
+                result = capability_registry.execute("system", "track", {})
+                self._append_chat(self._capability_result_text(result), "system")
 
             elif tool_name == "skill_track_stop":
-                from skills.sys_cleaner.main import handle_request as track_handler
+                from butler.core.capabilities import capability_registry
                 self._append_chat("📸 捕获安装后快照并生成差异...", "system")
-                result = track_handler("stop_track")
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute("system", "stop_track", {})
+                self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_track_clean":
-                from skills.sys_cleaner.main import handle_request as track_handler
+                from butler.core.capabilities import capability_registry
                 self._append_chat("🧹 执行残留清理...", "system")
-                result = track_handler("execute_clean")
-                self._append_chat(str(result), "ai")
+                result = capability_registry.execute("system", "execute_clean", {})
+                self._append_chat(self._capability_result_text(result), "ai")
 
             else:
                 self._append_chat(f"未知工具: {tool_name}", "error")

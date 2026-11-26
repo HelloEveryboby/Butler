@@ -132,6 +132,14 @@ class ButlerAgentBridge:
             except Exception as e:
                 logger.warning(f"Failed to register skill tools: {e}")
 
+        # 2.5 核心能力（朗读/扫描/版本/命令/dsh）— 独立注册表，不依赖 skills
+        try:
+            from .capability_tools import register_capability_tools
+
+            self.capability_tool_map = register_capability_tools(registry)
+        except Exception as e:
+            logger.warning(f"Failed to register capability tools: {e}")
+
         # 3. 意图处理器默认不注册（技能已覆盖大部分能力），需要时用 agent.expose_intents 打开
         if self._config("agent.expose_intents", False):
             self._register_intent_tools(registry)
@@ -529,6 +537,16 @@ class ButlerAgentBridge:
             skill_extension = butler.skill_manager.get_system_prompt_extension()
             if skill_extension:
                 parts.append(skill_extension)
+        except Exception:
+            pass
+
+        # 核心能力名单（内置功能，与技能各司其职）
+        try:
+            from butler.core.capabilities import capability_registry
+
+            capability_section = capability_registry.prompt_section()
+            if capability_section:
+                parts.append(capability_section)
         except Exception:
             pass
 

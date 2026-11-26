@@ -92,18 +92,14 @@ def test_skill_manager_ast_safety():
     finally:
         os.unlink(unsafe_file)
 
-def test_implicit_skill_matching():
+def test_implicit_skill_matching(monkeypatch):
     # Setup mock Butler app and skill manager
     mock_app = MagicMock()
     mock_skill_manager = MagicMock()
     mock_app.skill_manager = mock_skill_manager
 
-    # Configure manifest for format_convert and archive_manager
+    # Configure manifest for archive_manager
     mock_skill_manager.manifests = {
-        "format_convert": {
-            "name": "Format Convert",
-            "keywords": ["convert", "pandoc", "pdf2docx"]
-        },
         "archive_manager": {
             "name": "Archive Manager",
             "keywords": ["zip", "unzip", "tar"]
@@ -116,6 +112,17 @@ def test_implicit_skill_matching():
 
     mock_skill_manager.execute.side_effect = mock_execute
 
+    # format_convert 已迁移为核心能力，直接打桩 documents.convert
+    from butler.core.capabilities import capability_registry
+
+    doc_calls = []
+
+    def mock_capability_execute(name, action, payload=None):
+        doc_calls.append((name, action, payload))
+        return "Mocked documents convert"
+
+    monkeypatch.setattr(capability_registry, "execute", mock_capability_execute)
+
     # Set up interpreter and inject mock app
     interpreter = Interpreter()
     interpreter.safety_mode = True
@@ -124,20 +131,26 @@ def test_implicit_skill_matching():
     # Test format_convert interception
     success, output = interpreter.execute_shell("pandoc input.md -o output.html")
     assert success
-    assert "format_convert" in output
     assert "智能拦截成功" in output
-    mock_skill_manager.execute.assert_any_call(
-        "format_convert", "run",
-        input="input.md", from_fmt="md", to_fmt="html", save_to="output.html",
-        butler_app=mock_app
-    )
+    assert doc_calls == [
+        (
+            "documents",
+            "convert",
+            {
+                "input": "input.md",
+                "from": "md",
+                "to": "html",
+                "save_to": "output.html",
+            },
+        )
+    ]
 
-    # Test archive_manager interception
+    # Test system 能力归档拦截（archive_manager 已迁移为核心能力）
     success, output = interpreter.execute_shell("zip -r archive.zip folder1")
     assert success
-    assert "archive_manager" in output
-    mock_skill_manager.execute.assert_any_call(
-        "archive_manager", "run",
-        action="zip", zip_path="archive.zip", targets=["folder1"],
-        butler_app=mock_app
-    )
+    assert "智能拦截成功" in output
+    assert (
+        "system",
+        "archive",
+        {"archive_path": "archive.zip", "targets": ["folder1"]},
+    ) in doc_calls

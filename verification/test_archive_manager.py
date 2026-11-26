@@ -8,7 +8,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from skills.archive_manager import manager, handle_request, run
+from butler.core.system.archive_manager import handle_request, manager, run
 
 class TestArchiveManager(unittest.TestCase):
     @classmethod

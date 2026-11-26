@@ -2,8 +2,8 @@ import pytest
 import time
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
-from skills.storage_hub.hub_manager import HubManager
-from skills.storage_hub.adapters.base_adapter import BaseDriveAdapter
+from butler.core.system.storage_hub.adapters.base_adapter import BaseDriveAdapter
+from butler.core.system.storage_hub.hub_manager import HubManager
 
 # A mock adapter class to test real integration flow
 class MockDriveAdapter(BaseDriveAdapter):
@@ -44,7 +44,7 @@ async def test_hub_manager_real_transfer_success():
     manager.register_adapter("dst_mock", dst_drv)
 
     # 3. Mock the storage_bridge.transfer to return success
-    from skills.storage_hub.bridge_client import storage_bridge
+    from butler.core.system.storage_hub.bridge_client import storage_bridge
 
     with patch.object(storage_bridge, "transfer", new_callable=AsyncMock) as mock_transfer:
         mock_transfer.return_value = (True, "Transfer successful via Go Runner")
@@ -98,7 +98,7 @@ async def test_hub_manager_real_transfer_failure():
     manager.register_adapter("src_mock", src_drv)
     manager.register_adapter("dst_mock", dst_drv)
 
-    from skills.storage_hub.bridge_client import storage_bridge
+    from butler.core.system.storage_hub.bridge_client import storage_bridge
 
     with patch.object(storage_bridge, "transfer", new_callable=AsyncMock) as mock_transfer:
         mock_transfer.return_value = (False, "Network error or connection timed out")
@@ -139,7 +139,7 @@ async def test_baidu_adapter_flow():
     # Initialize SecretVault for testing
     secret_vault.initialize("test_master_password_123")
 
-    from skills.storage_hub.adapters.baidu import BaiduAdapter
+    from butler.core.system.storage_hub.adapters.baidu import BaiduAdapter
 
     # Mock bypy's ByPy class
     mock_bypy_instance = MagicMock()

@@ -175,6 +175,11 @@ def features_api(module: str, action: str, payload: dict = None):
         "project": _handle_project_feature,
         "worktree": _handle_worktree_feature,
         "computer": _handle_computer_feature,
+        "reading": _handle_reading_feature,
+        "scanner": _handle_scanner_feature,
+        "version": _handle_version_feature,
+        "cmd": _handle_cmd_feature,
+        "dsh": _handle_dsh_feature,
     }
 
     handler = handlers.get(module)
@@ -317,6 +322,165 @@ def _handle_computer_feature(action: str, payload: dict) -> dict:
         return {"success": False, "error": f"未知计算机操作: {action}"}
 
 # 6. Background Thread API Server Launcher
+_reading_service = None
+
+
+def _get_reading_service():
+    global _reading_service
+    if _reading_service is None:
+        from butler.core.reading import ReadingService
+
+        _reading_service = ReadingService()
+    return _reading_service
+
+
+def _handle_reading_feature(action: str, payload: dict) -> dict:
+    from butler.core.reading.token_budget import explain_text
+    from butler.core.reading.tts_edge import EdgeTTSEngine
+
+    service = _get_reading_service()
+    if action == "voices":
+        return {"voices": EdgeTTSEngine().list_voices()}
+    if action in ("explain_tokens", "tokens"):
+        return explain_text(payload.get("text", ""), payload.get("name", "文本"))
+    if action in ("play", "open"):
+        if payload.get("text"):
+            service.open_text(
+                payload["text"],
+                name=payload.get("name", "文本"),
+                default_rate=payload.get("rate"),
+            )
+        else:
+            service.open(
+                payload.get("source") or payload.get("file"),
+                default_rate=payload.get("rate"),
+            )
+        service.start_background(
+            start=payload.get("start"), resume=bool(payload.get("resume"))
+        )
+        return {"started": True, **service.status()}
+    if action == "pause":
+        service.pause()
+        return {"paused": True}
+    if action == "resume":
+        service.resume()
+        return {"resumed": True}
+    if action == "stop":
+        service.stop()
+        return {"stopped": True}
+    if action == "status":
+        return service.status()
+    raise ValueError(f"未知朗读动作: {action}")
+
+
+def _handle_scanner_feature(action: str, payload: dict) -> dict:
+    from package.document.scanner import (
+        ocr_text,
+        scan_from_camera,
+        scan_images,
+    )
+
+    if action == "scan":
+        paths = payload.get("paths") or payload.get("path")
+        if isinstance(paths, str):
+            paths = [paths]
+        result = scan_images(
+            paths,
+            payload.get("out") or "scan_output.pdf",
+            mode=payload.get("mode", "color"),
+            keep_ink=bool(payload.get("keep_ink", True)),
+            dpi=int(payload.get("dpi", 200)),
+            correct=bool(payload.get("correct", True)),
+        )
+        if payload.get("ocr"):
+            result["text"] = ocr_text(paths)
+        return result
+    if action == "camera":
+        return scan_from_camera(
+            payload.get("out") or "scan_camera.pdf",
+            index=int(payload.get("camera", 0)),
+            mode=payload.get("mode", "color"),
+            keep_ink=bool(payload.get("keep_ink", True)),
+            dpi=int(payload.get("dpi", 200)),
+        )
+    if action == "convert":
+        from package.document.file_converter import convert_file
+
+        target_format = str(payload.get("to", "pdf")).lstrip(".")
+        target = str(payload["file"]).rsplit(".", 1)[0] + "." + target_format
+        convert_file(payload["file"], target, str(__import__("pathlib").Path(target).parent))
+        return {"output": target}
+    raise ValueError(f"未知扫描动作: {action}")
+
+
+def _handle_version_feature(action: str, payload: dict) -> dict:
+    from butler.core.version_store import version_store
+
+    target = payload.get("path") or payload.get("target")
+    if action == "snapshot":
+        return version_store.snapshot(target, message=payload.get("message", ""))
+    if action in ("log", "list"):
+        return {"versions": version_store.list_versions(target)}
+    if action == "diff":
+        return {
+            "diff": version_store.diff(target, payload.get("from"), payload.get("to"))
+        }
+    if action == "restore":
+        return {"restored": version_store.restore(target, payload.get("rev"))}
+    if action == "prune":
+        return version_store.prune(payload.get("keep"))
+    raise ValueError(f"未知版本动作: {action}")
+
+
+def _handle_cmd_feature(action: str, payload: dict) -> dict:
+    from butler.core.command_recorder import CommandSpec, command_recorder
+
+    if action in ("search", "lookup"):
+        return {
+            "commands": command_recorder.search(payload.get("query", "")),
+            "combos": command_recorder.suggest_combo(payload.get("query", "")),
+        }
+    if action == "list":
+        return {"commands": command_recorder.list_by_category(payload.get("category"))}
+    if action == "stats":
+        return command_recorder.stats()
+    if action == "sync":
+        return {"synced": command_recorder.sync_from_catalog()}
+    if action == "promote":
+        return {"promoted": command_recorder.promote(payload.get("min_count"))}
+    if action == "record":
+        argv = payload.get("argv") or []
+        command_recorder.track(
+            payload.get("name", ""), argv, source=payload.get("source", "api")
+        )
+        return {"recorded": payload.get("name")}
+    if action == "upsert":
+        command_recorder.upsert(CommandSpec(**payload))
+        return {"saved": payload.get("name")}
+    raise ValueError(f"未知命令动作: {action}")
+
+
+def _handle_dsh_feature(action: str, payload: dict) -> dict:
+    from butler.core import dsh_adapter
+    from butler.core.plugin_bundle import get_plugin, list_plugins
+
+    if action == "search":
+        return {"plugins": dsh_adapter.search_market(payload.get("keyword", ""))}
+    if action == "install":
+        return dsh_adapter.install(
+            payload["source"], name=payload.get("name"), force=bool(payload.get("force"))
+        )
+    if action == "list":
+        return {"plugins": list_plugins()}
+    if action == "info":
+        return get_plugin(payload.get("name", "")) or {}
+    if action == "enable":
+        return {"enabled": dsh_adapter.set_enabled(payload["name"], True)}
+    if action == "disable":
+        return {"disabled": dsh_adapter.set_enabled(payload["name"], False)}
+    raise ValueError(f"未知插件动作: {action}")
+
+
 def run_api_server(host: str = "0.0.0.0", port: int = 5001, use_ssl: bool = True):
     """Launches the FastAPI Gateway using uvicorn."""
     ssl_cert, ssl_key = None, None

@@ -18,9 +18,9 @@ def test_core_plugins_auto_load():
     assert sm.manifests["quick_launcher"]["is_core"] is True
     assert sm.manifests["clipboard_history"]["is_core"] is True
 
-    # Standard skills (like media_manager or archive_manager) should not be core
-    if "media_manager" in sm.manifests:
-        assert sm.manifests["media_manager"]["is_core"] is False
+    # Standard skills (like ai_memory) should not be core
+    if "ai_memory" in sm.manifests:
+        assert sm.manifests["ai_memory"]["is_core"] is False
 
     # Core plugins should be auto-loaded in loaded_skills
     assert "system_monitor" in sm.loaded_skills

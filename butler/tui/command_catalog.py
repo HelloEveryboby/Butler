@@ -758,6 +758,59 @@ COMMANDS: list[CommandEntry] = [
         tags=["清理", "clean", "追踪", "残留", "删除"],
         example="/track_clean",
     ),
+
+    # ── 内容与文档 ──
+    CommandEntry(
+        name="read", aliases=["朗读", "阅读", "tts", "reader", "有声"],
+        category="📖 内容",
+        description="通用朗读：小说/网页/剪贴板/任意文字",
+        usage="/read <文件|URL> [-p] [-r] [-t 文本] [-c]",
+        detail="支持 txt/md/html/docx/pdf/epub/xlsx/pptx 与网页、剪贴板、管道；\n"
+               "多音色区分角色、自动停顿、按描述调速、断点续读与进度高亮。\n"
+               "--dry-run --out 可在无音频设备时导出 MP3。",
+        tags=["朗读", "阅读", "小说", "网页", "tts", "剪贴板", "read"],
+        example="/read https://example.com/article -r",
+    ),
+    CommandEntry(
+        name="scan", aliases=["扫描", "拍照", "ocr", "扫描仪"],
+        category="📖 内容",
+        description="文档扫描：图片/拍照转 PDF，保留彩色勾画",
+        usage="/scan <图片...> -o 输出.pdf [-m color|pencil|charcoal] [-O] [-t md]",
+        detail="默认输出 PDF；color 模式保留原彩笔迹，pencil/charcoal 适配铅笔素描；\n"
+               "-O/--ocr 追加可复制文字，-t/--to md|docx 同时导出文本。",
+        tags=["扫描", "拍照", "pdf", "ocr", "铅笔", "素描", "勾画", "scan"],
+        example="/scan page.jpg -o page.pdf -k",
+    ),
+    CommandEntry(
+        name="version", aliases=["版本", "历史", "回溯", "版本管理"],
+        category="📖 内容",
+        description="Git 式文件版本管理（含图片/视频快照）",
+        usage="/version log|diff|snapshot|restore <文件> [-m 说明] [-r 版本]",
+        detail="文本文件走真实 Git（只提交该文件），非 Git 目录走影子仓；\n"
+               "图片/视频走内容寻址快照。每次保存可自动建立版本点。",
+        tags=["版本", "git", "diff", "历史", "回滚", "快照", "version"],
+        example="/version diff 文稿.docx -f 3 -t 5",
+    ),
+    CommandEntry(
+        name="cmd", aliases=["命令", "命令记录", "command"],
+        category="🛠️ 系统",
+        description="命令记录器：查询标准命令、统计与自动补录",
+        usage="/cmd search|list|stats|sync|promote [-c 分类] [-n 条数] [-j]",
+        detail="AI 执行前先查标准命令与组合，避免臆造参数；\n"
+               "未登记或高频命令可自动补录为正式命令。",
+        tags=["命令", "记录", "标准命令", "组合", "command", "cli"],
+        example="/cmd search 朗读 -n 5",
+    ),
+    CommandEntry(
+        name="dsh", aliases=["插件市场", "plugin-market", "dsh插件"],
+        category="🛠️ 系统",
+        description="dsh 插件适配：搜索/安装/启停（无需官方软件）",
+        usage="/dsh search|install|list|info|enable|disable [-n 名称] [-f]",
+        detail="复用声明式资产导入，仅加载 skills/commands/agents；\n"
+               "hooks、.mcp.json、dsh_patch 只登记不执行。",
+        tags=["插件", "dsh", "市场", "安装", "plugin"],
+        example="/dsh install github:owner/repo -f",
+    ),
 ]
 
 # ── Linux 风格选项注册表 ─────────────────────────────────────
@@ -1029,6 +1082,54 @@ FLAG_REGISTRY: dict[str, list[FlagDef]] = {
     ],
     "py_eval": [
         FlagDef("-c", "--code", "code", "Python 表达式", required=True),
+    ],
+
+    # ── 内容与文档（GNU/POSIX 风格短选项）──
+    "read": [
+        FlagDef("-o", "--out", "out", "导出 MP3 路径", required=False),
+        FlagDef("-t", "--text", "text", "直接朗读的文本", required=False),
+        FlagDef("-c", "--clipboard", "clipboard", "朗读剪贴板", is_bool=True),
+        FlagDef("-r", "--resume", "resume", "从上次位置续读", is_bool=True),
+        FlagDef("-n", "--start", "start", "起始段号", required=False),
+        FlagDef("-s", "--speed", "speed", "语速倍率", required=False),
+        FlagDef("-m", "--role-map", "role_map", "角色音色映射 JSON", required=False),
+        FlagDef("-a", "--ai", "ai", "LLM 推断角色（消耗 token）", is_bool=True),
+        FlagDef("-p", "--play", "play", "立即播放", is_bool=True),
+        FlagDef("-l", "--show-script", "show_script", "打印片段表", is_bool=True),
+        FlagDef("", "--dry-run", "dry_run", "不播放，仅解析", is_bool=True),
+    ],
+    "scan": [
+        FlagDef("-o", "--out", "out", "输出 PDF 路径", required=False),
+        FlagDef("-m", "--mode", "mode", "增强模式", required=False),
+        FlagDef("-k", "--keep-ink", "keep_ink", "保留彩色笔迹", is_bool=True),
+        FlagDef("-K", "--no-keep-ink", "no_keep_ink", "不保留彩色笔迹", is_bool=True),
+        FlagDef("-d", "--dpi", "dpi", "输出 DPI", required=False),
+        FlagDef("-C", "--no-correct", "no_correct", "跳过透视矫正", is_bool=True),
+        FlagDef("-O", "--ocr", "ocr", "追加 OCR 文本", is_bool=True),
+        FlagDef("-t", "--to", "to", "OCR 文本输出格式", required=False),
+    ],
+    "version": [
+        FlagDef("-m", "--message", "message", "版本说明", required=False),
+        FlagDef("-f", "--from", "rev_a", "起始版本号", required=False),
+        FlagDef("-t", "--to", "rev_b", "结束版本号", required=False),
+        FlagDef("-r", "--rev", "rev", "回滚目标版本号", required=False),
+        FlagDef("-k", "--keep", "keep", "保留版本数", required=False),
+    ],
+    "cmd": [
+        FlagDef("-c", "--category", "category", "分类过滤", required=False),
+        FlagDef("-n", "--limit", "limit", "返回条数", required=False),
+        FlagDef("-j", "--json", "json", "JSON 输出", is_bool=True),
+        FlagDef("-p", "--purpose", "purpose", "命令作用", required=False),
+        FlagDef("-u", "--usage", "usage", "标准用法", required=False),
+        FlagDef("-e", "--example", "example", "示例", required=False),
+        FlagDef("-a", "--alias", "alias", "别名", required=False),
+        FlagDef("-r", "--risk", "risk", "风险级别", required=False),
+        FlagDef("-s", "--source", "source", "来源", required=False),
+    ],
+    "dsh": [
+        FlagDef("-j", "--json", "json", "JSON 输出", is_bool=True),
+        FlagDef("-n", "--name", "name", "插件名", required=False),
+        FlagDef("-f", "--force", "force", "覆盖安装", is_bool=True),
     ],
 }
 

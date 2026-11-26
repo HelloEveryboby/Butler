@@ -77,13 +77,18 @@ audio = [
     "pyaudio",
     "sounddevice",
     "pvrecorder",
-    "pypinyin"
+    "pypinyin",
+    "edge-tts>=6.1"
 ]
 vision = [
     "opencv-python",
     "pytesseract",
     "Pillow",
     "mss"
+]
+scan-ocr = [
+    "paddleocr>=2.7",
+    "paddlepaddle>=2.6"
 ]
 office = [
     "openpyxl",
@@ -179,7 +184,8 @@ all = [
     "baidu-aip",
     "paramiko",
     "websockets",
-    "pycryptodome"
+    "pycryptodome",
+    "edge-tts>=6.1"
 ]
 
 [project.urls]
@@ -215,6 +221,19 @@ ignore = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["butler"]
+
+[tool.ruff.lint.per-file-ignores]
+# 由 skills/ 迁移而来的第一方核心能力实现：保留原有写法，迁移阶段不做存量 lint 重构。
+"butler/core/media/video_player/*" = ["C416", "F401", "F841", "SIM102", "SIM105"]
+"butler/core/media/media_compress/*" = ["E701", "E722", "F401", "SIM102"]
+"butler/core/media/screen_capture/*" = ["F401"]
+"butler/core/network/cloud_mount/*" = ["B007", "SIM115"]
+"butler/core/network/download_manager/*" = ["E722", "SIM115"]
+"butler/core/system/archive_manager/*" = ["B904", "E722", "F401", "F841", "SIM102", "SIM117", "UP035"]
+"butler/core/system/geek_uninstaller/*" = ["E402", "SIM105"]
+"butler/core/system/security/*" = ["E701"]
+"butler/core/system/skill_sec_radar/*" = ["E701"]
+"butler/core/system/sys_cleaner/*" = ["E701"]
 
 [tool.mypy]
 python_version = "3.10"

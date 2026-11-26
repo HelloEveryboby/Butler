@@ -17,7 +17,7 @@ async def run_verification():
         page = await context.new_page()
 
         # Load the local Storage Hub index.html
-        file_path = "file://" + os.path.abspath("skills/storage_hub/ui/index.html")
+        file_path = "file://" + os.path.abspath("butler/core/system/storage_hub/ui/index.html")
         print(f"Loading page: {file_path}")
         await page.goto(file_path)
 

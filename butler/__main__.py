@@ -92,6 +92,16 @@ def main():
         _launch_init(rest)
     elif mode == "doctor":
         _launch_doctor()
+    elif mode in ("read", "朗读"):
+        _launch_read(rest)
+    elif mode in ("scan", "扫描"):
+        _launch_scan(rest)
+    elif mode == "version":
+        _launch_version(rest)
+    elif mode == "cmd":
+        _launch_cmd(rest)
+    elif mode == "dsh":
+        _launch_dsh(rest)
     elif mode in ("download", "下载"):
         _launch_download(rest)
     else:
@@ -253,6 +263,62 @@ def _launch_download(rest: list):
     download_cli(args.url, output_dir=target_out, daemon=args.daemon)
 
 
+def _track_cli(name: str, argv: list, code: int) -> None:
+    """记录一次 CLI 调用，供命令记录器统计与补录。"""
+    try:
+        from butler.core.command_recorder import command_recorder
+
+        command_recorder.track(name, argv, source="cli", success=code == 0)
+    except Exception:
+        pass
+
+
+def _launch_read(rest: list):
+    """通用朗读（文件/网页/剪贴板/管道）。"""
+    from butler.cli.read_cmd import main as read_main
+
+    code = read_main(rest)
+    _track_cli("read", rest, code)
+    sys.exit(code)
+
+
+def _launch_scan(rest: list):
+    """文档扫描（图片/拍照 → PDF/OCR）。"""
+    from butler.cli.scan_cmd import main as scan_main
+
+    code = scan_main(rest)
+    _track_cli("scan", rest, code)
+    sys.exit(code)
+
+
+def _launch_version(rest: list):
+    """Git 式版本管理。"""
+    from butler.cli.version_cmd import main as version_main
+
+    code = version_main(rest)
+    _track_cli("version", rest, code)
+    sys.exit(code)
+
+
+def _launch_cmd(rest: list):
+    """命令记录器。"""
+    from butler.cli.cmd_cmd import main as cmd_main
+
+    code = cmd_main(rest)
+    if rest and rest[0] not in ("sync", "stats"):
+        _track_cli("cmd", rest, code)
+    sys.exit(code)
+
+
+def _launch_dsh(rest: list):
+    """dsh 插件市场适配。"""
+    from butler.cli.dsh_cmd import main as dsh_main
+
+    code = dsh_main(rest)
+    _track_cli("dsh", rest, code)
+    sys.exit(code)
+
+
 # ────────────────────────────────────────────────────────────
 # 辅助
 # ────────────────────────────────────────────────────────────
@@ -318,6 +384,19 @@ def _print_help():
   butler config show  查看当前 AI 配置
   butler config check 配置健康检查 (重复键/缺失项)
   butler doctor       系统诊断自检
+
+内容与文档:
+  butler read <文件|URL> [-p] [-r]
+                                通用朗读（网页/剪贴板/管道均可）
+  butler read --resume          从上次位置续读
+  butler scan <图片...> -o a.pdf [-m pencil] [-O]
+                                文档扫描 → PDF（保留彩色勾画/铅笔素描）
+  butler version log|diff|snapshot|restore <文件> [-m 说明] [-r 版本]
+                                Git 式文件版本管理（含图片/视频快照）
+  butler cmd search|list|stats [-n 条数] [-j]
+                                命令记录器（AI 查标准命令）
+  butler dsh search|install [-n 名称] [-f]
+                                dsh 插件市场适配（无需官方软件）
 
 通用选项:
   --skip-setup                  跳过初始化向导 (仅 gui/legacy)

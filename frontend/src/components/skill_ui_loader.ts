@@ -45,7 +45,7 @@ class SkillUILoader {
           id: 'storage_hub',
           name: '存储中心',
           icon: 'fa-box-open',
-          frontend_path: 'skills/storage_hub/ui/index.html',
+          frontend_path: 'butler/core/system/storage_hub/ui/index.html',
         },
       ];
     }

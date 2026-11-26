@@ -1,9 +1,9 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from skills.storage_hub.adapters.webdav import WebDAVAdapter
-from skills.storage_hub.adapters.onedrive import OneDriveAdapter
-from skills.storage_hub.adapters.baidu import BaiduAdapter
-from skills.storage_hub.hub_manager import HubManager
+from butler.core.system.storage_hub.adapters.baidu import BaiduAdapter
+from butler.core.system.storage_hub.adapters.onedrive import OneDriveAdapter
+from butler.core.system.storage_hub.adapters.webdav import WebDAVAdapter
+from butler.core.system.storage_hub.hub_manager import HubManager
 
 
 def test_webdav_adapter_file_operations():

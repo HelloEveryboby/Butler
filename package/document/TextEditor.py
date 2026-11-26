@@ -117,6 +117,9 @@ def save_text_file(file_path, content):
         with open(file_path, "w") as file:
             file.write(content)
         logger.info(f"保存文本文件：{file_path}")
+        from butler.core.version_hooks import snapshot_after_save
+
+        snapshot_after_save(file_path, "文本编辑器保存")
     except Exception as e:
         logger.error(f"保存文本文件出错：{e}")
 
@@ -126,6 +129,9 @@ def save_image_file(file_path, new_name):
         image = Image.open(file_path)
         image.save(new_name)
         logger.info(f"保存图片文件：{new_name}")
+        from butler.core.version_hooks import snapshot_after_save
+
+        snapshot_after_save(new_name, "文本编辑器保存图片")
     except Exception as e:
         logger.error(f"保存 {new_name} 图片文件出错：{e}")
 

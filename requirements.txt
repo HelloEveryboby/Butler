@@ -36,6 +36,7 @@ pytesseract
 python-dateutil
 python-dotenv
 pyttsx3
+edge-tts>=6.1  # 小说朗读：微软神经音色（免费，无 API Key）
 pyaudio
 pydub
 sounddevice

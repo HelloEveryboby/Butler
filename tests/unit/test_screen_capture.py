@@ -3,7 +3,7 @@ Unit tests for Screen Capture & Recording Skill
 """
 import unittest
 import os
-from skills.screen_capture import main
+from butler.core.media.screen_capture import main
 
 class TestScreenCapture(unittest.TestCase):
     def test_full_screenshot(self):
