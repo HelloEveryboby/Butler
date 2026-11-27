@@ -216,7 +216,7 @@ def _use_provider(args):
         print("可选: " + ", ".join(PROVIDER_DEFAULTS))
         return
     provider_name = None
-    model = base_url = None
+    model = base_url = label = None
     i = 0
     while i < len(args):
         item = args[i]
@@ -225,6 +225,9 @@ def _use_provider(args):
             i += 2
         elif item in ("--base-url", "-b") and i + 1 < len(args):
             base_url = args[i + 1]
+            i += 2
+        elif item in ("--name", "-n") and i + 1 < len(args):
+            label = args[i + 1]
             i += 2
         else:
             if provider_name is None:
@@ -239,11 +242,16 @@ def _use_provider(args):
         api_keys.set_env_var("MODEL_NAME", model)
     if base_url:
         api_keys.set_env_var("API_BASE_URL", base_url)
-    print(f"{_GR}✅ 当前 AI 提供商已切换为: {provider}{_NC}")
+    if label is not None:
+        api_keys.set_env_var("CUSTOM_PROVIDER_NAME", label)
+    display = label or PROVIDER_DEFAULTS.get(provider, {}).get("display_name", provider)
+    print(f"{_GR}✅ 当前 AI 提供商已切换为: {provider}（{display}）{_NC}")
     if model:
         print(f"   模型: {model}")
     if base_url:
         print(f"   地址: {base_url}")
+    if label:
+        print(f"   自定义名称: {label}")
     api_keys.load_env()
     if not os.getenv(api_keys.SERVICE_KEYS[provider][0]):
         print(f"{_YE}⚠️ 尚未配置 {api_keys.SERVICE_KEYS[provider][0]}，"
