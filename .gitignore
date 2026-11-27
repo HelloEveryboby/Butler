@@ -32,6 +32,7 @@ temp_android_repo/
 butler-memory/
 
 # Executables and bin/ artifacts
+programs/butler_runner/runner
 **/*_exec
 **/sysutil
 **/memos_service
