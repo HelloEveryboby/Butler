@@ -18,8 +18,15 @@ if [ -z "$TOKEN" ]; then
 fi
 
 if [ ! -f "./runner" ]; then
-    echo "[ERROR] runner binary not found! Please compile it first."
-    exit 1
+    echo "[INFO] runner binary not found, compiling..."
+    if ! command -v go >/dev/null 2>&1; then
+        echo "[ERROR] Go toolchain not found! Please install Go and retry."
+        exit 1
+    fi
+    go build -o runner $(ls *.go | grep -v -e runner_patches.go -e interactive_shell -e _windows.go) || {
+        echo "[ERROR] Build failed."
+        exit 1
+    }
 fi
 
 chmod +x ./runner

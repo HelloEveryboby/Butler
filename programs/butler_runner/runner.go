@@ -3,7 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -40,6 +43,7 @@ type Message struct {
 	BlackboardSnapshot map[string]interface{} `json:"blackboard_snapshot,omitempty"`
 	SkillConfig        *SkillSpawnConfig      `json:"skill_config,omitempty"`
 	RequestID          string                 `json:"request_id,omitempty"`
+	Sig                string                 `json:"sig,omitempty"`
 }
 
 type SkillSpawnConfig struct {
@@ -57,6 +61,22 @@ type Response struct {
 	Error     string      `json:"error,omitempty"`
 	RunnerID  string      `json:"runner_id"`
 	RequestID string      `json:"request_id,omitempty"`
+	Sig       string      `json:"sig,omitempty"`
+}
+
+// computeSig 与 Butler 服务端一致：HMAC-SHA256("type:request_id:payload")。
+func computeSig(msgType, requestID, payload string) string {
+	mac := hmac.New(sha256.New, []byte(*authToken))
+	mac.Write([]byte(fmt.Sprintf("%s:%s:%s", msgType, requestID, payload)))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func verifyMessageSig(msg Message) bool {
+	if msg.Sig == "" {
+		return false
+	}
+	expected := computeSig(msg.Type, msg.RequestID, msg.Payload)
+	return hmac.Equal([]byte(expected), []byte(msg.Sig))
 }
 
 type EnvInfo struct {
@@ -361,6 +381,7 @@ func connect() error {
 		Token:    *authToken,
 		RunnerID: *runnerID,
 		Data:     envInfo,
+		Sig:      computeSig("register", "", ""),
 	}
 	writeMu.Lock()
 	err = c.WriteJSON(regMsg)
@@ -368,6 +389,26 @@ func connect() error {
 	if err != nil {
 		return err
 	}
+
+	// 定期发送签名心跳，避免服务端 60s 心跳超时清理空闲连接。
+	go func(conn *websocket.Conn) {
+		ticker := time.NewTicker(20 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			hb := Message{
+				Type:     "ping",
+				Token:    *authToken,
+				RunnerID: *runnerID,
+				Sig:      computeSig("ping", "", ""),
+			}
+			writeMu.Lock()
+			err := conn.WriteJSON(hb)
+			writeMu.Unlock()
+			if err != nil {
+				return
+			}
+		}
+	}(c)
 
 	for {
 		_, message, err := c.ReadMessage()
@@ -382,7 +423,7 @@ func connect() error {
 			continue
 		}
 
-		if msg.Token != *authToken {
+		if msg.Token != *authToken && !verifyMessageSig(msg) {
 			log.Println("🚫 身份验证失败，忽略消息")
 			continue
 		}
@@ -432,6 +473,7 @@ func connect() error {
 				Data:     latest,
 				RunnerID: *runnerID,
 				Token:    *authToken,
+				Sig:      computeSig("metrics", "", ""),
 			}
 			writeMu.Lock()
 			c.WriteJSON(metricsMsg)
@@ -1002,6 +1044,7 @@ func sendResp(c *websocket.Conn, status string, data interface{}, errMsg string)
 		Data:     data,
 		Error:    errMsg,
 		RunnerID: *runnerID,
+		Sig:      computeSig("", "", ""),
 	}
 	writeMu.Lock()
 	defer writeMu.Unlock()
@@ -1017,6 +1060,7 @@ func sendRespWithID(c *websocket.Conn, status string, data interface{}, errMsg s
 		Error:     errMsg,
 		RunnerID:  *runnerID,
 		RequestID: requestID,
+		Sig:       computeSig("", requestID, ""),
 	}
 	writeMu.Lock()
 	defer writeMu.Unlock()
