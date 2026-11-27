@@ -13,6 +13,7 @@ Dream × Butler 集成适配层。
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
@@ -94,6 +95,39 @@ def save_forest(forest: DiscoveryForest,
         logger.warning("[Dream] 历史保存失败: %s", e)
 
 
+def policy_path(settings: Optional[Dict[str, Any]] = None) -> Path:
+    settings = settings or load_settings()
+    return Path(settings.get("data_dir", "data/dream")) / "policy.json"
+
+
+def load_policy(settings: Optional[Dict[str, Any]] = None) -> ExplorationPolicy:
+    """加载上一次做梦选出的策略；无存档时回退到默认 AdaptivePolicy。"""
+    settings = settings or load_settings()
+    path = policy_path(settings)
+    if path.exists():
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            params = dict(raw.get("params", raw))
+            params.pop("name", None)
+            return AdaptivePolicy(**params)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[Dream] 策略加载失败，使用默认策略: %s", e)
+    return AdaptivePolicy(seed=config_from_settings(settings).seed)
+
+
+def save_policy(policy: ExplorationPolicy,
+                settings: Optional[Dict[str, Any]] = None) -> None:
+    """持久化策略参数，使自我改进可以跨进程累积。"""
+    settings = settings or load_settings()
+    try:
+        path = policy_path(settings)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(policy.to_dict(), ensure_ascii=False, indent=2),
+                        encoding="utf-8")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[Dream] 策略保存失败: %s", e)
+
+
 def make_developer(nlu_service=None, seed: int = 0):
     """构建 policy-development agent：优先 LLM，无 LLM 时参数化进化。"""
     parametric = ParametricDeveloper(seed=seed)
@@ -148,7 +182,7 @@ def build_orchestrator(attempt_fn: Callable[[Dict[str, Any]], AttemptResult],
     """装配一个接入 Butler 的 Dream 编排器（自动加载历史森林）。"""
     settings = settings or load_settings()
     cfg = config_from_settings(settings)
-    policy = policy or AdaptivePolicy(seed=cfg.seed)
+    policy = policy or load_policy(settings)
     forest = load_forest(settings)
     return DreamOrchestrator(
         attempt_fn=attempt_fn,

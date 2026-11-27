@@ -21,6 +21,7 @@ def status() -> Dict[str, Any]:
     return {
         "enabled": settings.get("enabled", True),
         "forest": forest.summary(),
+        "policy": butler_adapter.load_policy(settings).to_dict(),
         "settings": {k: v for k, v in settings.items() if k != "enabled"},
     }
 
@@ -35,14 +36,16 @@ def trigger_dream(nlu_service=None) -> Dict[str, Any]:
     dreamer = Dreamer(forest, W=cfg.W, K2=cfg.K2, M=cfg.M,
                       beta1=cfg.beta1, beta2=cfg.beta2,
                       developer=butler_adapter.make_developer(nlu_service, seed=cfg.seed))
-    report = dreamer.dream(AdaptivePolicy(seed=cfg.seed))
+    report = dreamer.dream(butler_adapter.load_policy(settings))
     butler_adapter.save_forest(forest, settings)
+    butler_adapter.save_policy(report.best_policy, settings)
     return {"ok": True, **report.summary()}
 
 
 def get_policy(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """查看（可选：应用给定参数后的）探索策略参数与语义说明。"""
-    policy = AdaptivePolicy(**(params or {}))
+    policy = (AdaptivePolicy(**params) if params
+              else butler_adapter.load_policy())
     return {
         "policy": policy.to_dict(),
         "meaning": {
@@ -55,9 +58,11 @@ def get_policy(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
 
 
 def set_params(**params: Any) -> Dict[str, Any]:
-    """校验并返回一组合法的策略参数（供写入配置/传入编排器）。"""
-    policy = AdaptivePolicy()
+    """校验并持久化策略参数（data_dir/policy.json），下次做梦直接生效。"""
+    settings = butler_adapter.load_settings()
+    policy = butler_adapter.load_policy(settings)
     policy.set_params(params)
+    butler_adapter.save_policy(policy, settings)
     return {"ok": True, "policy": policy.to_dict()}
 
 

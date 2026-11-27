@@ -371,8 +371,9 @@ class HybridMemoryManager:
     """混合日志记忆系统管理。"""
     def __init__(self, root=None):
         self._logger = LogManager.get_logger(__name__)
-        p_root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
-        self.root = os.path.abspath(root or os.path.join(p_root, "data", "butler_memory"))
+        from butler.core.constants import DATA_DIR, PROJECT_ROOT
+        p_root = str(PROJECT_ROOT)
+        self.root = os.path.abspath(root or os.path.join(str(DATA_DIR), "butler_memory"))
         self.log_dir = os.path.join(self.root, "memory")
         self.long_term_file = os.path.join(self.root, "MEMORY.md")
         os.makedirs(self.log_dir, exist_ok=True)
