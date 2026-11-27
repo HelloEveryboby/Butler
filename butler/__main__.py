@@ -239,8 +239,7 @@ def _launch_config(rest: list):
     except ImportError as e:
         _friendly_import_error(e)
         return
-    sub = rest[0] if rest else ""
-    config_cmd.run_config(sub)
+    config_cmd.run_config(rest)
 
 
 def _launch_init(rest: list):
@@ -391,6 +390,10 @@ def _print_help():
   butler config       交互式配置 AI 服务商与密钥
   butler config show  查看当前 AI 配置
   butler config check 配置健康检查 (重复键/缺失项)
+  butler config list  列出全部 API Key 状态（脱敏/来源）
+  butler config set <服务> [密钥]   写入 .env（省略密钥则隐藏输入）
+  butler config remove <服务>       删除指定密钥
+  butler config use <服务商>        切换 AI_PROVIDER
   butler doctor       系统诊断自检
   butler dream status|run|params
                                 做梦引擎：状态 / 触发做梦 / 探索策略参数

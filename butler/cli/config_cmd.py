@@ -5,11 +5,13 @@
 并持久化写入 .env。与 GUI 向导、安装脚本共享同一套 PROVIDER_DEFAULTS。
 """
 import os
+import sys
 import getpass
 from pathlib import Path
 
 from dotenv import set_key, load_dotenv
 
+from butler.core import api_keys
 from butler.core.config_model import PROVIDER_DEFAULTS, PROVIDER_KEY_PATHS
 
 
@@ -22,7 +24,7 @@ _NC = "\033[0m"
 
 
 def _env_path() -> Path:
-    return Path(__file__).resolve().parent.parent.parent / ".env"
+    return api_keys.env_file()
 
 
 def _show_current():
@@ -155,12 +157,100 @@ def _check_config():
         print("   ✅ 配置健康。可随时用 butler config 重新配置、butler config show 查看。")
 
 
-def run_config(subaction: str = ""):
-    """运行交互式配置向导。
+def _print_keys():
+    """打印全部服务的密钥状态（分组、脱敏、来源）。"""
+    rows = api_keys.status()
+    print(f"{_BD}─── API Key 配置状态 ───{_NC}")
+    print(f"  文件: {api_keys.env_file()}")
+    for group, label in api_keys.GROUP_LABELS.items():
+        group_rows = [r for r in rows if r["group"] == group]
+        if not group_rows:
+            continue
+        print(f"\n  [{label}]")
+        for r in group_rows:
+            mark = "✅" if r["configured"] else "—"
+            source = f" ({r['source']})" if r["source"] != "-" else ""
+            print(f"     {mark} {r['service']:<14} {r['env']:<22} {r['masked']}{source}")
+    print(f"\n  设置: {_CY}butler config set <服务> [密钥]{_NC}   "
+          f"删除: {_CY}butler config remove <服务>{_NC}   "
+          f"切换: {_CY}butler config use <服务商>{_NC}")
 
-    Args:
-        subaction: 可选子命令。`show` 仅显示当前配置。
+
+def _set_key(args):
+    """butler config set <服务> [密钥]；省略密钥时隐藏输入。"""
+    if not args:
+        print(f"{_YE}用法: butler config set <服务> [密钥]{_NC}")
+        print("可用服务: " + ", ".join(sorted(api_keys.SERVICE_KEYS)))
+        return
+    service = args[0]
+    value = args[1] if len(args) > 1 else getpass.getpass(
+        f"输入 {service} 的密钥（隐藏）: ").strip()
+    try:
+        env_name, masked = api_keys.set_key_value(service, value)
+    except KeyError as e:
+        print(f"{_YE}{e}{_NC}")
+        return
+    except ValueError as e:
+        print(f"{_YE}{e}{_NC}")
+        return
+    print(f"{_GR}✅ 已写入 {env_name} = {masked}  ({api_keys.env_file()}){_NC}")
+
+
+def _remove_key(args):
+    """butler config remove <服务>"""
+    if not args:
+        print(f"{_YE}用法: butler config remove <服务>{_NC}")
+        return
+    try:
+        env_name = api_keys.remove_key_value(args[0])
+    except KeyError as e:
+        print(f"{_YE}{e}{_NC}")
+        return
+    print(f"{_GR}✅ 已删除 {env_name}{_NC}")
+
+
+def _use_provider(args):
+    """butler config use <服务商>：切换 AI_PROVIDER。"""
+    if not args:
+        print(f"{_YE}用法: butler config use <服务商>{_NC}")
+        print("可选: " + ", ".join(PROVIDER_DEFAULTS))
+        return
+    try:
+        provider = api_keys.use_provider(args[0])
+    except KeyError as e:
+        print(f"{_YE}{e}{_NC}")
+        return
+    print(f"{_GR}✅ 当前 AI 提供商已切换为: {provider}{_NC}")
+    api_keys.load_env()
+    if not os.getenv(api_keys.SERVICE_KEYS[provider][0]):
+        print(f"{_YE}⚠️ 尚未配置 {api_keys.SERVICE_KEYS[provider][0]}，"
+              f"可运行: butler config set {provider} <密钥>{_NC}")
+
+
+def run_config(rest=""):
+    """运行配置命令。
+
+    - 无参数：交互式向导
+    - show / check：查看当前配置 / 配置健康检查
+    - list / set / remove / use：统一 API Key 管理
     """
+    args = [rest] if isinstance(rest, str) else list(rest or [])
+    action = args[0] if args else ""
+    tail = args[1:]
+
+    if action == "list":
+        _print_keys()
+        return
+    if action == "set":
+        _set_key(tail)
+        return
+    if action in ("remove", "unset", "delete"):
+        _remove_key(tail)
+        return
+    if action == "use":
+        _use_provider(tail)
+        return
+
     env = _env_path()
     # 确保 .env 存在
     if not env.exists():
@@ -168,12 +258,16 @@ def run_config(subaction: str = ""):
         env.touch()
     load_dotenv(env, override=True)
 
-    if subaction == "show":
+    if action == "show":
         _show_current()
         return
 
-    if subaction == "check":
+    if action == "check":
         _check_config()
+        return
+
+    if not sys.stdin.isatty():
+        print("非交互环境：请改用 butler config list / set / remove / use / show / check")
         return
 
     _show_current()
