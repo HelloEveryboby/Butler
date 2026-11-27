@@ -92,6 +92,8 @@ def main():
         _launch_init(rest)
     elif mode == "doctor":
         _launch_doctor()
+    elif mode == "dream":
+        _launch_dream(rest)
     elif mode in ("read", "朗读"):
         _launch_read(rest)
     elif mode in ("scan", "扫描"):
@@ -222,6 +224,12 @@ def _launch_doctor():
     """系统诊断自检."""
     from butler.cli import doctor_cmd
     doctor_cmd.run_doctor()
+
+
+def _launch_dream(rest: list):
+    """做梦引擎管理 (status|run|params)."""
+    from butler.cli.dream_cmd import run_dream_cli
+    sys.exit(run_dream_cli(rest))
 
 
 def _launch_config(rest: list):
@@ -384,6 +392,8 @@ def _print_help():
   butler config show  查看当前 AI 配置
   butler config check 配置健康检查 (重复键/缺失项)
   butler doctor       系统诊断自检
+  butler dream status|run|params
+                                做梦引擎：状态 / 触发做梦 / 探索策略参数
 
 内容与文档:
   butler read <文件|URL> [-p] [-r]

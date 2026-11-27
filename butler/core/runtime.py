@@ -33,6 +33,7 @@ class ButlerRuntime:
         self.agent: Optional[Agent] = None
         self.workflow: Optional[WorkflowEngine] = None
         self.auditor = SecurityAuditor()
+        self.dream_engine = None
 
     def init(self):
         """
@@ -53,6 +54,15 @@ class ButlerRuntime:
         # 3. 添加默认的诊断心跳调度服务
         self.scheduler.add_job("system_ping", 60, lambda: logger.info("系统定时心跳检查正常。"))
 
+        # 4. 做梦引擎（记忆整合 + RSI 策略自改进），每 4 小时检查一次（内部 24h 冷却）
+        try:
+            from butler.core.dream_engine import DreamEngine
+
+            self.dream_engine = DreamEngine(None)
+            self.scheduler.add_job("dream", 4 * 3600, self._run_dream)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"做梦引擎初始化失败（不影响主服务）: {e}")
+
         self.lifecycle.set_state(LifecycleState.RUNNING)
         logger.info("Butler 核心运行时已全部就位并处于激活（RUNNING）状态。")
 
@@ -65,6 +75,14 @@ class ButlerRuntime:
 
         if run_api_server:
             self._start_api_server()
+
+    def _run_dream(self):
+        """定时做梦（调度线程内执行，异常不阻断服务）。"""
+        try:
+            if self.dream_engine is not None:
+                self.dream_engine.dream()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[Dream] 定时做梦失败: {e}")
 
     def stop(self):
         self.lifecycle.set_state(LifecycleState.STOPPING)
