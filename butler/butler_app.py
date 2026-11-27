@@ -199,6 +199,16 @@ class Butler:
             self.agent_bridge = None
             self.logger.warning(f"[Agent] Native runtime unavailable, using legacy loop: {e}")
 
+        # 主动代理：按配置启动周期任务调度器（默认关闭，避免后台消耗额度）
+        try:
+            if self.config.get("agent", {}).get("scheduler_autostart", False):
+                from butler.core.agent_scheduler import get_scheduler
+
+                get_scheduler().start()
+                self.logger.info("[Agent] 主动代理调度器已启动")
+        except Exception as e:
+            self.logger.warning(f"[Agent] 调度器启动失败: {e}")
+
         # Print Geek Startup Banner
         self._print_startup_banner(headless)
 

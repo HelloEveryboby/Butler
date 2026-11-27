@@ -206,6 +206,11 @@ class SubagentManager:
         logger.info(f"Loaded {count} subagent definitions from {dir_path}")
         return count
 
+    def load_builtin_agents(self) -> int:
+        """加载随包内置的通用子代理（explorer / reviewer / worker）。"""
+        builtin_dir = Path(__file__).resolve().parent / "subagents"
+        return self.load_from_directory(builtin_dir)
+
     def list_agents(self) -> list[SubagentDefinition]:
         """列出所有已注册的 subagent。"""
         return list(self._definitions.values())

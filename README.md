@@ -134,6 +134,7 @@ Butler UI 3.0 彻底颠覆了传统的单维网页导航，引入了 **$2 \times
 除了硬核底层之外，Butler 已经内置了大量杀手级应用：
 
 * 🤖 **原生 Agent 运行时**：聊天与 `butler agent run` 都由 LLM 原生 tool calling 驱动——自主选择内置工具（read/write/edit/bash…）与 Butler 技能，连续执行直到任务完成，全过程落库可追溯（详见 [docs/agent-runtime.md](./docs/agent-runtime.md)）。
+* 🧠 **子代理 / 长期记忆 / 主动代理 / MCP**：`task` 工具把子任务委派给隔离上下文的 explorer/reviewer/worker；任务经验沉淀进 `MEMORY.md` 并在同类任务时召回；`butler agent schedule` 管理定时任务；配置 MCP server 后自动获得 `mcp_<server>_<tool>` 工具（详见 [docs/agent-features.md](./docs/agent-features.md)）。
 * 🎙️ **多模态语音交互**：支持本地/百度双端语音。缺省状态下默认走 `LocalVoiceEngine`（本地 Whisper + 离线语音合成），百度云/Picovoice 作为进阶选项，完全免除 Key 申请门槛。
 * 📊 **Excel 财务大师 & PDF 助手**：内置高级 Excel 创建与计算公式引擎、多格式文档清理转换工具（基于 Microsoft / LibreOffice 互通规范），一键处理本地繁杂表格。
 * 🎵 **影音娱乐多媒体中心**：具备盘符级及挂载点（`/media` / `/mnt`）自动扫描功能，完美支持跨盘多媒体播放，还附带了背景历史的离线百科问答。

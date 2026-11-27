@@ -85,6 +85,7 @@ class Agent:
         skill_manager: Any = None,
         max_turns: Optional[int] = None,
         workspace_root: Optional[str] = None,
+        memory: Any = None,
     ):
         self.role = role
         if db_path is None:
@@ -100,6 +101,8 @@ class Agent:
         self.skill_manager = skill_manager if skill_manager is not None else self._load_skill_manager()
         self.skill_tool_map: Dict[str, str] = {}
         self._runtime = None
+        self.subagent_manager = self._load_subagents()
+        self.memory = memory if memory is not None else self._load_memory()
 
         self._ensure_schema()
 
@@ -114,6 +117,35 @@ class Agent:
             return manager
         except Exception as exc:  # pragma: no cover - 环境相关
             logger.warning("Agent: 技能加载失败，仅使用内置工具: %s", exc)
+            return None
+
+    def _load_subagents(self):
+        """加载内置子代理与用户自定义子代理。"""
+        try:
+            from butler.core.agent_runtime.subagent_manager import SubagentManager
+
+            manager = SubagentManager()
+            manager.load_builtin_agents()
+            manager.load_from_directory(Path.home() / ".butler" / "agents")
+            manager.load_from_directory(Path.cwd() / ".butler" / "agents")
+            return manager
+        except Exception as exc:
+            logger.warning("子代理加载失败: %s", exc)
+            return None
+
+    def _load_memory(self):
+        """长期记忆：自动沉淀任务经验，并在下次同类任务时召回。"""
+        try:
+            from butler.core.agent_memory import AgentMemory
+
+            enabled = bool(_config_get("agent.memory", True))
+            return AgentMemory(
+                db_path=str(self.db_path),
+                enabled=enabled,
+                markdown_path=_config_get("agent.memory_file") or None,
+            )
+        except Exception as exc:
+            logger.warning("长期记忆初始化失败: %s", exc)
             return None
 
     def _ensure_schema(self) -> None:
@@ -148,6 +180,12 @@ class Agent:
         registry = ToolRegistry()
         register_builtin_tools(registry, workspace_root=self.workspace_root)
         register_native_tools(registry)
+        try:
+            from butler.core.agent_runtime.mcp_stdio import register_mcp_tools
+
+            register_mcp_tools(registry)
+        except Exception as exc:
+            logger.warning("MCP 工具接入失败: %s", exc)
 
         if self.skill_manager is not None:
             max_tools = _as_int(_config_get("agent.max_skill_tools", 40), 40)
@@ -226,6 +264,10 @@ class Agent:
             context_manager=ContextManager(token_limit=120000, compaction_threshold=0.8),
             event_stream=EventStream(),
         )
+
+        from butler.core.agent_runtime.subagent_tools import register_subagent_tools
+
+        register_subagent_tools(self._runtime.tools, self._runtime, self.subagent_manager)
         return self._runtime
 
     # ------------------------------------------------------------------ 任务
@@ -248,6 +290,19 @@ class Agent:
             self._update_task_db(task_id, "failed", task_input, report)
             return self._result(task_id, "failed", [], {}, report, "error", 0)
 
+        initial_messages = None
+        if self.memory is not None:
+            try:
+                block = self.memory.format_for_prompt(
+                    task_input, limit=int(_config_get("agent.memory_limit", 3))
+                )
+                if block:
+                    from butler.core.agent_runtime.types import Message
+
+                    initial_messages = [Message(role="system", content=block)]
+            except Exception as exc:
+                logger.warning("召回历史经验失败: %s", exc)
+
         try:
             if (session_id or resume) and not runtime.config.checkpoint_dir:
                 runtime.config.checkpoint_dir = str(
@@ -256,6 +311,7 @@ class Agent:
                 )
             raw = runtime.run(
                 user_input=task_input,
+                initial_messages=initial_messages,
                 session_id=session_id,
                 resume=resume,
             )
@@ -294,6 +350,11 @@ class Agent:
             report = response or f"任务失败（stop_reason={stop_reason}）。"
 
         self._update_task_db(task_id, status, task_input, report)
+        if self.memory is not None:
+            try:
+                self.memory.remember(task_input, report, status, [p.get("tool") for p in plan][:10])
+            except Exception as exc:
+                logger.warning("沉淀任务经验失败: %s", exc)
         logger.info("[%s] 任务 %s 结束: %s (%d 轮)", self.role, task_id, status, turns)
         return self._result(task_id, status, plan, results, report, stop_reason, turns)
 

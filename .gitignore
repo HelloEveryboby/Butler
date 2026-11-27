@@ -77,3 +77,6 @@ data/dream/
 plugins/
 # 归档/测试缓存产物
 data/archive_cache/
+
+# Agent 运行时记忆
+butler/data/butler_memory/

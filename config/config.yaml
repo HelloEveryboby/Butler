@@ -152,3 +152,14 @@ agent:
   permission_mode: default # default | accept_edits | auto | plan | bypass_permissions
   auto_confirm: true       # 无 UI 时自动批准非只读工具（自毁命令始终拒绝）
   expose_intents: false    # 额外暴露意图处理器为工具
+  memory: true             # 任务经验自动沉淀 / 召回
+  memory_limit: 3          # 每次召回的历史经验条数
+  # memory_file: butler/data/butler_memory/MEMORY.md
+  scheduler_autostart: false  # 启动时运行主动代理调度器（butler agent schedule）
+
+# MCP 工具服务器（stdio）：配置后 Agent 自动获得 mcp_<server>_<tool> 工具
+mcp:
+  servers: []
+  # - name: filesystem
+  #   command: npx
+  #   args: ["-y", "@modelcontextprotocol/server-filesystem", "/root/workspace"]

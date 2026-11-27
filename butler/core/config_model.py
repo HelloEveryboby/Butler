@@ -299,11 +299,29 @@ class AgentRuntimeConfig(BaseModel):
     permission_mode: str = "default"  # default | accept_edits | auto | plan | bypass_permissions
     auto_confirm: bool = True     # 无 UI 时是否自动批准非只读工具
     expose_intents: bool = False  # 是否额外把 IntentRegistry 的意图注册为工具
+    memory: bool = True           # 任务经验自动沉淀 / 召回
+    memory_limit: int = 3         # 每次召回的历史经验条数
+    memory_file: str | None = None  # 经验落盘路径（默认 butler/data/butler_memory/MEMORY.md）
+    scheduler_autostart: bool = False  # Butler 启动时是否运行主动代理调度器
+
+
+class McpServerConfig(BaseModel):
+    """一个 MCP stdio server 的启动配置。"""
+
+    name: str
+    command: str
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
+
+
+class McpConfig(BaseModel):
+    servers: list[McpServerConfig] = Field(default_factory=list)
 
 
 class ButlerConfig(BaseModel):
     api: ApiConfig = Field(default_factory=ApiConfig)
     agent: AgentRuntimeConfig = Field(default_factory=AgentRuntimeConfig)
+    mcp: McpConfig = Field(default_factory=McpConfig)
     voice: VoiceConfig = Field(default_factory=VoiceConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)

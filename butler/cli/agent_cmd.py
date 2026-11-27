@@ -1,4 +1,6 @@
+import argparse
 import json
+import time
 
 from butler.agent.agent import Agent
 from butler.package_runtime.loader import PackageLoader
@@ -57,3 +59,90 @@ def run_agent_task(
 
     if res["report"]:
         print(f"[*] 数字员工工作成果汇报:\n{res['report']}")
+
+
+def _format_interval(seconds: int) -> str:
+    for unit, size in (("d", 86400), ("h", 3600), ("m", 60), ("s", 1)):
+        if seconds % size == 0:
+            return f"{seconds // size}{unit}"
+    return f"{seconds}s"
+
+
+def run_schedule(argv: list[str]) -> int:
+    """`butler agent schedule` — 管理主动代理的周期任务。"""
+    from butler.core.agent_scheduler import AgentScheduler
+
+    parser = argparse.ArgumentParser(prog="butler agent schedule", description="主动代理定时任务")
+    sub = parser.add_subparsers(dest="action")
+
+    add_p = sub.add_parser("add", help="新增周期任务")
+    add_p.add_argument("prompt", help="交给 Agent 的任务描述")
+    add_p.add_argument("--every", required=True, help="间隔，如 30m / 2h / 1d")
+    add_p.add_argument("--name", help="任务名")
+
+    sub.add_parser("list", help="列出任务")
+
+    remove_p = sub.add_parser("remove", help="删除任务")
+    remove_p.add_argument("id")
+
+    for action in ("enable", "disable"):
+        switch = sub.add_parser(action, help=f"{action} 任务")
+        switch.add_argument("id")
+
+    run_p = sub.add_parser("run", help="立即执行一次")
+    run_p.add_argument("id")
+
+    daemon_p = sub.add_parser("daemon", help="前台运行调度循环")
+    daemon_p.add_argument("--poll", type=float, default=30.0, help="轮询间隔秒数")
+
+    args = parser.parse_args(argv)
+    scheduler = AgentScheduler()
+
+    if args.action == "add":
+        try:
+            job = scheduler.add(args.prompt, args.every, name=args.name)
+        except ValueError as exc:
+            print(f"添加失败: {exc}")
+            return 2
+        print(f"已添加任务 {job['id']}（每 {_format_interval(job['interval_seconds'])}）")
+        return 0
+
+    if args.action == "remove":
+        print("已删除" if scheduler.remove(args.id) else "任务不存在")
+        return 0
+
+    if args.action in ("enable", "disable"):
+        ok = scheduler.set_enabled(args.id, args.action == "enable")
+        print("已更新" if ok else "任务不存在")
+        return 0
+
+    if args.action == "run":
+        job = next((j for j in scheduler.list_jobs() if j["id"] == args.id), None)
+        if not job:
+            print("任务不存在")
+            return 1
+        result = scheduler.run_job(job)
+        print(f"[{result['status']}] {result['output']}")
+        return 0
+
+    if args.action == "daemon":
+        print(f"主动代理调度器启动，每 {args.poll:.0f}s 轮询；Ctrl+C 退出")
+        scheduler.start(poll_seconds=args.poll)
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            scheduler.stop()
+            print("已停止")
+        return 0
+
+    jobs = scheduler.list_jobs()
+    if not jobs:
+        print("还没有定时任务。用 butler agent schedule add \"任务\" --every 30m 创建。")
+        return 0
+    print(f"{'ID':<14}{'间隔':<8}{'状态':<6}{'下次执行':<22}任务")
+    for job in jobs:
+        nxt = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(job["next_run"]))
+        state = "启用" if job["enabled"] else "暂停"
+        print(f"{job['id']:<14}{_format_interval(job['interval_seconds']):<8}{state:<6}{nxt:<22}{job['prompt'][:50]}")
+    return 0

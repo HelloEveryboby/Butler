@@ -187,9 +187,13 @@ def _launch_agent(rest: list):
     run_p = sub.add_parser("run", help="委派任务给员工")
     run_p.add_argument("role", help="员工角色名")
     run_p.add_argument("task", help="任务描述")
+    schedule_p = sub.add_parser("schedule", help="主动代理定时任务（add/list/remove/run/daemon）")
+    schedule_p.add_argument("schedule_args", nargs=argparse.REMAINDER)
     args = p.parse_args(rest)
 
     from butler.cli import agent_cmd
+    if args.subaction == "schedule":
+        sys.exit(agent_cmd.run_schedule(rest[1:]))
     if args.subaction == "run":
         agent_cmd.run_agent_task(args.role, args.task)
     else:

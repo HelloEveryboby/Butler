@@ -118,6 +118,14 @@ class ButlerAgentBridge:
         except Exception as e:
             logger.warning(f"Failed to register native tools: {e}")
 
+        # MCP 工具服务器（stdio）
+        try:
+            from .mcp_stdio import register_mcp_tools
+
+            register_mcp_tools(registry)
+        except Exception as e:
+            logger.warning(f"Failed to register MCP tools: {e}")
+
         # 2. 把 Butler 技能注册为原生工具（LLM 可自主选择）
         skill_manager = getattr(butler, "skill_manager", None)
         if skill_manager is not None:
@@ -184,9 +192,19 @@ class ButlerAgentBridge:
             event_stream=events,
         )
 
-        # 10. 初始化子代理管理器
+        # 10. 初始化子代理管理器（内置 + 用户自定义），并注册 task 工具
         self._subagent_manager = SubagentManager()
+        try:
+            self._subagent_manager.load_builtin_agents()
+        except Exception as e:
+            logger.warning(f"Failed to load builtin subagents: {e}")
         self._load_subagents()
+        try:
+            from .subagent_tools import register_subagent_tools
+
+            register_subagent_tools(self._runtime.tools, self._runtime, self._subagent_manager)
+        except Exception as e:
+            logger.warning(f"Failed to register subagent tools: {e}")
 
         return self._runtime
 
