@@ -393,7 +393,8 @@ def _print_help():
   butler config list  列出全部 API Key 状态（脱敏/来源）
   butler config set <服务> [密钥]   写入 .env（省略密钥则隐藏输入）
   butler config remove <服务>       删除指定密钥
-  butler config use <服务商>        切换 AI_PROVIDER
+  butler config use <服务商> [--model M] [--base-url URL]
+                                切换 AI_PROVIDER（可同时指定模型/接入点与地址）
   butler doctor       系统诊断自检
   butler dream status|run|params
                                 做梦引擎：状态 / 触发做梦 / 探索策略参数

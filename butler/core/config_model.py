@@ -65,6 +65,13 @@ PROVIDER_DEFAULTS = {
         "key_env": "QIANFAN_API_KEY",
         "display_name": "百度文心一言 (千帆)",
     },
+    "ark": {
+        # 火山方舟 Agent Plan（OpenAI 兼容）。模型名可填模型 ID 或推理接入点 ep-xxxx。
+        "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+        "model_name": "doubao-seed-1-6-250615",
+        "key_env": "ARK_API_KEY",
+        "display_name": "火山方舟 (Ark Agent Plan)",
+    },
     "ollama": {
         "base_url": "http://localhost:11434",
         "model_name": "llama3",
@@ -89,6 +96,7 @@ PROVIDER_KEY_PATHS = {
     "gemini":    ("api.gemini_key",    "GEMINI_API_KEY",      "gemini_key"),
     "dashscope": ("api.dashscope_key", "DASHSCOPE_API_KEY",   "dashscope_key"),
     "qianfan":   ("api.qianfan_key",   "QIANFAN_API_KEY",     "qianfan_key"),
+    "ark":       ("api.ark_key",       "ARK_API_KEY",         "ark_key"),
     "ollama":    ("api.ollama_key",    "OLLAMA_API_KEY",      "ollama_key"),
     "custom":    ("api.custom_key",    "CUSTOM_API_KEY",     "custom_key"),
 }
@@ -112,6 +120,7 @@ class ApiConfig(BaseModel):
     gemini_key: str | None = Field(None, alias="GEMINI_API_KEY")
     dashscope_key: str | None = Field(None, alias="DASHSCOPE_API_KEY")
     qianfan_key: str | None = Field(None, alias="QIANFAN_API_KEY")
+    ark_key: str | None = Field(None, alias="ARK_API_KEY")
     ollama_key: str | None = Field(None, alias="OLLAMA_API_KEY")
     custom_key: str | None = Field(None, alias="CUSTOM_API_KEY")
 

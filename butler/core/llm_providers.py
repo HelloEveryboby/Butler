@@ -69,6 +69,12 @@ _PROVIDER_TABLE: dict[str, tuple[str, str, Optional[str]]] = {
         "ernie-4.0-8k",
         "QIANFAN_API_KEY",
     ),
+    # 火山方舟 Agent Plan：OpenAI 兼容；model 可填模型 ID 或接入点 ep-xxxx。
+    "ark": (
+        "https://ark.cn-beijing.volces.com/api/v3",
+        "doubao-seed-1-6-250615",
+        "ARK_API_KEY",
+    ),
     # 本地优先：无鉴权，指向本机 Ollama 的 OpenAI 兼容端点。
     "ollama": ("http://localhost:11434/v1", "llama3.1", None),
 }

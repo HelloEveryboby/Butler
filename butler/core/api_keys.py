@@ -48,6 +48,19 @@ GROUP_LABELS = {
     "internal": "内部凭据",
 }
 
+# 常见别名 → 服务 id（方便按中文/厂商名配置）
+SERVICE_ALIASES = {
+    "方舟": "ark",
+    "火山": "ark",
+    "火山方舟": "ark",
+    "fangzhou": "ark",
+    "volcengine": "ark",
+    "volc": "ark",
+    "huoshan": "ark",
+    "doubao": "ark",
+    "豆包": "ark",
+}
+
 
 def resolve_service(name: str) -> Optional[str]:
     """把用户输入解析为服务 id：支持 id、环境变量名（大小写不敏感）。"""
@@ -57,6 +70,8 @@ def resolve_service(name: str) -> Optional[str]:
     if key in SERVICE_KEYS:
         return key
     lowered = key.lower()
+    if lowered in SERVICE_ALIASES:
+        return SERVICE_ALIASES[lowered]
     for service, (env_name, _label, _group) in SERVICE_KEYS.items():
         if env_name.lower() == lowered:
             return service
@@ -128,6 +143,15 @@ def remove_key_value(service: str, path: Optional[Path] = None) -> str:
         unset_key(str(path), env_name)
     os.environ.pop(env_name, None)
     return env_name
+
+
+def set_env_var(name: str, value: str, path: Optional[Path] = None) -> None:
+    """写入任意环境变量到 .env（如 MODEL_NAME / API_BASE_URL）。"""
+    path = path or env_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch(exist_ok=True)
+    set_key(str(path), name, value)
+    os.environ[name] = value
 
 
 def use_provider(service: str, path: Optional[Path] = None) -> str:

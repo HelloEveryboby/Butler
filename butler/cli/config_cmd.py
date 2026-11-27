@@ -210,17 +210,40 @@ def _remove_key(args):
 
 
 def _use_provider(args):
-    """butler config use <服务商>：切换 AI_PROVIDER。"""
+    """butler config use <服务商> [--model M] [--base-url URL]：切换 AI_PROVIDER。"""
     if not args:
-        print(f"{_YE}用法: butler config use <服务商>{_NC}")
+        print(f"{_YE}用法: butler config use <服务商> [--model <模型/接入点>] [--base-url <URL>]{_NC}")
         print("可选: " + ", ".join(PROVIDER_DEFAULTS))
         return
+    provider_name = None
+    model = base_url = None
+    i = 0
+    while i < len(args):
+        item = args[i]
+        if item in ("--model", "-m") and i + 1 < len(args):
+            model = args[i + 1]
+            i += 2
+        elif item in ("--base-url", "-b") and i + 1 < len(args):
+            base_url = args[i + 1]
+            i += 2
+        else:
+            if provider_name is None:
+                provider_name = item
+            i += 1
     try:
-        provider = api_keys.use_provider(args[0])
+        provider = api_keys.use_provider(provider_name or "")
     except KeyError as e:
         print(f"{_YE}{e}{_NC}")
         return
+    if model:
+        api_keys.set_env_var("MODEL_NAME", model)
+    if base_url:
+        api_keys.set_env_var("API_BASE_URL", base_url)
     print(f"{_GR}✅ 当前 AI 提供商已切换为: {provider}{_NC}")
+    if model:
+        print(f"   模型: {model}")
+    if base_url:
+        print(f"   地址: {base_url}")
     api_keys.load_env()
     if not os.getenv(api_keys.SERVICE_KEYS[provider][0]):
         print(f"{_YE}⚠️ 尚未配置 {api_keys.SERVICE_KEYS[provider][0]}，"
