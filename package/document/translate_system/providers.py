@@ -140,19 +140,32 @@ class OpenAICompatProvider(TranslationProvider):
             ],
             max_tokens=8192,
         )
-        results: List[str] = [""] * len(texts)
+        results: List[Optional[str]] = [None] * len(texts)
         current = -1
         for line in content.split("\n"):
             m = re.match(r"^\[(\d+)\]\s*(.*)", line)
             if m:
-                current = int(m.group(1))
-                results[current] = m.group(2)
+                idx = int(m.group(1))
+                current = idx if 0 <= idx < len(texts) else -1
+                if current >= 0:
+                    if results[current] is None:
+                        results[current] = m.group(2)
+                    else:
+                        results[current] += "\n" + m.group(2)
             elif current >= 0 and line.strip():
-                results[current] += "\n" + line.strip()
-        for i in range(len(results)):
-            if not results[i]:
-                results[i] = texts[i]
-        return results
+                results[current] = (results[current] or "") + "\n" + line.strip()
+
+        # 缺失/空结果的条目单独重试；仍失败则抛错交给降级链，
+        # 绝不把原文静默回填成「译文」。
+        for i, value in enumerate(results):
+            if value and value.strip():
+                continue
+            single = self.translate(texts[i], from_lang, to_lang)
+            if not single or not single.strip():
+                raise RuntimeError(f"批量翻译缺少第 {i} 条结果，且单条重试返回空")
+            results[i] = single
+        return [value if value is not None else texts[i]
+                for value in results]
 
 
 # ---------- Google 免费翻译 ----------

@@ -1,6 +1,12 @@
 /* ============================================================
    翻译缓存 — LRU + chrome.storage 持久化
+   ------------------------------------------------------------
+   缓存键 = 全文哈希 + 长度 + 目标语言 + 翻译源 + 术语签名。
+   旧实现只取前 100 字符 + 长度 + 目标语言，长文本前缀相同会串味；
+   且不区分翻译源/术语表，换源或改术语后仍命中旧译文。
    ============================================================ */
+
+import { GlossaryEntry } from '../utils/types';
 
 const CACHE_KEY = 'butler_translate_cache';
 
@@ -8,6 +14,26 @@ interface CacheEntry {
   translated: string;
   provider: string;
   timestamp: number;
+}
+
+/** FNV-1a 32-bit 哈希（覆盖全文，避免长文本前缀碰撞） */
+function hashText(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+/** 术语签名：术语内容变化时缓存随之失效 */
+export function glossarySignature(glossary: GlossaryEntry[]): string {
+  if (!glossary || glossary.length === 0) return '';
+  const parts = glossary
+    .filter(g => g && g.source)
+    .map(g => `${g.source}\u0001${g.target}`)
+    .sort();
+  return hashText(parts.join('\u0002'));
 }
 
 export class TranslationCache {
@@ -20,14 +46,12 @@ export class TranslationCache {
     this.loadFromStorage();
   }
 
-  private makeKey(text: string, to: string): string {
-    // 简单 hash：取前 100 字符 + 长度 + 目标语言
-    const prefix = text.slice(0, 100);
-    return `${prefix}|${text.length}|${to}`;
+  private makeKey(text: string, to: string, provider = '', glossarySig = ''): string {
+    return `${hashText(text)}|${text.length}|${to}|${provider}|${glossarySig}`;
   }
 
-  get(text: string, to: string): CacheEntry | null {
-    const key = this.makeKey(text, to);
+  get(text: string, to: string, provider = '', glossarySig = ''): CacheEntry | null {
+    const key = this.makeKey(text, to, provider, glossarySig);
     const entry = this.memoryCache.get(key);
     if (entry) {
       // 移到最新（LRU）
@@ -37,8 +61,8 @@ export class TranslationCache {
     return entry ?? null;
   }
 
-  set(text: string, to: string, translated: string, provider: string): void {
-    const key = this.makeKey(text, to);
+  set(text: string, to: string, translated: string, provider: string, glossarySig = ''): void {
+    const key = this.makeKey(text, to, provider, glossarySig);
     // 超过容量淘汰最旧的
     if (this.memoryCache.size >= this.maxSize) {
       const oldest = this.memoryCache.keys().next().value;
@@ -52,8 +76,8 @@ export class TranslationCache {
     this.schedulePersist();
   }
 
-  has(text: string, to: string): boolean {
-    return this.memoryCache.has(this.makeKey(text, to));
+  has(text: string, to: string, provider = '', glossarySig = ''): boolean {
+    return this.memoryCache.has(this.makeKey(text, to, provider, glossarySig));
   }
 
   clear(): void {
@@ -65,15 +89,15 @@ export class TranslationCache {
     return this.memoryCache.size;
   }
 
-  /** 批量查找，返回 { hits, misses, missTexts } */
-  batchLookup(texts: string[], to: string): {
+  /** 批量查找，返回 { hits, misses } */
+  batchLookup(texts: string[], to: string, provider = '', glossarySig = ''): {
     hits: Map<number, string>;
     misses: Map<number, string>;
   } {
     const hits = new Map<number, string>();
     const misses = new Map<number, string>();
     texts.forEach((text, idx) => {
-      const entry = this.get(text, to);
+      const entry = this.get(text, to, provider, glossarySig);
       if (entry) {
         hits.set(idx, entry.translated);
       } else {

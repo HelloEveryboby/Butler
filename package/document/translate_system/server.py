@@ -17,8 +17,11 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
+import tempfile
+from pathlib import Path
 from typing import Optional
 
 try:
@@ -55,6 +58,8 @@ class TranslationBHPServer:
                 await self._handle_translate(websocket, payload)
             elif action == "translate.image":
                 await self._handle_translate_image(websocket, payload)
+            elif action == "export.pdf":
+                await self._handle_export_pdf(websocket, payload)
             elif action == "glossary.list":
                 await websocket.send(json.dumps({
                     "action": "glossary.data",
@@ -121,6 +126,54 @@ class TranslationBHPServer:
             await websocket.send(json.dumps({
                 "action": "translate.error",
                 "payload": {"id": req_id, "error": str(e)},
+            }, ensure_ascii=False))
+
+    async def _handle_export_pdf(self, websocket, payload):
+        """双语 PDF 导出：base64 → 临时文件 → doc_export → data URL。
+
+        请求:  {"action":"export.pdf", "payload":{"id","pdfBase64","filename","to"}}
+        响应:  {"action":"export.pdf.result", "payload":{"id","dataUrl","filename"}}
+        失败:  {"action":"export.pdf.error", "payload":{"id","message"}}
+        """
+        req_id = payload.get("id")
+        to_lang = payload.get("to", "zh-CN")
+        filename = str(payload.get("filename") or "document.pdf")
+        raw_b64 = payload.get("pdfBase64") or payload.get("base64") or ""
+        if isinstance(raw_b64, str) and raw_b64.startswith("data:") and "," in raw_b64:
+            raw_b64 = raw_b64.split(",", 1)[1]
+        try:
+            data = base64.b64decode(raw_b64)
+            if not data:
+                raise RuntimeError("未收到 PDF 文件内容")
+
+            def _export() -> bytes:
+                from .doc_export import export_bilingual
+
+                with tempfile.TemporaryDirectory() as td:
+                    in_path = Path(td) / "input.pdf"
+                    in_path.write_bytes(data)
+                    out_path = Path(td) / "output.bilingual.pdf"
+                    result_path = export_bilingual(
+                        str(in_path), str(out_path), to_lang, engine=self.system
+                    )
+                    return Path(result_path).read_bytes()
+
+            out_bytes = await asyncio.to_thread(_export)
+            b64 = base64.b64encode(out_bytes).decode("ascii")
+            out_name = f"{Path(filename).stem or 'document'}.bilingual.pdf"
+            await websocket.send(json.dumps({
+                "action": "export.pdf.result",
+                "payload": {
+                    "id": req_id,
+                    "dataUrl": f"data:application/pdf;base64,{b64}",
+                    "filename": out_name,
+                },
+            }, ensure_ascii=False))
+        except Exception as e:  # noqa: BLE001
+            logger.exception("export.pdf failed")
+            await websocket.send(json.dumps({
+                "action": "export.pdf.error",
+                "payload": {"id": req_id, "message": str(e)},
             }, ensure_ascii=False))
 
     async def serve_forever(self):

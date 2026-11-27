@@ -29,7 +29,6 @@ import { initFloatingBall, updateBallState } from './ui/floating-ball';
 import { initHoverTranslate } from './dom/injector';
 
 // Observers
-import { startObserving, stopObserving } from './observers/mutation';
 import { initRouterObserver } from './observers/router';
 
 // 状态

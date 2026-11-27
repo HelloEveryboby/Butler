@@ -61,6 +61,63 @@ const SUBTITLE_SITES: SubtitleSiteConfig[] = [
     subtitleSelector: '.player-timedtext-text-container span',
     containerSelector: '.player-timedtext-text-container',
   },
+  // 以下站点没有稳定的字幕 DOM，走原生 <track> 通道（video.textTracks）
+  {
+    name: 'Vimeo',
+    hostPatterns: [/vimeo\.com/],
+    useTextTrack: true,
+    subtitleSelector: '',
+    containerSelector: 'video',
+  },
+  {
+    name: 'TED',
+    hostPatterns: [/ted\.com/],
+    useTextTrack: true,
+    subtitleSelector: '',
+    containerSelector: 'video',
+  },
+  {
+    name: 'Coursera',
+    hostPatterns: [/coursera\.org/],
+    useTextTrack: true,
+    subtitleSelector: '',
+    containerSelector: 'video',
+  },
+  {
+    name: 'Prime Video',
+    hostPatterns: [/primevideo\.com/, /amazon\.com\/.*video/],
+    useTextTrack: true,
+    subtitleSelector: '',
+    containerSelector: 'video',
+  },
+  {
+    name: 'Disney+',
+    hostPatterns: [/disneyplus\.com/],
+    useTextTrack: true,
+    subtitleSelector: '',
+    containerSelector: 'video',
+  },
+  {
+    name: '优酷',
+    hostPatterns: [/youku\.com/],
+    useTextTrack: true,
+    subtitleSelector: '',
+    containerSelector: 'video',
+  },
+  {
+    name: '爱奇艺',
+    hostPatterns: [/iqiyi\.com/],
+    useTextTrack: true,
+    subtitleSelector: '',
+    containerSelector: 'video',
+  },
+  {
+    name: '腾讯视频',
+    hostPatterns: [/v\.qq\.com/],
+    useTextTrack: true,
+    subtitleSelector: '',
+    containerSelector: 'video',
+  },
   {
     name: '通用 HTML5 Video',
     hostPatterns: [/.*/], // 兜底

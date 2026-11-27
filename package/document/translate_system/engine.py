@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -178,6 +179,14 @@ class TranslationSystem:
     def _current_preset(self) -> Optional[Preset]:
         return self.preset_store.get(self._preset_id) or self.preset_store.get("general")
 
+    def _glossary_signature(self) -> str:
+        """术语表签名：术语变化后缓存键随之变化，避免旧译文套新术语。"""
+        items = self.glossary.all()
+        if not items:
+            return ""
+        raw = "\x00".join(f"{k}\x01{v}" for k, v in sorted(items.items()))
+        return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
     def set_preset(self, preset_id: str) -> None:
         """切换 AI 专家 / 行业身份预设。"""
         self._preset_id = preset_id
@@ -266,11 +275,13 @@ class TranslationSystem:
         if not text or not text.strip():
             return text
         target = to or self.config.target_lang
+        provider_name = self._provider.name
+        glossary_sig = self._glossary_signature()
         if from_lang == "auto":
             from_lang = detect_language(text)
 
         if use_cache and self.config.cache_enabled:
-            cached = self.cache.get(text, target)
+            cached = self.cache.get(text, target, provider_name, glossary_sig)
             if cached is not None:
                 return cached
 
@@ -303,7 +314,7 @@ class TranslationSystem:
             return translated
 
         if self.config.cache_enabled:
-            self.cache.set(text, target, translated, self._provider.name)
+            self.cache.set(text, target, translated, provider_name, glossary_sig)
             self.cache.persist()
 
         if record_history:
@@ -324,6 +335,8 @@ class TranslationSystem:
         if not texts:
             return []
         target = to or self.config.target_lang
+        provider_name = self._provider.name
+        glossary_sig = self._glossary_signature()
 
         results: List[str] = [""] * len(texts)
         miss_indices: List[int] = []
@@ -334,7 +347,7 @@ class TranslationSystem:
                 results[idx] = text
                 continue
             if self.config.cache_enabled:
-                cached = self.cache.get(text, target)
+                cached = self.cache.get(text, target, provider_name, glossary_sig)
                 if cached is not None:
                     results[idx] = cached
                     continue
@@ -365,7 +378,7 @@ class TranslationSystem:
                     )
                     continue
                 if self.config.cache_enabled:
-                    self.cache.set(original, target, value, self._provider.name)
+                    self.cache.set(original, target, value, provider_name, glossary_sig)
                 self.tm.record(original, value, det_from, target, self._provider.name)
             if self.config.cache_enabled:
                 self.cache.persist()

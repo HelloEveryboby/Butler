@@ -5,7 +5,8 @@
 
 import { loadConfig, saveConfig } from '../utils/storage';
 import { TranslateConfig, MsgType, MsgResponse, TranslationResult, ProviderConfig, HistoryEntry, TranslateOptions, PageContext } from '../utils/types';
-import { TranslationCache } from './cache';
+import { TranslationCache, glossarySignature } from './cache';
+import { isTrustworthy } from './trust';
 import { createProvider, createProviderWithFallback } from './providers/registry';
 import { TranslationProvider } from '../utils/types';
 import { withTimeout, retryWithSplit } from '../utils/retry';
@@ -13,10 +14,24 @@ import { applyGlossary } from './glossary';
 import { ButlerBhlClient } from './bhl';
 import { getPageContext, LlmCaller } from './ctx';
 import { resolvePresetForSite } from '../utils/presets';
+import { detectLanguageQuick } from '../utils/languages';
 
 // ---------- 全局状态 ----------
 let config: TranslateConfig | null = null;
-const cache = new TranslationCache();
+let cache = new TranslationCache();
+let cacheMaxSize = 2000;
+/** 当前术语表签名，参与缓存键（术语变化即失效旧译文） */
+let cacheGlossarySig = '';
+
+/** 同步缓存配置：容量变化才重建实例，术语变化只更新签名（避免丢失未落盘条目） */
+function rebuildCache(): void {
+  const max = config?.cacheMaxSize ?? 2000;
+  if (max !== cacheMaxSize) {
+    cache = new TranslationCache(max);
+    cacheMaxSize = max;
+  }
+  cacheGlossarySig = glossarySignature(config?.glossary || []);
+}
 const HISTORY_KEY = 'butler_translate_history';
 
 // ---------- 历史 ----------
@@ -58,6 +73,7 @@ async function recordHistory(results: TranslationResult[], to: string): Promise<
 // ---------- 初始化 ----------
 async function init() {
   config = await loadConfig();
+  rebuildCache();
   setupContextMenu();
   console.log('[ButlerTranslate] Service worker initialized');
 }
@@ -132,8 +148,15 @@ async function handleTranslate(
       ? createProvider(config!.providers.find(p => p.id === providerId)!)
       : getFallbackProvider();
 
-    // 查缓存
-    const { hits, misses } = cache.batchLookup(texts, to);
+    // 查缓存（缓存键含翻译源 + 术语签名；缓存关闭时全部视为未命中）
+    const cacheOn = config?.cacheEnabled !== false;
+    const providerKey = provider.name;
+    const { hits, misses } = cacheOn
+      ? cache.batchLookup(texts, to, providerKey, cacheGlossarySig)
+      : {
+          hits: new Map<number, string>(),
+          misses: new Map<number, string>(texts.map((t, i) => [i, t] as [number, string])),
+        };
 
     if (misses.size === 0) {
       // 全部命中缓存
@@ -160,14 +183,24 @@ async function handleTranslate(
     const opts: TranslateOptions = { glossary, context: pageContext ?? undefined, preset };
 
     // 翻译未命中的（原文直译，术语约束在 prompt 里）
+    // 超大批次先按 20 条切块，避免单次请求 token 爆炸；块内失败再二分重试。
+    const CHUNK_SIZE = 20;
     const missTexts = Array.from(misses.values());
+    const translateChunk = async (batch: string[]): Promise<string[]> => {
+      if (provider.translateBatch) {
+        return await provider.translateBatch(batch, 'auto', to, opts);
+      }
+      return Promise.all(batch.map(t => provider.translate(t, 'auto', to, opts)));
+    };
     const translated = await withTimeout(
-      retryWithSplit(missTexts, async (batch) => {
-        if (provider.translateBatch) {
-          return await provider.translateBatch(batch, 'auto', to, opts);
+      (async () => {
+        const out: string[] = [];
+        for (let i = 0; i < missTexts.length; i += CHUNK_SIZE) {
+          const chunk = missTexts.slice(i, i + CHUNK_SIZE);
+          out.push(...(await retryWithSplit(chunk, translateChunk)));
         }
-        return Promise.all(batch.map(t => provider.translate(t, 'auto', to, opts)));
-      }),
+        return out;
+      })(),
       60000,
       'Translation'
     );
@@ -175,12 +208,20 @@ async function handleTranslate(
     // 事后校验：译文兜底套术语表（进 prompt + 事后替换双保险）
     const finalTranslated = translated.map(t => applyGlossary(t, glossary));
 
-    // 写入缓存
+    // 可信度门禁：不可信译文照常返回给页面，但绝不写缓存/历史。
+    // （对齐 Python engine.is_trustworthy，防止假译文污染长期数据）
+    const trusted = finalTranslated.map((t, i) =>
+      isTrustworthy(missTexts[i], t, detectLanguageQuick(missTexts[i]), to)
+    );
+
+    // 写入缓存（仅可信译文）
     const missKeys = Array.from(misses.keys());
     const originalMissTexts = Array.from(misses.values());
-    finalTranslated.forEach((t, i) => {
-      cache.set(originalMissTexts[i], to, t, provider.name);
-    });
+    if (cacheOn) {
+      finalTranslated.forEach((t, i) => {
+        if (trusted[i]) cache.set(originalMissTexts[i], to, t, provider.name, cacheGlossarySig);
+      });
+    }
 
     // 合并结果
     const results: TranslationResult[] = texts.map((text, idx) => {
@@ -195,8 +236,12 @@ async function handleTranslate(
       };
     });
 
-    // 记录历史（忽略缓存命中的，避免重复）
-    const newResults = results.filter(r => r.provider !== 'cache');
+    // 记录历史（忽略缓存命中，且不可信译文不入历史，避免重复/污染）
+    const trustedIdx = new Set<number>();
+    missKeys.forEach((textIdx, mi) => {
+      if (trusted[mi]) trustedIdx.add(textIdx);
+    });
+    const newResults = results.filter((r, idx) => r.provider !== 'cache' && trustedIdx.has(idx));
     if (newResults.length) recordHistory(newResults, to);
 
     return { type: 'TRANSLATE_RESULT', results };
@@ -343,6 +388,7 @@ async function handleGlossaryPull(): Promise<MsgResponse> {
     }
     await saveConfig({ glossary: list });
     config = await loadConfig();
+    rebuildCache();
     return {
       type: 'ACTION_RESULT',
       success: true,
@@ -418,6 +464,7 @@ chrome.runtime.onMessage.addListener((msg: MsgType, sender, sendResponse) => {
       case 'SET_CONFIG':
         await saveConfig(msg.config);
         config = await loadConfig();
+        rebuildCache();
         response = { type: 'CONFIG', config };
         break;
       case 'GET_PROVIDERS':
@@ -455,6 +502,7 @@ chrome.runtime.onMessage.addListener((msg: MsgType, sender, sendResponse) => {
         else list.push({ source: msg.source, target: msg.target });
         await saveConfig({ glossary: list });
         config = await loadConfig();
+        rebuildCache();
         // 尽力同步到 Butler 后端（后端未启动时静默失败，不影响本地保存）
         getBhlClient().isAvailable().then(ok => {
           if (ok) getBhlClient().glossaryAdd(msg.source, msg.target).catch(() => {});
@@ -466,6 +514,7 @@ chrome.runtime.onMessage.addListener((msg: MsgType, sender, sendResponse) => {
         const list = (config!.glossary || []).filter(g => g.source !== msg.source);
         await saveConfig({ glossary: list });
         config = await loadConfig();
+        rebuildCache();
         response = { type: 'OK' };
         break;
       }

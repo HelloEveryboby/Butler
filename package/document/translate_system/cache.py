@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from collections import OrderedDict
@@ -19,19 +20,28 @@ class TranslationCache:
         self._load()
 
     @staticmethod
-    def _key(text: str, to: str) -> str:
-        return f"{text[:120]}|{len(text)}|{to}"
+    def _key(text: str, to: str, provider: str = "", glossary_sig: str = "") -> str:
+        """全文哈希 + 目标语言 + 翻译源 + 术语签名。
 
-    def get(self, text: str, to: str) -> Optional[str]:
-        key = self._key(text, to)
+        旧实现只取前 120 字符 + 长度，长文本前缀相同的两条会互相串味；
+        且不区分翻译源/术语表，换源或改术语后仍命中旧译文。
+        """
+        raw = "\x00".join([to or "", provider or "", glossary_sig or "", text or ""])
+        digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()
+        return f"{digest}|{len(text)}"
+
+    def get(self, text: str, to: str, provider: str = "",
+            glossary_sig: str = "") -> Optional[str]:
+        key = self._key(text, to, provider, glossary_sig)
         entry = self._data.get(key)
         if entry is None:
             return None
         self._data.move_to_end(key)
         return entry["translated"]
 
-    def set(self, text: str, to: str, translated: str, provider: str = "") -> None:
-        key = self._key(text, to)
+    def set(self, text: str, to: str, translated: str, provider: str = "",
+            glossary_sig: str = "") -> None:
+        key = self._key(text, to, provider, glossary_sig)
         if key in self._data:
             self._data.move_to_end(key)
         elif len(self._data) >= self.max_size:
@@ -42,20 +52,22 @@ class TranslationCache:
             "ts": time.time(),
         }
 
-    def batch_lookup(self, texts, to: str):
+    def batch_lookup(self, texts, to: str, provider: str = "",
+                     glossary_sig: str = ""):
         hits = {}
         misses = {}
         for idx, text in enumerate(texts):
-            val = self.get(text, to)
+            val = self.get(text, to, provider, glossary_sig)
             if val is not None:
                 hits[idx] = val
             else:
                 misses[idx] = text
         return hits, misses
 
-    def batch_set(self, texts, to: str, translated_list, provider: str = "") -> None:
+    def batch_set(self, texts, to: str, translated_list, provider: str = "",
+                  glossary_sig: str = "") -> None:
         for text, translated in zip(texts, translated_list):
-            self.set(text, to, translated, provider)
+            self.set(text, to, translated, provider, glossary_sig)
 
     def clear(self) -> None:
         self._data.clear()

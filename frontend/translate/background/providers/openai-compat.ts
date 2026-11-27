@@ -95,24 +95,36 @@ export class OpenAICompatProvider extends BaseProvider implements LlmCaller {
       { role: 'user', content: userMsg },
     ], 8192);
 
-    // 解析编号格式 [0] xxx [1] xxx
-    const results: string[] = new Array(texts.length).fill('');
+    // 解析编号格式 [0] xxx [1] xxx，严格校验索引范围，忽略越界/重复
+    const results: Array<string | null> = new Array(texts.length).fill(null);
     const lines = content.split(/\n/);
     let currentIdx = -1;
     for (const line of lines) {
       const match = line.match(/^\[(\d+)\]\s*(.*)/);
       if (match) {
-        currentIdx = parseInt(match[1]);
-        results[currentIdx] = match[2];
+        const idx = parseInt(match[1], 10);
+        currentIdx = idx >= 0 && idx < texts.length ? idx : -1;
+        if (currentIdx >= 0) {
+          if (results[currentIdx] === null) results[currentIdx] = match[2];
+          else results[currentIdx] = results[currentIdx] + '\n' + match[2];
+        }
       } else if (currentIdx >= 0 && line.trim()) {
-        results[currentIdx] += '\n' + line.trim();
+        results[currentIdx] = (results[currentIdx] ?? '') + '\n' + line.trim();
       }
     }
-    // 填充空项
-    for (let i = 0; i < results.length; i++) {
-      if (!results[i]) results[i] = texts[i]; // 失败时保留原文
-    }
-    return results;
+
+    // 缺失/空结果单独重试；仍失败则抛错交给降级链/二分重试，
+    // 绝不把原文静默回填成「译文」。
+    await Promise.all(results.map(async (value, i) => {
+      if (value && value.trim()) return;
+      const single = await this.translate(texts[i], from, to, opts);
+      if (!single || !single.trim()) {
+        throw new Error(`批量翻译缺少第 ${i} 条结果，且单条重试返回空`);
+      }
+      results[i] = single;
+    }));
+
+    return results.map((r, i) => r ?? texts[i]);
   }
 }
 

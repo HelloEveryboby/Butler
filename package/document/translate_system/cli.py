@@ -72,6 +72,15 @@ def cmd_export(args) -> int:
     return 0
 
 
+def cmd_serve(args) -> int:
+    from .server import TranslationBHPServer
+    system = _build_system(args)
+    server = TranslationBHPServer(system, host=args.host, port=args.port)
+    print(f"翻译后端已启动: ws://{args.host}:{args.port}")
+    server.run()
+    return 0
+
+
 def cmd_tm(args) -> int:
     system = _build_system(args)
     if args.tm_command == "stats":
@@ -146,6 +155,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_export.add_argument("--context", action="store_true", help="启用 AI 上下文翻译")
     p_export.add_argument("--offline", action="store_true", help="离线模式（只用本地源）")
     p_export.set_defaults(func=cmd_export)
+
+    p_serve = sub.add_parser("serve", help="启动 BHL WebSocket 翻译后端")
+    p_serve.add_argument("--host", default="127.0.0.1", help="监听地址，默认 127.0.0.1")
+    p_serve.add_argument("--port", type=int, default=8765, help="监听端口，默认 8765")
+    p_serve.add_argument("--preset", default=None, help="专家预设 id")
+    p_serve.add_argument("--offline", action="store_true", help="离线模式（只用本地源）")
+    p_serve.set_defaults(func=cmd_serve)
 
     p_tm = sub.add_parser("tm", help="翻译记忆库")
     tm_sub = p_tm.add_subparsers(dest="tm_command")
