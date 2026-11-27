@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Butler · API Key 配置</title>
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --line:#30363d; --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --ok:#3fb950; --err:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC",sans-serif;
+         background:radial-gradient(1200px 600px at 20% -10%,#1f2b3a 0%,var(--bg) 60%); color:var(--text); min-height:100vh; }
+  .wrap { max-width:860px; margin:0 auto; padding:36px 20px 60px; }
+  h1 { font-size:22px; margin:0 0 6px; font-weight:600; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:24px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:18px; }
+  .card h2 { font-size:14px; margin:0 0 12px; font-weight:600; color:var(--accent); }
+  textarea,input,select { width:100%; background:#0d1117; border:1px solid var(--line); color:var(--text);
+    border-radius:10px; padding:10px 12px; font-size:13px; font-family:inherit; outline:none; }
+  textarea:focus,input:focus,select:focus { border-color:var(--accent); }
+  textarea { min-height:96px; resize:vertical; }
+  .row { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  .row > * { flex:1; min-width:180px; }
+  button { border:1px solid var(--line); background:#21262d; color:var(--text); border-radius:10px;
+    padding:9px 16px; font-size:13px; cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#04121f; font-weight:600; }
+  button:hover { filter:brightness(1.1); }
+  .list { display:flex; flex-direction:column; gap:8px; }
+  .item { display:flex; align-items:center; gap:10px; padding:10px 12px; background:#0d1117;
+          border:1px solid var(--line); border-radius:10px; font-size:13px; }
+  .item .name { flex:1; }
+  .item .env { color:var(--muted); font-size:11px; font-family:ui-monospace,monospace; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:20px; border:1px solid var(--line); color:var(--muted); }
+  .badge.on { color:var(--ok); border-color:rgba(63,185,80,.4); background:rgba(63,185,80,.08); }
+  .masked { font-family:ui-monospace,monospace; color:var(--muted); }
+  .msg { margin-top:12px; font-size:13px; min-height:18px; }
+  .msg.ok { color:var(--ok); } .msg.err { color:var(--err); }
+  .tokenbar { display:flex; gap:10px; align-items:center; }
+  .group-title { font-size:12px; color:var(--muted); margin:14px 0 8px; }
+  .del { background:transparent; border-color:rgba(248,81,73,.4); color:var(--err); padding:4px 10px; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>API Key 配置</h1>
+  <div class="sub">粘贴一次即可完成配置。支持裸 Key、KEY=VALUE、JSON、curl 命令；也可逐个服务填写。</div>
+
+  <div class="card">
+    <h2>访问令牌</h2>
+    <div class="tokenbar">
+      <input id="token" type="password" placeholder="BUTLER_API_TOKEN（地址栏带 token 参数时可自动填入）">
+      <button onclick="saveToken()">保存</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>一键粘贴</h2>
+    <textarea id="paste" placeholder='例如：
+ARK_API_KEY=xxxx
+API_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+MODEL_NAME=ep-2026xxxx
+
+也支持：{"api_key":"...","base_url":"...","model":"..."}，或从控制台复制的 curl 命令。'></textarea>
+    <div class="row">
+      <select id="hint">
+        <option value="">自动识别服务商</option>
+        <option value="ark">火山方舟 (ark)</option>
+        <option value="deepseek">DeepSeek</option>
+        <option value="openai">OpenAI</option>
+        <option value="zhipu">智谱</option>
+        <option value="anthropic">Anthropic</option>
+        <option value="gemini">Gemini</option>
+        <option value="dashscope">阿里百炼</option>
+        <option value="qianfan">百度千帆</option>
+        <option value="ollama">Ollama</option>
+      </select>
+      <button class="primary" onclick="pasteSave()">粘贴并保存</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>自定义名称 / 模型 / 地址</h2>
+    <div class="row"><input id="p_name" placeholder="自定义名称，如：方舟Agent计划A"></div>
+    <div class="row">
+      <input id="p_model" placeholder="模型或推理接入点，如 ep-2026xxxx">
+      <input id="p_base" placeholder="API 地址，如 https://ark.cn-beijing.volces.com/api/v3">
+    </div>
+    <div class="row">
+      <select id="p_provider">
+        <option value="ark">火山方舟 (ark)</option>
+        <option value="deepseek">DeepSeek</option>
+        <option value="openai">OpenAI</option>
+        <option value="zhipu">智谱</option>
+        <option value="anthropic">Anthropic</option>
+        <option value="gemini">Gemini</option>
+        <option value="dashscope">阿里百炼</option>
+        <option value="qianfan">百度千帆</option>
+        <option value="ollama">Ollama</option>
+        <option value="custom">自定义</option>
+      </select>
+      <button onclick="applyProvider()">应用</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>已配置的密钥</h2>
+    <div id="list" class="list"><div class="sub">加载中...</div></div>
+  </div>
+</div>
+
+<script>
+const GROUPS = { ai: "AI 模型服务商", voice: "语音服务（可选）", internal: "内部凭据" };
+const $ = (id) => document.getElementById(id);
+
+function token() { return $("token").value.trim(); }
+function saveToken() {
+  localStorage.setItem("butler_api_token", token());
+  tip("令牌已保存在本地浏览器", true); load();
+}
+function tip(text, ok) {
+  const el = $("msg");
+  el.textContent = text;
+  el.className = "msg " + (ok ? "ok" : "err");
+}
+async function api(path, options = {}) {
+  const res = await fetch(path, Object.assign({}, options, {
+    headers: Object.assign({ "Content-Type": "application/json",
+                             "Authorization": "Bearer " + token() }, options.headers || {})
+  }));
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || ("HTTP " + res.status));
+  return data;
+}
+async function load() {
+  if (!token()) { $("list").innerHTML = '<div class="sub">请先填写访问令牌</div>'; return; }
+  try {
+    const data = await api("/api/config");
+    render(data);
+  } catch (e) {
+    $("list").innerHTML = '<div class="sub">加载失败：' + esc(e.message) + '</div>';
+  }
+}
+function render(data) {
+  const items = data.items || [];
+  let html = "";
+  for (const g of ["ai", "voice", "internal"]) {
+    const rows = items.filter((i) => i.group === g);
+    if (!rows.length) continue;
+    html += '<div class="group-title">' + GROUPS[g] + "</div>";
+    for (const it of rows) {
+      html += '<div class="item">'
+        + '<div class="name">' + esc(it.label) + '<div class="env">' + esc(it.env) + "</div></div>"
+        + '<div class="masked">' + esc(it.masked) + "</div>"
+        + '<span class="badge ' + (it.configured ? "on" : "") + '">' + (it.configured ? it.source : "未配置") + "</span>"
+        + '<button class="del" onclick="delKey(\'' + esc(it.service) + '\')">删除</button>'
+        + "</div>";
+    }
+  }
+  $("list").innerHTML = html || '<div class="sub">暂无</div>';
+}
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+async function pasteSave() {
+  const text = $("paste").value.trim();
+  if (!text) { tip("请先粘贴内容", false); return; }
+  try {
+    const r = await api("/api/config/paste", {
+      method: "POST",
+      body: JSON.stringify({ text: text, provider: $("hint").value })
+    });
+    tip("已保存：" + r.env + " = " + r.masked + (r.model ? "，模型 " + r.model : ""), true);
+    $("paste").value = "";
+    load();
+  } catch (e) { tip("保存失败：" + e.message, false); }
+}
+async function applyProvider() {
+  try {
+    const r = await api("/api/config/use", {
+      method: "POST",
+      body: JSON.stringify({
+        provider: $("p_provider").value,
+        name: $("p_name").value.trim(),
+        model: $("p_model").value.trim(),
+        base_url: $("p_base").value.trim()
+      })
+    });
+    tip("已切换到 " + r.provider + (r.name ? "（" + r.name + "）" : ""), true);
+    load();
+  } catch (e) { tip("应用失败：" + e.message, false); }
+}
+async function delKey(service) {
+  if (!confirm("确认删除 " + service + " 的密钥？")) return;
+  try {
+    await api("/api/config/key/" + encodeURIComponent(service), { method: "DELETE" });
+    tip("已删除 " + service, true);
+    load();
+  } catch (e) { tip("删除失败：" + e.message, false); }
+}
+
+(function init() {
+  const q = new URLSearchParams(location.search).get("token");
+  const saved = q || localStorage.getItem("butler_api_token") || "";
+  $("token").value = saved;
+  if (q) localStorage.setItem("butler_api_token", q);
+  load();
+  $("p_model").value = "";
+})();
+</script>
+</body>
+</html>

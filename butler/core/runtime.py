@@ -161,5 +161,64 @@ class ButlerRuntime:
         def list_tasks(authenticated: bool = Depends(verify_token)):
             return runtime_instance.agent.list_tasks()
 
+        # ---- API Key 配置界面（前端 UI） ----
+        @app.get("/settings")
+        def settings_page():
+            from pathlib import Path
+            from fastapi.responses import FileResponse
+            page = Path(__file__).resolve().parent.parent / "web" / "settings.html"
+            return FileResponse(str(page))
+
+        @app.get("/api/config")
+        def config_status(authenticated: bool = Depends(verify_token)):
+            from butler.core import api_keys
+            return {"provider": os.getenv("AI_PROVIDER", ""), "items": api_keys.status()}
+
+        @app.post("/api/config/paste")
+        def config_paste(payload: Dict[str, Any], authenticated: bool = Depends(verify_token)):
+            from butler.core import api_keys
+            try:
+                return api_keys.apply_paste(str(payload.get("text", "")), str(payload.get("provider", "")))
+            except (KeyError, ValueError) as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+        @app.post("/api/config/key")
+        def config_key(payload: Dict[str, Any], authenticated: bool = Depends(verify_token)):
+            from butler.core import api_keys
+            try:
+                env_name, masked = api_keys.set_key_value(
+                    str(payload.get("service", "")), str(payload.get("key", "")))
+                return {"env": env_name, "masked": masked}
+            except (KeyError, ValueError) as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+        @app.delete("/api/config/key/{service}")
+        def config_key_delete(service: str, authenticated: bool = Depends(verify_token)):
+            from butler.core import api_keys
+            try:
+                return {"removed": api_keys.remove_key_value(service)}
+            except KeyError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+        @app.post("/api/config/use")
+        def config_use(payload: Dict[str, Any], authenticated: bool = Depends(verify_token)):
+            from butler.core import api_keys
+            provider = str(payload.get("provider", "")).strip()
+            try:
+                api_keys.use_provider(provider)
+            except KeyError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            name = str(payload.get("name", "")).strip()
+            model = str(payload.get("model", "")).strip()
+            base_url = str(payload.get("base_url", "")).strip()
+            if name:
+                api_keys.set_env_var("CUSTOM_PROVIDER_NAME", name)
+            if model:
+                api_keys.set_env_var("MODEL_NAME", model)
+            if base_url:
+                base_url = api_keys.normalize_base_url(base_url)
+                api_keys.set_env_var("API_BASE_URL", base_url)
+            return {"provider": provider, "name": name, "model": model, "base_url": base_url}
+
         logger.info(f"正在启动 API Gateway 高性能网关，监听地址: http://{self.host}:{self.port}")
         uvicorn.run(app, host=self.host, port=self.port, log_level="warning")

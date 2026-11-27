@@ -391,6 +391,7 @@ def _print_help():
   butler config show  查看当前 AI 配置
   butler config check 配置健康检查 (重复键/缺失项)
   butler config list  列出全部 API Key 状态（脱敏/来源）
+  butler config ui                 打开浏览器配置界面（需先 butler start）
   butler config paste [服务商]      粘贴一次即可完成配置（自动识别 Key/JSON/curl）
   butler config set <服务> [密钥]   写入 .env（省略密钥则隐藏输入）
   butler config remove <服务>       删除指定密钥
