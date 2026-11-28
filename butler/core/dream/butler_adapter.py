@@ -21,7 +21,7 @@ from typing import Any, Callable, Dict, Optional
 from .discovery_tree import DiscoveryForest
 from .dreamer import LLMDeveloper, ParametricDeveloper
 from .orchestrator import AttemptResult, DreamOrchestrator, DreamConfig
-from .policy import AdaptivePolicy, ExplorationPolicy
+from .policy import AdaptivePolicy, ExplorationPolicy, policy_from_dict
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,11 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "M": 3,
     "beta1": 0.1,
     "beta2": 0.1,
+    "beta": 0.6,
+    "betas": [0.4, 0.6, 0.8],
+    "lambda_parallel": 0.1,
+    "objective": "value",
+    "max_workers": 0,
     "dream_every": 1,
     "seed": 0,
 }
@@ -60,6 +65,9 @@ def load_settings(config_loader=None) -> Dict[str, Any]:
 
 
 def config_from_settings(settings: Dict[str, Any]) -> DreamConfig:
+    betas = settings.get("betas", [])
+    if isinstance(betas, (int, float)):
+        betas = [betas]
     return DreamConfig(
         K1=int(settings.get("K1", 10)),
         W=int(settings.get("W", 4)),
@@ -69,12 +77,51 @@ def config_from_settings(settings: Dict[str, Any]) -> DreamConfig:
         beta2=float(settings.get("beta2", 0.1)),
         dream_every=int(settings.get("dream_every", 1)),
         seed=int(settings.get("seed", 0)),
+        betas=[float(b) for b in betas] if betas else [],
+        lambda_parallel=float(settings.get("lambda_parallel", 0.1)),
+        objective=str(settings.get("objective", "value")),
+        max_workers=int(settings.get("max_workers", 0)),
     )
 
 
 def forest_path(settings: Optional[Dict[str, Any]] = None) -> Path:
     settings = settings or load_settings()
     return Path(settings.get("data_dir", "data/dream")) / "forest.json"
+
+
+def policy_path(settings: Optional[Dict[str, Any]] = None) -> Path:
+    settings = settings or load_settings()
+    return Path(settings.get("data_dir", "data/dream")) / "policy.json"
+
+
+def load_policy(settings: Optional[Dict[str, Any]] = None) -> ExplorationPolicy:
+    """加载上一轮重部署的策略；缺失/损坏时回到默认自适应策略。"""
+    settings = settings or load_settings()
+    path = policy_path(settings)
+    if path.exists():
+        try:
+            return policy_from_dict(json.loads(path.read_text(encoding="utf-8")))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[Dream] 策略加载失败，使用默认策略: %s", e)
+    try:
+        return AdaptivePolicy(seed=int(settings.get("seed", 0)),
+                              beta=float(settings.get("beta", 0.6)))
+    except Exception:  # noqa: BLE001
+        return AdaptivePolicy()
+
+
+def save_policy(policy: ExplorationPolicy,
+                settings: Optional[Dict[str, Any]] = None) -> None:
+    settings = settings or load_settings()
+    path = policy_path(settings)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(json.dumps(policy.to_dict(), ensure_ascii=False),
+                       encoding="utf-8")
+        tmp.replace(path)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[Dream] 策略保存失败: %s", e)
 
 
 def load_forest(settings: Optional[Dict[str, Any]] = None) -> DiscoveryForest:
@@ -93,39 +140,6 @@ def save_forest(forest: DiscoveryForest,
         forest.save(forest_path(settings))
     except Exception as e:  # noqa: BLE001
         logger.warning("[Dream] 历史保存失败: %s", e)
-
-
-def policy_path(settings: Optional[Dict[str, Any]] = None) -> Path:
-    settings = settings or load_settings()
-    return Path(settings.get("data_dir", "data/dream")) / "policy.json"
-
-
-def load_policy(settings: Optional[Dict[str, Any]] = None) -> ExplorationPolicy:
-    """加载上一次做梦选出的策略；无存档时回退到默认 AdaptivePolicy。"""
-    settings = settings or load_settings()
-    path = policy_path(settings)
-    if path.exists():
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            params = dict(raw.get("params", raw))
-            params.pop("name", None)
-            return AdaptivePolicy(**params)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("[Dream] 策略加载失败，使用默认策略: %s", e)
-    return AdaptivePolicy(seed=config_from_settings(settings).seed)
-
-
-def save_policy(policy: ExplorationPolicy,
-                settings: Optional[Dict[str, Any]] = None) -> None:
-    """持久化策略参数，使自我改进可以跨进程累积。"""
-    settings = settings or load_settings()
-    try:
-        path = policy_path(settings)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(policy.to_dict(), ensure_ascii=False, indent=2),
-                        encoding="utf-8")
-    except Exception as e:  # noqa: BLE001
-        logger.warning("[Dream] 策略保存失败: %s", e)
 
 
 def make_developer(nlu_service=None, seed: int = 0):
@@ -157,20 +171,29 @@ class SkillAttemptAdapter:
                  generate: Callable[[Dict[str, Any]], Dict[str, Any]],
                  execute: Callable[[Dict[str, Any]], Any],
                  score_of: Callable[[Any], float],
-                 diagnostics_of: Optional[Callable[[Any], Dict[str, Any]]] = None):
+                 diagnostics_of: Optional[Callable[[Any], Dict[str, Any]]] = None,
+                 evaluation_of: Optional[Callable[[Any], Dict[str, Any]]] = None):
         self.generate = generate
         self.execute = execute
         self.score_of = score_of
         self.diagnostics_of = diagnostics_of or (lambda r: {})
+        self.evaluation_of = evaluation_of or (lambda r: {})
 
     def attempt(self, parent_workspace: Dict[str, Any]) -> AttemptResult:
         ws = self.generate(parent_workspace)
         result = self.execute(ws)
+        evaluation = dict(self.evaluation_of(result) or {})
         return AttemptResult(
             workspace=ws,
             score=float(self.score_of(result)),
             artifact=result,
             diagnostics=dict(self.diagnostics_of(result)),
+            evaluated=bool(evaluation.get("evaluated", True)),
+            valid=evaluation.get("valid"),
+            fail_class=evaluation.get("fail_class"),
+            error=evaluation.get("error"),
+            n_valid=evaluation.get("n_valid"),
+            n_total=evaluation.get("n_total"),
         )
 
 
@@ -179,7 +202,7 @@ def build_orchestrator(attempt_fn: Callable[[Dict[str, Any]], AttemptResult],
                        nlu_service=None,
                        settings: Optional[Dict[str, Any]] = None
                        ) -> DreamOrchestrator:
-    """装配一个接入 Butler 的 Dream 编排器（自动加载历史森林）。"""
+    """装配一个接入 Butler 的 Dream 编排器（自动加载历史与已部署策略）。"""
     settings = settings or load_settings()
     cfg = config_from_settings(settings)
     policy = policy or load_policy(settings)
@@ -190,6 +213,7 @@ def build_orchestrator(attempt_fn: Callable[[Dict[str, Any]], AttemptResult],
         config=cfg,
         forest=forest,
         developer=make_developer(nlu_service, seed=cfg.seed),
+        state_path=policy_path(settings),
     )
 
 
@@ -222,11 +246,13 @@ def install_dream_engine_hook(dream_engine,
             orch = DreamOrchestrator(
                 attempt_fn=(attempt_fn_factory() if attempt_fn_factory
                             else (lambda ws: AttemptResult(ws, 0.0))),
-                policy=AdaptivePolicy(seed=cfg.seed),
-                config=cfg, forest=forest, developer=developer)
+                policy=load_policy(settings),
+                config=cfg, forest=forest, developer=developer,
+                state_path=policy_path(settings))
             report = orch.dream_phase()
             if report is not None:
                 save_forest(forest, settings)
+                save_policy(orch.policy, settings)
                 logger.info("[Dream] DreamEngine 挂接做梦完成: %s",
                             report.summary())
         except Exception as e:  # noqa: BLE001

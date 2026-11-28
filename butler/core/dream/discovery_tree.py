@@ -33,6 +33,14 @@ class Node:
     created_at: float = field(default_factory=time.time)
     children: List[str] = field(default_factory=list)
 
+    # ── 观察字段（论文附录 B.2 的 Observation）──
+    evaluated: bool = True
+    valid: Optional[bool] = None
+    fail_class: Optional[str] = None       # "ok" / 实现层失败 / 硬失败
+    error: Optional[str] = None
+    n_valid: Optional[int] = None
+    n_total: Optional[int] = None
+
     @property
     def is_root(self) -> bool:
         return self.parent_id is None
@@ -52,6 +60,12 @@ class Node:
             "depth": self.depth,
             "created_at": self.created_at,
             "children": list(self.children),
+            "evaluated": self.evaluated,
+            "valid": self.valid,
+            "fail_class": self.fail_class,
+            "error": self.error,
+            "n_valid": self.n_valid,
+            "n_total": self.n_total,
         }
 
     @classmethod
@@ -66,6 +80,12 @@ class Node:
             depth=int(data.get("depth", 0)),
             created_at=float(data.get("created_at", time.time())),
             children=list(data.get("children", [])),
+            evaluated=bool(data.get("evaluated", True)),
+            valid=data.get("valid"),
+            fail_class=data.get("fail_class"),
+            error=data.get("error"),
+            n_valid=data.get("n_valid"),
+            n_total=data.get("n_total"),
         )
 
 
@@ -73,8 +93,11 @@ class DiscoveryTree:
     """一棵发现树：根 + 若干条从根出发的探索/细化路径。"""
 
     def __init__(self, tree_id: Optional[str] = None,
-                 root_workspace: Optional[Dict[str, Any]] = None):
+                 root_workspace: Optional[Dict[str, Any]] = None,
+                 baseline_score: Optional[float] = None):
         self.tree_id = tree_id or uuid.uuid4().hex[:12]
+        self.baseline_score = baseline_score
+        self.grid: Dict[str, Any] = {}      # 本轮 GridPlan 的落账摘要
         root = Node(id="root", parent_id=None,
                     workspace=root_workspace or {}, depth=0)
         self.nodes: Dict[str, Node] = {root.id: root}
@@ -120,11 +143,41 @@ class DiscoveryTree:
                     return child
         return None
 
+    def branch_root(self, node_id: str) -> Optional[str]:
+        """返回 node 所属分支的根子节点（root 的直接子节点）。"""
+        node = self.nodes.get(node_id)
+        if node is None:
+            return None
+        while node.parent_id is not None and node.parent_id != "root":
+            node = self.nodes.get(node.parent_id)
+            if node is None:
+                return None
+        return node.id
+
+    def branch_trajectory(self, node_id: str) -> List[Node]:
+        """从分支根到 node 的有序节点列表（prefix-only 排序依据）。"""
+        path: List[Node] = []
+        node = self.nodes.get(node_id)
+        while node is not None and node.parent_id is not None:
+            path.append(node)
+            node = self.nodes.get(node.parent_id)
+        path.reverse()
+        return path
+
+    def opened_branch_ids(self) -> List[str]:
+        return list(self.root.children)
+
     def add_child(self, parent_id: str,
                   workspace: Dict[str, Any],
                   artifact: Any = None,
                   diagnostics: Optional[Dict[str, Any]] = None,
-                  score: Optional[float] = None) -> Node:
+                  score: Optional[float] = None,
+                  evaluated: bool = True,
+                  valid: Optional[bool] = None,
+                  fail_class: Optional[str] = None,
+                  error: Optional[str] = None,
+                  n_valid: Optional[int] = None,
+                  n_total: Optional[int] = None) -> Node:
         """执行一次 CONTINUE(parent_id) 的落账：创建并挂接子节点。"""
         parent = self.nodes.get(parent_id)
         if parent is None:
@@ -137,6 +190,12 @@ class DiscoveryTree:
             diagnostics=diagnostics or {},
             score=score,
             depth=parent.depth + 1,
+            evaluated=evaluated,
+            valid=valid,
+            fail_class=fail_class,
+            error=error,
+            n_valid=n_valid,
+            n_total=n_total,
         )
         self.nodes[node.id] = node
         parent.children.append(node.id)
@@ -156,12 +215,16 @@ class DiscoveryTree:
     def to_dict(self) -> dict:
         return {
             "tree_id": self.tree_id,
+            "baseline_score": self.baseline_score,
+            "grid": dict(self.grid),
             "nodes": {nid: n.to_dict() for nid, n in self.nodes.items()},
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "DiscoveryTree":
-        tree = cls(tree_id=data.get("tree_id"))
+        tree = cls(tree_id=data.get("tree_id"),
+                   baseline_score=data.get("baseline_score"))
+        tree.grid = dict(data.get("grid", {}) or {})
         tree.nodes = {nid: Node.from_dict(nd)
                       for nid, nd in data.get("nodes", {}).items()}
         if "root" not in tree.nodes:

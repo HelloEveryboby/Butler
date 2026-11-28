@@ -58,6 +58,7 @@ Butler UI 3.0 breaks the mold of conventional flat, one-dimensional web navigati
 * ❌ **The Pain**: Long-running agents accumulate massive conversation histories, bloating context tokens and slowing down inference. They also crash or freeze easily when API calls fail or files get locked.
 * 💎 **The Butler Way**:
   * **Dream Engine**: In periods of low system usage or late at night, Butler senses CPU and battery load and boots up the dreaming process. It takes the past three days of logs, consolidates them via the LLM into structured, high-value factual memories, deletes conversational fluff, and updates your long-term `MEMORY.md`.
+  * **Dream-RSI recursive self-improvement**: Treats each discovery run's structured history (a discovery tree) as a **replay simulator**. While idle, it "dreams" over hundreds of alternative exploration policies at zero execution cost: `plan_grid` decides branch count × refinement depth, a beta sweep ranks candidates by a Pareto objective (AUC − λ·parallel penalty), and the best non-degrading policy is persisted to `data/dream/policy.json` for the next deployment. Only the exploration policy changes; the discovery agent and evaluator stay fixed. See [docs/DREAM.md](./docs/DREAM.md).
   * **Self-Healing**: If any part of an execution chain throws an error (e.g., port already bound, API timeout, command failure), the Self-Healing module inspects the exception stack, leverages the LLM to design an immediate fallback or retry strategy, and dynamically executes it without human intervention.
 
 ---

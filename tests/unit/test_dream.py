@@ -17,12 +17,16 @@ from butler.core.dream import (
     Dreamer,
     DreamOrchestrator,
     ExplorationPolicy,
+    GridPlan,
+    GridPlanningContext,
     ParallelRefinePolicy,
     ParametricDeveloper,
-    RandomPolicy,
+    ReplayView,
     DreamConfig,
+    policy_from_dict,
     replay_policy,
 )
+from butler.core.dream import signals
 from butler.core.dream.discovery_tree import Node
 from butler.core.dream.orchestrator import AttemptResult
 
@@ -182,6 +186,20 @@ class TestReplay:
         assert seen[1] == {"root", *seen[1] - {"root"}}  # 视图单调扩张
         assert all(len(seen[k]) <= len(tree.nodes) for k in seen)
 
+    def test_view_hides_unrevealed_child_ids(self):
+        """策略不能通过 Node.children 偷看未揭示节点 id。"""
+        tree = build_chain_tree()
+        seen = {}
+
+        class Spy(DepthFirstPolicy):
+            def select_batch(self, view, W, round_idx):
+                seen[round_idx] = list(view.node(view.root_id).children)
+                return super().select_batch(view, W, round_idx)
+
+        replay_policy(Spy(), tree, W=1, K2=10)
+        assert seen[0] == []                # 根的两个分支均未揭示
+        assert all(cid in tree.nodes for ids in seen.values() for cid in ids)
+
 
 # ─────────────────────────────────────────────
 # 做梦（策略修订与选择）
@@ -262,3 +280,186 @@ class TestOrchestrator:
                                     DreamConfig(K1=3, W=2))
         orch.online_rollout(root_workspace={"x": 0.0})
         assert all(n <= 2 for n in captured)
+
+
+# ─────────────────────────────────────────────
+# 网格规划 / beta 扫描 / 观察信号（论文附录 B.2）
+# ─────────────────────────────────────────────
+
+
+class TestGridPlanning:
+    def _context(self, **over):
+        base = dict(fallback_branch_count=4, fallback_refine_count=2,
+                    hard_max_branch_count=4, hard_max_refine_count=5)
+        base.update(over)
+        return GridPlanningContext(**base)
+
+    def test_beta_controls_width_and_depth(self):
+        low = AdaptivePolicy(beta=0.2).plan_grid(self._context())
+        mid = AdaptivePolicy(beta=0.6).plan_grid(self._context())
+        high = AdaptivePolicy(beta=0.9).plan_grid(self._context())
+        assert low.branch_count <= mid.branch_count <= high.branch_count
+        assert low.refine_count <= mid.refine_count <= high.refine_count
+
+    def test_plan_is_clamped_to_hard_caps(self):
+        plan = AdaptivePolicy(beta=1.0).plan_grid(self._context())
+        assert plan.branch_count <= 4
+        assert plan.refine_count <= 5
+        assert "裁剪" in plan.reason
+
+    def test_stalled_history_increases_exploration(self):
+        fresh = AdaptivePolicy(beta=0.6).plan_grid(self._context())
+        stalled = AdaptivePolicy(beta=0.6).plan_grid(
+            self._context(stalled_rounds=3))
+        assert stalled.branch_count >= fresh.branch_count
+        assert stalled.refine_count >= fresh.refine_count
+
+    def test_explicit_grid_params_are_respected(self):
+        policy = AdaptivePolicy(beta=0.6, branch_count=2, refine_count=1)
+        plan = policy.plan_grid(self._context())
+        assert plan.branch_count == 2
+        assert plan.refine_count == 1
+
+    def test_grid_batch_opens_roots_then_refines(self):
+        tree = DiscoveryTree()
+        policy = AdaptivePolicy(beta=0.6)
+        policy.apply_plan(GridPlan(3, 1, "test"))
+        view = ReplayView(tree, {"root"})
+        batch = policy.select_batch(view, W=2, round_idx=0)
+        assert batch == ["root", "root"]
+
+        tree.add_child("root", {"x": 1}, score=1.0)
+        tree.add_child("root", {"x": 2}, score=2.0)
+        view = ReplayView(tree, set(tree.nodes))
+        batch = policy.select_batch(view, W=2, round_idx=1)
+        assert "root" in batch            # 还差一条分支
+        assert len(batch) == 2
+        assert len(set(batch)) == 2       # 根的重复只在开新分支时出现
+
+    def test_hard_failure_branch_is_dropped(self):
+        tree = DiscoveryTree()
+        a = tree.add_child("root", {"x": 1}, score=None,
+                           fail_class="dependency", error="missing lib")
+        tree.add_child("root", {"x": 2}, score=2.0)
+        policy = AdaptivePolicy(beta=0.6)
+        policy.apply_plan(GridPlan(2, 2, "test"))
+        view = ReplayView(tree, set(tree.nodes))
+        batch = policy.select_batch(view, W=2, round_idx=1)
+        assert a.id not in batch
+        assert any(v != "root" for v in batch)
+
+
+class TestReplayMetrics:
+    def test_parallel_penalty_full_batch(self):
+        tree = DiscoveryTree()
+        tree.add_child("root", {"x": 1}, score=1.0)
+        tree.add_child("root", {"x": 2}, score=2.0)
+
+        class RootBatch(ExplorationPolicy):
+            name = "root_batch"
+
+            def select_batch(self, view, W, round_idx):
+                n = min(len(view.eligible()) and 2, W)
+                return [view.root_id] * n
+
+        result = replay_policy(RootBatch(), tree, W=2, K2=5)
+        assert result.n_attempts == 2
+        assert math.isclose(result.parallel_penalty, 0.5, rel_tol=1e-9)
+
+    def test_attainment_auc_rewards_early_ceiling(self):
+        tree = DiscoveryTree()
+        a = tree.add_child("root", {"x": 1}, score=1.0)
+        b = tree.add_child(a.id, {"x": 2}, score=2.0)
+        tree.add_child(b.id, {"x": 3}, score=3.0)
+        result = replay_policy(DepthFirstPolicy(), tree, W=1, K2=5)
+        assert result.n_attempts == 3
+        assert math.isclose(result.attainment_auc, 2.0 / 3.0, rel_tol=1e-9)
+        assert result.pareto_reward < 1.0
+
+    def test_beta_sweep_returns_frontier(self):
+        forest = DiscoveryForest()
+        for seed in (1, 2):
+            orch = DreamOrchestrator(RngAttempt(seed=seed),
+                                     AdaptivePolicy(seed=seed),
+                                     DreamConfig(K1=4, W=2, seed=seed))
+            forest.append(orch.online_rollout(root_workspace={"x": 0.0}))
+        dreamer = Dreamer(forest, W=2, K2=4, M=2,
+                          betas=[0.2, 0.6, 0.9])
+        sweep = dreamer.sweep_beta(AdaptivePolicy(seed=0))
+        assert len(sweep.points) == 3
+        assert sweep.best.beta in (0.2, 0.6, 0.9)
+        assert all(math.isfinite(p.mean_pareto) for p in sweep.points)
+
+
+class TestObservationSignals:
+    def test_failure_classification(self):
+        ok = Node(id="ok", parent_id="root", score=1.0, fail_class="ok")
+        repairable = Node(id="r", parent_id="root", fail_class="compile_error",
+                          error="syntax")
+        hard = Node(id="h", parent_id="root", fail_class="dependency",
+                    error="missing")
+        assert signals.is_successful_observation(ok)
+        assert signals.is_repairable_failure(repairable)
+        assert not signals.is_hard_failure(repairable)
+        assert signals.is_hard_failure(hard)
+        assert not signals.is_repairable_failure(hard)
+
+    def test_successful_anchor_ignores_failures(self):
+        nodes = [
+            Node(id="a", parent_id="root", score=1.0, fail_class="ok"),
+            Node(id="b", parent_id="a", score=9.0, fail_class="compile_error"),
+        ]
+        assert signals.successful_anchor(nodes) == 1.0
+
+    def test_observation_fields_persist(self, tmp_path):
+        tree = DiscoveryTree()
+        tree.add_child("root", {"x": 1}, score=0.5,
+                       fail_class="runtime_error", error="boom",
+                       valid=False, n_valid=0, n_total=3)
+        forest = DiscoveryForest([tree])
+        path = tmp_path / "forest.json"
+        forest.save(path)
+        node = DiscoveryForest.load(path).trees[0].nodes[
+            tree.nodes["root"].children[0]]
+        assert node.fail_class == "runtime_error"
+        assert node.error == "boom"
+        assert node.valid is False
+        assert node.n_valid == 0
+        assert node.n_total == 3
+
+
+class TestPolicyPersistence:
+    def test_policy_roundtrip(self):
+        policy = AdaptivePolicy(seed=3, beta=0.9, branch_count=2,
+                                refine_count=4)
+        restored = policy_from_dict(policy.to_dict())
+        assert isinstance(restored, AdaptivePolicy)
+        assert restored.beta == 0.9
+        assert restored.branch_count == 2
+        assert restored.refine_count == 4
+
+    def test_old_policy_json_is_accepted(self):
+        restored = policy_from_dict(
+            {"name": "adaptive", "params": {"seed": 1, "explore_weight": 0.5}})
+        assert restored.explore_weight == 0.5
+
+    def test_orchestrator_saves_deployed_policy(self, tmp_path):
+        state = tmp_path / "policy.json"
+        orch = DreamOrchestrator(
+            RngAttempt(seed=0), AdaptivePolicy(seed=0),
+            DreamConfig(K1=3, W=2, K2=3, M=1, betas=[]),
+            state_path=state)
+        orch.run(rounds=1, root_workspace={"x": 0.0})
+        assert state.exists()
+        restored = policy_from_dict(
+            __import__("json").loads(state.read_text(encoding="utf-8")))
+        assert restored.name == "adaptive"
+
+    def test_adapter_save_load(self, tmp_path):
+        from butler.core.dream import butler_adapter
+        settings = {"data_dir": str(tmp_path), "seed": 0, "beta": 0.6}
+        policy = AdaptivePolicy(seed=0, beta=0.8, branch_count=3)
+        butler_adapter.save_policy(policy, settings)
+        loaded = butler_adapter.load_policy(settings)
+        assert loaded.beta == 0.8
+        assert loaded.branch_count == 3

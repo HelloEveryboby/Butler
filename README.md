@@ -62,10 +62,11 @@ Butler UI 3.0 彻底颠覆了传统的单维网页导航，引入了 **$2 \times
 * ❌ **痛点**：市面上绝大多数 RAG 本地知识库项目脱离了重度云端向量数据库或巨型 Docker 环境就无法运行。
 * 💎 **解决**：Butler 独创**多级降级策略**。系统启动时会优先检测 Redis 向量库环境；若不具备，则自动切换到极速的本地 **Zvec 嵌入式向量数据库**（阿里云开源）；若仍受限，则自动降级到本地 **SQLite（支持 FTS5 全文搜索）**。确保系统在完全离线、无多余依赖的情况下依然具备秒级语义搜索和长短期记忆能力！
 
-### 4. 🌙 独创做梦引擎 (Dream Engine) 与 AI 自愈系统 (Self-Healing) `[Roadmap / Experimental]`
+### 4. 🌙 独创做梦引擎 (Dream Engine) 与 AI 自愈系统 (Self-Healing) `[Runnable / Experimental]`
 * ❌ **痛点**：Agent 长时间运行会积累大量的冗余交互日志，导致上下文膨胀，且执行过程遇到偶发异常极易直接崩溃或阻塞。
 * 💎 **解决**：
   * **做梦引擎 (Dream Engine) `[Experimental]`**：在深夜或系统闲置时，Butler 会自动感知系统负载，在后台将过去 3 天的冗余交互日志通过 LLM 进行深度提炼和修剪，将碎片日志升级为结构化的事实记忆，并持久化于 `MEMORY.md`。
+  * **Dream-RSI 递归自我改进 `[Runnable]`**：把每次发现任务的结构化历史（发现树）当作**回放模拟器**，在闲置时"做梦"——零执行成本地回放成百上千个替代探索策略；先 `plan_grid` 规划"分支数 × 细化数"，再按 beta 扫描与 Pareto 目标（AUC − λ·并行惩罚）选出不退化的改进策略，写回 `data/dream/policy.json` 供下一轮重部署。只改进探索策略，底层 discovery agent / evaluator 保持不变。详见 [docs/DREAM.md](./docs/DREAM.md)。
   * **自愈系统 (Self-Healing) `[Experimental]`**：在任何执行链条中发生异常（如端口占用、API 报错、命令超时等），AI 驱动的自愈模块会自动捕捉错误日志，调用 LLM 制定修复或降级重试方案并自主执行，实现无人工干预的自给自足。
 
 ---

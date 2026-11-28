@@ -127,6 +127,11 @@ dream:
   M: 3            # 每次做梦评估的策略版本数（含当前策略，保证不退化）
   beta1: 0.1      # 执行代价惩罚系数
   beta2: 0.1      # 并行度奖励系数
+  beta: 0.6       # 探索耐心（高=更宽/更深/更弱剪枝）
+  betas: [0.4, 0.6, 0.8]  # 做梦阶段的 beta 扫描网格
+  lambda_parallel: 0.1    # Pareto 目标中的并行惩罚系数
+  objective: "value"      # value（公式 1）| pareto（附录 B.2）
+  max_workers: 0          # 并行执行线程数，0 = 使用 W
   dream_every: 1  # 每隔多少个在线轮次触发一次做梦
   seed: 0
 

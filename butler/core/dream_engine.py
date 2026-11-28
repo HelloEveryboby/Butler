@@ -80,8 +80,7 @@ class DreamEngine:
         由 dream.enabled 配置开关控制。
         """
         try:
-            from butler.core.dream import (AdaptivePolicy,
-                                               DreamOrchestrator)
+            from butler.core.dream import DreamOrchestrator
             from butler.core.dream import butler_adapter
 
             settings = butler_adapter.load_settings()
@@ -99,6 +98,7 @@ class DreamEngine:
                 config=cfg,
                 forest=forest,
                 developer=butler_adapter.make_developer(nlu, seed=cfg.seed),
+                state_path=butler_adapter.policy_path(settings),
             )
             report = orch.dream_phase()
             if report is not None:
