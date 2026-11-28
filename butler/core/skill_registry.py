@@ -113,7 +113,8 @@ def iter_root_entries(root: Dict[str, Any], max_depth: int = 2):
     def _emit_file(file_path: Path, use_prefix: bool = True):
         if file_path.suffix.lower() != ".md" or file_path.name.startswith('.'):
             return None
-        if file_path.name.lower() in ("readme.md", "index.md", "skill.md"):
+        if file_path.name.lower() in ("readme.md", "index.md", "skill.md",
+                                      "catalog.md", "changelog.md"):
             return None
         return (_prefixed_id(root, file_path.stem) if use_prefix else file_path.stem, file_path)
 

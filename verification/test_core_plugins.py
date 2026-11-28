@@ -16,7 +16,6 @@ def test_core_plugins_auto_load():
     # Core plugins should be identified correctly
     assert sm.manifests["system_monitor"]["is_core"] is True
     assert sm.manifests["quick_launcher"]["is_core"] is True
-    assert sm.manifests["clipboard_history"]["is_core"] is True
 
     # Standard skills (like ai_memory) should not be core
     if "ai_memory" in sm.manifests:
@@ -25,7 +24,6 @@ def test_core_plugins_auto_load():
     # Core plugins should be auto-loaded in loaded_skills
     assert "system_monitor" in sm.loaded_skills
     assert "quick_launcher" in sm.loaded_skills
-    assert "clipboard_history" in sm.loaded_skills
 
 
 def test_system_monitor_execution():
@@ -64,22 +62,6 @@ def test_quick_launcher_operations():
     # 5. Delete alias
     res_del = sm.execute("quick_launcher", "delete", alias="echo_test")
     assert "Successfully deleted" in res_del
-
-
-def test_clipboard_history_crypto_and_rolling():
-    """Verify AES base64 clipboard history, manual adds, and clear operations."""
-    sm = SkillManager()
-    sm.load_skills()
-
-    # 1. Clear clipboard database
-    sm.execute("clipboard_history", "clear")
-
-    # 2. Manual add sensitive string
-    sm.execute("clipboard_history", "add", text="TopSecretPassword123")
-
-    # 3. Retrieve and decrypt list
-    res_list = sm.execute("clipboard_history", "list")
-    assert "TopSecretPassword123" in res_list
 
 
 def test_core_plugin_uninstall_protection():

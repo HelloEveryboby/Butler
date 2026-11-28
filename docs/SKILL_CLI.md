@@ -28,9 +28,9 @@ skills/
 │   ├── manifest.json       # 元数据清单
 │   ├── __init__.py         # Python 入口 (可选)
 │   └── config.yaml         # 配置文件
-├── pdf/
+├── calculator/
 │   ├── SKILL.md
-│   └── manifest.json
+│   └── main.py
 └── ...
 ```
 
@@ -49,7 +49,7 @@ skills/
 | **CLI 运行** | ✅ `skill run` | ❌ 被阻止 |
 | **Chat 调用** | ✅ `/skill` | ✅ AI 自动匹配 |
 | **TUI 运行** | ✅ ▶ 按钮 | ❌ 按钮禁用 |
-| **典型示例** | `butler_expert`, `pixel_pet` | `wps-office-expert`, `docx`, `pdf` |
+| **典型示例** | `butler_expert`, `pixel_pet` | `wps-office-expert`, `office-suite-expert` |
 
 ### 显式声明类型
 
@@ -186,7 +186,7 @@ python butler_cli.py skill run butler_expert
 python butler_cli.py skill run butler_expert ask --query 架构
 
 # 另一个示例
-python butler_cli.py skill run karpathy_guidelines show
+python butler_cli.py skill run calculator convert --value 100 --from km --to mile
 
 # 保存结果到文件
 python butler_cli.py skill run format_convert -o /tmp/result.txt
@@ -195,7 +195,7 @@ python butler_cli.py skill run format_convert -o /tmp/result.txt
 python butler_cli.py skill run butler_expert -j | jq '.answer'
 
 # 安静模式 (用于脚本)
-python butler_cli.py skill run hello_cli -q
+python butler_cli.py skill run calculator calculate --expression "2+3*4" -q
 ```
 
 **错误情况:**
@@ -269,7 +269,7 @@ python butler_cli.py skill --help
 /skill butler_expert
 /skill butler_expert ask
 /skill butler_expert ask 架构
-/skill karpathy_guidelines show
+/skill calculator convert --value 100 --from km --to mile
 ```
 
 ### `/skill-info <技能ID>` — 查看详情

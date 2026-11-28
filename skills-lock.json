@@ -1,10 +1,7 @@
 {
   "version": 1,
   "enabled_skills": [
-    "task_management",
-    "daily_fashion_stylist",
-    "test_skill",
-    "karpathy_guidelines"
+    "daily_fashion_stylist"
   ],
   "skills": {}
 }

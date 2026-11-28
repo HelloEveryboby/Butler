@@ -283,7 +283,8 @@ def handle_documents(action: str, payload: dict[str, Any]) -> Any:
             return {"error": "convert 需要 input、from、to"}
         return _doc_result(handle_request("run", entities=entities))
 
-    if action in ("extract_text", "extract_tables", "merge", "split", "create", "metadata", "rotate"):
+    if action in ("extract_text", "extract_tables", "merge", "split",
+                  "create", "metadata", "rotate"):
         from butler.core.documents import pdf
 
         if action == "merge" and isinstance(payload.get("files"), str):
@@ -317,6 +318,15 @@ def handle_documents(action: str, payload: dict[str, Any]) -> Any:
         from butler.core.documents.xlsx_recalc import handle_request
 
         return _doc_result(handle_request("recalc", entities=payload))
+
+    if action == "translate":
+        text = payload.get("text") or payload.get("input")
+        if not text:
+            return {"error": "translate 需要 text"}
+        from package.document.translate_system import translate_text
+
+        target = payload.get("to") or payload.get("target")
+        return {"result": translate_text(str(text), to=target)}
 
     return {"error": f"未知动作: {action}"}
 
@@ -553,7 +563,7 @@ _SPECS: tuple[CapabilitySpec, ...] = (
         description=(
             "文档格式互转与处理：Markdown/HTML/DOCX/EPUB/PDF/图片互转，"
             "PDF 文本与表格提取、合并、拆分、创建、旋转，Word 读写编辑，"
-            "任意文件转 Markdown，Excel 公式重算。"
+            "任意文件转 Markdown，Excel 公式重算，文本翻译。"
         ),
         actions={
             "convert": "多格式互转（input/from/to，可选 save_to）",
@@ -569,12 +579,13 @@ _SPECS: tuple[CapabilitySpec, ...] = (
             "docx_edit": "替换 Word 文本",
             "markdown": "文件转 Markdown",
             "xlsx_recalc": "重算 Excel 公式",
+            "translate": "翻译文本（text，可选 to）",
         },
         handler=handle_documents,
         properties={
             "input": {"type": "string", "description": "输入文件路径或文本"},
             "from": {"type": "string", "description": "源格式，如 MD/HTML/DOCX/PDF"},
-            "to": {"type": "string", "description": "目标格式"},
+            "to": {"type": "string", "description": "目标格式/目标语言"},
             "save_to": {"type": "string", "description": "输出文件路径"},
             "path": {"type": "string", "description": "文件路径"},
             "files": {
@@ -584,7 +595,7 @@ _SPECS: tuple[CapabilitySpec, ...] = (
             },
             "output": {"type": "string", "description": "输出文件路径"},
             "output_dir": {"type": "string", "description": "拆分输出目录"},
-            "text": {"type": "string", "description": "创建 PDF 的文本"},
+            "text": {"type": "string", "description": "文本内容（创建 PDF / 翻译）"},
             "title": {"type": "string", "description": "Word 标题"},
             "content": {"type": "string", "description": "Word 正文"},
             "old_text": {"type": "string", "description": "Word 中被替换文本"},

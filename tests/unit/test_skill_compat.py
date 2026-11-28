@@ -49,6 +49,8 @@ def test_discovery_first_wins_and_flat_md(project):
     _write_skill(project / ".agents" / "skills" / "dup", "dup")
     flat = project / ".agents" / "skills" / "flat_cmd.md"
     flat.write_text("---\nname: flat_cmd\ndescription: flat\n---\n", encoding="utf-8")
+    catalog = project / "skills" / "CATALOG.md"
+    catalog.write_text("# catalog\n", encoding="utf-8")
 
     roots = resolve_skill_roots(project, include_user=False, include_plugins=False)
     entries = []
@@ -64,6 +66,7 @@ def test_discovery_first_wins_and_flat_md(project):
     assert by_id["dup"][1] == "butler"
     assert by_id["flat_cmd"][1] == "project-agents"
     assert by_id["flat_cmd"][0].suffix == ".md"
+    assert "CATALOG" not in by_id
 
 
 def test_invocation_policy_parsing():

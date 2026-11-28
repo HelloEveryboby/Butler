@@ -68,5 +68,5 @@ butler agent run supervisor "把当前目录的 Python 文件列出来并统计�
 
 * 必须有可用的 LLM 提供商；没有 Key 时 `butler agent run` 会明确报错，不会再假装完成。
 * 技能是否可执行取决于其依赖是否安装；缺依赖时工具会返回真实错误，由 LLM 决定换方案。
-* 40 个技能工具 + 11 个内置工具会让首轮请求偏大；可用 `agent.max_skill_tools` 限流，
+* 技能工具 + 内置工具过多会让首轮请求偏大；可用 `agent.max_skill_tools` 限流，
   或用 `agent.expose_intents` 控制是否再叠加意图工具。

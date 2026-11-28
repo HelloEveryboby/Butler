@@ -5,7 +5,7 @@
 >
 > 调用方式：`butler skill info <技能名>` 查看详情 / `butler skill run <技能名>` 运行
 
-共 **22** 个技能：
+共 **17** 个技能：
 
 | 技能 | 说明 | 标签 |
 | :--- | :--- | :--- |
@@ -18,17 +18,12 @@
 | **Dream 自改进引擎 (dream)** | 递归自我改进（RSI）技能：把 Butler 的发现历史当作**回放模拟器**，在闲置时"做梦"—— 零执行成本地评估成千上万个替代探索策略，选出不退化的改进策略并重部署， 驱动自动化任务/技能组合的持续自我优化。 | — |
 | **expense_tracker** | 个人记账与消费统计工具。记录收支、按类别/月份汇总、生成消费报告，数据本地 JSON 存储。 | — |
 | **habit_tracker** | 习惯打卡与连续天数追踪工具。创建习惯、每日打卡、统计连续天数与完成率，本地 JSON 存储。 | — |
-| **Hello CLI** | 一个用于测试 CLI 动态加载的示例技能。 | — |
-| **hot_swap_test** | Butler 核心架构验证：热插拔与隔离运行示例。 | — |
-| **Karpathy Guidelines** | Behavioral guidelines to reduce common LLM coding mistakes, derived from [Andrej Karpathy's observations](https://x.com/ | — |
 | **office-suite-expert** | 微软 Office 官方套件全能助手。精通 Word 文档排版、Excel 数据分析与公式、PowerPoint 演示设计、Outlook 邮件管理及 OneNote 笔记整理。当用户需要创建文档、处理表格、制作幻灯片、管理邮件或整理笔记时，应启用此技能。 | — |
 | **password_generator** | 安全密码与口令生成器。基于密码学安全随机数生成高熵密码、易记口令短语、PIN 码，并支持强度评估。 | — |
 | **photoshop-expert** | Adobe Photoshop 图像处理专家。精通图层与蒙版、选区与抠图、调色与校色、修图与美化、文字特效、滤镜应用及基础设计。当用户需要编辑图像、合成照片、设计图形或优化图片时，应启用此技能。 | — |
 | **Pixel Pet** | 极致优雅、伴随启动、基于 PyWebview 独立透明置顶微型窗口的 Butler 像素电子宠物。 | — |
 | **text_analyzer** | 文本分析与统计工具。提供字数、词频、句子统计、中英文可读性评估、关键词提取等能力。 | — |
-| **translator** | 一个简单的翻译技能，支持中英文互译。 | — |
 | **wps-office-expert** | WPS Office 官方套件全能助手。精通 WPS 文字排版与审校、WPS 表格数据处理与函数、WPS 演示设计、WPS PDF 编辑与转换，以及 WPS AI 智能办公辅助。当用户需要处理 WPS 相关文档、表格、演示或 PDF 时，应启用此技能。 | — |
-| **截图即排障** | 自动分析报错截图并提供一键修复方案。 | — |
 | **文档协同创作工作流** | 引导用户通过结构化工作流进行文档协同创作。适用于编写文档、提案、技术规范、决策文档等。 | — |
 | **灵动对话者** | 让 AI 化身为“小米”——一个温暖、幽默、会吐槽但永远不刻薄的人类朋友。 | — |
 

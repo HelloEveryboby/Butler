@@ -30,9 +30,17 @@ def test_documents_schema_actions():
         "docx_edit",
         "markdown",
         "xlsx_recalc",
+        "translate",
     ):
         assert action in enum
     assert _schema("documents")["required"] == ["action"]
+
+
+def test_documents_translate_requires_text():
+    result = capability_registry.execute("documents", "translate", {})
+
+    assert "error" in result
+    assert "text" in result["error"]
 
 
 def test_audio_schema_actions():
