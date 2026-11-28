@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import json
 import logging
@@ -117,6 +118,131 @@ class ArchiveManager:
                     return {"success": False, "error": f"Unsupported archive format '{ext}' and native 7-Zip binary is missing."}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    def _read_file_bytes(self, archive_path: str, file_in_zip: str, password: str | None = None) -> bytes:
+        """从压缩包中读取单个文件的原始字节（在内存中完成，不落盘、不启动外部程序）。"""
+        # 1. 7-Zip 流式输出到 stdout（支持全格式）
+        if self.bin_path:
+            args = ["x", archive_path, "-so", file_in_zip, "-y"]
+            if password:
+                args.append(f"-p{password}")
+            try:
+                proc = subprocess.run(
+                    [self.bin_path] + args,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                if proc.returncode == 0:
+                    return proc.stdout
+                logger.error(
+                    f"ArchiveManager: 7-zip preview stream failed ({proc.returncode}): "
+                    f"{proc.stderr.decode('utf-8', 'ignore')[:200]}"
+                )
+            except Exception as e:
+                logger.error(f"ArchiveManager: 7-zip preview stream exception: {e}")
+
+        # 2. 纯 Python 兜底
+        ext = os.path.splitext(archive_path)[1].lower()
+        if ext == ".zip":
+            with zipfile.ZipFile(archive_path, "r") as z:
+                if password:
+                    z.setpassword(password.encode())
+                return z.read(file_in_zip)
+        if ext in (".tar", ".gz", ".tgz", ".bz2", ".xz"):
+            with tarfile.open(archive_path, "r:*") as t:
+                member = t.extractfile(file_in_zip)
+                if member is None:
+                    raise KeyError(file_in_zip)
+                return member.read()
+        try:
+            import py7zr
+        except ImportError:
+            raise ValueError(
+                f"Cannot preview file from unsupported format '{ext}' "
+                "without native 7-Zip binary (py7zr not installed)."
+            )
+        with py7zr.SevenZipFile(archive_path, mode="r", password=password) as z:
+            data = z.read([file_in_zip])
+            bio = data.get(file_in_zip)
+            if bio is None:
+                raise KeyError(file_in_zip)
+            return bio.read()
+
+    @staticmethod
+    def _classify_preview(filename: str, data: bytes) -> tuple[str, str]:
+        """识别预览类型，返回 (kind, mime)，kind ∈ {text, image, binary}。"""
+        ext = os.path.splitext(filename)[1].lower()
+        image_exts = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+            ".bmp": "image/bmp",
+            ".svg": "image/svg+xml",
+            ".ico": "image/x-icon",
+        }
+        if ext in image_exts:
+            return "image", image_exts[ext]
+        # 文本探测：前 8KB 出现空字节则视为二进制
+        if b"\x00" in data[:8192]:
+            return "binary", "application/octet-stream"
+        return "text", "text/plain; charset=utf-8"
+
+    def preview_file(
+        self,
+        archive_path: str,
+        file_in_zip: str,
+        password: str | None = None,
+        max_bytes: int | None = None,
+    ) -> dict[str, Any]:
+        """预览压缩包内单个文件的内容（不解压到磁盘、不启动外部程序）。
+
+        文本文件返回解码后的字符串；图片/二进制返回元数据，未超限时附带 base64。
+        超过 ``max_bytes`` 的内容会被截断并标记 ``truncated``。
+        """
+        if max_bytes is None:
+            max_bytes = 512 * 1024
+
+        if not os.path.exists(archive_path):
+            return {"success": False, "error": f"Archive file not found: {archive_path}"}
+        if not file_in_zip:
+            return {"success": False, "error": "file_in_zip is required"}
+
+        try:
+            data = self._read_file_bytes(archive_path, file_in_zip, password)
+        except KeyError:
+            return {"success": False, "error": f"File not found in archive: {file_in_zip}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+        # 7zz 的 -so 对缺失文件也返回空字节流，需区分“空文件”与“文件不存在”
+        if not data:
+            listed = self.list_contents(archive_path).get("result") or []
+            if file_in_zip not in listed:
+                return {"success": False, "error": f"File not found in archive: {file_in_zip}"}
+
+        total_size = len(data)
+        kind, mime = self._classify_preview(file_in_zip, data)
+        truncated = total_size > max_bytes
+
+        result: dict[str, Any] = {
+            "success": True,
+            "filename": file_in_zip,
+            "size": total_size,
+            "mime": mime,
+            "kind": kind,
+            "truncated": truncated,
+        }
+
+        if kind == "text":
+            result["encoding"] = "utf-8"
+            result["content"] = data[:max_bytes].decode("utf-8", errors="replace")
+        elif not truncated:
+            # 图片/二进制：仅在未截断时附带 base64，避免超大负载
+            result["data_base64"] = base64.b64encode(data).decode("ascii")
+
+        return result
 
     def open_and_track(self, archive_path: str, file_in_zip: str) -> dict[str, Any]:
         if not os.path.exists(self.cache_dir):
@@ -438,6 +564,13 @@ def handle_request(request_action: str, **kwargs):
         return manager.list_contents(kwargs.get("zip_path") or kwargs.get("archive_path"))
     elif request_action == "open_zip_file" or request_action == "open_file":
         return manager.open_and_track(kwargs.get("zip_path") or kwargs.get("archive_path"), kwargs.get("file_in_zip"))
+    elif request_action == "preview_zip_file" or request_action == "preview_file":
+        return manager.preview_file(
+            archive_path=kwargs.get("zip_path") or kwargs.get("archive_path"),
+            file_in_zip=kwargs.get("file_in_zip") or kwargs.get("file"),
+            password=kwargs.get("password"),
+            max_bytes=kwargs.get("max_bytes"),
+        )
     elif request_action == "detect_changes":
         return manager.detect_changes(kwargs.get("extracted_path"))
     elif request_action == "sync_zip_file" or request_action == "sync_file":

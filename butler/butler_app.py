@@ -828,6 +828,20 @@ class Butler:
 
     def _handle_archive_action(self, payload):
         action = payload.get("action")
+        if action == "preview":
+            # 预览直接走 archive_manager（不解压、不启动外部程序），不依赖插件注册
+            from butler.core.system import archive_manager
+            zip_path = payload.get("zip_path")
+            file_in_zip = payload.get("file_in_zip")
+            res = archive_manager.handle_request(
+                "preview_file",
+                archive_path=zip_path,
+                file_in_zip=file_in_zip,
+                password=payload.get("password"),
+                max_bytes=payload.get("max_bytes"),
+            )
+            event_bus.emit("archive_preview_update", zip_path, file_in_zip, res)
+            return
         plugin = extension_manager.get_plugin("ArchiveManager")
         if not plugin: return
         if action == "open":

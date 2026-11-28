@@ -1,6 +1,8 @@
 import os
 import shutil
+import tempfile
 import unittest
+import zipfile
 import sys
 from pathlib import Path
 
@@ -212,6 +214,113 @@ class TestArchiveManager(unittest.TestCase):
         self.assertTrue(extract_res["success"])
         self.assertTrue(os.path.exists(os.path.join(dest_dir, "sample1.txt")))
         print("✅ Success: run('unzip') successfully mapped and run")
+
+
+class TestArchivePreview(unittest.TestCase):
+    """压缩包内文件预览功能（preview_file / preview_archive）。"""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="butler_preview_test_")
+        self.zip_path = os.path.join(self.tmp, "sample.zip")
+        self.text_content = "Hello preview world\n第二行\nLine3\n"
+        self.json_content = '{"name": "butler", "tags": ["a", "b"]}'
+        self.png_bytes = bytes([137, 80, 78, 71, 13, 10, 26, 10]) + b"\x00" * 64
+        with zipfile.ZipFile(self.zip_path, "w") as z:
+            z.writestr("readme.txt", self.text_content)
+            z.writestr("docs/guide.md", "# Guide\n\npreview content")
+            z.writestr("data/config.json", self.json_content)
+            z.writestr("assets/logo.png", self.png_bytes)
+            z.writestr("empty.txt", "")
+            z.writestr("big.log", "X" * 600_000)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _preview(self, file_in_zip, **kwargs):
+        return handle_request("preview_file", archive_path=self.zip_path, file_in_zip=file_in_zip, **kwargs)
+
+    def test_preview_text_returns_content(self):
+        r = self._preview("readme.txt")
+        self.assertTrue(r["success"], r)
+        self.assertEqual(r["kind"], "text")
+        self.assertEqual(r["content"], self.text_content)
+        self.assertFalse(r["truncated"])
+
+    def test_preview_nested_file(self):
+        r = self._preview("docs/guide.md")
+        self.assertTrue(r["success"], r)
+        self.assertEqual(r["content"], "# Guide\n\npreview content")
+
+    def test_preview_image_metadata_and_base64(self):
+        import base64
+        r = self._preview("assets/logo.png")
+        self.assertTrue(r["success"], r)
+        self.assertEqual(r["kind"], "image")
+        self.assertEqual(r["mime"], "image/png")
+        self.assertEqual(r["size"], len(self.png_bytes))
+        self.assertIn("data_base64", r)
+        self.assertEqual(base64.b64decode(r["data_base64"]), self.png_bytes)
+
+    def test_preview_missing_file(self):
+        r = self._preview("nope.txt")
+        self.assertFalse(r["success"])
+        self.assertIn("not found", r["error"].lower())
+
+    def test_preview_empty_file(self):
+        r = self._preview("empty.txt")
+        self.assertTrue(r["success"], r)
+        self.assertEqual(r["content"], "")
+
+    def test_preview_truncation(self):
+        r = self._preview("big.log", max_bytes=2048)
+        self.assertTrue(r["success"], r)
+        self.assertTrue(r["truncated"])
+        self.assertEqual(r["content"], "X" * 2048)
+
+    def test_preview_alias_actions(self):
+        for action in ("preview_file", "preview_zip_file"):
+            r = handle_request(action, archive_path=self.zip_path, file_in_zip="readme.txt")
+            self.assertTrue(r["success"], f"{action} failed: {r}")
+
+    def test_preview_nonexistent_archive(self):
+        r = handle_request("preview_file", archive_path="/no/such.zip", file_in_zip="x")
+        self.assertFalse(r["success"])
+
+    def test_preview_via_capability(self):
+        from butler.core.capabilities import capability_registry
+        r = capability_registry.execute(
+            "system", "preview_archive",
+            {"archive_path": self.zip_path, "file_in_zip": "data/config.json"},
+        )
+        self.assertTrue(r.get("success"), r)
+        self.assertEqual(r.get("content"), self.json_content)
+        err = capability_registry.execute("system", "preview_archive", {"archive_path": self.zip_path})
+        self.assertIn("file_in_zip", err.get("error", ""))
+
+    def test_preview_plain_7z(self):
+        src = os.path.join(self.tmp, "note.txt")
+        with open(src, "w", encoding="utf-8") as f:
+            f.write(self.text_content)
+        sz = os.path.join(self.tmp, "sample.7z")
+        res = handle_request("compress", archive_path=sz, targets=[src])
+        self.assertTrue(res.get("success"), res)
+        r = handle_request("preview_file", archive_path=sz, file_in_zip="note.txt")
+        self.assertTrue(r["success"], r)
+        self.assertEqual(r["content"], self.text_content)
+
+    def test_preview_encrypted_7z(self):
+        src = os.path.join(self.tmp, "secret.txt")
+        with open(src, "w", encoding="utf-8") as f:
+            f.write("secret payload")
+        sz = os.path.join(self.tmp, "secure.7z")
+        res = handle_request("compress", archive_path=sz, targets=[src], password="pw123")
+        self.assertTrue(res.get("success"), res)
+        # 无密码应失败
+        self.assertFalse(handle_request("preview_file", archive_path=sz, file_in_zip="secret.txt")["success"])
+        # 正确密码应成功
+        r = handle_request("preview_file", archive_path=sz, file_in_zip="secret.txt", password="pw123")
+        self.assertTrue(r["success"], r)
+        self.assertEqual(r["content"], "secret payload")
 
 
 if __name__ == "__main__":
