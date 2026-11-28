@@ -532,6 +532,15 @@ COMMANDS: list[CommandEntry] = [
         example="/archive_list backup.7z",
     ),
     CommandEntry(
+        name="archive_preview", aliases=["ap", "预览压缩", "预览压缩包"],
+        category="🧰 技能",
+        description="预览压缩包内文件内容",
+        usage="/archive_preview <压缩包路径> | <包内文件路径> [| 密码]",
+        detail="不解压、不启动外部程序，直接在内存中预览压缩包内的单个文件。\n文本文件显示内容；图片/二进制显示元数据。内容过大时自动截断。",
+        tags=["压缩", "预览", "preview", "archive"],
+        example="/archive_preview backup.7z | docs/readme.md",
+    ),
+    CommandEntry(
         name="uninstaller", aliases=["uninst", "卸载", "软件管理"],
         category="🧰 技能",
         description="列出/卸载已安装软件",
@@ -854,6 +863,11 @@ FLAG_REGISTRY: dict[str, list[FlagDef]] = {
     ],
     "archive_list": [
         FlagDef("-i", "--input", "archive_path", "压缩包路径", required=True),
+    ],
+    "archive_preview": [
+        FlagDef("-i", "--input", "archive_path", "压缩包路径", required=True),
+        FlagDef("-f", "--file", "file_in_zip", "包内文件路径", required=True),
+        FlagDef("-p", "--password", "password", "压缩包密码 (可选)", required=False),
     ],
     "uninstaller": [
         FlagDef("", "--action", "action", "操作: list/uninstall (默认list)", required=False),

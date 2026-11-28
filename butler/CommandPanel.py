@@ -233,6 +233,8 @@ class CommandPanel(App):
 
         # 当前归档 zip
         self._current_zip_path: str | None = None
+        # 当前选中的压缩包内文件（用于预览/打开）
+        self._selected_archive_file: str | None = None
 
         # 外部回调（butler_app 传入）
         self._on_exit_cb: Callable[[], None] | None = None
@@ -243,6 +245,7 @@ class CommandPanel(App):
         event_bus.subscribe("link_status", self._queue_link_status)
         event_bus.subscribe("screenshot_update", self._queue_screenshot_update)
         event_bus.subscribe("archive_browser_update", self._queue_archive_update)
+        event_bus.subscribe("archive_preview_update", self._queue_archive_preview)
         event_bus.subscribe("nostalgia_mode_activated", self._queue_nostalgia)
 
     # ------------------------ Compose ------------------------ #
@@ -261,6 +264,9 @@ class CommandPanel(App):
                 tree: Tree[str] = Tree("归档", id="archive-tree")
                 tree.root.expand()
                 yield tree
+                with Horizontal(id="archive-toolbar"):
+                    yield Button("👁 预览", id="btn-archive-preview", variant="primary")
+                    yield Button("📂 打开", id="btn-archive-open", variant="default")
 
                 yield Label("手动控制", classes="section-label")
                 with Horizontal(id="manual-toolbar"):
@@ -430,6 +436,9 @@ class CommandPanel(App):
         elif msg_type == "archive_browser_update":
             zip_path, contents = payload
             self._update_archive_tree_ui(zip_path, contents)
+        elif msg_type == "archive_preview_update":
+            zip_path, file_in_zip, data = payload
+            self._update_archive_preview_ui(zip_path, file_in_zip, data)
         elif msg_type == "nostalgia_ui":
             self._apply_nostalgia_theme_ui()
 
@@ -572,6 +581,47 @@ class CommandPanel(App):
                 else:
                     node = found
 
+    def _update_archive_preview_ui(self, zip_path: str, file_in_zip: str, data: Any) -> None:
+        if not isinstance(data, dict) or not data.get("success"):
+            err = data.get("error") if isinstance(data, dict) else str(data)
+            self._append_history_ui(f"❌ 预览失败: {file_in_zip}\n{err}", "system_message", None)
+            return
+
+        size = data.get("size", 0)
+        mime = data.get("mime", "")
+        kind = data.get("kind", "binary")
+        truncated = bool(data.get("truncated"))
+        header = f"📦 预览 {file_in_zip}  ({size} 字节, {mime})"
+
+        if kind == "text":
+            content = data.get("content", "")
+            cap = 8000
+            shown = content[:cap]
+            note = ""
+            if len(content) > cap:
+                note = f"\n...（仅显示前 {cap} 字符）"
+            elif truncated:
+                note = "\n...（文件过大，已截断）"
+            self._append_history_ui(f"{header}\n──────────\n{shown}{note}", "system_message", None)
+            return
+
+        msg = f"{header}\n类型: {kind}"
+        b64 = data.get("data_base64")
+        if b64 and kind == "image":
+            try:
+                img_bytes = base64.b64decode(b64)
+                ext = os.path.splitext(file_in_zip)[1] or ".bin"
+                fd, path = tempfile.mkstemp(prefix="butler_archive_preview_", suffix=ext)
+                with os.fdopen(fd, "wb") as f:
+                    f.write(img_bytes)
+                msg += f"\n已保存预览到: {path}"
+            except Exception as e:
+                logger.error(f"Failed to save archive preview image: {e}")
+        elif truncated:
+            msg += "\n（文件过大，未附带预览数据）"
+        msg += "\n提示: 点击「📂 打开」可用外部程序查看完整文件。"
+        self._append_history_ui(msg, "system_message", None)
+
     def _apply_nostalgia_theme_ui(self) -> None:
         self.nostalgia = True
         self.stylesheet = """
@@ -712,17 +762,47 @@ class CommandPanel(App):
         self._fire("display_mode_change", mode)
 
     @on(Tree.NodeSelected, "#archive-tree")
-    def _on_archive_dbl(self, event: Tree.NodeSelected) -> None:
+    def _on_archive_node_selected(self, event: Tree.NodeSelected) -> None:
         data = event.node.data
+        self._selected_archive_file = data if data else None
+        # 选中文件即在输出区预览（轻量，不解压/不启动外部程序）
         if data and self._current_zip_path:
             self._fire(
                 "archive_action",
                 {
-                    "action": "open",
+                    "action": "preview",
                     "zip_path": self._current_zip_path,
                     "file_in_zip": data,
                 },
             )
+
+    @on(Button.Pressed, "#btn-archive-preview")
+    def _on_archive_preview_btn(self, _e) -> None:
+        if not self._selected_archive_file or not self._current_zip_path:
+            self._append_history_ui("请先在压缩包浏览器中选中一个文件", "system_message", None)
+            return
+        self._fire(
+            "archive_action",
+            {
+                "action": "preview",
+                "zip_path": self._current_zip_path,
+                "file_in_zip": self._selected_archive_file,
+            },
+        )
+
+    @on(Button.Pressed, "#btn-archive-open")
+    def _on_archive_open_btn(self, _e) -> None:
+        if not self._selected_archive_file or not self._current_zip_path:
+            self._append_history_ui("请先在压缩包浏览器中选中一个文件", "system_message", None)
+            return
+        self._fire(
+            "archive_action",
+            {
+                "action": "open",
+                "zip_path": self._current_zip_path,
+                "file_in_zip": self._selected_archive_file,
+            },
+        )
 
     # ------------------------ Internal helpers ------------------------ #
 
@@ -877,6 +957,9 @@ class CommandPanel(App):
 
     def _queue_archive_update(self, zip_path, contents):
         self.msg_queue.put(("archive_browser_update", (zip_path, contents)))
+
+    def _queue_archive_preview(self, zip_path, file_in_zip, data):
+        self.msg_queue.put(("archive_preview_update", (zip_path, file_in_zip, data)))
 
     def _queue_nostalgia(self):
         self.msg_queue.put(("nostalgia_ui", None))

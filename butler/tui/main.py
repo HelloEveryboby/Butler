@@ -613,6 +613,7 @@ class ButlerTUI(App):
         "archive_compress": ("skill_archive", {"action": "compress"}),
         "archive_extract": ("skill_archive", {"action": "extract"}),
         "archive_list": ("skill_archive", {"action": "list_contents"}),
+        "archive_preview": ("skill_archive", {"action": "preview"}),
         "uninstaller": ("skill_uninstaller", {}),
         "uninstall_scan": ("skill_uninstall_scan", {}),
         "uninstall_do": ("skill_uninstall_do", {}),
@@ -1088,6 +1089,7 @@ class ButlerTUI(App):
             "archive_compress": ("skill_archive", lambda a: self._parse_pipe_input(a, ["archive_path", "targets", "password"], {"action": "compress"})),
             "archive_extract": ("skill_archive", lambda a: self._parse_pipe_input(a, ["archive_path", "output_dir", "password"], {"action": "extract"})),
             "archive_list": ("skill_archive", lambda a: {"action": "list_contents", "archive_path": a}),
+            "archive_preview": ("skill_archive", lambda a: self._parse_pipe_input(a, ["archive_path", "file_in_zip", "password"], {"action": "preview"})),
             "uninstaller": ("skill_uninstaller", lambda a: self._parse_skill_action(a, "list")),
             "sys_clean": ("skill_sys_clean", lambda a: self._parse_skill_action(a, "help")),
             "media_scan": ("skill_media_scan", lambda a: {}),
@@ -1489,7 +1491,8 @@ class ButlerTUI(App):
                 "[bold]压缩归档:[/bold]\n"
                 "  archive_compress -o <输出> -t <目标> [-p <密码>]\n"
                 "  archive_extract -i <压缩包> [-d <目录>] [-p <密码>]\n"
-                "  archive_list -i <压缩包>\n\n"
+                "  archive_list -i <压缩包>\n"
+                "  archive_preview -i <压缩包> -f <包内文件> [-p <密码>]\n\n"
                 "[bold]系统管理:[/bold]\n"
                 "  uninstaller [--action list|uninstall] [-n <软件名>]\n"
                 "  uninstall_scan -n <软件名>\n"
@@ -1891,6 +1894,35 @@ class ButlerTUI(App):
             return str(result.get("result", result))
         return str(result)
 
+    @staticmethod
+    def _format_archive_preview(result) -> str:
+        """把 preview_archive 返回的 dict 格式化为聊天区可读的预览文本。"""
+        if not isinstance(result, dict):
+            return str(result)
+        if result.get("error") or not result.get("success"):
+            return f"❌ 预览失败: {result.get('error') or '未知错误'}"
+        filename = result.get("filename", "?")
+        size = result.get("size", 0)
+        mime = result.get("mime", "")
+        kind = result.get("kind", "binary")
+        truncated = bool(result.get("truncated"))
+        header = f"📦 压缩包内预览: {filename}  ({size} 字节, {mime})"
+        if kind == "text":
+            content = result.get("content", "")
+            display_limit = 6000
+            shown = content[:display_limit]
+            note = ""
+            if len(content) > display_limit:
+                note = f"\n...（聊天区仅显示前 {display_limit} 字符，完整内容请在压缩包浏览器中预览）"
+            elif truncated:
+                note = "\n...（文件过大，已截断）"
+            return f"{header}\n──────────\n{shown}{note}"
+        extra = "（已加载预览数据）" if result.get("data_base64") else "（文件过大，未附带预览数据）"
+        return (
+            f"{header}\n类型: {kind} {extra}\n"
+            "提示: 在压缩包浏览器中双击该文件可用外部程序打开。"
+        )
+
     def _execute_tool(self, tool_name: str, params: dict):
         """执行指定工具."""
         try:
@@ -2117,9 +2149,13 @@ class ButlerTUI(App):
                 archive_action = {
                     "compress": "archive", "zip": "archive",
                     "extract": "extract", "unzip": "extract",
+                    "preview": "preview_archive",
                 }.get(action, "list_archive")
                 result = capability_registry.execute("system", archive_action, params)
-                self._append_chat(self._capability_result_text(result), "ai")
+                if action == "preview":
+                    self._append_chat(self._format_archive_preview(result), "ai")
+                else:
+                    self._append_chat(self._capability_result_text(result), "ai")
 
             elif tool_name == "skill_uninstaller":
                 from butler.core.capabilities import capability_registry

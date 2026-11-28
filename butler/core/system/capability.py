@@ -86,6 +86,19 @@ def _archive(action: str, payload: dict[str, Any]) -> dict[str, Any]:
         if not archive_path:
             return {"error": "list_archive 需要 archive_path"}
         return archive_manager.handle_request("list_contents", archive_path=archive_path)
+    if action == "preview_archive":
+        if not archive_path:
+            return {"error": "preview_archive 需要 archive_path"}
+        file_in_zip = payload.get("file_in_zip") or payload.get("file") or payload.get("target")
+        if not file_in_zip:
+            return {"error": "preview_archive 需要 file_in_zip"}
+        return archive_manager.handle_request(
+            "preview_file",
+            archive_path=archive_path,
+            file_in_zip=file_in_zip,
+            password=payload.get("password"),
+            max_bytes=payload.get("max_bytes"),
+        )
     return {"error": f"未知的归档动作: {action}"}
 
 
@@ -158,7 +171,7 @@ def handle_system(action: str, payload: dict[str, Any]) -> Any:
         "top_processes",
     ):
         return _uninstaller(action, payload)
-    if action in ("archive", "extract", "list_archive"):
+    if action in ("archive", "extract", "list_archive", "preview_archive"):
         return _archive(action, payload)
     if action in (
         "storage",
